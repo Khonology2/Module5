@@ -359,68 +359,68 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 onPressed: _isRegistering
                                     ? null
                                     : () async {
-                              if (_fullNameController.text.isEmpty) {
+                                        if (_fullNameController.text.isEmpty) {
                                           await _showCenterNotice(
                                             'Please enter your full name.',
                                           );
-                                return;
-                              }
-                              if (_usernameController.text.isEmpty) {
+                                          return;
+                                        }
+                                        if (_usernameController.text.isEmpty) {
                                           await _showCenterNotice(
                                             'Please enter a username.',
                                           );
-                                return;
-                              }
-                              if (_emailController.text.isEmpty) {
+                                          return;
+                                        }
+                                        if (_emailController.text.isEmpty) {
                                           await _showCenterNotice(
                                             'Please enter your email.',
                                           );
-                                return;
-                              }
-                              if (!RegExp(
-                                r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
-                              ).hasMatch(_emailController.text)) {
+                                          return;
+                                        }
+                                        if (!RegExp(
+                                          r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                                        ).hasMatch(_emailController.text)) {
                                           await _showCenterNotice(
                                             'Please enter a valid email address.',
                                           );
-                                return;
-                              }
+                                          return;
+                                        }
                                         if (_passwordController.text.length <
                                             8) {
                                           await _showCenterNotice(
                                             'Password must be at least 8 characters long.',
                                           );
-                                return;
-                              }
-                              if (_passwordController.text !=
-                                  _confirmPasswordController.text) {
+                                          return;
+                                        }
+                                        if (_passwordController.text !=
+                                            _confirmPasswordController.text) {
                                           await _showCenterNotice(
                                             'Passwords do not match.',
                                           );
-                                return;
-                              }
-                              if (_selectedRole == null) {
+                                          return;
+                                        }
+                                        if (_selectedRole == null) {
                                           await _showCenterNotice(
                                             'Please select a role.',
                                           );
-                                return;
-                              }
+                                          return;
+                                        }
 
                                         setState(() {
                                           _isRegistering = true;
                                         });
-                              _showLoadingDialog();
-                              try {
+                                        _showLoadingDialog();
+                                        try {
                                           UserCredential
                                           userCredential = await FirebaseAuth
                                               .instance
-                                        .createUserWithEmailAndPassword(
-                                          email: _emailController.text,
+                                              .createUserWithEmailAndPassword(
+                                                email: _emailController.text,
                                                 password:
                                                     _passwordController.text,
-                                        );
-                                // Post-auth blocklist check; if blocked, delete the just-created user and stop
-                                try {
+                                              );
+                                          // Post-auth blocklist check; if blocked, delete the just-created user and stop
+                                          try {
                                             final emailLower = _emailController
                                                 .text
                                                 .trim()
@@ -434,9 +434,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                                       'emailLower',
                                                       isEqualTo: emailLower,
                                                     )
-                                      .limit(1)
-                                      .get();
-                                  if (blocked.docs.isNotEmpty) {
+                                                    .limit(1)
+                                                    .get();
+                                            if (blocked.docs.isNotEmpty) {
                                               try {
                                                 await userCredential.user
                                                     ?.delete();
@@ -445,57 +445,77 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                                 await FirebaseAuth.instance
                                                     .signOut();
                                               } catch (_) {}
-                                    if (!context.mounted) return;
+                                              if (!context.mounted) return;
                                               await _showCenterNotice(
                                                 'This email was permanently deleted and cannot be used to register.',
                                               );
-                                    return;
-                                  }
-                                } catch (_) {
-                                  // Ignore errors here; inability to read blocklist should not break registration
-                                }
-                                // Clear RoleService cache before setting up new user
-                                RoleService.instance.clearCache();
-                                
-                                // Small delay to let Firestore settle after user creation
-                                await Future.delayed(const Duration(milliseconds: 300));
-                                
-                                // Store additional user data in Firestore
-                                // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
-                                try {
-                                  await DatabaseService.initializeUserData(
-                                    userCredential.user!.uid,
-                                    _fullNameController.text,
-                                    _emailController.text,
-                                    role: _selectedRole!, // Use the selected role
-                                  );
-                                } catch (e) {
-                                  debugPrint('Error initializing user data: $e');
-                                  // Continue even if this fails - user is created
-                                }
+                                              return;
+                                            }
+                                          } catch (_) {
+                                            // Ignore errors here; inability to read blocklist should not break registration
+                                          }
+                                          // Clear RoleService cache before setting up new user
+                                          RoleService.instance.clearCache();
 
-                                // Initialize badges (employees: v2-only; managers may still use legacy)
-                                try {
-                                  final uid = userCredential.user!.uid;
-                                  final role = (_selectedRole ?? 'employee').toLowerCase();
-                                  if (role == 'manager') {
-                                    await BadgeService.initializeUserBadges(uid);
-                                    // Small delay between badge operations
-                                    await Future.delayed(
-                                      const Duration(milliseconds: 200),
-                                    );
-                                    await BadgeService.checkAndAwardBadges(uid);
-                                  }
-                                  await BadgeService.initializeUserBadgesV2(uid);
-                                  await BadgeService.checkAndAwardBadgesV2(uid);
-                                } catch (e) {
-                                  debugPrint('Error initializing badges: $e');
-                                  // Continue even if badges fail - registration should succeed
-                                }
+                                          // Small delay to let Firestore settle after user creation
+                                          await Future.delayed(
+                                            const Duration(milliseconds: 300),
+                                          );
 
-                                if (!context.mounted) {
-                                  return; // Guard against context use after async gap
-                                }
+                                          // Store additional user data in Firestore
+                                          // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
+                                          try {
+                                            await DatabaseService.initializeUserData(
+                                              userCredential.user!.uid,
+                                              _fullNameController.text,
+                                              _emailController.text,
+                                              role:
+                                                  _selectedRole!, // Use the selected role
+                                            );
+                                          } catch (e) {
+                                            debugPrint(
+                                              'Error initializing user data: $e',
+                                            );
+                                            // Continue even if this fails - user is created
+                                          }
+
+                                          // Initialize badges (employees: v2-only; managers may still use legacy)
+                                          try {
+                                            final uid =
+                                                userCredential.user!.uid;
+                                            final role =
+                                                (_selectedRole ?? 'employee')
+                                                    .toLowerCase();
+                                            if (role == 'manager') {
+                                              await BadgeService.initializeUserBadges(
+                                                uid,
+                                              );
+                                              // Small delay between badge operations
+                                              await Future.delayed(
+                                                const Duration(
+                                                  milliseconds: 200,
+                                                ),
+                                              );
+                                              await BadgeService.checkAndAwardBadges(
+                                                uid,
+                                              );
+                                            }
+                                            await BadgeService.initializeUserBadgesV2(
+                                              uid,
+                                            );
+                                            await BadgeService.checkAndAwardBadgesV2(
+                                              uid,
+                                            );
+                                          } catch (e) {
+                                            debugPrint(
+                                              'Error initializing badges: $e',
+                                            );
+                                            // Continue even if badges fail - registration should succeed
+                                          }
+
+                                          if (!context.mounted) {
+                                            return; // Guard against context use after async gap
+                                          }
                                           Navigator.of(
                                             context,
                                             rootNavigator: true,
@@ -506,30 +526,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           await _showCenterNotice(
                                             'Registration Successful!',
                                           );
-                                if (!context.mounted) {
-                                  return; // Guard against context use after async gap
-                                }
-                                Navigator.pushReplacementNamed(
-                                  context,
-                                  '/sign_in',
-                                );
-                              } on FirebaseAuthException catch (e) {
-                                String message;
-                                if (e.code == 'weak-password') {
-                                  message =
-                                      'The password provided is too weak.';
+                                          if (!context.mounted) {
+                                            return; // Guard against context use after async gap
+                                          }
+                                          Navigator.pushReplacementNamed(
+                                            context,
+                                            '/sign_in',
+                                          );
+                                        } on FirebaseAuthException catch (e) {
+                                          String message;
+                                          if (e.code == 'weak-password') {
+                                            message =
+                                                'The password provided is too weak.';
                                           } else if (e.code ==
                                               'email-already-in-use') {
-                                  message =
-                                      'The account already exists for that email.';
-                                } else {
-                                  message =
+                                            message =
+                                                'The account already exists for that email.';
+                                          } else {
+                                            message =
                                                 e.message ??
                                                 'An unknown error occurred.';
-                                }
-                                if (!context.mounted) {
-                                  return; // Guard against context use after async gap
-                                }
+                                          }
+                                          if (!context.mounted) {
+                                            return; // Guard against context use after async gap
+                                          }
                                           Navigator.of(
                                             context,
                                             rootNavigator: true,
@@ -537,42 +557,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           setState(() {
                                             _isRegistering = false;
                                           });
-                                await _showCenterNotice(message);
-                              } catch (e) {
-                                // Catch all other errors including Firestore errors
-                                debugPrint('Registration error: $e');
-                                if (!context.mounted) {
-                                  return; // Guard against context use after async gap
-                                }
-                                Navigator.of(
-                                  context,
-                                  rootNavigator: true,
-                                ).maybePop();
-                                setState(() {
-                                  _isRegistering = false;
-                                });
-                                
-                                // Check if it's a Firestore internal error
-                                final errorString = e.toString();
-                                if (errorString.contains('FIRESTORE') && 
-                                    errorString.contains('INTERNAL ASSERTION FAILED')) {
-                                  // User is likely created, try to continue
-                                  await _showCenterNotice(
-                                    'Registration completed, but there was a temporary issue. Please try signing in.',
-                                  );
-                                  if (context.mounted) {
-                                    Navigator.pushReplacementNamed(
-                                      context,
-                                      '/sign_in',
-                                    );
-                                  }
-                                } else {
-                                  await _showCenterNotice(
-                                    'An error occurred during registration. Please try again.',
-                                  );
-                                }
-                              }
-                            },
+                                          await _showCenterNotice(message);
+                                        } catch (e) {
+                                          // Catch all other errors including Firestore errors
+                                          debugPrint('Registration error: $e');
+                                          if (!context.mounted) {
+                                            return; // Guard against context use after async gap
+                                          }
+                                          Navigator.of(
+                                            context,
+                                            rootNavigator: true,
+                                          ).maybePop();
+                                          setState(() {
+                                            _isRegistering = false;
+                                          });
+
+                                          // Check if it's a Firestore internal error
+                                          final errorString = e.toString();
+                                          if (errorString.contains(
+                                                'FIRESTORE',
+                                              ) &&
+                                              errorString.contains(
+                                                'INTERNAL ASSERTION FAILED',
+                                              )) {
+                                            // User is likely created, try to continue
+                                            await _showCenterNotice(
+                                              'Registration completed, but there was a temporary issue. Please try signing in.',
+                                            );
+                                            if (context.mounted) {
+                                              Navigator.pushReplacementNamed(
+                                                context,
+                                                '/sign_in',
+                                              );
+                                            }
+                                          } else {
+                                            await _showCenterNotice(
+                                              'An error occurred during registration. Please try again.',
+                                            );
+                                          }
+                                        }
+                                      },
                                 child: _isRegistering
                                     ? const SizedBox(
                                         height: 22,
@@ -682,7 +706,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // Helper widget to build a blurred text field.
+  // Helper widget to build a text field with solid background.
   Widget _buildTextField({
     TextEditingController? controller,
     bool obscureText = false,
@@ -690,34 +714,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
     void Function(String)? onChanged,
     required String hintText, // Add hintText parameter
   }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
-        child: TextFormField(
-          controller: controller,
-          obscureText: obscureText,
-          decoration: _inputDecoration().copyWith(hintText: hintText),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontFamily: 'Poppins',
-          ),
-          validator: validator,
-          onChanged: onChanged,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.black.withOpacity(0.5), // Solid background instead of blur
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1.0,
         ),
+      ),
+      child: TextFormField(
+        controller: controller,
+        obscureText: obscureText,
+        decoration: _inputDecoration().copyWith(
+          hintText: hintText,
+          border: InputBorder.none, // Remove default border since we have container border
+        ),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontFamily: 'Poppins',
+        ),
+        validator: validator,
+        onChanged: onChanged,
       ),
     );
   }
 
   Widget _buildRoleDropdown() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
-        child: DropdownButtonFormField<String>(
-          value: _selectedRole,
-          decoration: _inputDecoration().copyWith(hintText: 'Select your role'),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.black.withOpacity(0.5), // Solid background instead of blur
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1.0,
+        ),
+      ),
+      child: DropdownButtonFormField<String>(
+        value: _selectedRole,
+        decoration: _inputDecoration().copyWith(
+          hintText: 'Select your role',
+          border: InputBorder.none, // Remove default border since we have container border
+        ),
           dropdownColor: const Color(
             0x880A0F1F,
           ), // Darker background for dropdown
