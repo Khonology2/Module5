@@ -112,8 +112,11 @@ void main() async {
   // All token handling now uses PDH backend API
   // No .env file loading needed - backend URL is hardcoded in BackendAuthService
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  // CONFLICT TEST: This line will conflict with MAIN branch
+  final options = DefaultFirebaseOptions.currentPlatform;
+  await Firebase.initializeApp(options: options);
+  if (kIsWeb) {
+    debugPrint('Firebase initialized for web — projectId: ${options.projectId}');
+  }
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks.
   // If you see "Tracking Prevention blocked access to storage", the browser is blocking
   // third-party storage; serve the app from your own domain or allow storage for the site.
