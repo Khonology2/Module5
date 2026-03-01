@@ -116,6 +116,13 @@ void main() async {
   await Firebase.initializeApp(options: options);
   if (kIsWeb) {
     debugPrint('Firebase initialized for web — projectId: ${options.projectId}');
+    // Fail fast if an old build is running with wrong Firebase project (fix: flutter clean then rebuild)
+    if (options.projectId != 'pdh-v2') {
+      throw AssertionError(
+        'Web app is using Firebase project "${options.projectId}" instead of "pdh-v2". '
+        'Do: flutter clean, then flutter pub get, then flutter run -d chrome (or redeploy).',
+      );
+    }
   }
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks.
   // If you see "Tracking Prevention blocked access to storage", the browser is blocking

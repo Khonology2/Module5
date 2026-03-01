@@ -8,6 +8,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/widgets/floating_circles_particle_animation.dart';
 import 'package:pdh/widgets/version_control_widget.dart';
 
+/// Set to true to show the token input field and Login button on the landing screen.
+/// Set to false to hide them (e.g. when using only URL-based token flow).
+const bool kShowTokenLoginUI = true;
+
 // The main entry point for the Flutter application.
 // void main() {
 //   runApp(const MyApp());
@@ -602,8 +606,8 @@ class _PersonalDevelopmentHubScreenState
                       ),
                       const SizedBox(height: 24),
                     ],
-                    // Show token input field and login button when not checking token
-                    if (!_isCheckingToken) ...[
+                    // Show token input field and login button when not checking token (and when enabled)
+                    if (kShowTokenLoginUI && !_isCheckingToken) ...[
                       const SizedBox(height: 24),
                       // Token input field
                       Padding(
