@@ -366,11 +366,11 @@ class _PersonalDevelopmentHubScreenState
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                'Backend Firebase project does not match this app. '
-                'Ensure Render uses PDH-v2 service account (FIREBASE_SERVICE_ACCOUNT_JSON).',
+                'This page may be cached or the app needs redeploy. '
+                'Try: Hard refresh (Ctrl+Shift+R) or open in a private/incognito window.',
               ),
               backgroundColor: Color(0xFFC10D00),
-              duration: Duration(seconds: 8),
+              duration: Duration(seconds: 10),
             ),
           );
         }
@@ -694,7 +694,7 @@ class _PersonalDevelopmentHubScreenState
                         _isRedirecting
                             ? 'Redirecting to your dashboard...'
                             : (_isSlowNetwork
-                                  ? 'We\'re Are Signing You In... Just  A Moment'
+                                  ? 'We\'re Are Signing You In... Just A Moment'
                                   : 'Validating token...'),
                         style: const TextStyle(
                           color: Colors.white70,
