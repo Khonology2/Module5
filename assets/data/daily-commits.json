@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.AG6.SIT",
-  "generated_at": "2026-03-01T20:18:57Z",
+  "version": "2026.03.AG7.SIT",
+  "generated_at": "2026-03-01T20:45:43Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,6 +24,11 @@
     },
     {
       "author": "Nathi2266",
+      "message": "Disable PWA service worker so new deploys load fresh Firebase config",
+      "timestamp": "2026-03-01T22:45:06+02:00"
+    },
+    {
+      "author": "Nathi2266",
       "message": "Force clean Flutter web build on Render; clarify token-mismatch message",
       "timestamp": "2026-03-01T22:18:20+02:00"
     },
@@ -33,6 +38,6 @@
       "timestamp": "2026-03-01T21:51:46+02:00"
     }
   ],
-  "total_commits": 6,
+  "total_commits": 7,
   "date_range": "2026-03-01"
 }
