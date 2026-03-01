@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.AG7.SIT",
-  "generated_at": "2026-03-01T20:45:43Z",
+  "version": "2026.03.AG8.SIT",
+  "generated_at": "2026-03-01T21:32:23Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,6 +24,11 @@
     },
     {
       "author": "Nathi2266",
+      "message": "feat: add configurable token login UI and enforce Firebase project validation for web",
+      "timestamp": "2026-03-01T23:31:46+02:00"
+    },
+    {
+      "author": "Nathi2266",
       "message": "Disable PWA service worker so new deploys load fresh Firebase config",
       "timestamp": "2026-03-01T22:45:06+02:00"
     },
@@ -38,6 +43,6 @@
       "timestamp": "2026-03-01T21:51:46+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 8,
   "date_range": "2026-03-01"
 }
