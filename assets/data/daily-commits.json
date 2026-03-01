@@ -1,6 +1,6 @@
 {
-  "version": "2026.02.EE9.SIT",
-  "generated_at": "2026-02-27T04:57:40Z",
+  "version": "2026.03.AG5.SIT",
+  "generated_at": "2026-03-01T19:52:24Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,30 +24,10 @@
     },
     {
       "author": "Nathi2266",
-      "message": "fix: improve Firebase service account parsing and error handling; add user feedback for token mismatch on landing screen",
-      "timestamp": "2026-02-27T06:56:59+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "chore: update Firebase configuration to pdh-v2, including new service account credentials and project details",
-      "timestamp": "2026-02-27T06:37:51+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: add initial display name function and enhance employee list with expandable details",
-      "timestamp": "2026-02-27T03:58:39+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: enhance manager dashboard with dynamic name resolution and improved sign-out navigation",
-      "timestamp": "2026-02-27T03:44:20+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: add Assigned Employees widget and update navigation paths for sign-out",
-      "timestamp": "2026-02-27T03:38:46+02:00"
+      "message": "refactor: streamline Firebase initialization and add debug output for web platform",
+      "timestamp": "2026-03-01T21:51:46+02:00"
     }
   ],
-  "total_commits": 9,
-  "date_range": "2026-02-27"
+  "total_commits": 5,
+  "date_range": "2026-03-01"
 }
