@@ -154,10 +154,12 @@ def parse_firebase_service_account(service_account_str: str) -> Dict[str, Any]:
     if not os.path.isabs(path_candidate):
         path_candidate = os.path.normpath(path_candidate.replace("\\", os.sep))
         cwd = os.getcwd()
-        # Try cwd-relative path first, then app/basename (when run from backend/)
+        basename = os.path.basename(path_candidate)
+        # Try: cwd + path (repo root), then cwd + basename (run from backend/app), then cwd/app/basename
         to_try = [
             os.path.join(cwd, path_candidate),
-            os.path.join(cwd, "app", os.path.basename(path_candidate)),
+            os.path.join(cwd, basename),
+            os.path.join(cwd, "app", basename),
         ]
         for p in to_try:
             if os.path.exists(p):

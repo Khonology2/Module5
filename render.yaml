@@ -2,7 +2,8 @@ services:
   - type: web
     name: pdh-flutter-web
     env: static
-    buildCommand: rm -rf flutter && git clone https://github.com/flutter/flutter.git -b stable --depth 1 && export PATH="$PATH:$(pwd)/flutter/bin" && chmod +x scripts/inject_env_vars.sh && ./scripts/inject_env_vars.sh && flutter doctor -v || true && flutter clean && flutter pub get && flutter build web --release --base-href /
+    # --pwa-strategy=none prevents service worker from caching JS; ensures new deploys (e.g. Firebase config) load immediately
+buildCommand: rm -rf flutter && git clone https://github.com/flutter/flutter.git -b stable --depth 1 && export PATH="$PATH:$(pwd)/flutter/bin" && chmod +x scripts/inject_env_vars.sh && ./scripts/inject_env_vars.sh && flutter doctor -v || true && flutter clean && flutter pub get && flutter build web --release --base-href / --pwa-strategy=none
     staticPublishPath: build/web
     # Note: For static sites, no start command is needed
     # Render automatically serves static files
