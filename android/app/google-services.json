@@ -1,45 +1,37 @@
 {
   "project_info": {
-    "project_number": "565445962523",
-    "project_id": "pdh-fe6eb",
-    "storage_bucket": "pdh-fe6eb.firebasestorage.app"
+    "project_number": "638896632756",
+    "project_id": "pdh-v2",
+    "storage_bucket": "pdh-v2.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:565445962523:android:96cfa7d317c670c98401be",
+        "mobilesdk_app_id": "1:638896632756:android:fe586c9180a35ec8e378e1",
         "android_client_info": {
           "package_name": "com.example.pdh"
         }
       },
       "oauth_client": [
         {
-          "client_id": "565445962523-f0a0kfrmsjavtvc6krkfedck8qb3vt37.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.pdh",
-            "certificate_hash": "e203fd193de4b1a7bb29f3b12c4bf18d3595b97a"
-          }
-        },
-        {
-          "client_id": "565445962523-1h2din0udtookfu78o7r80grhte7b9ad.apps.googleusercontent.com",
+          "client_id": "638896632756-u0ej4gt9k37cavsaf3jckfs7qepm32ge.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyDOAfySsOd2h0jCj5m3v3vIR9d0ys7kmKk"
+          "current_key": "AIzaSyBUS2dYjMleU1EqQKy2fWAUViyA54yBoS0"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "565445962523-1h2din0udtookfu78o7r80grhte7b9ad.apps.googleusercontent.com",
+              "client_id": "638896632756-u0ej4gt9k37cavsaf3jckfs7qepm32ge.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "565445962523-7helebf2bu271fscv0h27mrjd064a5tv.apps.googleusercontent.com",
+              "client_id": "638896632756-r9pcsombpf773efrm1c77ufrbt0uq2d6.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
                 "bundle_id": "com.example.pdh"
