@@ -20,6 +20,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/manager_employee_detail_screen.dart';
 
 class ManagerAlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -424,6 +425,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             );
           }
 
+          if (!snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.activeColor,
+                ),
+              ),
+            );
+          }
+
           if (snapshot.hasError) {
             return Center(
               child: Padding(
@@ -459,34 +470,83 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
           final employees = snapshot.data ?? [];
 
-          return Container(
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/khono_bg.png'),
-                fit: BoxFit.cover,
+          try {
+            return Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/khono_bg.png'),
+                  fit: BoxFit.cover,
+                ),
               ),
-            ),
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: AppSpacing.screenPadding,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildStatsRow(employees),
-                        const SizedBox(height: AppSpacing.md),
-                        _buildFilterBar(),
-                      ],
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: AppSpacing.screenPadding,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          employees.isEmpty
+                              ? _buildStatsRowSkeleton()
+                              : _buildStatsRow(employees),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildFilterBar(),
+                        ],
+                      ),
                     ),
                   ),
+                  // Direct alert content (no tabs)
+                  _buildAllAlertsContent(employees),
+                ],
+              ),
+            );
+          } catch (e, stack) {
+            developer.log(
+              'Manager Alerts screen build error: $e',
+              name: 'ManagerAlerts',
+            );
+            developer.log('Stack: $stack', name: 'ManagerAlerts');
+            return Center(
+              child: Padding(
+                padding: AppSpacing.screenPadding,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: AppColors.dangerColor,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Unable to load team alerts',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please check your connection and try again.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => setState(() {}),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
                 ),
-                // Direct alert content (no tabs)
-                _buildAllAlertsContent(employees),
-              ],
-            ),
-          );
+              ),
+            );
+          }
         },
       ),
     );
@@ -581,64 +641,119 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
         final allAlerts = snapshot.data ?? [];
         developer.log('Loaded ${allAlerts.length} alerts', name: 'TeamAlerts');
-        final Map<String, EmployeeData> employeesById = {
-          for (final e in employees) e.profile.uid: e,
-        };
 
-        // Add synthetic alerts for inactive employees
-        final combinedAlerts = <Alert>[];
-        combinedAlerts.addAll(allAlerts);
+        try {
+          final Map<String, EmployeeData> employeesById = {
+            for (final e in employees) e.profile.uid: e,
+          };
 
-        final now = DateTime.now();
-        for (final e in employees) {
-          final inactivityDays = now.difference(e.lastActivity).inDays;
-          if (inactivityDays >= 3) {
-            combinedAlerts.add(
-              Alert(
-                id: 'synthetic_inactivity_${e.profile.uid}',
-                userId: e.profile.uid,
-                type: AlertType.inactivity,
-                audience: AlertAudience.team,
-                priority: inactivityDays >= 7
-                    ? AlertPriority.high
-                    : AlertPriority.medium,
-                title: 'Employee Inactive',
-                message:
-                    '${e.profile.displayName} inactive for $inactivityDays days',
-                createdAt: now.subtract(const Duration(hours: 1)),
-              ),
-            );
+          // Build combined list: manager-addressed alerts + alerts that were already in the system
+          // (employee alerts) + synthetic inactivity + synthetic overdue so filters show everything.
+          final combinedAlerts = <Alert>[];
+          combinedAlerts.addAll(allAlerts);
+
+          // Add each employee's existing alerts (so "All Issues" and type filters show them)
+          final seenAlertIds = <String>{};
+          for (final a in combinedAlerts) {
+            if (a.id.isNotEmpty) seenAlertIds.add(a.id);
           }
-        }
-
-        // Apply filters in real-time
-        var filteredAlerts = _applyFilters(combinedAlerts);
-
-        // Categorize alerts
-        final criticalIssues = <Alert>[];
-        final performanceConcerns = <Alert>[];
-        final monitoring = <Alert>[];
-
-        for (final alert in filteredAlerts) {
-          if (alert.priority == AlertPriority.urgent) {
-            criticalIssues.add(alert);
-          } else if (alert.priority == AlertPriority.high ||
-              alert.priority == AlertPriority.medium) {
-            performanceConcerns.add(alert);
-          } else {
-            monitoring.add(alert);
+          for (final e in employees) {
+            final alerts = e.recentAlerts;
+            if (alerts.isEmpty) continue;
+            for (final a in alerts) {
+              if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
+              if (a.id.isNotEmpty) seenAlertIds.add(a.id);
+              combinedAlerts.add(a);
+            }
           }
-        }
 
-        // Build the categorized alert sections
-        final sections = <Widget>[];
+          final now = DateTime.now();
+          for (final e in employees) {
+            final inactivityDays = now.difference(e.lastActivity).inDays;
+            if (inactivityDays >= 3) {
+              final id = 'synthetic_inactivity_${e.profile.uid}';
+              if (!seenAlertIds.add(id)) continue;
+              combinedAlerts.add(
+                Alert(
+                  id: id,
+                  userId: e.profile.uid,
+                  type: AlertType.inactivity,
+                  audience: AlertAudience.team,
+                  priority: inactivityDays >= 7
+                      ? AlertPriority.high
+                      : AlertPriority.medium,
+                  title: 'Employee Inactive',
+                  message:
+                      '${e.profile.displayName} inactive for $inactivityDays days',
+                  createdAt: now.subtract(const Duration(hours: 1)),
+                ),
+              );
+            }
+            // Synthetic overdue: one per overdue goal per employee so "Overdue goals" filter shows all
+            final goals = e.goals;
+            for (final goal in goals) {
+              final isCompleted =
+                  goal.status == GoalStatus.completed || goal.progress >= 100;
+              if (isCompleted) continue;
+              if (!goal.targetDate.isBefore(now)) continue;
+              final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
+              if (!seenAlertIds.add(id)) continue;
+              final daysOverdue = now.difference(goal.targetDate).inDays;
+              combinedAlerts.add(
+                Alert(
+                  id: id,
+                  userId: e.profile.uid,
+                  type: AlertType.goalOverdue,
+                  audience: AlertAudience.team,
+                  priority: AlertPriority.urgent,
+                  title: 'Goal Overdue',
+                  message:
+                      '"${goal.title}" is overdue by $daysOverdue day${daysOverdue == 1 ? '' : 's'}.',
+                  actionText: 'Reschedule',
+                  actionRoute: '/manager_alerts_nudges',
+                  actionData: {'goalId': goal.id},
+                  createdAt: now.subtract(const Duration(hours: 1)),
+                  relatedGoalId: goal.id,
+                ),
+              );
+            }
+          }
 
-        // Critical Issues Section
-        if (criticalIssues.isNotEmpty) {
-          sections.add(
-            SliverPadding(
-              padding: AppSpacing.screenPadding,
-              sliver: SliverToBoxAdapter(
+          // Apply filters in real-time
+          var filteredAlerts = _applyFilters(combinedAlerts);
+
+          // Categorize alerts
+          final criticalIssues = <Alert>[];
+          final performanceConcerns = <Alert>[];
+          final monitoring = <Alert>[];
+
+          for (final alert in filteredAlerts) {
+            if (alert.priority == AlertPriority.urgent) {
+              criticalIssues.add(alert);
+            } else if (alert.priority == AlertPriority.high ||
+                alert.priority == AlertPriority.medium) {
+              performanceConcerns.add(alert);
+            } else {
+              monitoring.add(alert);
+            }
+          }
+
+          // Build the categorized alert sections (must be box widgets for SliverList)
+          final sections = <Widget>[];
+          final firstSectionPadding = EdgeInsets.fromLTRB(
+            AppSpacing.xxl,
+            AppSpacing.md,
+            AppSpacing.xxl,
+            AppSpacing.xxl,
+          );
+
+          // Critical Issues Section
+          if (criticalIssues.isNotEmpty) {
+            sections.add(
+              Padding(
+                padding: sections.isEmpty
+                    ? firstSectionPadding
+                    : AppSpacing.screenPadding,
                 child: _buildAlertSection(
                   '🔴 Critical Issues',
                   criticalIssues,
@@ -647,16 +762,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   isExpanded: true,
                 ),
               ),
-            ),
-          );
-        }
+            );
+          }
 
-        // Performance Concerns Section
-        if (performanceConcerns.isNotEmpty) {
-          sections.add(
-            SliverPadding(
-              padding: AppSpacing.screenPadding,
-              sliver: SliverToBoxAdapter(
+          // Performance Concerns Section
+          if (performanceConcerns.isNotEmpty) {
+            sections.add(
+              Padding(
+                padding: sections.isEmpty
+                    ? firstSectionPadding
+                    : AppSpacing.screenPadding,
                 child: _buildAlertSection(
                   '🟡 Performance Concerns',
                   performanceConcerns,
@@ -665,16 +780,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   isExpanded: criticalIssues.isEmpty,
                 ),
               ),
-            ),
-          );
-        }
+            );
+          }
 
-        // Monitoring Section
-        if (monitoring.isNotEmpty) {
-          sections.add(
-            SliverPadding(
-              padding: AppSpacing.screenPadding,
-              sliver: SliverToBoxAdapter(
+          // Monitoring Section
+          if (monitoring.isNotEmpty) {
+            sections.add(
+              Padding(
+                padding: sections.isEmpty
+                    ? firstSectionPadding
+                    : AppSpacing.screenPadding,
                 child: _buildAlertSection(
                   '🟢 Monitoring',
                   monitoring,
@@ -684,37 +799,143 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                       criticalIssues.isEmpty && performanceConcerns.isEmpty,
                 ),
               ),
-            ),
-          );
-        }
+            );
+          }
 
-        // Empty State
-        if (sections.isEmpty) {
-          sections.add(
-            SliverFillRemaining(
+          // Empty State: return a single sliver (SliverFillRemaining), not inside SliverList
+          if (sections.isEmpty) {
+            return SliverFillRemaining(
               hasScrollBody: false,
               child: Padding(
                 padding: AppSpacing.screenPadding,
                 child: _buildEmptySupervisionState(),
               ),
+            );
+          }
+
+          return SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => sections[index],
+              childCount: sections.length,
+            ),
+          );
+        } catch (e, stack) {
+          developer.log(
+            'Manager Alerts content error: $e',
+            name: 'TeamAlerts',
+          );
+          developer.log('Stack: $stack', name: 'TeamAlerts');
+          return SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Padding(
+                padding: AppSpacing.screenPadding,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: AppColors.dangerColor,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Unable to load alerts',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please check your connection and try again.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => setState(() {}),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
         }
-
-        return SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) => sections[index],
-            childCount: sections.length,
-          ),
-        );
       },
     );
   }
 
   // removed skeleton placeholders
 
+  /// Shown while team data is loading so we don't flash 0,0,0 before real data.
+  Widget _buildStatsRowSkeleton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildSupervisionStatCard(
+                'Inactive Employees',
+                '—',
+                AppColors.warningColor,
+                Icons.person_off,
+                subtitle: '3+ days inactive',
+                imageAsset:
+                    'assets/Information_Detail/Information_Red_Badge_White.png',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSupervisionStatCard(
+                'Overdue Goals',
+                '—',
+                AppColors.dangerColor,
+                Icons.calendar_today,
+                subtitle: 'Need attention',
+                imageAsset:
+                    'assets/Time_Allocation_Approval/Allocation_Red Badge_White.png',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSupervisionStatCard(
+                'Performance Risks',
+                '—',
+                AppColors.warningColor,
+                Icons.trending_down,
+                subtitle: 'High/Urgent alerts',
+                imageAsset: 'assets/red_bell.png',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSupervisionStatCard(
+                'Team Health',
+                '—',
+                AppColors.textSecondary,
+                null,
+                subtitle: 'Overall score',
+                imageAsset:
+                    'assets/Team_Meeting/Meeting_Red Badge_White.png',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildStatsRow(List<EmployeeData> employees) {
-    // Calculate inactive employees (3+ days)
+    // These metrics are derived from live team data and update as employee
+    // performance changes (activity, goals, alerts). Recomputed on every stream emission.
     final now = DateTime.now();
     final inactiveEmployees = employees.where((emp) {
       final inactivityDays = now.difference(emp.lastActivity).inDays;
@@ -964,23 +1185,23 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 onSelected: () => setState(() => _alertTypeFilter = null),
               ),
               _buildFilterChip(
-                label: 'Inactive Employees ⚠️',
+                label: 'Inactive Employees',
                 selected: _alertTypeFilter == 'inactive',
                 onSelected: () => setState(() => _alertTypeFilter = 'inactive'),
               ),
               _buildFilterChip(
-                label: 'Overdue Goals 📅',
+                label: 'Overdue Goals',
                 selected: _alertTypeFilter == 'overdue',
                 onSelected: () => setState(() => _alertTypeFilter = 'overdue'),
               ),
               _buildFilterChip(
-                label: 'Performance Anomalies 📉',
+                label: 'Performance Anomalies',
                 selected: _alertTypeFilter == 'performance',
                 onSelected: () =>
                     setState(() => _alertTypeFilter = 'performance'),
               ),
               _buildFilterChip(
-                label: 'Team Risk Signals 🚨',
+                label: 'Team Risk Signals',
                 selected: _alertTypeFilter == 'risk',
                 onSelected: () => setState(() => _alertTypeFilter = 'risk'),
               ),
@@ -1106,9 +1327,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       ),
       selected: selected,
       onSelected: (_) => onSelected(),
+      showCheckmark: false,
       backgroundColor: Colors.black.withValues(alpha: 0.3),
       selectedColor: AppColors.activeColor,
-      checkmarkColor: Colors.white,
       side: BorderSide(
         color: selected
             ? AppColors.activeColor
@@ -1165,17 +1386,32 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           for (final e in employees) e.profile.uid: e,
         };
 
-        // Add synthetic alerts for inactive employees
+        // Same combined list as main content: manager/team alerts + employee alerts already in system
+        // + synthetic inactivity + synthetic overdue so filters show everything.
         final allAlerts = <Alert>[];
         allAlerts.addAll(teamAlerts);
+
+        final seenAlertIds = <String>{};
+        for (final a in allAlerts) {
+          if (a.id.isNotEmpty) seenAlertIds.add(a.id);
+        }
+        for (final e in employees) {
+          for (final a in e.recentAlerts) {
+            if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
+            if (a.id.isNotEmpty) seenAlertIds.add(a.id);
+            allAlerts.add(a);
+          }
+        }
 
         final now = DateTime.now();
         for (final e in employees) {
           final inactivityDays = now.difference(e.lastActivity).inDays;
           if (inactivityDays >= 3) {
+            final id = 'synthetic_inactivity_${e.profile.uid}';
+            if (!seenAlertIds.add(id)) continue;
             allAlerts.add(
               Alert(
-                id: 'synthetic_inactivity_${e.profile.uid}',
+                id: id,
                 userId: e.profile.uid,
                 type: AlertType.inactivity,
                 audience: AlertAudience.team,
@@ -1186,6 +1422,32 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 message:
                     '${e.profile.displayName} inactive for $inactivityDays days',
                 createdAt: now.subtract(const Duration(hours: 1)),
+              ),
+            );
+          }
+          for (final goal in e.goals) {
+            final isCompleted =
+                goal.status == GoalStatus.completed || goal.progress >= 100;
+            if (isCompleted) continue;
+            if (!goal.targetDate.isBefore(now)) continue;
+            final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
+            if (!seenAlertIds.add(id)) continue;
+            final daysOverdue = now.difference(goal.targetDate).inDays;
+            allAlerts.add(
+              Alert(
+                id: id,
+                userId: e.profile.uid,
+                type: AlertType.goalOverdue,
+                audience: AlertAudience.team,
+                priority: AlertPriority.urgent,
+                title: 'Goal Overdue',
+                message:
+                    '"${goal.title}" is overdue by $daysOverdue day${daysOverdue == 1 ? '' : 's'}.',
+                actionText: 'Reschedule',
+                actionRoute: '/manager_alerts_nudges',
+                actionData: {'goalId': goal.id},
+                createdAt: now.subtract(const Duration(hours: 1)),
+                relatedGoalId: goal.id,
               ),
             );
           }
@@ -1278,9 +1540,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   }
 
   List<Alert> _applyFilters(List<Alert> alerts) {
-    var filtered = alerts
-        .where((a) => !a.isRead && !_locallyMarkedAsRead.contains(a.id))
-        .toList();
+    // When filter is "All Issues", show all notifications (read + unread).
+    // When a specific filter is selected, still show all matching alerts so
+    // inactive/overdue/performance/risk views show everything that was in the system.
+    var filtered = List<Alert>.from(alerts);
 
     // Apply alert type filter
     if (_alertTypeFilter != null) {
@@ -1289,17 +1552,15 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           case 'inactive':
             return a.type == AlertType.inactivity;
           case 'overdue':
-            return a.type == AlertType.goalOverdue;
+            return a.type == AlertType.goalOverdue ||
+                a.title.toLowerCase().contains('overdue') ||
+                a.message.toLowerCase().contains('overdue');
           case 'performance':
-            return a.type == AlertType.goalApprovalRejected ||
-                a.type == AlertType.milestoneDeletionRejected ||
-                a.type == AlertType.milestoneRisk ||
+            return a.type == AlertType.milestoneRisk ||
                 a.priority == AlertPriority.urgent ||
                 a.priority == AlertPriority.high;
           case 'risk':
-            return a.type == AlertType.goalApprovalRejected ||
-                a.type == AlertType.milestoneDeletionRejected ||
-                a.type == AlertType.seasonCompleted ||
+            return a.type == AlertType.seasonCompleted ||
                 a.type == AlertType.seasonProgressUpdate;
           default:
             return true;
@@ -1319,27 +1580,44 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           .toList();
     }
 
-    // Apply sorting
-    switch (_sortBy) {
-      case 'oldest':
-        filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-        break;
-      case 'priority':
-        final priorityOrder = {
-          AlertPriority.urgent: 0,
-          AlertPriority.high: 1,
-          AlertPriority.medium: 2,
-          AlertPriority.low: 3,
-        };
-        filtered.sort(
-          (a, b) =>
-              priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!),
-        );
-        break;
-      case 'newest':
-      default:
-        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        break;
+    // Apply sorting. When filter is "All", urgent alerts appear first, then by chosen order.
+    final priorityOrder = {
+      AlertPriority.urgent: 0,
+      AlertPriority.high: 1,
+      AlertPriority.medium: 2,
+      AlertPriority.low: 3,
+    };
+    if (_alertTypeFilter == null) {
+      // All Issues: sort by priority first (urgent first), then by date
+      filtered.sort((a, b) {
+        final p = priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!);
+        if (p != 0) return p;
+        switch (_sortBy) {
+          case 'oldest':
+            return a.createdAt.compareTo(b.createdAt);
+          case 'priority':
+            return 0; // already by priority
+          case 'newest':
+          default:
+            return b.createdAt.compareTo(a.createdAt);
+        }
+      });
+    } else {
+      switch (_sortBy) {
+        case 'oldest':
+          filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          break;
+        case 'priority':
+          filtered.sort(
+            (a, b) =>
+                priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!),
+          );
+          break;
+        case 'newest':
+        default:
+          filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          break;
+      }
     }
 
     return filtered;
@@ -1629,10 +1907,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   }
 
   void _viewEmployeeDetails(EmployeeData employee) {
-    // TODO: Navigate to employee details
-    _showCenterNotice(
+    Navigator.push(
       context,
-      'Viewing details for ${employee.profile.displayName}...',
+      MaterialPageRoute(
+        builder: (context) =>
+            ManagerEmployeeDetailScreen(employee: employee),
+      ),
     );
   }
 

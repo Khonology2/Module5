@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/widgets/floating_circles_particle_animation.dart';
 import 'package:pdh/widgets/version_control_widget.dart';
+import 'package:pdh/utils/web_origin_stub.dart' if (dart.library.html) 'package:pdh/utils/web_origin_web.dart' as web_origin;
 
 /// Set to true to show the token input field and Login button on the landing screen.
 /// Set to false to hide them (e.g. when using only URL-based token flow).
@@ -350,12 +351,15 @@ class _PersonalDevelopmentHubScreenState
         return;
       }
       debugPrint('Landing screen: Config OK (pdh-v2), calling signInWithCustomToken...');
+      final origin = web_origin.getWebOrigin();
+      if (origin != null && origin.isNotEmpty) {
+        debugPrint('Landing screen: Add this HTTP referrer in Google Cloud (Browser key): $origin/*');
+      }
       try {
         final userCredential = await FirebaseAuth.instance
             .signInWithCustomToken(firebaseToken);
 
         if (userCredential.user != null && email != null) {
-          // Update user role in Firestore
           final userId = userCredential.user!.uid;
           String internalRole;
           if (pdhRole == 'PDH - Employee') {
@@ -363,6 +367,9 @@ class _PersonalDevelopmentHubScreenState
           } else {
             internalRole = 'manager'; // Admin uses manager role internally
           }
+
+          // Brief delay so Firestore client picks up the new auth token (avoids permission-denied race)
+          await Future.delayed(const Duration(milliseconds: 150));
 
           try {
             await FirebaseFirestore.instance
@@ -403,17 +410,40 @@ class _PersonalDevelopmentHubScreenState
         }
       } catch (e) {
         debugPrint('Landing screen: Error signing in with custom token: $e');
-        if (mounted && e is FirebaseAuthException && e.code == 'custom-token-mismatch') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'This page may be cached or the app needs redeploy. '
-                'Try: Hard refresh (Ctrl+Shift+R) or open in a private/incognito window.',
+        if (mounted && e is FirebaseAuthException) {
+          if (e.code == 'custom-token-mismatch') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'This page may be cached or the app needs redeploy. '
+                  'Try: Hard refresh (Ctrl+Shift+R) or open in a private/incognito window.',
+                ),
+                backgroundColor: Color(0xFFC10D00),
+                duration: Duration(seconds: 10),
               ),
-              backgroundColor: Color(0xFFC10D00),
-              duration: Duration(seconds: 10),
-            ),
-          );
+            );
+          } else if (e.code == 'api-key-not-valid' ||
+              (e.message != null && e.message!.toLowerCase().contains('api-key-not-valid'))) {
+            final origin = web_origin.getWebOrigin();
+            final referrerTip = origin != null && origin.isNotEmpty
+                ? ' Add this HTTP referrer in Browser key: $origin/*'
+                : '';
+            debugPrint(
+              'Landing screen: Fix "API key not valid": In Google Cloud (project pdh-v2) '
+              'enable Identity Toolkit API and in Browser key add HTTP referrer(s).$referrerTip',
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  origin != null && origin.isNotEmpty
+                      ? 'API key rejected. In Google Cloud → Credentials → Browser key add HTTP referrer: $origin/*'
+                      : 'Firebase API key rejected. In Google Cloud (pdh-v2): enable Identity Toolkit API and add your site URL to Browser key HTTP referrers.',
+                ),
+                backgroundColor: const Color(0xFFC10D00),
+                duration: const Duration(seconds: 12),
+              ),
+            );
+          }
         }
       }
 

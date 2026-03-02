@@ -993,6 +993,43 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     .toList();
               }
 
+              // Apply type filter so each tab shows the right information
+              if (_typeFilter == 'alert') {
+                // Alerts: manager-facing alerts that are NOT nudges and NOT approval requests
+                items = items.where((a) {
+                  return a.type != AlertType.managerNudge &&
+                      a.type != AlertType.goalApprovalRequested;
+                }).toList();
+              } else if (_typeFilter == 'approval_request') {
+                // Approvals: only goal approval requests
+                items = items
+                    .where((a) => a.type == AlertType.goalApprovalRequested)
+                    .toList();
+              } else if (_typeFilter == 'nudge') {
+                // Nudges: only manager nudge alerts (nudge feedback is added in the nudge UI branch)
+                items = items
+                    .where((a) => a.type == AlertType.managerNudge)
+                    .toList();
+              }
+              // _typeFilter == null means All: show everything, no type filter
+
+              // When showing All or Alerts, sort so urgent alerts appear first
+              if (_typeFilter == null || _typeFilter == 'alert') {
+                final priorityOrder = {
+                  AlertPriority.urgent: 0,
+                  AlertPriority.high: 1,
+                  AlertPriority.medium: 2,
+                  AlertPriority.low: 3,
+                };
+                items = List<Alert>.from(items)
+                  ..sort((a, b) {
+                    final p = priorityOrder[a.priority]!
+                        .compareTo(priorityOrder[b.priority]!);
+                    if (p != 0) return p;
+                    return b.createdAt.compareTo(a.createdAt);
+                  });
+              }
+
               if (_typeFilter == 'nudge') {
                 _ensureNudgeFeedbackStream(
                   managerId: user.uid,
