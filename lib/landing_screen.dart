@@ -720,6 +720,21 @@ class _PersonalDevelopmentHubScreenState
                           maxLines: 1,
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      // Info text: tell user to get token from KhonoBuzz
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                        child: Text(
+                          'Go back to KhonoBuzz and copy your login link, then paste it above. '
+                          'The app will sign you in automatically.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withAlpha(204),
+                            fontSize: 13,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 24),
                       // Login button
                       Padding(
