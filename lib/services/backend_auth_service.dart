@@ -58,7 +58,9 @@ class BackendAuthService {
       final appId = data['appId']?.toString();
       final messagingSenderId = data['messagingSenderId']?.toString();
       if (apiKey == null || apiKey.isEmpty || appId == null || appId.isEmpty ||
-          messagingSenderId == null || messagingSenderId.isEmpty) return null;
+          messagingSenderId == null || messagingSenderId.isEmpty) {
+        return null;
+      }
       return data;
     } catch (_) {
       return null;

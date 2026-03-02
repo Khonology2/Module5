@@ -63,3 +63,5 @@ untranslated_messages.txt
 # Test-specific
 test
 
+node_modules
+node_modules
