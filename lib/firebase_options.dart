@@ -41,46 +41,46 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAjg19Ej8fbUOfa6WYlEX-b4CNi-y0Lozc',
-    appId: '1:565445962523:web:a987a77ea9633d308401be',
-    messagingSenderId: '565445962523',
-    projectId: 'pdh-fe6eb',
-    authDomain: 'pdh-fe6eb.firebaseapp.com',
-    storageBucket: 'pdh-fe6eb.firebasestorage.app',
+    apiKey: 'AIzaSyDOAfySsOd2h0jCj5m3v3vIR9d0ys7kmKk',
+    appId: '1:638896632756:web:6df76beff446f75ee378e1',
+    messagingSenderId: '638896632756',
+    projectId: 'pdh-v2',
+    authDomain: 'pdh-v2.firebaseapp.com',
+    storageBucket: 'pdh-v2.appspot.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDOAfySsOd2h0jCj5m3v3vIR9d0ys7kmKk',
-    appId: '1:565445962523:android:96cfa7d317c670c98401be',
-    messagingSenderId: '565445962523',
-    projectId: 'pdh-fe6eb',
-    storageBucket: 'pdh-fe6eb.firebasestorage.app',
+    appId: '1:638896632756:android:your-android-app-id',
+    messagingSenderId: '638896632756',
+    projectId: 'pdh-v2',
+    storageBucket: 'pdh-v2.appspot.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA-UKlI3NI-1ktNofSXsqSBHbjG8EQ3XcA',
-    appId: '1:565445962523:ios:7561461d42d085888401be',
-    messagingSenderId: '565445962523',
-    projectId: 'pdh-fe6eb',
-    storageBucket: 'pdh-fe6eb.firebasestorage.app',
+    apiKey: 'AIzaSyDOAfySsOd2h0jCj5m3v3vIR9d0ys7kmKk',
+    appId: '1:638896632756:ios:your-ios-app-id',
+    messagingSenderId: '638896632756',
+    projectId: 'pdh-v2',
+    storageBucket: 'pdh-v2.appspot.com',
     iosBundleId: 'com.example.pdh',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyA-UKlI3NI-1ktNofSXsqSBHbjG8EQ3XcA',
-    appId: '1:565445962523:ios:7561461d42d085888401be',
-    messagingSenderId: '565445962523',
-    projectId: 'pdh-fe6eb',
-    storageBucket: 'pdh-fe6eb.firebasestorage.app',
+    apiKey: 'AIzaSyDOAfySsOd2h0jCj5m3v3vIR9d0ys7kmKk',
+    appId: '1:638896632756:ios:your-ios-app-id',
+    messagingSenderId: '638896632756',
+    projectId: 'pdh-v2',
+    storageBucket: 'pdh-v2.appspot.com',
     iosBundleId: 'com.example.pdh',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyAjg19Ej8fbUOfa6WYlEX-b4CNi-y0Lozc',
-    appId: '1:565445962523:web:5baabea0d2d8ce3f8401be',
-    messagingSenderId: '565445962523',
-    projectId: 'pdh-fe6eb',
-    authDomain: 'pdh-fe6eb.firebaseapp.com',
-    storageBucket: 'pdh-fe6eb.firebasestorage.app',
+    apiKey: 'AIzaSyDOAfySsOd2h0jCj5m3v3vIR9d0ys7kmKk',
+    appId: '1:638896632756:web:your-windows-app-id',
+    messagingSenderId: '638896632756',
+    projectId: 'pdh-v2',
+    authDomain: 'pdh-v2.firebaseapp.com',
+    storageBucket: 'pdh-v2.appspot.com',
   );
 }
