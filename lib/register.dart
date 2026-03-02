@@ -717,18 +717,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: Colors.black.withOpacity(0.5), // Solid background instead of blur
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          width: 1.0,
-        ),
+        color: Colors.black.withOpacity(
+          0.5,
+        ), // Solid background instead of blur
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.0),
       ),
       child: TextFormField(
         controller: controller,
         obscureText: obscureText,
         decoration: _inputDecoration().copyWith(
           hintText: hintText,
-          border: InputBorder.none, // Remove default border since we have container border
+          border: InputBorder
+              .none, // Remove default border since we have container border
         ),
         style: const TextStyle(
           color: Colors.white,
@@ -745,49 +745,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: Colors.black.withOpacity(0.5), // Solid background instead of blur
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          width: 1.0,
-        ),
+        color: Colors.black.withOpacity(0.5),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.0),
       ),
       child: DropdownButtonFormField<String>(
         value: _selectedRole,
         decoration: _inputDecoration().copyWith(
           hintText: 'Select your role',
-          border: InputBorder.none, // Remove default border since we have container border
+          border: InputBorder.none,
         ),
-          dropdownColor: const Color(
-            0x880A0F1F,
-          ), // Darker background for dropdown
-          style: const TextStyle(
-            color: Colors.white,
-            fontFamily: 'Poppins',
-          ), // Apply Poppins to selected item
-          items: <String>['employee', 'manager'].map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(
-                value == 'employee' ? 'Employee' : 'Manager',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontFamily: 'Poppins',
-                ), // Apply Poppins to dropdown items
+        dropdownColor: const Color(0x880A0F1F),
+        style: const TextStyle(color: Colors.white, fontFamily: 'Poppins'),
+        items: <String>['employee', 'manager'].map((String value) {
+          return DropdownMenuItem<String>(
+            value: value,
+            child: Text(
+              value == 'employee' ? 'Employee' : 'Manager',
+              style: const TextStyle(
+                color: Colors.white,
+                fontFamily: 'Poppins',
               ),
-            );
-          }).toList(),
-          onChanged: (String? newValue) {
-            setState(() {
-              _selectedRole = newValue;
-            });
-          },
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please select a role';
-            }
-            return null;
-          },
-        ),
+            ),
+          );
+        }).toList(),
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedRole = newValue;
+          });
+        },
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'Please select a role';
+          }
+          return null;
+        },
       ),
     );
   }
