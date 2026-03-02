@@ -11,7 +11,12 @@ import 'package:pdh/widgets/version_control_widget.dart';
 
 /// Set to true to show the token input field and Login button on the landing screen.
 /// Set to false to hide them (e.g. when using only URL-based token flow).
-const bool kShowTokenLoginUI = false;
+const bool kShowTokenLoginUI = true;
+
+/// Hardcoded expected Firebase config (must match firebase_options.dart and backend custom token).
+/// Used to detect wrong project / stale build when signInWithCustomToken fails with audience mismatch.
+const String kExpectedFirebaseProjectId = 'pdh-v2';
+const String kExpectedWebApiKey = 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -314,12 +319,17 @@ class _PersonalDevelopmentHubScreenState
       }
 
       // Step C: Sign in using Firebase custom token
-      // Fail fast if this build is using wrong Firebase project (stale cache / old deploy)
-      final currentProjectId = Firebase.app().options.projectId;
-      if (currentProjectId != 'pdh-v2') {
+      // Log hardcoded expected vs actual so we can see why custom-token-mismatch happens
+      final opts = Firebase.app().options;
+      final actualProjectId = opts.projectId;
+      final actualApiKey = opts.apiKey;
+      debugPrint('Landing screen: HARDCODED expected projectId: $kExpectedFirebaseProjectId');
+      debugPrint('Landing screen: HARDCODED expected apiKey (first 24): ${kExpectedWebApiKey.substring(0, 24)}...');
+      debugPrint('Landing screen: ACTUAL Firebase.app().options.projectId: $actualProjectId');
+      debugPrint('Landing screen: ACTUAL Firebase.app().options.apiKey (first 24): ${actualApiKey.length >= 24 ? actualApiKey.substring(0, 24) : actualApiKey}...');
+      if (actualProjectId != kExpectedFirebaseProjectId || actualApiKey != kExpectedWebApiKey) {
         debugPrint(
-          'Landing screen: Wrong Firebase project "$currentProjectId". '
-          'Rebuild: flutter clean && flutter pub get && flutter run -d chrome',
+          'Landing screen: MISMATCH — app config differs from pdh-v2. Rebuild: flutter clean && flutter pub get && flutter run -d chrome',
         );
         if (mounted) {
           setState(() {
@@ -330,8 +340,7 @@ class _PersonalDevelopmentHubScreenState
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'App is using wrong Firebase project ($currentProjectId). '
-                'Rebuild the app: flutter clean, then flutter pub get, then run again.',
+                'App is using wrong Firebase project ($actualProjectId). Expected $kExpectedFirebaseProjectId. Rebuild: flutter clean, then flutter pub get, then run again.',
               ),
               backgroundColor: const Color(0xFFC10D00),
               duration: const Duration(seconds: 12),
@@ -340,6 +349,7 @@ class _PersonalDevelopmentHubScreenState
         }
         return;
       }
+      debugPrint('Landing screen: Config OK (pdh-v2), calling signInWithCustomToken...');
       try {
         final userCredential = await FirebaseAuth.instance
             .signInWithCustomToken(firebaseToken);
@@ -725,7 +735,7 @@ class _PersonalDevelopmentHubScreenState
                         _isRedirecting
                             ? 'Redirecting to your dashboard...'
                             : (_isSlowNetwork
-                                  ? 'We\'re Are Signing You In... Just A Moment'
+                                  ? 'We\'re Are Signing You In... Just a Moment'
                                   : 'Validating token...'),
                         style: const TextStyle(
                           color: Colors.white70,

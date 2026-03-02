@@ -112,14 +112,20 @@ void main() async {
   // All token handling now uses PDH backend API
   // No .env file loading needed - backend URL is hardcoded in BackendAuthService
 
+  // Hardcoded expected values from firebase_options.dart (pdh-v2) — for debugging audience mismatch
+  const String kExpectedFirebaseProjectId = 'pdh-v2';
+  const String kExpectedWebApiKey = 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y';
+
   final options = DefaultFirebaseOptions.currentPlatform;
   await Firebase.initializeApp(options: options);
   if (kIsWeb) {
     debugPrint('Firebase initialized for web — projectId: ${options.projectId}');
-    // Fail fast if an old build is running with wrong Firebase project (fix: flutter clean then rebuild)
-    if (options.projectId != 'pdh-v2') {
+    debugPrint('HARDCODED expected projectId: $kExpectedFirebaseProjectId | ACTUAL: ${options.projectId}');
+    debugPrint('HARDCODED expected apiKey (first 20): ${kExpectedWebApiKey.substring(0, 20)}... | ACTUAL (first 20): ${options.apiKey.substring(0, options.apiKey.length > 20 ? 20 : options.apiKey.length)}...');
+    if (options.projectId != kExpectedFirebaseProjectId || options.apiKey != kExpectedWebApiKey) {
+      debugPrint('MISMATCH: This build is NOT using pdh-v2 config. Rebuild with flutter clean then flutter run.');
       throw AssertionError(
-        'Web app is using Firebase project "${options.projectId}" instead of "pdh-v2". '
+        'Web app is using Firebase project "${options.projectId}" (expected "$kExpectedFirebaseProjectId"). '
         'Do: flutter clean, then flutter pub get, then flutter run -d chrome (or redeploy).',
       );
     }

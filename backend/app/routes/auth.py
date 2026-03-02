@@ -97,6 +97,11 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         logger.info(f"Firestore query completed in {int((time.perf_counter() - t) * 1000)} ms")
         
         logger.info(f"Generating Firebase custom token for user_id: {user_id}")
+        # Log project_id so we can confirm token audience matches client (must be pdh-v2)
+        from app.config import get_firebase_service_account_dict
+        _sa = get_firebase_service_account_dict()
+        _project_id = _sa.get("project_id", "unknown")
+        logger.info("Backend issuing custom token for Firebase project_id=%s (client must use same project)", _project_id)
         t = time.perf_counter()
         auth_client = get_auth()
         
