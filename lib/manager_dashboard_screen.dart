@@ -20,7 +20,6 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
-import 'package:pdh/widgets/version_badge.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 // ignore: duplicate_import
@@ -530,7 +529,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               const SizedBox(height: AppSpacing.lg),
               _buildEmployeesAssigned(employees),
               const SizedBox(height: AppSpacing.lg),
-              const Align(alignment: Alignment.center, child: VersionBadge()),
               const SizedBox(height: AppSpacing.xxl),
             ],
           );
@@ -593,11 +591,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               ),
             ),
             child: content,
-          ),
-          const Positioned(
-            left: 0,
-            bottom: 0,
-            child: SafeArea(left: true, bottom: true, child: VersionBadge()),
           ),
         ],
       ),

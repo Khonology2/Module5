@@ -374,26 +374,24 @@ class ManagerRealtimeService {
     }
   }
 
-  /// Fetch onboarding employees and convert to UserProfile objects
-  static Future<List<UserProfile>> _fetchOnboardingEmployees(
+  /// Fetches onboarding employees assigned to [managerId] only (for manager-scoped team data).
+  static Future<List<UserProfile>> _fetchOnboardingEmployeesForManager(
+    String managerId,
     String? department,
   ) async {
     try {
       String norm(String? s) => (s ?? '').trim().toLowerCase();
 
-      final Query<Map<String, dynamic>> onboardingQuery = _firestore.collection(
-        'onboarding',
-      );
+      final Query<Map<String, dynamic>> onboardingQuery = _firestore
+          .collection('onboarding')
+          .where('managerId', isEqualTo: managerId);
 
-      // Note: We can't filter by department in onboarding collection easily
-      // So we fetch all and filter in memory if needed
-      final onboardingSnapshot = await onboardingQuery.get();
+      final onboardingSnapshot = await FirestoreSafe.getQuery(onboardingQuery);
 
-      final onboardingProfiles = onboardingSnapshot.docs
+      var onboardingProfiles = onboardingSnapshot.docs
           .where((doc) {
             final data = doc.data();
             final moduleAccessRole = data['moduleAccessRole'] as String?;
-            // Only include employees (not managers) for PDH app
             return OnboardingService.shouldIncludeUser(
               moduleAccessRole,
               'employee',
@@ -406,8 +404,6 @@ class ManagerRealtimeService {
                   data,
                   doc.id,
                 );
-
-            // Convert to UserProfile
             return UserProfile(
               uid: doc.id,
               email: convertedData['email'] ?? '',
@@ -446,17 +442,15 @@ class ManagerRealtimeService {
           })
           .toList();
 
-      // Filter by department if specified
       if (department != null && department.trim().isNotEmpty) {
         final target = norm(department);
         return onboardingProfiles
             .where((profile) => norm(profile.department) == target)
             .toList();
       }
-
       return onboardingProfiles;
     } catch (e) {
-      developer.log('Error fetching onboarding employees: $e');
+      developer.log('Error fetching onboarding employees for manager: $e');
       return [];
     }
   }
@@ -775,7 +769,7 @@ class ManagerRealtimeService {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return <EmployeeData>[];
 
-      // TEMP: allow managers to view all employees regardless of department unless explicitly filtered
+      // Manager sees only assigned employees (same as Employees Assigned widget).
       final String? explicitDepartment =
           (department != null && department.trim().isNotEmpty)
           ? department.trim()
@@ -784,7 +778,6 @@ class ManagerRealtimeService {
       String norm(String? s) => (s ?? '').trim().toLowerCase();
 
       bool includeEmployeeProfile(UserProfile p) {
-        // Treat missing/blank role as employee (many parts of the app default this way)
         final role = norm(p.role).isEmpty ? 'employee' : norm(p.role);
         if (role != 'employee') return false;
         if (explicitDepartment == null) return true;
@@ -793,12 +786,15 @@ class ManagerRealtimeService {
 
       final Query<Map<String, dynamic>> usersQuery = _firestore
           .collection('users')
+          .where('managerId', isEqualTo: currentUser.uid)
           .limit(_initialEmployeeLimit);
       final usersSnapshot = await FirestoreSafe.getQuery(usersQuery);
 
-      // Fetch onboarding users with employee persona and convert to UserProfile
       final onboardingProfiles =
-          await ManagerRealtimeService._fetchOnboardingEmployees(department);
+          await ManagerRealtimeService._fetchOnboardingEmployeesForManager(
+            currentUser.uid,
+            explicitDepartment,
+          );
 
       // Filter regular users to employees (and department if specified)
       final regularEmployeeDocs = usersSnapshot.docs.where((doc) {
@@ -1358,7 +1354,7 @@ class ManagerRealtimeService {
           return;
         }
 
-        // TEMP: allow managers to view all employees regardless of department unless explicitly filtered
+        // Manager sees only assigned employees (same as Employees Assigned widget).
         final String? explicitDepartment =
             (department != null && department.trim().isNotEmpty)
             ? department.trim()
@@ -1367,18 +1363,15 @@ class ManagerRealtimeService {
         String norm(String? s) => (s ?? '').trim().toLowerCase();
 
         bool includeEmployeeProfile(UserProfile p) {
-          // Treat missing/blank role as employee (many parts of the app default this way)
           final role = norm(p.role).isEmpty ? 'employee' : norm(p.role);
           if (role != 'employee') return false;
           if (explicitDepartment == null) return true;
           return norm(p.department) == norm(explicitDepartment);
         }
 
-        // Query users broadly, then filter in-memory.
-        // This prevents accidentally excluding employees whose user doc is missing `role`
-        // (many parts of the app default missing role to 'employee').
         final Query<Map<String, dynamic>> usersQuery = _firestore
             .collection('users')
+            .where('managerId', isEqualTo: currentUser.uid)
             .limit(_initialEmployeeLimit);
 
         Future<void> rebuildAndEmit(
@@ -1386,15 +1379,15 @@ class ManagerRealtimeService {
         ) async {
           if (isCancelled) return;
 
-          // Fetch onboarding users with employee persona and convert to UserProfile
+          // Only assigned employees: onboarding and users where managerId == current user
           final onboardingProfiles =
-              await ManagerRealtimeService._fetchOnboardingEmployees(
-                department,
+              await ManagerRealtimeService._fetchOnboardingEmployeesForManager(
+                currentUser.uid,
+                explicitDepartment,
               );
 
           if (isCancelled) return;
 
-          // Filter regular users to employees (and department if specified)
           final regularEmployeeDocs = usersSnapshot.docs.where((doc) {
             final profile = UserProfile.fromFirestore(doc);
             return includeEmployeeProfile(profile);
