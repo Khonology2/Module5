@@ -514,18 +514,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   '/sign_in',
                                 );
                               } on FirebaseAuthException catch (e) {
+                                debugPrint('FirebaseAuthException: code=${e.code}, message=${e.message}');
                                 String message;
-                                if (e.code == 'weak-password') {
-                                  message =
-                                      'The password provided is too weak.';
-                                          } else if (e.code ==
-                                              'email-already-in-use') {
-                                  message =
-                                      'The account already exists for that email.';
-                                } else {
-                                  message =
-                                                e.message ??
-                                                'An unknown error occurred.';
+                                switch (e.code) {
+                                  case 'weak-password':
+                                    message = 'The password provided is too weak.';
+                                    break;
+                                  case 'email-already-in-use':
+                                    message = 'The account already exists for that email.';
+                                    break;
+                                  case 'operation-not-allowed':
+                                    message = 'Email/Password sign-in is not enabled. Ask your admin to enable it in Firebase Console → Authentication → Sign-in method.';
+                                    break;
+                                  case 'invalid-email':
+                                    message = 'The email address is invalid.';
+                                    break;
+                                  case 'invalid-credential':
+                                    message = 'Invalid credentials. Try signing out and registering again.';
+                                    break;
+                                  case 'network-request-failed':
+                                    message = 'Network error. Check your connection and try again.';
+                                    break;
+                                  default:
+                                    message = e.message ?? 'Authentication failed (${e.code}).';
                                 }
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
@@ -538,9 +549,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             _isRegistering = false;
                                           });
                                 await _showCenterNotice(message);
-                              } catch (e) {
+                              } catch (e, st) {
                                 // Catch all other errors including Firestore errors
                                 debugPrint('Registration error: $e');
+                                debugPrint('Stack trace: $st');
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
                                 }
@@ -567,8 +579,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     );
                                   }
                                 } else {
+                                  // 400 from signUp often means: Email/Password disabled, or domain not authorized (web)
                                   await _showCenterNotice(
-                                    'An error occurred during registration. Please try again.',
+                                    'Registration failed. If you see a 400 error: enable Email/Password in Firebase Console → Authentication → Sign-in method, and add your domain (e.g. localhost) to Authorized domains.',
                                   );
                                 }
                               }
