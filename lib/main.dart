@@ -216,6 +216,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    ShowcaseView.register();
     _initializeSpeechRecognition();
     _initializeLocale(); // Load persisted language
     _speechRecognitionService.speechCommands.listen((command) {
@@ -289,10 +290,9 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ShowCaseWidget(
-      builder: (context) => _GlobalChatbotWrapper(
-        currentRouteNotifier: currentRouteNotifier,
-        child: ValueListenableBuilder<Locale?>(
+    return _GlobalChatbotWrapper(
+      currentRouteNotifier: currentRouteNotifier,
+      child: ValueListenableBuilder<Locale?>(
           valueListenable: appLocaleNotifier,
           builder: (context, locale, _) {
             return MaterialApp(
@@ -517,7 +517,6 @@ class _MyAppState extends State<MyApp> {
             );
           },
         ),
-      ),
     );
   }
 }

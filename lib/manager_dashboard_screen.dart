@@ -184,7 +184,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
       if (keyContext != null) {
         // Key is attached, start showcase
-        ShowCaseWidget.of(context).startShowCase([_sidebarTutorialKeys[0]]);
+        ShowcaseView.get().startShowCase([_sidebarTutorialKeys[0]]);
         developer.log(
           'Started manager showcase for step 0',
           name: 'ManagerDashboardScreen',
@@ -314,9 +314,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             final keyContext =
                 _sidebarTutorialKeys[_currentTutorialStep].currentContext;
             if (keyContext != null) {
-              ShowCaseWidget.of(
-                context,
-              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
+              ShowcaseView.get().startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
               developer.log(
                 'Started showcase for step $_currentTutorialStep',
                 name: 'ManagerDashboardScreen',
@@ -330,7 +328,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               Future.delayed(const Duration(milliseconds: 500), () {
                 if (mounted && _shouldShowTutorial) {
                   try {
-                    ShowCaseWidget.of(context).startShowCase([
+                    ShowcaseView.get().startShowCase([
                       _sidebarTutorialKeys[_currentTutorialStep],
                     ]);
                   } catch (e) {
@@ -380,7 +378,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
     // Dismiss the current showcase overlay
     try {
-      ShowCaseWidget.of(context).dismiss();
+      ShowcaseView.get().dismiss();
     } catch (e) {
       developer.log(
         'Error dismissing showcase: $e',
@@ -1267,110 +1265,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 ],
               );
             },
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Test the employees assigned query
-  Future<void> _testEmployeesAssignedQuery() async {
-    try {
-      final managerFullName =
-          _getManagerFullName(); // Use same dynamic logic as widget
-      developer.log(
-        '=== TESTING EMPLOYEES ASSIGNED QUERY ===',
-        name: 'ManagerDashboard',
-      );
-      developer.log(
-        'Manager Name: "$managerFullName"',
-        name: 'ManagerDashboard',
-      );
-
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('onboarding')
-          .where('manager', isEqualTo: managerFullName)
-          .get();
-
-      final userCount = querySnapshot.docs.length;
-      developer.log('Total Users Found: $userCount', name: 'ManagerDashboard');
-
-      for (int i = 0; i < querySnapshot.docs.length; i++) {
-        final doc = querySnapshot.docs[i];
-        final data = doc.data();
-        final displayName =
-            data['displayName'] ??
-            data['name'] ??
-            data['fullName'] ??
-            'Unknown User';
-        final email = data['email'] ?? 'No email';
-        final manager = data['manager'] ?? 'No manager';
-
-        developer.log(
-          'User ${i + 1}: $displayName ($email) - Manager: $manager',
-          name: 'ManagerDashboard',
-        );
-      }
-
-      if (userCount == 0) {
-        developer.log(
-          'WARNING: No users found. Check manager name format and user data.',
-          name: 'ManagerDashboard',
-        );
-      }
-
-      developer.log('=== TEST COMPLETED ===', name: 'ManagerDashboard');
-
-      if (mounted) {
-        _showTestResultsDialog(userCount, managerFullName, null);
-      }
-    } catch (e) {
-      developer.log('TEST FAILED: $e', name: 'ManagerDashboard');
-      if (mounted) {
-        _showTestResultsDialog(0, '', e.toString());
-      }
-    }
-  }
-
-  /// Show test results dialog
-  void _showTestResultsDialog(
-    int userCount,
-    String managerName,
-    String? error,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(error == null ? '✅ Test Passed' : '❌ Test Failed'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              error == null
-                  ? 'Query test completed successfully'
-                  : 'Query test failed',
-            ),
-            const SizedBox(height: 8),
-            if (error == null) ...[
-              Text('Manager: $managerName'),
-              Text('Users Found: $userCount'),
-              if (userCount == 0) ...[
-                const SizedBox(height: 8),
-                const Text(
-                  'No users found. Check debug logs for details.',
-                  style: TextStyle(color: Colors.orange),
-                ),
-              ],
-            ] else ...[
-              Text('Error: $error'),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
           ),
         ],
       ),

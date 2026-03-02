@@ -453,8 +453,6 @@ class _CollapseToggle extends StatelessWidget {
 
         return Showcase.withWidget(
           key: tutorialKey!,
-          width: 260,
-          height: 200,
           targetShapeBorder: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
@@ -832,8 +830,6 @@ class _NavTileState extends State<_NavTile> {
 
         return Showcase.withWidget(
           key: widget.tutorialKey!,
-          width: 260,
-          height: 200,
           targetShapeBorder: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(8)),
           ),

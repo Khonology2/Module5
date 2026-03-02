@@ -118,7 +118,7 @@ class EmployeeTutorialService {
         Future.delayed(const Duration(milliseconds: 300), () {
           try {
             // Use the stored context which should be from the current screen
-            ShowCaseWidget.of(_currentContext!).startShowCase([key]);
+            ShowcaseView.get().startShowCase([key]);
             developer.log(
               'Tutorial popup shown for step $_currentTutorialStep',
               name: 'EmployeeTutorialService',
@@ -342,7 +342,7 @@ class EmployeeTutorialService {
 
     // Dismiss the current showcase overlay
     try {
-      ShowCaseWidget.of(context).dismiss();
+      ShowcaseView.get().dismiss();
     } catch (e) {
       developer.log(
         'Error dismissing showcase: $e',

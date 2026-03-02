@@ -120,7 +120,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
       if (keyContext != null) {
         // Key is attached, start showcase
-        ShowCaseWidget.of(context).startShowCase([_sidebarTutorialKeys[0]]);
+        ShowcaseView.get().startShowCase([_sidebarTutorialKeys[0]]);
         developer.log(
           'Showcase started successfully!',
           name: 'EmployeeDashboardScreen',
@@ -326,9 +326,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       final keyContext =
           _sidebarTutorialKeys[_currentTutorialStep].currentContext;
       if (keyContext != null) {
-        ShowCaseWidget.of(
-          context,
-        ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
+        ShowcaseView.get().startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
         developer.log(
           'Started showcase for step $_currentTutorialStep',
           name: 'EmployeeDashboardScreen',
@@ -342,9 +340,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted && _shouldShowTutorial) {
             try {
-              ShowCaseWidget.of(
-                context,
-              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
+              ShowcaseView.get().startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
             } catch (e) {
               developer.log(
                 'Retry failed: $e',
@@ -389,7 +385,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
     // Dismiss the current showcase overlay
     try {
-      ShowCaseWidget.of(context).dismiss();
+      ShowcaseView.get().dismiss();
     } catch (e) {
       developer.log(
         'Error dismissing showcase: $e',

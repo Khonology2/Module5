@@ -230,7 +230,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
 
       if (keyContext != null) {
         // Key is attached, start showcase
-        ShowCaseWidget.of(context).startShowCase([_sidebarTutorialKeys[0]]);
+        ShowcaseView.get().startShowCase([_sidebarTutorialKeys[0]]);
         developer.log(
           'Started manager showcase for step 0',
           name: 'ManagerPortalScreen',
@@ -360,9 +360,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
             final keyContext =
                 _sidebarTutorialKeys[_currentTutorialStep].currentContext;
             if (keyContext != null) {
-              ShowCaseWidget.of(
-                context,
-              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
+              ShowcaseView.get().startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
               developer.log(
                 'Started showcase for step $_currentTutorialStep',
                 name: 'ManagerPortalScreen',
@@ -376,7 +374,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
               Future.delayed(const Duration(milliseconds: 500), () {
                 if (mounted && _shouldShowTutorial) {
                   try {
-                    ShowCaseWidget.of(context).startShowCase([
+                    ShowcaseView.get().startShowCase([
                       _sidebarTutorialKeys[_currentTutorialStep],
                     ]);
                   } catch (e) {
@@ -426,7 +424,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
 
     // Dismiss the current showcase overlay
     try {
-      ShowCaseWidget.of(context).dismiss();
+      ShowcaseView.get().dismiss();
     } catch (e) {
       developer.log(
         'Error dismissing showcase: $e',
