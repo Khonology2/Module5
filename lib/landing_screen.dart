@@ -14,11 +14,6 @@ import 'package:pdh/utils/web_origin_stub.dart' if (dart.library.html) 'package:
 /// Set to false to hide them (e.g. when using only URL-based token flow).
 const bool kShowTokenLoginUI = true;
 
-/// Hardcoded expected Firebase config (must match firebase_options.dart and backend custom token).
-/// Used to detect wrong project / stale build when signInWithCustomToken fails with audience mismatch.
-const String kExpectedFirebaseProjectId = 'pdh-v2';
-const String kExpectedWebApiKey = 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y';
-
 // The main entry point for the Flutter application.
 // void main() {
 //   runApp(const MyApp());
@@ -319,38 +314,9 @@ class _PersonalDevelopmentHubScreenState
         return;
       }
 
-      // Step C: Sign in using Firebase custom token
-      // Log hardcoded expected vs actual so we can see why custom-token-mismatch happens
+      // Step C: Sign in using Firebase custom token (config from backend /firebase-config or firebase_options)
       final opts = Firebase.app().options;
-      final actualProjectId = opts.projectId;
-      final actualApiKey = opts.apiKey;
-      debugPrint('Landing screen: HARDCODED expected projectId: $kExpectedFirebaseProjectId');
-      debugPrint('Landing screen: HARDCODED expected apiKey (first 24): ${kExpectedWebApiKey.substring(0, 24)}...');
-      debugPrint('Landing screen: ACTUAL Firebase.app().options.projectId: $actualProjectId');
-      debugPrint('Landing screen: ACTUAL Firebase.app().options.apiKey (first 24): ${actualApiKey.length >= 24 ? actualApiKey.substring(0, 24) : actualApiKey}...');
-      if (actualProjectId != kExpectedFirebaseProjectId || actualApiKey != kExpectedWebApiKey) {
-        debugPrint(
-          'Landing screen: MISMATCH — app config differs from pdh-v2. Rebuild: flutter clean && flutter pub get && flutter run -d chrome',
-        );
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-            _isProcessingButton = false;
-            _isSlowNetwork = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'App is using wrong Firebase project ($actualProjectId). Expected $kExpectedFirebaseProjectId. Rebuild: flutter clean, then flutter pub get, then run again.',
-              ),
-              backgroundColor: const Color(0xFFC10D00),
-              duration: const Duration(seconds: 12),
-            ),
-          );
-        }
-        return;
-      }
-      debugPrint('Landing screen: Config OK (pdh-v2), calling signInWithCustomToken...');
+      debugPrint('Landing screen: Firebase projectId: ${opts.projectId}, calling signInWithCustomToken...');
       final origin = web_origin.getWebOrigin();
       if (origin != null && origin.isNotEmpty) {
         debugPrint('Landing screen: Add this HTTP referrer in Google Cloud (Browser key): $origin/*');

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/firebase_options.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/my_pdp_screen.dart';
 import 'package:pdh/progress_visuals_screen.dart';
 import 'package:pdh/my_goal_workspace_screen.dart';
@@ -109,27 +110,33 @@ Future<void> _clearFirestoreCache() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // All token handling now uses PDH backend API
-  // No .env file loading needed - backend URL is hardcoded in BackendAuthService
-
-  // Hardcoded expected values from firebase_options.dart (pdh-v2) — for debugging audience mismatch
-  const String kExpectedFirebaseProjectId = 'pdh-v2';
-  const String kExpectedWebApiKey = 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y';
-
-  final options = DefaultFirebaseOptions.currentPlatform;
-  await Firebase.initializeApp(options: options);
+  // Firebase config: on web, use backend /firebase-config (from FIREBASE_SERVICE_ACCOUNT_JSON + env) when available; else fallback to firebase_options
+  FirebaseOptions options;
   if (kIsWeb) {
-    debugPrint('Firebase initialized for web — projectId: ${options.projectId}');
-    debugPrint('HARDCODED expected projectId: $kExpectedFirebaseProjectId | ACTUAL: ${options.projectId}');
-    debugPrint('HARDCODED expected apiKey (first 20): ${kExpectedWebApiKey.substring(0, 20)}... | ACTUAL (first 20): ${options.apiKey.substring(0, options.apiKey.length > 20 ? 20 : options.apiKey.length)}...');
-    if (options.projectId != kExpectedFirebaseProjectId || options.apiKey != kExpectedWebApiKey) {
-      debugPrint('MISMATCH: This build is NOT using pdh-v2 config. Rebuild with flutter clean then flutter run.');
-      throw AssertionError(
-        'Web app is using Firebase project "${options.projectId}" (expected "$kExpectedFirebaseProjectId"). '
-        'Do: flutter clean, then flutter pub get, then flutter run -d chrome (or redeploy).',
+    final config = await BackendAuthService.getFirebaseConfig();
+    if (config != null &&
+        config['projectId'] != null &&
+        config['apiKey'] != null &&
+        config['appId'] != null &&
+        config['messagingSenderId'] != null) {
+      final pid = config['projectId']! as String;
+      options = FirebaseOptions(
+        apiKey: config['apiKey']! as String,
+        appId: config['appId']! as String,
+        messagingSenderId: config['messagingSenderId']! as String,
+        projectId: pid,
+        authDomain: config['authDomain'] as String? ?? '$pid.firebaseapp.com',
+        storageBucket: config['storageBucket'] as String? ?? '$pid.firebasestorage.app',
       );
+      debugPrint('Firebase initialized for web from backend config — projectId: ${options.projectId}');
+    } else {
+      options = DefaultFirebaseOptions.currentPlatform;
+      debugPrint('Firebase initialized for web from firebase_options — projectId: ${options.projectId}');
     }
+  } else {
+    options = DefaultFirebaseOptions.currentPlatform;
   }
+  await Firebase.initializeApp(options: options);
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks.
   // If you see "Tracking Prevention blocked access to storage", the browser is blocking
   // third-party storage; serve the app from your own domain or allow storage for the site.

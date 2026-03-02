@@ -40,7 +40,31 @@ class BackendAuthService {
     debugPrint('Using production backend URL: $prodUrl');
     return prodUrl;
   }
-  
+
+  /// Backend base URL for use by firebase config fetch (no hardcoded keys on frontend).
+  static String get backendBaseUrl => _backendBaseUrl;
+
+  /// Fetches Firebase web client config from backend (projectId from service account JSON, apiKey/appId from env).
+  /// Returns null if backend does not provide apiKey/appId or request fails.
+  static Future<Map<String, dynamic>?> getFirebaseConfig() async {
+    if (!kIsWeb) return null;
+    try {
+      final uri = Uri.parse('$backendBaseUrl/firebase-config');
+      final res = await http.get(uri).timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body) as Map<String, dynamic>?;
+      if (data == null) return null;
+      final apiKey = data['apiKey']?.toString();
+      final appId = data['appId']?.toString();
+      final messagingSenderId = data['messagingSenderId']?.toString();
+      if (apiKey == null || apiKey.isEmpty || appId == null || appId.isEmpty ||
+          messagingSenderId == null || messagingSenderId.isEmpty) return null;
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<http.Response> _postWithRetry(String url, Map<String, dynamic> body) async {
     http.Response? lastResponse;
     for (var i = 0; i <= _retryDelays.length; i++) {

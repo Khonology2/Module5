@@ -73,7 +73,7 @@ This document verifies that the backend and frontend are properly connected.
 ## Configuration Required
 
 ### Backend Environment Variables (`.env` or Render):
-- ✅ `FIREBASE_SERVICE_ACCOUNT_JSON` - Firebase Admin SDK credentials
+- ✅ `FIREBASE_SERVICE_ACCOUNT_JSON` - Full Firebase Admin SDK service account JSON as a single-line string (no file paths; set in Render dashboard for production)
 - ✅ `JWT_SECRET` - Must match Khonobuzz JWT secret
 - ⚠️ `BACKEND_URL` - Optional, for self-reference
 

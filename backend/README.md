@@ -55,14 +55,13 @@ This backend replaces the insecure frontend token validation logic by:
 
 6. **Configure environment variables** in `.env`:
    ```env
-   FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
-   JWT_SECRET='your_jwt_secret_here'
+   FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"...",...}'
+   JWT_SECRET_KEY='your_jwt_secret_here'
+   ENCRYPTION_KEY='your_encryption_key_if_using_encrypted_tokens'
    BACKEND_URL='http://localhost:8000'
    ```
 
-   **Note**: For `FIREBASE_SERVICE_ACCOUNT_JSON`, you can either:
-   - Provide the full JSON as a single-line string (recommended for production)
-   - Provide a path to a JSON file (for local development)
+   **Note**: `FIREBASE_SERVICE_ACCOUNT_JSON` must be the **entire** service account JSON as a single-line string. No file paths are used; set this in the Render dashboard for production.
 
 7. **Run the server**:
    ```bash
@@ -105,6 +104,10 @@ Validates JWT token and generates Firebase custom token.
 - `404 Not Found`: User not found in Firestore
 - `500 Internal Server Error`: Server error
 
+### GET /firebase-config
+
+Returns Firebase web client config (projectId from service account JSON; apiKey, appId, messagingSenderId from env when set). Frontend uses this to initialize Firebase without hardcoded keys when env vars are set.
+
 ### GET /health
 
 Health check endpoint for monitoring.
@@ -121,12 +124,13 @@ Health check endpoint for monitoring.
 
 ### Required
 
-- `FIREBASE_SERVICE_ACCOUNT_JSON`: Firebase Admin SDK service account JSON (as string or file path)
-- `JWT_SECRET`: Secret key for validating JWT tokens from Khonobuzz
+- `FIREBASE_SERVICE_ACCOUNT_JSON`: Firebase Admin SDK service account JSON as a **single-line string** (required; no file paths)
+- `JWT_SECRET_KEY`: Secret key for validating JWT tokens from Khonobuzz (also accepts `JWT_SECRET`)
 
 ### Optional
 
 - `BACKEND_URL`: Backend base URL (for self-reference or logging)
+- `FIREBASE_WEB_API_KEY`, `FIREBASE_WEB_APP_ID`, `FIREBASE_WEB_MESSAGING_SENDER_ID`: When set, `GET /firebase-config` returns these so the frontend can initialize Firebase without hardcoded keys (projectId comes from `FIREBASE_SERVICE_ACCOUNT_JSON`)
 
 ## Deployment on Render
 
@@ -162,6 +166,11 @@ In Render dashboard, go to "Environment" tab and add:
 3. **BACKEND_URL** (optional):
    - Your Render service URL
    - Example: `https://pdh-backend.onrender.com`
+
+4. **Firebase web client config** (optional; lets frontend avoid hardcoded API keys):
+   - `FIREBASE_WEB_API_KEY`: Web API key from Firebase Console → Project settings → General
+   - `FIREBASE_WEB_APP_ID`: Web app ID (e.g. `1:638896632756:web:...`)
+   - `FIREBASE_WEB_MESSAGING_SENDER_ID`: Messaging sender ID (e.g. `638896632756`)
 
 ### Step 4: Deploy
 

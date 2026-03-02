@@ -14,81 +14,72 @@ load_dotenv()
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
-    
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,
         extra='ignore',  # Ignore extra fields in .env
         env_ignore_empty=True,
     )
-    
-    # Firebase: path to JSON file (preferred when set) or inline JSON / path in FIREBASE_SERVICE_ACCOUNT_JSON
-    firebase_service_account_path: Optional[str] = Field(None, alias='FIREBASE_SERVICE_ACCOUNT_PATH')
+
+    # Firebase: entire service account JSON as a single-line string (no file paths)
     firebase_service_account_json: Optional[str] = Field(None, alias='FIREBASE_SERVICE_ACCOUNT_JSON')
 
     # JWT secret for validating tokens
     jwt_secret: str = Field(..., alias='JWT_SECRET_KEY')
-    
+
     # Encryption key for data protection
     encryption_key: str = Field(..., alias='ENCRYPTION_KEY')
-    
+
     # Optional backend URL
     backend_url: Optional[str] = Field(None, alias='BACKEND_URL')
-    
+
+    # Optional: Firebase Web client config (for GET /firebase-config; not in service account JSON)
+    firebase_web_api_key: Optional[str] = Field(None, alias='FIREBASE_WEB_API_KEY')
+    firebase_web_app_id: Optional[str] = Field(None, alias='FIREBASE_WEB_APP_ID')
+    firebase_web_messaging_sender_id: Optional[str] = Field(None, alias='FIREBASE_WEB_MESSAGING_SENDER_ID')
+
     @model_validator(mode='before')
     @classmethod
     def read_env_vars(cls, data: Any) -> Dict[str, Any]:
         """Read environment variables explicitly and map them to field names"""
         if not isinstance(data, dict):
             data = {}
-        
-        # Read from environment variables and map to field names
-        # Always read directly from os.getenv() to ensure we get the values
+
         env_mapping = {
-            'FIREBASE_SERVICE_ACCOUNT_PATH': 'firebase_service_account_path',
             'FIREBASE_SERVICE_ACCOUNT_JSON': 'firebase_service_account_json',
             'JWT_SECRET_KEY': 'jwt_secret',
             'ENCRYPTION_KEY': 'encryption_key',
             'BACKEND_URL': 'backend_url',
+            'FIREBASE_WEB_API_KEY': 'firebase_web_api_key',
+            'FIREBASE_WEB_APP_ID': 'firebase_web_app_id',
+            'FIREBASE_WEB_MESSAGING_SENDER_ID': 'firebase_web_messaging_sender_id',
         }
-        
+
         result = dict(data)
-        
+
         # Special handling for jwt_secret - check both JWT_SECRET and JWT_SECRET_KEY
         jwt_secret = os.getenv('JWT_SECRET') or os.getenv('JWT_SECRET_KEY')
         if jwt_secret is not None:
             result['jwt_secret'] = jwt_secret
-        
-        # Handle other environment variables
+
         for env_var, field_name in env_mapping.items():
-            # Skip jwt_secret as we already handled it above
             if field_name == 'jwt_secret':
                 continue
-                
-            # Priority 1: Read directly from environment variable (most reliable)
             env_value = os.getenv(env_var)
             if env_value is not None:
                 result[field_name] = env_value
                 continue
-            
-            # Priority 2: Check if BaseSettings already converted it (uppercase -> lowercase)
-            # BaseSettings with case_sensitive=False converts FIREBASE_SERVICE_ACCOUNT_JSON -> firebase_service_account_json
             if field_name in result and result[field_name] is not None:
-                # Already set by BaseSettings, keep it
                 continue
-            
-            # Priority 3: Check if it's in data with uppercase name (before BaseSettings conversion)
             if env_var in result and result[env_var] is not None:
                 result[field_name] = result[env_var]
                 continue
-            
-            # Priority 4: Check all possible case variations
-            # BaseSettings might have converted it to different case
             for key in list(result.keys()):
                 if key.upper() == env_var.upper() and result[key] is not None:
                     result[field_name] = result[key]
                     break
-        
+
         return result
 
 
@@ -105,100 +96,69 @@ def get_settings() -> Settings:
     return _settings
 
 
-def _get_firebase_service_account_source(settings: Settings) -> Optional[str]:
-    """Return the source string for Firebase credentials: PATH if set, else JSON."""
-    if settings.firebase_service_account_path and settings.firebase_service_account_path.strip():
-        return settings.firebase_service_account_path.strip()
-    if settings.firebase_service_account_json and settings.firebase_service_account_json.strip():
-        return settings.firebase_service_account_json.strip()
-    return None
-
-
 def get_firebase_service_account_dict() -> Dict[str, Any]:
-    """Load and return Firebase service account dict (from PATH or JSON)."""
+    """
+    Load and return Firebase service account dict from FIREBASE_SERVICE_ACCOUNT_JSON.
+    The env var must contain the entire service account JSON as a single-line string.
+    No file paths are used; credentials are loaded solely from the environment.
+    """
     settings = get_settings()
-    source = _get_firebase_service_account_source(settings)
-    if not source:
+    raw = (settings.firebase_service_account_json or "").strip()
+    if not raw:
         raise ValueError(
-            "At least one of FIREBASE_SERVICE_ACCOUNT_PATH or FIREBASE_SERVICE_ACCOUNT_JSON is required"
+            "FIREBASE_SERVICE_ACCOUNT_JSON environment variable is required. "
+            "Set it to the full service account JSON as a single-line string (e.g. in Render dashboard or .env)."
         )
-    return parse_firebase_service_account(source)
+    return parse_firebase_service_account_json(raw)
 
 
 def validate_settings(settings: Settings) -> None:
     """
-    Validate that all required settings are present and properly formatted
-
-    Args:
-        settings: Settings instance to validate
+    Validate that all required settings are present and properly formatted.
 
     Raises:
-        ValueError: If required settings are missing or invalid
+        ValueError: If required settings are missing or invalid.
     """
-    source = _get_firebase_service_account_source(settings)
-    if not source:
+    raw = (settings.firebase_service_account_json or "").strip()
+    if not raw:
         raise ValueError(
-            "At least one of FIREBASE_SERVICE_ACCOUNT_PATH or FIREBASE_SERVICE_ACCOUNT_JSON is required"
+            "FIREBASE_SERVICE_ACCOUNT_JSON environment variable is required. "
+            "Set it to the full service account JSON as a single-line string."
         )
     if not settings.jwt_secret:
         raise ValueError("JWT_SECRET_KEY environment variable is required")
     try:
-        parse_firebase_service_account(source)
+        parse_firebase_service_account_json(raw)
     except (json.JSONDecodeError, ValueError) as e:
-        raise ValueError(f"Invalid Firebase service account (path/json): {e}")
+        raise ValueError(f"Invalid FIREBASE_SERVICE_ACCOUNT_JSON: {e}")
 
 
-def parse_firebase_service_account(service_account_str: str) -> Dict[str, Any]:
+def parse_firebase_service_account_json(json_str: str) -> Dict[str, Any]:
     """
-    Parse Firebase service account JSON from environment variable
-    
-    The service account can be provided as:
-    1. A JSON string (most common in production)
-    2. A path to a JSON file (for local development)
-    
-    Args:
-        service_account_str: JSON string or file path
-        
+    Parse Firebase service account from the FIREBASE_SERVICE_ACCOUNT_JSON string.
+
+    Expects the entire service account JSON as a single-line string (no file paths).
+    Handles optional surrounding quotes from .env or shell.
+
     Returns:
-        Parsed service account dictionary
-        
+        Parsed service account dictionary.
+
     Raises:
-        ValueError: If JSON is invalid or file doesn't exist
+        ValueError: If the string is not valid JSON or missing required keys.
     """
-    s = (service_account_str or "").strip()
+    s = (json_str or "").strip()
     if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
         s = s[1:-1].strip()
     try:
-        return json.loads(s)
-    except json.JSONDecodeError:
-        pass
-    path_candidate = os.path.expandvars(os.path.expanduser(s))
-    if not os.path.isabs(path_candidate):
-        path_candidate = os.path.normpath(path_candidate.replace("\\", os.sep))
-        cwd = os.getcwd()
-        basename = os.path.basename(path_candidate)
-        # Try: cwd + path (repo root), then cwd + basename (run from backend/app), then cwd/app/basename
-        to_try = [
-            os.path.join(cwd, path_candidate),
-            os.path.join(cwd, basename),
-            os.path.join(cwd, "app", basename),
-        ]
-        for p in to_try:
-            if os.path.exists(p):
-                try:
-                    with open(p, 'r') as f:
-                        return json.load(f)
-                except (json.JSONDecodeError, IOError) as e:
-                    raise ValueError(f"Failed to read Firebase service account file: {e}")
-    else:
-        if os.path.exists(path_candidate):
-            try:
-                with open(path_candidate, 'r') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError) as e:
-                raise ValueError(f"Failed to read Firebase service account file: {e}")
-    raise ValueError(
-        "FIREBASE_SERVICE_ACCOUNT_JSON must be either a valid JSON string "
-        "or a path to a JSON file"
-    )
+        data = json.loads(s)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON: {e}")
+    if not isinstance(data, dict):
+        raise ValueError("FIREBASE_SERVICE_ACCOUNT_JSON must be a JSON object")
+    if data.get("type") != "service_account" or "project_id" not in data:
+        raise ValueError(
+            "FIREBASE_SERVICE_ACCOUNT_JSON must be a Firebase service account JSON "
+            "(type: service_account, project_id required)"
+        )
+    return data
 

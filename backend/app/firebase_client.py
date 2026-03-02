@@ -34,7 +34,7 @@ def initialize_firebase() -> firebase_admin.App:
         return _firebase_app
     
     try:
-        # Load from FIREBASE_SERVICE_ACCOUNT_PATH (preferred) or FIREBASE_SERVICE_ACCOUNT_JSON
+        # Load from FIREBASE_SERVICE_ACCOUNT_JSON env var (full JSON string; no file paths)
         service_account_dict = get_firebase_service_account_dict()
         project_id = service_account_dict.get("project_id") or "unknown"
         logger.info("Firebase service account loaded for project_id=%s (client must use same project)", project_id)

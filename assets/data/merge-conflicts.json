@@ -1,8 +1,8 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-03-01T21:32:19.626128Z",
-  "source_branch": "pdh-deployed-backup-v2",
-  "target_branch": "pdh-deployed-backup",
+  "generated_at": "2026-02-26T08:59:38.588123Z",
+  "source_branch": "S11",
+  "target_branch": "last-ticket",
   "status": "conflicts_detected",
   "total_conflicts": 3,
   "highlight_exact_broken_lines": true,
@@ -38,9 +38,7 @@
         "risk_level": "medium",
         "suggested_action": "manual_merge",
         "explanation": "Both branches have different code logic - carefully review and merge manually"
-      },
-      "risk_level": "medium",
-      "suggested_action": "manual_merge"
+      }
     },
     {
       "file": "assets/data/daily-commits.json",
@@ -51,10 +49,10 @@
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict separator - your code above, target code below"
-      },
-      "risk_level": "info",
-      "suggested_action": "choose_version"
+        "message": "Conflict separator - your code above, target code below",
+        "risk_level": "info",
+        "suggested_action": "choose_version"
+      }
     },
     {
       "file": "assets/data/daily-commits.json",
@@ -65,10 +63,10 @@
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict end marker - remove after resolving"
-      },
-      "risk_level": "info",
-      "suggested_action": "remove_marker"
+        "message": "Conflict end marker - remove after resolving",
+        "risk_level": "info",
+        "suggested_action": "remove_marker"
+      }
     },
     {
       "file": "assets/data/daily-commits.json",
@@ -113,9 +111,7 @@
         "risk_level": "medium",
         "suggested_action": "keep_target",
         "explanation": "Your branch deleted code that exists in target branch"
-      },
-      "risk_level": "medium",
-      "suggested_action": "keep_target"
+      }
     },
     {
       "file": "assets/data/daily-commits.json",
@@ -126,10 +122,10 @@
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict separator - your code above, target code below"
-      },
-      "risk_level": "info",
-      "suggested_action": "choose_version"
+        "message": "Conflict separator - your code above, target code below",
+        "risk_level": "info",
+        "suggested_action": "choose_version"
+      }
     },
     {
       "file": "assets/data/daily-commits.json",
@@ -140,10 +136,10 @@
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict end marker - remove after resolving"
-      },
-      "risk_level": "info",
-      "suggested_action": "remove_marker"
+        "message": "Conflict end marker - remove after resolving",
+        "risk_level": "info",
+        "suggested_action": "remove_marker"
+      }
     },
     {
       "file": "assets/data/daily-commits.json",
@@ -175,9 +171,7 @@
         "risk_level": "medium",
         "suggested_action": "manual_merge",
         "explanation": "Both branches have different code logic - carefully review and merge manually"
-      },
-      "risk_level": "medium",
-      "suggested_action": "manual_merge"
+      }
     },
     {
       "file": "assets/data/daily-commits.json",
@@ -188,10 +182,10 @@
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict separator - your code above, target code below"
-      },
-      "risk_level": "info",
-      "suggested_action": "choose_version"
+        "message": "Conflict separator - your code above, target code below",
+        "risk_level": "info",
+        "suggested_action": "choose_version"
+      }
     },
     {
       "file": "assets/data/daily-commits.json",
@@ -202,10 +196,10 @@
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict end marker - remove after resolving"
-      },
-      "risk_level": "info",
-      "suggested_action": "remove_marker"
+        "message": "Conflict end marker - remove after resolving",
+        "risk_level": "info",
+        "suggested_action": "remove_marker"
+      }
     }
   ],
   "codebase_issues": [],

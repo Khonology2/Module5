@@ -11,7 +11,7 @@ import os
 import sys
 import importlib
 try:
-    from app.config import get_settings, validate_settings
+    from app.config import get_settings, validate_settings, get_firebase_service_account_dict
     from app.firebase_client import initialize_firebase
     from app.routes import auth
     from app.models import ErrorResponse
@@ -20,7 +20,7 @@ except ModuleNotFoundError:
     if 'app' in sys.modules:
         del sys.modules['app']
     importlib.invalidate_caches()
-    from app.config import get_settings, validate_settings
+    from app.config import get_settings, validate_settings, get_firebase_service_account_dict
     from app.firebase_client import initialize_firebase
     from app.routes import auth
     from app.models import ErrorResponse
@@ -140,11 +140,44 @@ async def root():
 async def health():
     """
     Health check endpoint
-    
+
     Returns:
         Health status
     """
     return {"status": "healthy", "service": "pdh-backend"}
+
+
+# Firebase client config from service account JSON + optional web keys (no hardcoded keys in frontend)
+@app.get("/firebase-config", tags=["config"])
+async def firebase_config():
+    """
+    Return Firebase client config for web: projectId (from FIREBASE_SERVICE_ACCOUNT_JSON),
+    authDomain and storageBucket derived from project_id, and optional apiKey/appId from env.
+    Frontend uses this instead of hardcoded keys when FIREBASE_WEB_API_KEY and FIREBASE_WEB_APP_ID are set.
+    """
+    try:
+        sa = get_firebase_service_account_dict()
+        project_id = sa.get("project_id") or ""
+        settings = get_settings()
+        api_key = (settings.firebase_web_api_key or "").strip()
+        app_id = (settings.firebase_web_app_id or "").strip()
+        messaging_sender_id = (settings.firebase_web_messaging_sender_id or "").strip()
+        auth_domain = f"{project_id}.firebaseapp.com" if project_id else ""
+        storage_bucket = f"{project_id}.firebasestorage.app" if project_id else ""
+        return {
+            "projectId": project_id,
+            "authDomain": auth_domain,
+            "storageBucket": storage_bucket,
+            "apiKey": api_key if api_key else None,
+            "appId": app_id if app_id else None,
+            "messagingSenderId": messaging_sender_id if messaging_sender_id else None,
+        }
+    except Exception as e:
+        logger.warning(f"firebase-config error: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"error": "Firebase config unavailable", "detail": str(e)},
+        )
 
 
 if __name__ == "__main__":
