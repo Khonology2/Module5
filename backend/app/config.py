@@ -22,9 +22,10 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
     )
     
-    # Firebase service account JSON (can be a JSON string or path to JSON file)
-    firebase_service_account_json: str = Field(..., alias='FIREBASE_SERVICE_ACCOUNT_JSON')
-    
+    # Firebase: path to JSON file (preferred when set) or inline JSON / path in FIREBASE_SERVICE_ACCOUNT_JSON
+    firebase_service_account_path: Optional[str] = Field(None, alias='FIREBASE_SERVICE_ACCOUNT_PATH')
+    firebase_service_account_json: Optional[str] = Field(None, alias='FIREBASE_SERVICE_ACCOUNT_JSON')
+
     # JWT secret for validating tokens
     jwt_secret: str = Field(..., alias='JWT_SECRET_KEY')
     
@@ -44,6 +45,7 @@ class Settings(BaseSettings):
         # Read from environment variables and map to field names
         # Always read directly from os.getenv() to ensure we get the values
         env_mapping = {
+            'FIREBASE_SERVICE_ACCOUNT_PATH': 'firebase_service_account_path',
             'FIREBASE_SERVICE_ACCOUNT_JSON': 'firebase_service_account_json',
             'JWT_SECRET_KEY': 'jwt_secret',
             'ENCRYPTION_KEY': 'encryption_key',
@@ -103,27 +105,47 @@ def get_settings() -> Settings:
     return _settings
 
 
+def _get_firebase_service_account_source(settings: Settings) -> Optional[str]:
+    """Return the source string for Firebase credentials: PATH if set, else JSON."""
+    if settings.firebase_service_account_path and settings.firebase_service_account_path.strip():
+        return settings.firebase_service_account_path.strip()
+    if settings.firebase_service_account_json and settings.firebase_service_account_json.strip():
+        return settings.firebase_service_account_json.strip()
+    return None
+
+
+def get_firebase_service_account_dict() -> Dict[str, Any]:
+    """Load and return Firebase service account dict (from PATH or JSON)."""
+    settings = get_settings()
+    source = _get_firebase_service_account_source(settings)
+    if not source:
+        raise ValueError(
+            "At least one of FIREBASE_SERVICE_ACCOUNT_PATH or FIREBASE_SERVICE_ACCOUNT_JSON is required"
+        )
+    return parse_firebase_service_account(source)
+
+
 def validate_settings(settings: Settings) -> None:
     """
     Validate that all required settings are present and properly formatted
-    
+
     Args:
         settings: Settings instance to validate
-        
+
     Raises:
         ValueError: If required settings are missing or invalid
     """
-    if not settings.firebase_service_account_json:
-        raise ValueError("FIREBASE_SERVICE_ACCOUNT_JSON environment variable is required")
-    
+    source = _get_firebase_service_account_source(settings)
+    if not source:
+        raise ValueError(
+            "At least one of FIREBASE_SERVICE_ACCOUNT_PATH or FIREBASE_SERVICE_ACCOUNT_JSON is required"
+        )
     if not settings.jwt_secret:
-        raise ValueError("JWT_SECRET environment variable is required")
-    
-    # Try to parse Firebase service account JSON to validate it
+        raise ValueError("JWT_SECRET_KEY environment variable is required")
     try:
-        parse_firebase_service_account(settings.firebase_service_account_json)
+        parse_firebase_service_account(source)
     except (json.JSONDecodeError, ValueError) as e:
-        raise ValueError(f"Invalid FIREBASE_SERVICE_ACCOUNT_JSON format: {e}")
+        raise ValueError(f"Invalid Firebase service account (path/json): {e}")
 
 
 def parse_firebase_service_account(service_account_str: str) -> Dict[str, Any]:

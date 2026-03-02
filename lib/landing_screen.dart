@@ -10,7 +10,7 @@ import 'package:pdh/widgets/version_control_widget.dart';
 
 /// Set to true to show the token input field and Login button on the landing screen.
 /// Set to false to hide them (e.g. when using only URL-based token flow).
-const bool kShowTokenLoginUI = true;
+const bool kShowTokenLoginUI = false;
 
 // The main entry point for the Flutter application.
 // void main() {

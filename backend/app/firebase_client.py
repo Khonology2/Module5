@@ -8,7 +8,7 @@ from firebase_admin import credentials, auth, firestore
 from firebase_admin.exceptions import FirebaseError
 from google.oauth2.service_account import Credentials
 
-from app.config import get_settings, parse_firebase_service_account
+from app.config import get_firebase_service_account_dict, get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +34,8 @@ def initialize_firebase() -> firebase_admin.App:
         return _firebase_app
     
     try:
-        settings = get_settings()
-        
-        # Parse service account JSON
-        service_account_dict = parse_firebase_service_account(
-            settings.firebase_service_account_json
-        )
+        # Load from FIREBASE_SERVICE_ACCOUNT_PATH (preferred) or FIREBASE_SERVICE_ACCOUNT_JSON
+        service_account_dict = get_firebase_service_account_dict()
         project_id = service_account_dict.get("project_id") or "unknown"
         logger.info("Firebase service account loaded for project_id=%s (client must use same project)", project_id)
 
@@ -107,8 +103,7 @@ def get_firestore() -> firestore.Client:
 
 
 def get_google_credentials(scopes: Optional[List[str]] = None) -> Credentials:
-    settings = get_settings()
-    info = parse_firebase_service_account(settings.firebase_service_account_json)
+    info = get_firebase_service_account_dict()
     if not scopes:
         scopes = ["https://www.googleapis.com/auth/cloud-platform"]
     return Credentials.from_service_account_info(info, scopes=scopes)
