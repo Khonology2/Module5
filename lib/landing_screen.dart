@@ -3,6 +3,7 @@ import 'dart:async'; // For Timer
 import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/backend_auth_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/widgets/floating_circles_particle_animation.dart';
@@ -313,6 +314,32 @@ class _PersonalDevelopmentHubScreenState
       }
 
       // Step C: Sign in using Firebase custom token
+      // Fail fast if this build is using wrong Firebase project (stale cache / old deploy)
+      final currentProjectId = Firebase.app().options.projectId;
+      if (currentProjectId != 'pdh-v2') {
+        debugPrint(
+          'Landing screen: Wrong Firebase project "$currentProjectId". '
+          'Rebuild: flutter clean && flutter pub get && flutter run -d chrome',
+        );
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+            _isProcessingButton = false;
+            _isSlowNetwork = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'App is using wrong Firebase project ($currentProjectId). '
+                'Rebuild the app: flutter clean, then flutter pub get, then run again.',
+              ),
+              backgroundColor: const Color(0xFFC10D00),
+              duration: const Duration(seconds: 12),
+            ),
+          );
+        }
+        return;
+      }
       try {
         final userCredential = await FirebaseAuth.instance
             .signInWithCustomToken(firebaseToken);
