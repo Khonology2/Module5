@@ -1,6 +1,6 @@
 {
-  "version": "2026.02.EE9.SIT",
-  "generated_at": "2026-02-27T08:01:06Z",
+  "version": "2026.03.BB5.SIT",
+  "generated_at": "2026-03-03T07:31:56Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -13,31 +13,6 @@
       "timestamp": "2026-02-24T08:14:46+02:00"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature - Implement type filtering and sorting for alerts in Manager Inbox screen",
-      "timestamp": "2026-02-26T23:39:32+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -Add loading skeleton for team metrics and improve alert section padding in Manager Alerts & Nudges screen",
-      "timestamp": "2026-02-26T23:25:32+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Improve loading state handling and enhance alert filtering logic in Manager Alerts & Nudges screen",
-      "timestamp": "2026-02-26T23:04:05+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Enhance error handling and loading state in Manager Alerts & Nudges screen, including retry functionality and improved alert combination logic.",
-      "timestamp": "2026-02-26T22:40:38+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - Update dependencies in pubspec.lock and refactor badge category accent logic across multiple screens to use a unified color scheme for improved consistency.",
-      "timestamp": "2026-02-23T09:52:27+02:00"
-    },
-    {
       "author": "Nathi2266",
       "message": "Conflict check",
       "timestamp": "2026-02-24T20:11:25+02:00"
@@ -46,8 +21,13 @@
       "author": "Nathi2266",
       "message": "feat: update PDF export layout and contact info",
       "timestamp": "2026-02-24T20:07:15+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature -  Integrate ManagerRealtimeService to exclude deleted accounts from employee lists in ManagerTeamWorkspaceScreen and TeamManagementScreen",
+      "timestamp": "2026-03-03T09:31:00+02:00"
     }
   ],
-  "total_commits": 9,
-  "date_range": "2026-02-27"
+  "total_commits": 5,
+  "date_range": "2026-03-03"
 }
