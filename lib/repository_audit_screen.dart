@@ -22,6 +22,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/debouncer.dart';
+import 'package:pdh/services/unified_milestone_audit.dart';
 
 class RepositoryAuditScreen extends StatefulWidget {
   const RepositoryAuditScreen({super.key});
@@ -2752,7 +2753,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         ),
         const SizedBox(height: 16),
         StreamBuilder<List<Map<String, dynamic>>>(
-          stream: const Stream.empty(),
+          stream: UnifiedMilestoneAudit.getAllMilestoneAuditStream(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(

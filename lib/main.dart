@@ -10,6 +10,7 @@ import 'package:pdh/progress_visuals_screen.dart';
 import 'package:pdh/my_goal_workspace_screen.dart';
 import 'package:pdh/gamification_screen.dart';
 import 'package:pdh/repository_audit_screen.dart';
+import 'package:pdh/screens/milestone_audit_screen.dart';
 // Keep for reference
 import 'package:pdh/alerts_nudges_screen.dart';
 import 'package:pdh/season_challenge_screen.dart';
@@ -365,6 +366,11 @@ class _MyAppState extends State<MyApp> {
                   title: 'Repository & Audit',
                   currentRouteName: '/repository_audit',
                   body: const RepositoryAuditScreen(),
+                ),
+                '/milestone_audit': (context) => MainLayout(
+                  title: 'Milestone Audit',
+                  currentRouteName: '/milestone_audit',
+                  body: const MilestoneAuditScreen(),
                 ),
                 '/alerts_nudges': (context) => const AlertsNudgesScreen(),
                 '/season_challenge': (context) => const SeasonChallengeScreen(),
