@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.BB6.SIT",
-  "generated_at": "2026-03-03T10:13:47Z",
+  "version": "2026.03.BB9.SIT",
+  "generated_at": "2026-03-03T12:49:14Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -8,31 +8,46 @@
       "timestamp": "2026-02-24T06:19:19Z"
     },
     {
+      "author": "Thembelihle",
+      "message": "Feature - Implement type filtering and sorting for alerts in Manager Inbox screen",
+      "timestamp": "2026-02-26T23:39:32+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature -Add loading skeleton for team metrics and improve alert section padding in Manager Alerts & Nudges screen",
+      "timestamp": "2026-02-26T23:25:32+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature -  Improve loading state handling and enhance alert filtering logic in Manager Alerts & Nudges screen",
+      "timestamp": "2026-02-26T23:04:05+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature -  Enhance error handling and loading state in Manager Alerts & Nudges screen, including retry functionality and improved alert combination logic.",
+      "timestamp": "2026-02-26T22:40:38+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Update dependencies in pubspec.lock and refactor badge category accent logic across multiple screens to use a unified color scheme for improved consistency.",
+      "timestamp": "2026-02-23T09:52:27+02:00"
+    },
+    {
       "author": "BhutSipho",
-      "message": "Clean Implementation:Ui & MAT feature",
-      "timestamp": "2026-02-24T08:14:46+02:00"
+      "message": "Fix Firestore assertion failures - disable auto-reload and allow retry logic to work",
+      "timestamp": "2026-03-03T14:43:47+02:00"
+    },
+    {
+      "author": "BhutSipho",
+      "message": "Merge Nathi-S11 with correct Firebase API keys and user creation permissions",
+      "timestamp": "2026-03-03T12:13:31+02:00"
     },
     {
       "author": "Nathi2266",
       "message": "Feature - fixed goal creation",
       "timestamp": "2026-03-03T11:12:39+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - enhance employee data handling in ManagerAlertsNudgesScreen to prevent UI flashing by caching the last known-good employee list",
-      "timestamp": "2026-03-03T10:08:17+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - update nudge action to show dialog instead of sending directly, and remove placeholder method for sending nudges",
-      "timestamp": "2026-03-03T09:50:02+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Integrate ManagerRealtimeService to exclude deleted accounts from employee lists in ManagerTeamWorkspaceScreen and TeamManagementScreen",
-      "timestamp": "2026-03-03T09:31:00+02:00"
     }
   ],
-  "total_commits": 6,
+  "total_commits": 9,
   "date_range": "2026-03-03"
 }
