@@ -2804,6 +2804,38 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         color: AppColors.textMuted,
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.activeColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.activeColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'How to create milestones:',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.activeColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '1. Create a goal and get it approved\n'
+                            '2. Open goal details and add milestones\n'
+                            '3. Update milestone status to track progress\n'
+                            '4. All milestone actions will appear here',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               );
