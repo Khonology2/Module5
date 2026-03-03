@@ -44,6 +44,7 @@ class DefaultFirebaseOptions {
     }
   }
 
+  // PDH-v2: Run "dart run flutterfire configure" and select PDH-v2 to fill the real Web appId from Firebase Console.
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
     appId: '1:638896632756:web:6df76beff446f75ee378e1',
