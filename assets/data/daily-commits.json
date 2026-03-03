@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.BB7.SIT",
-  "generated_at": "2026-03-03T15:23:43Z",
+  "version": "2026.03.BB8.SIT",
+  "generated_at": "2026-03-03T15:52:27Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -11,6 +11,11 @@
       "author": "BhutSipho",
       "message": "Clean Implementation:Ui & MAT feature",
       "timestamp": "2026-02-24T08:14:46+02:00"
+    },
+    {
+      "author": "Nathi2266",
+      "message": "Refactor AI routes to use REST API for Gemini text generation, removing dependency on google-generativeai SDK. Update requirements and error handling for improved robustness.",
+      "timestamp": "2026-03-03T17:51:28+02:00"
     },
     {
       "author": "Nathi2266",
@@ -38,6 +43,6 @@
       "timestamp": "2026-03-03T09:31:00+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 8,
   "date_range": "2026-03-03"
 }
