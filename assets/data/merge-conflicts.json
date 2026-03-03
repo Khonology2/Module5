@@ -1,8 +1,8 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-02-26T08:59:38.588123Z",
-  "source_branch": "S11",
-  "target_branch": "last-ticket",
+  "generated_at": "2026-03-03T06:16:04.283075Z",
+  "source_branch": "pdh-deployed-backup-v2",
+  "target_branch": "pdh-deployed-backup",
   "status": "conflicts_detected",
   "total_conflicts": 3,
   "highlight_exact_broken_lines": true,
@@ -13,8 +13,8 @@
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
       "your_code": [
-        "  \"version\": \"2026.03.AG7.SIT\",",
-        "  \"generated_at\": \"2026-03-01T20:45:43Z\","
+        "  \"version\": \"2026.02.EE10.SIT\",",
+        "  \"generated_at\": \"2026-02-27T12:50:21Z\","
       ],
       "target_code": [
         "  \"version\": \"2026.02.ED6.SIT\",",
@@ -23,8 +23,8 @@
       "context_lines": [
         "{",
         "<<<<<<< HEAD",
-        "  \"version\": \"2026.03.AG7.SIT\",",
-        "  \"generated_at\": \"2026-03-01T20:45:43Z\",",
+        "  \"version\": \"2026.02.EE10.SIT\",",
+        "  \"generated_at\": \"2026-02-27T12:50:21Z\",",
         "=======",
         "  \"version\": \"2026.02.ED6.SIT\",",
         "  \"generated_at\": \"2026-02-26T23:39:56Z\",",
@@ -38,7 +38,9 @@
         "risk_level": "medium",
         "suggested_action": "manual_merge",
         "explanation": "Both branches have different code logic - carefully review and merge manually"
-      }
+      },
+      "risk_level": "medium",
+      "suggested_action": "manual_merge"
     },
     {
       "file": "assets/data/daily-commits.json",
@@ -49,10 +51,10 @@
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict separator - your code above, target code below",
-        "risk_level": "info",
-        "suggested_action": "choose_version"
-      }
+        "message": "Conflict separator - your code above, target code below"
+      },
+      "risk_level": "info",
+      "suggested_action": "choose_version"
     },
     {
       "file": "assets/data/daily-commits.json",
@@ -63,18 +65,32 @@
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict end marker - remove after resolving",
-        "risk_level": "info",
-        "suggested_action": "remove_marker"
-      }
+        "message": "Conflict end marker - remove after resolving"
+      },
+      "risk_level": "info",
+      "suggested_action": "remove_marker"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 26,
+      "line": 16,
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
-      "your_code": [],
+      "your_code": [
+        "      \"author\": \"Thembelihle\",",
+        "      \"message\": \"Feature - Implement type filtering and sorting for alerts in Manager Inbox screen\",",
+        "      \"timestamp\": \"2026-02-26T23:39:32+02:00\""
+      ],
       "target_code": [
+        "      \"author\": \"GitHub Action\",",
+        "      \"message\": \"Update daily commits data []\",",
+        "      \"timestamp\": \"2026-02-23T07:53:21Z\"",
+        "    },",
+        "    {",
+        "      \"author\": \"BhutSipho\",",
+        "      \"message\": \"Clean Implementation:Ui & MAT feature\",",
+        "      \"timestamp\": \"2026-02-24T08:14:46+02:00\"",
+        "    },",
+        "    {",
         "      \"author\": \"Nathi2266\",",
         "      \"message\": \"updated the manager dashboard\",",
         "      \"timestamp\": \"2026-02-27T01:37:26+02:00\"",
@@ -82,15 +98,26 @@
         "    {",
         "      \"author\": \"Nathi2266\",",
         "      \"message\": \"updates from S11\",",
-        "      \"timestamp\": \"2026-02-26T17:41:27+02:00\"",
-        "    },",
-        "    {"
+        "      \"timestamp\": \"2026-02-26T17:41:27+02:00\""
       ],
       "context_lines": [
         "    },",
         "    {",
         "<<<<<<< HEAD",
+        "      \"author\": \"Thembelihle\",",
+        "      \"message\": \"Feature - Implement type filtering and sorting for alerts in Manager Inbox screen\",",
+        "      \"timestamp\": \"2026-02-26T23:39:32+02:00\"",
         "=======",
+        "      \"author\": \"GitHub Action\",",
+        "      \"message\": \"Update daily commits data []\",",
+        "      \"timestamp\": \"2026-02-23T07:53:21Z\"",
+        "    },",
+        "    {",
+        "      \"author\": \"BhutSipho\",",
+        "      \"message\": \"Clean Implementation:Ui & MAT feature\",",
+        "      \"timestamp\": \"2026-02-24T08:14:46+02:00\"",
+        "    },",
+        "    {",
         "      \"author\": \"Nathi2266\",",
         "      \"message\": \"updated the manager dashboard\",",
         "      \"timestamp\": \"2026-02-27T01:37:26+02:00\"",
@@ -99,56 +126,56 @@
         "      \"author\": \"Nathi2266\",",
         "      \"message\": \"updates from S11\",",
         "      \"timestamp\": \"2026-02-26T17:41:27+02:00\"",
+        ">>>>>>> origin/pdh-deployed-backup",
         "    },",
         "    {",
-        ">>>>>>> origin/pdh-deployed-backup",
-        "      \"author\": \"Thembelihle\",",
-        "      \"message\": \"Feature - Refactor Manager Inbox Screen to streamline audience filter UI by removing redundant choice chips and maintaining unread filter functionality.\",",
-        "      \"timestamp\": \"2026-02-26T10:58:03+02:00\""
+        "      \"author\": \"Thembelihle\","
       ],
       "resolution_prompt": {
-        "message": "Target branch has new code, your branch has deletion",
+        "message": "Code logic conflict - manual review required",
         "risk_level": "medium",
-        "suggested_action": "keep_target",
-        "explanation": "Your branch deleted code that exists in target branch"
-      }
+        "suggested_action": "manual_merge",
+        "explanation": "Both branches have different code logic - carefully review and merge manually"
+      },
+      "risk_level": "medium",
+      "suggested_action": "manual_merge"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 26,
+      "line": 19,
       "marker": "=======",
       "message": "Conflict separator",
       "your_code": [],
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict separator - your code above, target code below",
-        "risk_level": "info",
-        "suggested_action": "choose_version"
-      }
+        "message": "Conflict separator - your code above, target code below"
+      },
+      "risk_level": "info",
+      "suggested_action": "choose_version"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 37,
+      "line": 38,
       "marker": ">>>>>>>",
       "message": "Current branch marker",
       "your_code": [],
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict end marker - remove after resolving",
-        "risk_level": "info",
-        "suggested_action": "remove_marker"
-      }
+        "message": "Conflict end marker - remove after resolving"
+      },
+      "risk_level": "info",
+      "suggested_action": "remove_marker"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 59,
+      "line": 82,
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
       "your_code": [
-        "  \"total_commits\": 7,",
-        "  \"date_range\": \"2026-03-01\""
+        "  \"total_commits\": 10,",
+        "  \"date_range\": \"2026-02-27\""
       ],
       "target_code": [
         "  \"total_commits\": 6,",
@@ -158,8 +185,8 @@
         "    }",
         "  ],",
         "<<<<<<< HEAD",
-        "  \"total_commits\": 7,",
-        "  \"date_range\": \"2026-03-01\"",
+        "  \"total_commits\": 10,",
+        "  \"date_range\": \"2026-02-27\"",
         "=======",
         "  \"total_commits\": 6,",
         "  \"date_range\": \"2026-02-26\"",
@@ -171,35 +198,37 @@
         "risk_level": "medium",
         "suggested_action": "manual_merge",
         "explanation": "Both branches have different code logic - carefully review and merge manually"
-      }
+      },
+      "risk_level": "medium",
+      "suggested_action": "manual_merge"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 61,
+      "line": 84,
       "marker": "=======",
       "message": "Conflict separator",
       "your_code": [],
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict separator - your code above, target code below",
-        "risk_level": "info",
-        "suggested_action": "choose_version"
-      }
+        "message": "Conflict separator - your code above, target code below"
+      },
+      "risk_level": "info",
+      "suggested_action": "choose_version"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 64,
+      "line": 87,
       "marker": ">>>>>>>",
       "message": "Current branch marker",
       "your_code": [],
       "target_code": [],
       "context_lines": [],
       "resolution_prompt": {
-        "message": "Conflict end marker - remove after resolving",
-        "risk_level": "info",
-        "suggested_action": "remove_marker"
-      }
+        "message": "Conflict end marker - remove after resolving"
+      },
+      "risk_level": "info",
+      "suggested_action": "remove_marker"
     }
   ],
   "codebase_issues": [],
@@ -215,6 +244,6 @@
       "6. Commit the merge: git commit",
       "7. Push your changes: git push origin pdh-deployed-backup-v2"
     ],
-    "ai_system_prompt": "I have merge conflicts when merging branch 'pdh-deployed-backup-v2' into 'pdh-deployed-backup'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.\n\nCONFLICTS TO RESOLVE:\n\nFILE: assets/data/daily-commits.json\n============================================================\n\nConflict 1 (Line 2):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"version\": \"2026.03.AG7.SIT\",\n  \"generated_at\": \"2026-03-01T20:45:43Z\",\n=======\n  \"version\": \"2026.02.ED6.SIT\",\n  \"generated_at\": \"2026-02-26T23:39:56Z\",\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n  {\n    \"version\": \"2026.03.AG7.SIT\",\n    \"generated_at\": \"2026-03-01T20:45:43Z\",\n    \"version\": \"2026.02.ED6.SIT\",\n    \"generated_at\": \"2026-02-26T23:39:56Z\",\n    \"commits\": [\n      {\n        \"author\": \"GitHub Action\",\n\n\nConflict 2 (Line 26):\nRisk Level: medium\nSuggested Action: keep_target\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n=======\n      \"author\": \"Nathi2266\",\n      \"message\": \"updated the manager dashboard\",\n      \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"updates from S11\",\n      \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n    },\n    {\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updated the manager dashboard\",\n        \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updates from S11\",\n        \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n      },\n      {\n        \"author\": \"Thembelihle\",\n        \"message\": \"Feature - Refactor Manager Inbox Screen to streamline audience filter UI by removing redundant choice chips and maintaining unread filter functionality.\",\n        \"timestamp\": \"2026-02-26T10:58:03+02:00\"\n\n\nConflict 3 (Line 59):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"total_commits\": 7,\n  \"date_range\": \"2026-03-01\"\n=======\n  \"total_commits\": 6,\n  \"date_range\": \"2026-02-26\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      }\n    ],\n    \"total_commits\": 7,\n    \"date_range\": \"2026-03-01\"\n    \"total_commits\": 6,\n    \"date_range\": \"2026-02-26\"\n  }\n\nRESOLUTION REQUIREMENTS:\n1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n2. Consider the risk level and suggested action for each conflict\n3. Ensure the merged code maintains functionality from both branches\n4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n5. Provide the complete resolved code for each file\n\nOUTPUT FORMAT:\nFor each file, provide:\n1. Brief explanation of the resolution approach\n2. The complete resolved code block to replace the conflict\n3. Any notes about potential issues or testing needed\n\nPlease provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
+    "ai_system_prompt": "I have merge conflicts when merging branch 'pdh-deployed-backup-v2' into 'pdh-deployed-backup'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.\n\nCONFLICTS TO RESOLVE:\n\nFILE: assets/data/daily-commits.json\n============================================================\n\nConflict 1 (Line 2):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"version\": \"2026.02.EE10.SIT\",\n  \"generated_at\": \"2026-02-27T12:50:21Z\",\n=======\n  \"version\": \"2026.02.ED6.SIT\",\n  \"generated_at\": \"2026-02-26T23:39:56Z\",\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n  {\n    \"version\": \"2026.02.EE10.SIT\",\n    \"generated_at\": \"2026-02-27T12:50:21Z\",\n    \"version\": \"2026.02.ED6.SIT\",\n    \"generated_at\": \"2026-02-26T23:39:56Z\",\n    \"commits\": [\n      {\n        \"author\": \"GitHub Action\",\n\n\nConflict 2 (Line 16):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n      \"author\": \"Thembelihle\",\n      \"message\": \"Feature - Implement type filtering and sorting for alerts in Manager Inbox screen\",\n      \"timestamp\": \"2026-02-26T23:39:32+02:00\"\n=======\n      \"author\": \"GitHub Action\",\n      \"message\": \"Update daily commits data []\",\n      \"timestamp\": \"2026-02-23T07:53:21Z\"\n    },\n    {\n      \"author\": \"BhutSipho\",\n      \"message\": \"Clean Implementation:Ui & MAT feature\",\n      \"timestamp\": \"2026-02-24T08:14:46+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"updated the manager dashboard\",\n      \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"updates from S11\",\n      \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      },\n      {\n        \"author\": \"Thembelihle\",\n        \"message\": \"Feature - Implement type filtering and sorting for alerts in Manager Inbox screen\",\n        \"timestamp\": \"2026-02-26T23:39:32+02:00\"\n        \"author\": \"GitHub Action\",\n        \"message\": \"Update daily commits data []\",\n        \"timestamp\": \"2026-02-23T07:53:21Z\"\n      },\n      {\n        \"author\": \"BhutSipho\",\n        \"message\": \"Clean Implementation:Ui & MAT feature\",\n        \"timestamp\": \"2026-02-24T08:14:46+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updated the manager dashboard\",\n        \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updates from S11\",\n        \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n      },\n      {\n        \"author\": \"Thembelihle\",\n\n\nConflict 3 (Line 82):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"total_commits\": 10,\n  \"date_range\": \"2026-02-27\"\n=======\n  \"total_commits\": 6,\n  \"date_range\": \"2026-02-26\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      }\n    ],\n    \"total_commits\": 10,\n    \"date_range\": \"2026-02-27\"\n    \"total_commits\": 6,\n    \"date_range\": \"2026-02-26\"\n  }\n\nRESOLUTION REQUIREMENTS:\n1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n2. Consider the risk level and suggested action for each conflict\n3. Ensure the merged code maintains functionality from both branches\n4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n5. Provide the complete resolved code for each file\n\nOUTPUT FORMAT:\nFor each file, provide:\n1. Brief explanation of the resolution approach\n2. The complete resolved code block to replace the conflict\n3. Any notes about potential issues or testing needed\n\nPlease provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
   }
 }
