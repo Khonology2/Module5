@@ -190,6 +190,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                             _isProfileIncomplete;
 
                         final navTile = _NavTile(
+                          key: ValueKey('nav_${it.route}_$index'),
                           icon: it.icon,
                           iconWidget: it.iconWidget,
                           assetWhite: it.assetWhite,
@@ -220,6 +221,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                     ),
                   ),
                   _NavTile(
+                    key: const ValueKey('nav_logout'),
                     icon: Icons.exit_to_app,
                     label: AppLocalizations.of(context).employee_drawer_exit,
                     route: '__logout__',
@@ -477,6 +479,7 @@ class _CollapseToggle extends StatelessWidget {
 
 class _NavTile extends StatefulWidget {
   const _NavTile({
+    super.key,
     this.icon, // Make icon optional
     this.iconWidget, // Add optional iconWidget
     this.assetWhite,
