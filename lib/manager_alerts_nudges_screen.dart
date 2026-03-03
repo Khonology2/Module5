@@ -55,6 +55,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   bool _isLoadingInsights = false;
   Map<String, dynamic>? _teamInsights;
 
+  // Cache the last known-good enriched employee list so the UI
+  // does not flash or show placeholder-only data when the stream
+  // re-emits (e.g., after sending a nudge).
+  List<EmployeeData> _lastEmployees = const [];
+
   @override
   void initState() {
     super.initState();
@@ -414,27 +419,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         key: const ValueKey('team_data_stream'),
         stream: ManagerRealtimeService.getTeamDataStream(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              !snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
-            );
-          }
-
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
-            );
-          }
-
           if (snapshot.hasError) {
             return Center(
               child: Padding(
@@ -468,7 +452,36 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             );
           }
 
-          final employees = snapshot.data ?? [];
+          final incoming = snapshot.data;
+          final hasPlaceholderBatch = incoming != null &&
+              incoming.isNotEmpty &&
+              incoming.every((e) => e.isPlaceholder);
+
+          // Keep last known-good enriched list so the UI does not
+          // "flash empty" or show placeholder-only data when the
+          // stream re-emits (for example, after sending a nudge).
+          if (snapshot.hasData &&
+              (snapshot.data?.isNotEmpty ?? false) &&
+              !hasPlaceholderBatch) {
+            _lastEmployees = snapshot.data!;
+          }
+
+          // If we only have placeholders and no enriched cache yet,
+          // still show employees immediately (for stats/alerts), but
+          // rely on the subsequent enriched payload to refine data.
+          final employees =
+              hasPlaceholderBatch ? incoming : (snapshot.data ?? _lastEmployees);
+
+          if ((employees.isEmpty) &&
+              snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.activeColor,
+                ),
+              ),
+            );
+          }
 
           try {
             return Container(
