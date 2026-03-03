@@ -11,6 +11,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
@@ -73,9 +74,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       }
 
       // Analyze goals for potential risks
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
+      const riskSystemInstruction =
           'You are an AI assistant specialized in analyzing personal development goals and predicting potential risks. '
           'Analyze goal data and identify goals that are at risk of missing deadlines, have low progress rates, or show concerning patterns. '
           'For each at-risk goal, provide:\n'
@@ -84,9 +83,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           '3. Risk description (why it\'s at risk)\n'
           '4. Recommended action\n\n'
           'Respond ONLY with a JSON array in this exact format (no other text):\n'
-          '[{"goalTitle": "Goal name", "riskLevel": "high|medium|low", "riskDescription": "Why it\'s at risk", "recommendedAction": "What to do"}]',
-        ),
-      );
+          '[{"goalTitle": "Goal name", "riskLevel": "high|medium|low", "riskDescription": "Why it\'s at risk", "recommendedAction": "What to do"}]';
 
       final progressData = goals
           .map((g) {
@@ -110,19 +107,21 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           })
           .join('\n---\n');
 
-      final prompt = [
-        Content.text(
+      final userPrompt =
           'Analyze these goals and identify which ones are at risk:\n\n$progressData\n\n'
           'Focus on goals with:\n'
           '- Low progress relative to time elapsed\n'
           '- Approaching deadlines with insufficient progress\n'
           '- Stagnant or declining progress patterns\n'
-          '- High priority goals that are behind schedule',
-        ),
-      ];
+          '- High priority goals that are behind schedule';
 
-      final response = await model.generateContent(prompt);
-      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
+      final responseText =
+          (await AiFallbackService.generateTextWithFallback(
+            userPrompt: userPrompt,
+            systemInstruction: riskSystemInstruction,
+          ))
+              .replaceAll('*', '')
+              .trim();
 
       // Parse JSON response
       String jsonText = responseText.trim();
@@ -2242,6 +2241,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 });
               }
 
+              String? fallbackPrompt;
               try {
                 // Get goals for context
                 final goals = await DatabaseService.getUserGoals(user.uid);
@@ -2260,6 +2260,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       return '${a.title}: ${a.message} (${a.priority.name} priority, ${a.type.name})';
                     })
                     .join('\n');
+
+                fallbackPrompt =
+                    'User\'s Current Alerts:\n$alertsContext\n\n'
+                    'User\'s Goals:\n$goalsContext\n\n'
+                    'User Question: $message\n\n'
+                    'Please help the user understand and act on their alerts and goals.';
 
                 final model = FirebaseAI.googleAI().generativeModel(
                   model: 'gemini-2.5-flash',
@@ -2307,14 +2313,37 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   isGenerating = false;
                 });
               } catch (e) {
-                setDialogState(() {
-                  chatHistory.add({
-                    'role': 'assistant',
-                    'content':
-                        'Sorry, I encountered an error. Please try again.',
+                try {
+                  const sysInstr =
+                      'You are an AI assistant specialized in helping users understand, prioritize, and act on their alerts and goals. '
+                      'Be conversational, helpful, and actionable. Keep responses concise but informative.';
+                  final fallbackText =
+                      await AiFallbackService.generateViaBackend(
+                    prompt: fallbackPrompt ??
+                        'User Question: $message\n\nPlease help the user.',
+                    systemInstruction: sysInstr,
+                  );
+                  final assistantMessage =
+                      fallbackText.replaceAll('*', '').trim().isEmpty
+                          ? 'I couldn\'t generate a response. Please try again.'
+                          : fallbackText.replaceAll('*', '').trim();
+                  setDialogState(() {
+                    chatHistory.add({
+                      'role': 'assistant',
+                      'content': assistantMessage,
+                    });
+                    isGenerating = false;
                   });
-                  isGenerating = false;
-                });
+                } catch (_) {
+                  setDialogState(() {
+                    chatHistory.add({
+                      'role': 'assistant',
+                      'content':
+                          'Sorry, I encountered an error. Please try again.',
+                    });
+                    isGenerating = false;
+                  });
+                }
               }
             }
 

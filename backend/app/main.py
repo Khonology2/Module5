@@ -13,7 +13,7 @@ import importlib
 try:
     from app.config import get_settings, validate_settings, get_firebase_service_account_dict
     from app.firebase_client import initialize_firebase
-    from app.routes import auth
+    from app.routes import auth, ai
     from app.models import ErrorResponse
 except ModuleNotFoundError:
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -22,7 +22,7 @@ except ModuleNotFoundError:
     importlib.invalidate_caches()
     from app.config import get_settings, validate_settings, get_firebase_service_account_dict
     from app.firebase_client import initialize_firebase
-    from app.routes import auth
+    from app.routes import auth, ai
     from app.models import ErrorResponse
 
 # Configure logging
@@ -89,6 +89,7 @@ app.add_middleware(
 
 # Register routes
 app.include_router(auth.router)
+app.include_router(ai.router)
 
 
 # Global exception handlers

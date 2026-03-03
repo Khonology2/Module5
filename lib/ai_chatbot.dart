@@ -10,6 +10,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
 import 'package:pdh/context_maps/khonopal_context.dart'; // Import the new KhonoPalContext
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import for shared preferences
 import 'dart:convert'; // Import for JSON encoding/decoding
 import 'package:flutter_tts/flutter_tts.dart'; // Import for Text-to-Speech
@@ -383,9 +384,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
 4) Close with concrete next micro-actions and invite the manager to iterate with you.
 Keep the tone strengths-based, specific, and action-oriented, and format responses with clear headings or bullet lists.''';
 
+    String? currentSystemInstruction;
     try {
       // Dynamically set system instruction based on _selectedMode, selectedModeOverride or if it's a PDP request
-      String? currentSystemInstruction;
       if (initialPrompt != null) {
         currentSystemInstruction = pdpSystemInstruction;
       } else {
@@ -475,13 +476,45 @@ Keep the tone strengths-based, specific, and action-oriented, and format respons
         Navigator.pop(context); // Pop the chatbot screen after generating PDP
       }
     } catch (e) {
-      setState(() {
-        _messages.add(ChatMessage(text: 'Error: $e', isUser: false));
-        _isThinking = false; // Set thinking state to false on error
-      });
-      // Stop avatar flashing animation on error
-      _avatarAnimationController.stop();
-      _avatarAnimationController.reset();
+      // Fallback to backend Gemini when Firebase AI fails
+      try {
+        final fallbackText = await AiFallbackService.generateViaBackend(
+          prompt: textToSendToGemini,
+          systemInstruction: currentSystemInstruction,
+        );
+        final cleanedResponseText =
+            fallbackText.replaceAll('*', '').trim().isEmpty
+                ? 'No response'
+                : fallbackText.replaceAll('*', '');
+        final aiMessage = ChatMessage(
+          text: cleanedResponseText,
+          isUser: false,
+          fullText: cleanedResponseText,
+        );
+        if (!mounted) return;
+        setState(() {
+          _messages.add(aiMessage);
+          _isThinking = false;
+          _lastAiResponse = cleanedResponseText;
+        });
+        _avatarAnimationController.stop();
+        _avatarAnimationController.reset();
+        _scrollToBottom();
+        _saveChatHistory();
+        if (widget.onResult != null &&
+            currentSystemInstruction == pdpSystemInstruction) {
+          widget.onResult!(cleanedResponseText);
+          Navigator.pop(context);
+        }
+      } catch (fallbackError) {
+        if (!mounted) return;
+        setState(() {
+          _messages.add(ChatMessage(text: 'Error: $e', isUser: false));
+          _isThinking = false;
+        });
+        _avatarAnimationController.stop();
+        _avatarAnimationController.reset();
+      }
     }
   }
 

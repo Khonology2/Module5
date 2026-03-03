@@ -9,6 +9,7 @@ import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/models/goal.dart';
@@ -552,15 +553,33 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   'Generating dependencies and prerequisites...',
                 );
 
-                final response = await _generateContentWithRetry(
-                  model,
-                  prompt,
-                  onPhase: (p) {
-                    updatePhase(p);
-                  },
-                );
-                final responseText =
-                    response.text?.replaceAll('*', '').trim() ?? '';
+                String responseText;
+                try {
+                  final response = await _generateContentWithRetry(
+                    model,
+                    prompt,
+                    onPhase: (p) {
+                      updatePhase(p);
+                    },
+                  );
+                  responseText =
+                      response.text?.replaceAll('*', '').trim() ?? '';
+                } catch (_) {
+                  const systemInstruction =
+                      'You are an AI assistant specialized in creating comprehensive personal development goal plans and evaluating SMART criteria. '
+                      'When given a goal title, generate four components: DESCRIPTION, DEPENDENCIES AND PREREQUISITES (5), SUCCESS METRICS, and SMART SCORES (1-5 each). '
+                      'Respond in this EXACT JSON format (no other text): '
+                      '{"description": "...", "dependencies": "• ...\\n• ...", "successMetrics": "...", "smartScores": {"clarity": 3, "measurability": 4, "achievability": 4, "relevance": 5, "timeline": 3}}';
+                  final userPrompt =
+                      'Generate a comprehensive plan for this personal development goal: $goalTitle\n\n'
+                      'First, create the description, 5 dependencies/prerequisites, and success metrics. '
+                      'Then, based on the complete goal information, evaluate and assign SMART criteria scores (1-5 for each).';
+                  responseText =
+                      await AiFallbackService.generateViaBackend(
+                        prompt: userPrompt,
+                        systemInstruction: systemInstruction,
+                      ).then((s) => s.replaceAll('*', '').trim());
+                }
 
                 await updatePhase('Selecting SMART verification scores...');
 
@@ -1130,8 +1149,22 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         ),
       ];
 
-      final response = await _generateContentWithRetry(model, prompt);
-      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
+      String responseText;
+      try {
+        final response = await _generateContentWithRetry(model, prompt);
+        responseText = response.text?.replaceAll('*', '').trim() ?? '';
+      } catch (_) {
+        const systemInstruction =
+            'You are an AI assistant that analyzes personal development goal descriptions and suggests appropriate categories, priorities, and key performance areas. '
+            'Suggest ONE category from: Career, Skills, Wellness, Finance, or Other; ONE priority: High, Medium, or Low; ONE KPA from: Operational Excellence, Customer Excellence, Financial Excellence, Organisational Excellence, or People Excellence. '
+            'Respond ONLY with a JSON object: {"category": "...", "priority": "...", "kpa": "..."}';
+        responseText =
+            await AiFallbackService.generateViaBackend(
+              prompt:
+                  'Analyze this goal description and suggest the category, priority, and key performance area:\n\n$description',
+              systemInstruction: systemInstruction,
+            ).then((s) => s.replaceAll('*', '').trim());
+      }
 
       // Parse JSON response
       String jsonText = responseText.trim();

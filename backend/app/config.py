@@ -8,15 +8,16 @@ from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
-# Load environment variables from .env file (for local development)
-load_dotenv()
+# Load .env from this package directory so it works whether you run from backend/ or backend/app/
+_env_path = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(dotenv_path=_env_path)
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_env_path,
         case_sensitive=False,
         extra='ignore',  # Ignore extra fields in .env
         env_ignore_empty=True,
@@ -39,6 +40,9 @@ class Settings(BaseSettings):
     firebase_web_app_id: Optional[str] = Field(None, alias='FIREBASE_WEB_APP_ID')
     firebase_web_messaging_sender_id: Optional[str] = Field(None, alias='FIREBASE_WEB_MESSAGING_SENDER_ID')
 
+    # Gemini API key for backend AI (fallback when Firebase AI fails). Create at https://aistudio.google.com/apikey
+    gemini_api_key: Optional[str] = Field(None, alias='GEMINI_API_KEY')
+
     @model_validator(mode='before')
     @classmethod
     def read_env_vars(cls, data: Any) -> Dict[str, Any]:
@@ -54,6 +58,7 @@ class Settings(BaseSettings):
             'FIREBASE_WEB_API_KEY': 'firebase_web_api_key',
             'FIREBASE_WEB_APP_ID': 'firebase_web_app_id',
             'FIREBASE_WEB_MESSAGING_SENDER_ID': 'firebase_web_messaging_sender_id',
+            'GEMINI_API_KEY': 'gemini_api_key',
         }
 
         result = dict(data)

@@ -4,13 +4,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/models/user_profile.dart'; // Removed as it is not directly used in this file's UI logic.
 import 'package:image_picker/image_picker.dart';
 // import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
 // import 'dart:io'; // Removed: use XFile.readAsBytes() for web compatibility
 
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
@@ -530,21 +530,15 @@ Guidelines:
     if (payload.isEmpty) return;
 
     try {
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
+      const systemInstruction =
           'You are a writing coach. Refine each entry for clarity and executive tone without changing meaning. '
-          'Respond with JSON using the same keys. Keep each response under 2 sentences.',
-        ),
+          'Respond with JSON using the same keys. Keep each response under 2 sentences.';
+      final rawText = await AiFallbackService.generateTextWithFallback(
+        userPrompt:
+            'Refine the following responses and return JSON only:\n${jsonEncode(payload)}',
+        systemInstruction: systemInstruction,
       );
-
-      final response = await model.generateContent([
-        Content.text(
-          'Refine the following responses and return JSON only:\n${jsonEncode(payload)}',
-        ),
-      ]);
-
-      final rawText = response.text ?? '';
+      if (rawText.isEmpty) return;
       final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
       if (jsonMatch == null) return;
       final decoded = jsonDecode(jsonMatch.group(0)!);
@@ -562,13 +556,10 @@ Guidelines:
   }
 
   Future<_DevelopmentPlanResult> _requestDevelopmentPlan(String prompt) async {
-    final model = FirebaseAI.googleAI().generativeModel(
-      model: 'gemini-2.5-flash',
-      systemInstruction: Content.text(_developmentPlanSystemInstruction),
+    final rawText = await AiFallbackService.generateTextWithFallback(
+      userPrompt: prompt,
+      systemInstruction: _developmentPlanSystemInstruction,
     );
-
-    final response = await model.generateContent([Content.text(prompt)]);
-    final rawText = response.text?.trim() ?? '';
     final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
     if (jsonMatch == null) {
       throw Exception('Plan response was not in the expected JSON format.');

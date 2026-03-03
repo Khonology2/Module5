@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 // For ImageFilter
 import 'package:pdh/design_system/app_components.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_ai/firebase_ai.dart';
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:image_picker/image_picker.dart'; // Import image_picker
@@ -574,22 +574,16 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
 
     if (payload.isEmpty) return;
 
-    final model = FirebaseAI.googleAI().generativeModel(
-      model: 'gemini-2.5-flash',
-      systemInstruction: Content.text(
+    const systemInstruction =
         'You are a writing coach helping a user complete a professional profile. '
         'Refine each entry for clarity and a confident tone without changing meaning. '
         'Respond with JSON only. Keep answers concise (1–2 sentences each). '
         'For "skills" and "developmentAreas", return arrays of short items (no duplicates). '
-        'Return keys exactly as provided.',
-      ),
+        'Return keys exactly as provided.';
+    final rawText = await AiFallbackService.generateTextWithFallback(
+      userPrompt: 'Refine and normalize this JSON:\n${jsonEncode(payload)}',
+      systemInstruction: systemInstruction,
     );
-
-    final response = await model.generateContent([
-      Content.text('Refine and normalize this JSON:\n${jsonEncode(payload)}'),
-    ]);
-
-    final rawText = response.text ?? '';
     final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
     if (jsonMatch == null) return;
     final decoded = jsonDecode(jsonMatch.group(0)!);

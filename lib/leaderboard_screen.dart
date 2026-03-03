@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_ai/firebase_ai.dart';
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/models/user_profile.dart';
@@ -1617,36 +1617,26 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         comparisonData.writeln('');
       }
 
-      // Generate AI analysis
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
+      // Generate AI analysis (Firebase AI first, backend Gemini fallback)
+      const sysInstr =
           'You are an AI assistant specialized in analyzing leaderboard performance and providing actionable insights. '
           'Compare the current user\'s performance with competitors ranked above and below them. '
-          'Identify specific differences in:\n'
-          '1. Points earned and how they\'re distributed\n'
-          '2. Goal completion rates and types\n'
-          '3. Badge achievements and types\n'
-          '4. Activity patterns and consistency\n'
-          '\n'
-          'Provide specific, actionable recommendations on what the user should focus on to improve their ranking. '
-          'Be encouraging but direct. Format your response in clear sections with bullet points.',
-        ),
-      );
-
-      final prompt = [
-        Content.text(
+          'Identify specific differences in points, goal completion, badges, and activity patterns. '
+          'Provide specific, actionable recommendations. Be encouraging but direct. Format in clear sections with bullet points.';
+      final userPrompt =
           'Analyze this leaderboard comparison data and provide insights:\n\n'
           '$comparisonData\n\n'
           'What specific actions or achievements do the competitors have that the current user doesn\'t? '
-          'What should the current user focus on to move up in the rankings?',
-        ),
-      ];
-
-      final response = await model.generateContent(prompt);
+          'What should the current user focus on to move up in the rankings?';
+      final raw =
+          await AiFallbackService.generateTextWithFallback(
+            userPrompt: userPrompt,
+            systemInstruction: sysInstr,
+          );
       final analysis =
-          response.text?.replaceAll('*', '').trim() ??
-          'Unable to generate analysis. Please try again.';
+          raw.replaceAll('*', '').trim().isEmpty
+              ? 'Unable to generate analysis. Please try again.'
+              : raw.replaceAll('*', '').trim();
 
       // Close loading dialog
       if (context.mounted) {
