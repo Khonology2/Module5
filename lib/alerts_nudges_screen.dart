@@ -201,8 +201,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       items: SidebarConfig.employeeItems,
       currentRouteName: '/alerts_nudges',
       tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
-      sidebarTutorialKeys:
-          tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
+      sidebarTutorialKeys: null,
       onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
       onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
       onNavigate: (route) {
