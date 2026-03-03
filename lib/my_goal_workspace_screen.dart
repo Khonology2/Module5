@@ -220,8 +220,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           items: items,
           currentRouteName: '/my_goal_workspace',
           tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
-          sidebarTutorialKeys:
-              tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
+          sidebarTutorialKeys: null,
           onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
           onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
           onNavigate: (route) {
@@ -1645,10 +1644,20 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       } catch (_) {}
 
       if (mounted) {
+        final msg = e.toString();
+        String userMsg = 'Couldn\'t create goal. Please try again.';
+        if (msg.contains('permission-denied') || msg.contains('PERMISSION_DENIED')) {
+          userMsg = 'Permission denied. Make sure you\'re signed in and try again.';
+        } else if (msg.contains('unavailable') || msg.contains('network')) {
+          userMsg = 'Network issue. Check your connection and try again.';
+        } else if (msg.contains('INTERNAL ASSERTION') || msg.contains('Unexpected state')) {
+          userMsg = 'Temporary issue. Wait a moment and try again.';
+        }
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('Error creating goal: ${e.toString()}'),
+            content: Text(userMsg),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }

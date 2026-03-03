@@ -379,7 +379,7 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
   }
 
   Widget _buildTotalStatsCard() {
-    final total = _auditCounts.values.fold(0, (sum, count) => sum + count);
+    final total = _auditCounts.values.fold<int>(0, (acc, n) => acc + n);
 
     return Container(
       width: double.infinity,
@@ -449,7 +449,6 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   late AnimationController _animationController;
-  late Animation<double> _expandAnimation;
 
   @override
   void initState() {
@@ -457,10 +456,6 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
-    );
-    _expandAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
     );
   }
 
@@ -487,8 +482,6 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
     final timestamp = widget.entry['timestamp'] as Timestamp?;
     final milestoneTitle =
         widget.entry['milestoneTitle'] as String? ?? 'Unknown Milestone';
-    // ignore: unused_local_variable
-    final goalTitle = widget.entry['goalTitle'] as String? ?? 'Unknown Goal';
     final isHistorical = widget.entry['metadata']?['isHistorical'] == true;
 
     final actionInfo = _getActionInfo(action);
@@ -725,7 +718,7 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
             widget.entry['acknowledgedByName'] != null) ...[
           _buildInfoRow(
             label: 'Acknowledged By:',
-            value: widget.entry['acknowledgedByName'],
+            value: '${widget.entry['acknowledgedByName']}',
             icon: Icons.verified_user,
             valueColor: AppColors.successColor,
           ),
@@ -737,7 +730,7 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
             widget.entry['rejectedByName'] != null) ...[
           _buildInfoRow(
             label: 'Rejected By:',
-            value: widget.entry['rejectedByName'],
+            value: '${widget.entry['rejectedByName']}',
             icon: Icons.cancel,
             valueColor: AppColors.dangerColor,
           ),
@@ -793,7 +786,7 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: statusColor.withValues(alpha : 0.1),
+        color: statusColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1),
       ),
@@ -917,24 +910,5 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
 
     // Absolute date for older events
     return DateFormat('MMM dd, yyyy').format(eventTime);
-  }
-
-  // ignore: unused_element
-  String _getMonthName(int month) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return months[month - 1];
   }
 }

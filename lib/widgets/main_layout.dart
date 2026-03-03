@@ -85,8 +85,7 @@ class MainLayout extends StatelessWidget {
               ],
             ),
       tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
-      sidebarTutorialKeys:
-          tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
+      sidebarTutorialKeys: null,
       onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
       onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
       onNavigate: (route) {
