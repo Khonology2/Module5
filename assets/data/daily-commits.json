@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.BB6.SIT",
-  "generated_at": "2026-03-03T07:50:46Z",
+  "version": "2026.03.BB7.SIT",
+  "generated_at": "2026-03-03T08:09:23Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,6 +24,11 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature - enhance employee data handling in ManagerAlertsNudgesScreen to prevent UI flashing by caching the last known-good employee list",
+      "timestamp": "2026-03-03T10:08:17+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature - update nudge action to show dialog instead of sending directly, and remove placeholder method for sending nudges",
       "timestamp": "2026-03-03T09:50:02+02:00"
     },
@@ -33,6 +38,6 @@
       "timestamp": "2026-03-03T09:31:00+02:00"
     }
   ],
-  "total_commits": 6,
+  "total_commits": 7,
   "date_range": "2026-03-03"
 }
