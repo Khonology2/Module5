@@ -2944,7 +2944,6 @@ class ProfessionalMilestoneAuditCardState
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   late AnimationController _animationController;
-  late Animation<double> _expandAnimation;
 
   @override
   void initState() {
@@ -2952,10 +2951,6 @@ class ProfessionalMilestoneAuditCardState
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
-    );
-    _expandAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
     );
   }
 
@@ -2985,9 +2980,6 @@ class ProfessionalMilestoneAuditCardState
     // Extract data from metadata field
     final milestoneTitle =
         metadata['milestoneTitle'] as String? ?? 'Unknown Milestone';
-    final goalTitle = metadata['goalTitle'] as String? ?? 'Unknown Goal';
-    final userName = widget.entry['userName'] as String? ?? 'System';
-    final userRole = widget.entry['userRole'] as String? ?? 'system';
     final isHistorical = metadata['isHistorical'] == true;
 
     final actionInfo = _getActionInfo(action);

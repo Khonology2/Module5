@@ -248,12 +248,8 @@ service cloud.firestore {
         isAdmin()
       );
 
-      // Only allow employees to create goals for themselves.
-      // Managers are NOT allowed to create goals.
-      allow create: if isSignedIn() && (
-        isAdmin() ||
-        (!isManager() && goalOwnerUidFromData(request.resource.data) == userId())
-      );
+      // Allow any signed-in user to create a goal for themselves (userId must match auth.uid).
+      allow create: if isSignedIn() && goalOwnerUidFromData(request.resource.data) == userId();
 
       // Tighten list/query access:
       // - managers/admins can list any goals
