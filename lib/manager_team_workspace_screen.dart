@@ -8,6 +8,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/manager_realtime_service.dart';
 
 class ManagerTeamWorkspaceScreen extends StatefulWidget {
   final bool embedded;
@@ -560,7 +561,8 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
 
   Future<void> _notifyEmployeesAboutTeamGoal() async {
     try {
-      // Get ALL employees regardless of department to ensure everyone sees team goals
+      final deletedUids = await ManagerRealtimeService.getDeletedAccountUids();
+      // Get ALL employees regardless of department (exclude deleted accounts)
       final employees = await FirebaseFirestore.instance
           .collection('users')
           .where('role', isEqualTo: 'employee')
@@ -569,6 +571,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
       int notificationCount = 0;
 
       for (final employee in employees.docs) {
+        if (deletedUids.contains(employee.id)) continue;
         try {
           await AlertService.createTeamGoalAlert(
             userId: employee.id,

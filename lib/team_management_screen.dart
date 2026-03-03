@@ -4,6 +4,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 
@@ -74,12 +75,16 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
     // Set up stream for participants (for real-time updates if needed)
   }
 
-  /// Fetch all employees including onboarding users
+  /// Fetch all employees including onboarding users (excludes deleted accounts)
   Future<List<Map<String, dynamic>>> _fetchAllEmployees(
     List<QueryDocumentSnapshot> regularEmployees,
   ) async {
-    // Convert regular employees to map format
-    final employees = regularEmployees.map((doc) {
+    final deletedUids = await ManagerRealtimeService.getDeletedAccountUids();
+
+    // Convert regular employees to map format, excluding deleted accounts
+    final employees = regularEmployees
+        .where((doc) => !deletedUids.contains(doc.id))
+        .map((doc) {
       final data = doc.data() as Map<String, dynamic>;
       return {
         'id': doc.id,
@@ -88,7 +93,7 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
       };
     }).toList();
 
-    // Fetch onboarding users with employee persona
+    // Fetch onboarding users with employee persona (exclude deleted)
     try {
       final onboardingSnapshot = await FirebaseFirestore.instance
           .collection('onboarding')
@@ -96,6 +101,7 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
 
       final onboardingEmployees = onboardingSnapshot.docs
           .where((doc) {
+            if (deletedUids.contains(doc.id)) return false;
             final data = doc.data();
             final moduleAccessRole = data['moduleAccessRole'] as String?;
             return OnboardingService.shouldIncludeUser(
