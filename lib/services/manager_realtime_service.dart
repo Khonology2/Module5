@@ -460,6 +460,18 @@ class ManagerRealtimeService {
     }
   }
 
+  /// Fetches the set of user IDs that have been permanently deleted (in deleted_accounts).
+  /// Used to exclude deleted employees from team review and all manager-side lists.
+  static Future<Set<String>> getDeletedAccountUids() async {
+    try {
+      final snap = await _firestore.collection('deleted_accounts').get();
+      return snap.docs.map((d) => d.id).toSet();
+    } catch (e) {
+      developer.log('Error fetching deleted_accounts: $e');
+      return {};
+    }
+  }
+
   Stream<List<EmployeeData>> employeesStream() {
     return getTeamDataStream();
   }
@@ -793,22 +805,31 @@ class ManagerRealtimeService {
           _firestore.collection('users').limit(_initialEmployeeLimit);
       final usersSnapshot = await FirestoreSafe.getQuery(usersQuery);
 
+      // Exclude employees whose accounts have been permanently deleted
+      final deletedUids = await getDeletedAccountUids();
+
       // Fetch onboarding users with employee persona and convert to UserProfile
       final onboardingProfiles =
           await ManagerRealtimeService._fetchOnboardingEmployees(department);
 
-      // Filter regular users to employees (and department if specified)
+      // Filter regular users to employees (and department if specified), excluding deleted
       final regularEmployeeDocs = usersSnapshot.docs.where((doc) {
+        if (deletedUids.contains(doc.id)) return false;
         final profile = UserProfile.fromFirestore(doc);
         return includeEmployeeProfile(profile);
       }).toList();
+
+      // Exclude deleted accounts from onboarding list
+      final activeOnboardingProfiles = onboardingProfiles
+          .where((p) => !deletedUids.contains(p.uid))
+          .toList();
 
       // Get regular employee IDs
       final regularEmployeeIds = regularEmployeeDocs.map((doc) => doc.id).toList();
 
       // Get onboarding employee IDs
       final onboardingEmployeeIds =
-          onboardingProfiles.map((profile) => profile.uid).toList();
+          activeOnboardingProfiles.map((profile) => profile.uid).toList();
 
       // Combine all employee IDs
       final allEmployeeIds = <String>[...regularEmployeeIds, ...onboardingEmployeeIds];
@@ -927,7 +948,7 @@ class ManagerRealtimeService {
         employeeDataList.add(employeeData);
       }
 
-      for (final userProfile in onboardingProfiles) {
+      for (final userProfile in activeOnboardingProfiles) {
         final rawAlerts = alertsByEmployee[userProfile.uid] ?? [];
         final activeAlerts = rawAlerts.where((a) {
           if (a.isDismissed) return false;
@@ -998,6 +1019,7 @@ class ManagerRealtimeService {
 
         Future<void> rebuildAndEmit(
           QuerySnapshot<Map<String, dynamic>> usersSnapshot,
+          Set<String> deletedUids,
         ) async {
           if (isCancelled) return;
 
@@ -1009,18 +1031,24 @@ class ManagerRealtimeService {
 
           if (isCancelled) return;
 
-          // Filter regular users to employees (and department if specified)
+          // Filter regular users to employees (and department if specified), excluding deleted
           final regularEmployeeDocs = usersSnapshot.docs.where((doc) {
+            if (deletedUids.contains(doc.id)) return false;
             final profile = UserProfile.fromFirestore(doc);
             return includeEmployeeProfile(profile);
           }).toList();
+
+          // Exclude deleted accounts from onboarding list
+          final activeOnboardingProfiles = onboardingProfiles
+              .where((p) => !deletedUids.contains(p.uid))
+              .toList();
 
           // Get regular employee IDs
           final regularEmployeeIds =
               regularEmployeeDocs.map((doc) => doc.id).toList();
 
-          // Get onboarding employee IDs
-          final onboardingEmployeeIds = onboardingProfiles
+          // Get onboarding employee IDs (only non-deleted)
+          final onboardingEmployeeIds = activeOnboardingProfiles
               .map((profile) => profile.uid)
               .toList();
 
@@ -1160,8 +1188,8 @@ class ManagerRealtimeService {
             employeeDataList.add(employeeData);
           }
 
-          // Process onboarding employees
-          for (final userProfile in onboardingProfiles) {
+          // Process onboarding employees (only non-deleted)
+          for (final userProfile in activeOnboardingProfiles) {
             final rawAlerts = alertsByEmployee[userProfile.uid] ?? [];
             final activeAlerts = rawAlerts.where((a) {
               if (a.isDismissed) return false;
@@ -1196,11 +1224,17 @@ class ManagerRealtimeService {
           (snapshot) async {
             if (isCancelled) return;
 
+            // Exclude deleted accounts from all manager-side team data
+            final deletedUids = await getDeletedAccountUids();
+            if (isCancelled) return;
+
             // Emit a lightweight team list immediately to transition UI out of 'waiting'
             try {
               final minimal = snapshot.docs
                   .map((d) => UserProfile.fromFirestore(d))
-                  .where(includeEmployeeProfile)
+                  .where((profile) =>
+                      !deletedUids.contains(profile.uid) &&
+                      includeEmployeeProfile(profile))
                   .map((profile) {
                     final lastActive =
                         profile.lastActivityAt ??
@@ -1236,7 +1270,7 @@ class ManagerRealtimeService {
 
             // Perform full enrichment and emit the computed team data
             if (!isCancelled) {
-              await rebuildAndEmit(snapshot);
+              await rebuildAndEmit(snapshot, deletedUids);
             }
           },
           onError: (error) {
