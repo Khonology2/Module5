@@ -1816,7 +1816,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           _buildActionButton(
             'Send Nudge',
             Icons.send,
-            () => _sendEmployeeNudge(employee),
+            () => _showSendNudgeDialog(employee: employee),
           ),
         if (alert.type == AlertType.goalOverdue)
           _buildActionButton(
@@ -1890,15 +1890,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     } else {
       return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
     }
-  }
-
-  // Placeholder action methods
-  void _sendEmployeeNudge(EmployeeData employee) {
-    // TODO: Implement send nudge functionality
-    _showCenterNotice(
-      context,
-      'Sending nudge to ${employee.profile.displayName}...',
-    );
   }
 
   void _extendAlertGoalDeadline(Alert alert, EmployeeData employee) {
