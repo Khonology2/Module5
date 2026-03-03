@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.BB8.SIT",
-  "generated_at": "2026-03-03T09:13:34Z",
+  "version": "2026.03.BB6.SIT",
+  "generated_at": "2026-03-03T10:13:47Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -16,8 +16,23 @@
       "author": "Nathi2266",
       "message": "Feature - fixed goal creation",
       "timestamp": "2026-03-03T11:12:39+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - enhance employee data handling in ManagerAlertsNudgesScreen to prevent UI flashing by caching the last known-good employee list",
+      "timestamp": "2026-03-03T10:08:17+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - update nudge action to show dialog instead of sending directly, and remove placeholder method for sending nudges",
+      "timestamp": "2026-03-03T09:50:02+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature -  Integrate ManagerRealtimeService to exclude deleted accounts from employee lists in ManagerTeamWorkspaceScreen and TeamManagementScreen",
+      "timestamp": "2026-03-03T09:31:00+02:00"
     }
   ],
-  "total_commits": 8,
+  "total_commits": 6,
   "date_range": "2026-03-03"
 }
