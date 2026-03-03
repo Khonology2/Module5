@@ -525,77 +525,81 @@ class DatabaseService {
   }
 
   static Future<String> createGoal(Goal goal) async {
-    Future<DocumentReference<Map<String, dynamic>>> attemptCreate(
-      int attempt,
-    ) async {
+    const int maxAttempts = 6;
+    const List<int> retryDelaysMs = [500, 1000, 2000, 3000, 4000];
+
+    final Map<String, dynamic> goalData = {
+      'userId': goal.userId,
+      'title': goal.title,
+      'description': goal.description,
+      'category': goal.category.name,
+      'priority': goal.priority.name,
+      'status': goal.status.name,
+      'progress': goal.progress,
+      'createdAt': Timestamp.fromDate(goal.createdAt),
+      'targetDate': Timestamp.fromDate(goal.targetDate),
+      'points': goal.points,
+      'kpa': goal.kpa,
+      'approvalStatus': GoalApprovalStatus.pending.name,
+      'approvedByUserId': null,
+      'approvedByName': null,
+      'approvedAt': null,
+      'rejectionReason': null,
+    };
+
+    final col = FirebaseFirestore.instance.collection('goals');
+    Object? lastError;
+
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        return await FirebaseFirestore.instance.collection('goals').add({
-          'userId': goal.userId,
-          'title': goal.title,
-          'description': goal.description,
-          'category': goal.category.name,
-          'priority': goal.priority.name,
-          'status': goal.status.name,
-          'progress': goal.progress,
-          'createdAt': Timestamp.fromDate(goal.createdAt),
-          'targetDate': Timestamp.fromDate(goal.targetDate),
-          'points': goal.points,
-          'kpa': goal.kpa,
-          // approval fields
-          'approvalStatus': GoalApprovalStatus.pending.name,
-          'approvedByUserId': null,
-          'approvedByName': null,
-          'approvedAt': null,
-          'rejectionReason': null,
-        });
-      } catch (e) {
-        if (_isFirestoreInternalAssertion(e) && attempt < 2) {
-          final delayMs = 200 * (attempt + 1);
-          developer.log(
-            'Retrying goal create after transient Firestore error (attempt ${attempt + 1})',
-          );
-          await Future.delayed(Duration(milliseconds: delayMs));
-          return attemptCreate(attempt + 1);
+        if (attempt == 0) {
+          await Future.delayed(const Duration(milliseconds: 600));
         }
-        rethrow;
+        final docRef = await col.add(goalData);
+        developer.log('Goal created successfully: ${docRef.id}');
+        lastError = null;
+
+        // Auto-request approval asynchronously
+        // ignore: unawaited_futures
+        Future(() async {
+          try {
+            await requestGoalApproval(
+              goalId: docRef.id,
+              userId: goal.userId,
+              goalTitle: goal.title,
+            );
+          } catch (e) {
+            developer.log('Error requesting goal approval: $e');
+          }
+        });
+        // ignore: unawaited_futures
+        Future(() async {
+          try {
+            await BadgeService.checkAndAwardBadgesV2(goal.userId);
+          } catch (_) {}
+        });
+
+        return docRef.id;
+      } catch (e) {
+        lastError = e;
+        developer.log('Goal create attempt ${attempt + 1}/$maxAttempts failed: $e');
+        final isRetryable = _isFirestoreInternalAssertion(e) ||
+            (e is FirebaseException &&
+                ['unavailable', 'deadline-exceeded', 'resource-exhausted']
+                    .contains(e.code.toLowerCase()));
+        if (attempt < maxAttempts - 1 && isRetryable) {
+          final delayMs = retryDelaysMs[attempt.clamp(0, retryDelaysMs.length - 1)];
+          await Future.delayed(Duration(milliseconds: delayMs));
+        } else {
+          rethrow;
+        }
       }
     }
 
-    final doc = await attemptCreate(0);
-    // Auto-request approval asynchronously to avoid blocking UI navigation
-    // ignore: unawaited_futures
-    Future(() async {
-      try {
-        await requestGoalApproval(
-          goalId: doc.id,
-          userId: goal.userId,
-          goalTitle: goal.title,
-        );
-        developer.log(
-          'Successfully created approval request for goal: ${doc.id}',
-        );
-      } catch (e) {
-        developer.log('Error requesting goal approval: $e');
-        if (_isFirestoreInternalAssertion(e)) {
-          developer.log(
-            'Goal approval request hit transient Firestore error, will not block creation.',
-          );
-        }
-        // Log more details for debugging
-        developer.log(
-          'Goal ID: ${doc.id}, User ID: ${goal.userId}, Title: ${goal.title}',
-        );
-        // Don't rethrow - this is async and shouldn't block goal creation
-      }
-    });
-    // Check badges asynchronously so we don't block UI navigation.
-    // ignore: unawaited_futures
-    Future(() async {
-      try {
-        await BadgeService.checkAndAwardBadgesV2(goal.userId);
-      } catch (_) {}
-    });
-    return doc.id;
+    if (lastError != null) {
+      throw lastError;
+    }
+    throw StateError('Goal create failed after $maxAttempts attempts');
   }
 
   static Future<void> requestGoalApproval({
