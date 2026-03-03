@@ -139,7 +139,8 @@ void main() async {
         'Caught Firestore internal assertion error - suppressing crash',
       );
       FirestoreWebCircuitBreaker.maybeReload(details.exception);
-      FirestoreWebCircuitBreaker.isBroken = true;
+      // Don't mark as broken to allow retry logic to work
+      // FirestoreWebCircuitBreaker.isBroken = true;
       // Don't show error dialog for Firestore internal errors
       return;
     }
@@ -156,7 +157,8 @@ void main() async {
   ui.PlatformDispatcher.instance.onError = (error, stack) {
     if (FirestoreWebCircuitBreaker.isFirestoreInternalUnexpectedState(error)) {
       FirestoreWebCircuitBreaker.maybeReload(error);
-      FirestoreWebCircuitBreaker.isBroken = true;
+      // Don't mark as broken to allow retry logic to work
+      // FirestoreWebCircuitBreaker.isBroken = true;
       return true;
     }
     return false;
