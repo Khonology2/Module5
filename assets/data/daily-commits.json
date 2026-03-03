@@ -1,6 +1,6 @@
 {
-  "version": "2026.02.EE9.SIT",
-  "generated_at": "2026-02-27T08:01:06Z",
+  "version": "2026.03.BB8.SIT",
+  "generated_at": "2026-03-03T09:13:34Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -39,15 +39,10 @@
     },
     {
       "author": "Nathi2266",
-      "message": "Conflict check",
-      "timestamp": "2026-02-24T20:11:25+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: update PDF export layout and contact info",
-      "timestamp": "2026-02-24T20:07:15+02:00"
+      "message": "Feature - fixed goal creation",
+      "timestamp": "2026-03-03T11:12:39+02:00"
     }
   ],
-  "total_commits": 9,
-  "date_range": "2026-02-27"
+  "total_commits": 8,
+  "date_range": "2026-03-03"
 }
