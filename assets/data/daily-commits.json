@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.BB5.SIT",
-  "generated_at": "2026-03-03T07:31:56Z",
+  "version": "2026.03.BB6.SIT",
+  "generated_at": "2026-03-03T07:50:46Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,10 +24,15 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature - update nudge action to show dialog instead of sending directly, and remove placeholder method for sending nudges",
+      "timestamp": "2026-03-03T09:50:02+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature -  Integrate ManagerRealtimeService to exclude deleted accounts from employee lists in ManagerTeamWorkspaceScreen and TeamManagementScreen",
       "timestamp": "2026-03-03T09:31:00+02:00"
     }
   ],
-  "total_commits": 5,
+  "total_commits": 6,
   "date_range": "2026-03-03"
 }
