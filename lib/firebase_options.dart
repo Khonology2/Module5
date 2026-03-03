@@ -42,8 +42,8 @@ class DefaultFirebaseOptions {
 
   // PDH-v2: Run "dart run flutterfire configure" and select PDH-v2 to fill the real Web appId from Firebase Console.
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBUS2dYjMleU1EqQKy2fWAUViyA54yBoS0',
-    appId: '1:638896632756:web:000000000000000000000001',
+    apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
+    appId: '1:638896632756:web:6df76beff446f75ee378e1',
     messagingSenderId: '638896632756',
     projectId: 'pdh-v2',
     authDomain: 'pdh-v2.firebaseapp.com',
@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBUS2dYjMleU1EqQKy2fWAUViyA54yBoS0',
+    apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
     appId: '1:638896632756:android:fe586c9180a35ec8e378e1',
     messagingSenderId: '638896632756',
     projectId: 'pdh-v2',
@@ -59,7 +59,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBUS2dYjMleU1EqQKy2fWAUViyA54yBoS0',
+    apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
     appId: '1:638896632756:ios:000000000000000000000001',
     messagingSenderId: '638896632756',
     projectId: 'pdh-v2',
@@ -68,7 +68,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyBUS2dYjMleU1EqQKy2fWAUViyA54yBoS0',
+    apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
     appId: '1:638896632756:ios:000000000000000000000001',
     messagingSenderId: '638896632756',
     projectId: 'pdh-v2',
@@ -77,7 +77,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyBUS2dYjMleU1EqQKy2fWAUViyA54yBoS0',
+    apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
     appId: '1:638896632756:web:000000000000000000000001',
     messagingSenderId: '638896632756',
     projectId: 'pdh-v2',
