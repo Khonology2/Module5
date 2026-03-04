@@ -152,8 +152,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       _buildRoleSummaryBar(isManager: isManager),
                       _buildAuditEntriesList(isManager: isManager),
                       const SizedBox(height: 24),
-                      _buildMilestoneAuditSection(isManager: isManager),
-                      const SizedBox(height: 24),
                       _buildRepositorySection(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildApprovedGoalsSection(isManager: isManager),
