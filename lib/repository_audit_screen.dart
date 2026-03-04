@@ -155,6 +155,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       _buildRepositorySection(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildApprovedGoalsSection(isManager: isManager),
+                      const SizedBox(height: 24),
+                      _buildGoalAuditSection(isManager: isManager),
+                      const SizedBox(height: 24),
+                      _buildMilestoneAuditSection(isManager: isManager),
                     ],
                   );
                 },
@@ -2730,6 +2734,184 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
+  Widget _buildGoalAuditSection({required bool isManager}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Goal Status Tracking',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            IconButton(
+              tooltip: 'Refresh Goal Status',
+              onPressed: () => setState(() {}),
+              icon: const Icon(Icons.refresh_rounded),
+              color: Colors.blue,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        StreamBuilder<List<Map<String, dynamic>>>(
+          stream: _getGoalAuditStream(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.activeColor),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Error loading goal audit: ${snapshot.error}',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.dangerColor,
+                  ),
+                ),
+              );
+            }
+
+            final audits = snapshot.data ?? [];
+            if (audits.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.track_changes,
+                      size: 48,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No goal status history available',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Goal lifecycle events will appear here',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: audits.length,
+              itemBuilder: (context, index) {
+                final audit = audits[index];
+                final action = audit['action'] ?? 'unknown';
+                final status = audit['status'] ?? 'pending';
+                final timestamp =
+                    (audit['timestamp'] as Timestamp?)?.toDate() ??
+                    DateTime.now();
+                final goalTitle =
+                    audit['metadata']?['goalTitle'] ?? 'Unknown Goal';
+                final description =
+                    audit['description'] ?? 'Goal action recorded';
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  color: Colors.black.withValues(alpha: 0.3),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: _getGoalStatusColor(status).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16),
+                    leading: CircleAvatar(
+                      backgroundColor: _getGoalStatusColor(
+                        status,
+                      ).withValues(alpha: 0.2),
+                      child: Icon(
+                        _getGoalStatusIcon(action),
+                        color: _getGoalStatusColor(status),
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      goalTitle,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          description,
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _getGoalStatusColor(
+                                  status,
+                                ).withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                status.toUpperCase(),
+                                style: TextStyle(
+                                  color: _getGoalStatusColor(status),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _formatDate(timestamp),
+                              style: TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   Widget _buildMilestoneAuditSection({required bool isManager}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3462,5 +3644,63 @@ class ProfessionalMilestoneAuditCardState
       'Dec',
     ];
     return '${months[eventTime.month - 1]} ${eventTime.day}, ${eventTime.year}';
+  }
+
+  /// Get goal audit stream for current user
+  Stream<List<Map<String, dynamic>>> _getGoalAuditStream() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return Stream.value([]);
+
+    return FirebaseFirestore.instance
+        .collection('audit_entries')
+        .where('userId', isEqualTo: currentUser.uid)
+        .where(
+          'action',
+          whereIn: [
+            'goal_created',
+            'goal_approved',
+            'goal_rejected',
+            'goal_verified',
+          ],
+        )
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => doc.data() as Map<String, dynamic>)
+              .toList(),
+        );
+  }
+
+  /// Get color for goal status
+  Color _getGoalStatusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return Colors.orange;
+      case 'approved':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'verified':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  /// Get icon for goal action
+  IconData _getGoalStatusIcon(String action) {
+    switch (action) {
+      case 'goal_created':
+        return Icons.add_circle_outline;
+      case 'goal_approved':
+        return Icons.check_circle;
+      case 'goal_rejected':
+        return Icons.cancel;
+      case 'goal_verified':
+        return Icons.verified;
+      default:
+        return Icons.help_outline;
+    }
   }
 }
