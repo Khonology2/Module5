@@ -120,6 +120,9 @@ class AuditService {
             try {
               List<AuditEntry> entries = snapshot.docs
                   .map((doc) {
+                    final data = (doc.data() as Map<String, dynamic>?) ?? {};
+                    if ((data['goalId'] ?? '').toString().isEmpty) return null;
+                    if (data['action'] != null) return null;
                     try {
                       return AuditEntry.fromFirestore(doc);
                     } catch (e) {
@@ -433,6 +436,9 @@ class AuditService {
             try {
               List<AuditEntry> entries = snapshot.docs
                   .map((doc) {
+                    final data = (doc.data() as Map<String, dynamic>?) ?? {};
+                    if ((data['goalId'] ?? '').toString().isEmpty) return null;
+                    if (data['action'] != null) return null;
                     try {
                       return AuditEntry.fromFirestore(doc);
                     } catch (e) {
