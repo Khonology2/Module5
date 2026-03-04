@@ -1664,14 +1664,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             ),
             child: Row(
               children: [
-                Text(
-                  '$title (${alerts.length})',
-                  style: AppTypography.heading3.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    '$title (${alerts.length})',
+                    style: AppTypography.heading3.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
                 if (alerts.length > 3)
                   TextButton(
                     onPressed: () {
@@ -1762,19 +1764,22 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: alertColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: alertColor.withValues(alpha: 0.3)),
-                ),
-                child: Text(
-                  alert.priority.name.toUpperCase(),
-                  style: AppTypography.bodySmall.copyWith(
-                    color: alertColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: alertColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: alertColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    alert.priority.name.toUpperCase(),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: alertColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 10,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -1804,16 +1809,25 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           // Time and actions
           Row(
             children: [
-              Icon(Icons.access_time, size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 4),
-              Text(
-                _formatAlertTime(alert.createdAt),
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+              Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.access_time, size: 16, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        _formatAlertTime(alert.createdAt),
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const Spacer(),
-              _buildQuickActionButtons(alert, employee),
+              Flexible(child: _buildQuickActionButtons(alert, employee)),
             ],
           ),
         ],

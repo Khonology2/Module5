@@ -34,7 +34,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data
                     android:scheme="https"
-                    android:host="pdh-fe6eb.firebaseapp.com"
+                    android:host="pdh-v2.firebaseapp.com"
                     android:pathPrefix="/__/auth/links" />
             </intent-filter>
             <intent-filter>

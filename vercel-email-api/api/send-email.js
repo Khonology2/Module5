@@ -13,7 +13,7 @@ const emailTemplates = {
         <p>Hi ${userName},</p>
         <p>Your goal <strong>"${goalTitle}"</strong> is due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.</p>
         <p>Keep pushing! You've got this! 💪</p>
-        <a href="https://pdh-fe6eb.web.app/my_goal_workspace" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Goal</a>
+        <a href="https://pdh-v2.web.app/my_goal_workspace" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Goal</a>
       </div>
     `,
   }),
@@ -25,7 +25,7 @@ const emailTemplates = {
         <p>Hi ${userName},</p>
         <p>Your goal <strong>"${goalTitle}"</strong> is overdue by ${daysOverdue} day${daysOverdue === 1 ? '' : 's'}.</p>
         <p>Don't give up! You can still complete it! 💪</p>
-        <a href="https://pdh-fe6eb.web.app/my_goal_workspace" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Goal</a>
+        <a href="https://pdh-v2.web.app/my_goal_workspace" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Goal</a>
       </div>
     `,
   }),
@@ -37,7 +37,7 @@ const emailTemplates = {
         <p>Hi ${userName},</p>
         <p>Congratulations! You completed <strong>"${goalTitle}"</strong> and earned <strong>${points} points</strong>!</p>
         <p>Keep up the amazing work! 🌟</p>
-        <a href="https://pdh-fe6eb.web.app/progress_visuals" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Progress</a>
+        <a href="https://pdh-v2.web.app/progress_visuals" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Progress</a>
       </div>
     `,
   }),
@@ -49,7 +49,7 @@ const emailTemplates = {
         <p>Hi ${userName},</p>
         <p><strong>${managerName}</strong> sent you a nudge about your goal <strong>"${goalTitle}"</strong>:</p>
         <p style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #C10D00; margin: 20px 0;">${nudgeMessage}</p>
-        <a href="https://pdh-fe6eb.web.app/my_goal_workspace" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Goal</a>
+        <a href="https://pdh-v2.web.app/my_goal_workspace" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Goal</a>
       </div>
     `,
   }),
@@ -61,7 +61,7 @@ const emailTemplates = {
         <p>Hi ${managerName},</p>
         <p><strong>${employeeName}</strong> submitted a new goal: <strong>"${goalTitle}"</strong>.</p>
         <p>Please review and approve or reject.</p>
-        <a href="https://pdh-fe6eb.web.app/manager_alerts_nudges" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">Review Goal</a>
+        <a href="https://pdh-v2.web.app/manager_alerts_nudges" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">Review Goal</a>
       </div>
     `,
   }),
@@ -74,7 +74,7 @@ const emailTemplates = {
         <p>Your goal <strong>"${goalTitle}"</strong> has been ${approved ? 'approved' : 'rejected'}.</p>
         ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
         ${approved ? '<p>You can start working on your goal now!</p>' : ''}
-        <a href="https://pdh-fe6eb.web.app/my_goal_workspace" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Goal</a>
+        <a href="https://pdh-v2.web.app/my_goal_workspace" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Goal</a>
       </div>
     `,
   }),
@@ -86,7 +86,7 @@ const emailTemplates = {
         <p>Hi ${userName},</p>
         <p>A new <strong>"${seasonTitle}"</strong> season on theme <strong>"${theme}"</strong> has started!</p>
         <p>Join and earn points! 🏆</p>
-        <a href="https://pdh-fe6eb.web.app/season_challenges" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Seasons</a>
+        <a href="https://pdh-v2.web.app/season_challenges" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Seasons</a>
       </div>
     `,
   }),
@@ -98,7 +98,7 @@ const emailTemplates = {
         <p>Hi ${userName},</p>
         <p>You've earned the <strong>"${badgeName}"</strong> badge!</p>
         <p>Keep up the great work! 🌟</p>
-        <a href="https://pdh-fe6eb.web.app/badges_points" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Badges</a>
+        <a href="https://pdh-v2.web.app/badges_points" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Badges</a>
       </div>
     `,
   }),
@@ -110,7 +110,7 @@ const emailTemplates = {
         <p>Hi ${userName},</p>
         <p>Congratulations! You've reached <strong>Level ${newLevel}</strong>!</p>
         <p>Your dedication is paying off! 💪</p>
-        <a href="https://pdh-fe6eb.web.app/employee_profile" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Profile</a>
+        <a href="https://pdh-v2.web.app/employee_profile" style="background-color: #C10D00; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 20px;">View Profile</a>
       </div>
     `,
   }),
