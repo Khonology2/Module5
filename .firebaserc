@@ -1,6 +1,5 @@
 {
   "projects": {
-    "PDH": "pdh-fe6eb",
     "default": "pdh-v2"
   },
   "targets": {},
