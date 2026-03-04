@@ -152,6 +152,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       _buildRoleSummaryBar(isManager: isManager),
                       _buildAuditEntriesList(isManager: isManager),
                       const SizedBox(height: 24),
+                      _buildMilestoneAuditSection(isManager: isManager),
+                      const SizedBox(height: 24),
                       _buildRepositorySection(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildApprovedGoalsSection(isManager: isManager),
@@ -690,6 +692,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           final entries = <AuditEntry>[];
           if (snapshot.hasData) {
             for (final doc in snapshot.data!.docs) {
+              final data = doc.data() as Map<String, dynamic>? ?? {};
+              if ((data['goalId'] ?? '').toString().isEmpty) continue;
+              if (data['action'] != null) continue;
               try {
                 entries.add(AuditEntry.fromFirestore(doc));
               } catch (e) {
