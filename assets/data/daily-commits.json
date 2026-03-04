@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.BC9.SIT",
-  "generated_at": "2026-03-04T08:06:22Z",
+  "version": "2026.03.BC4.SIT",
+  "generated_at": "2026-03-04T08:26:44Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -14,40 +14,15 @@
     },
     {
       "author": "BhutSipho",
-      "message": "Add milestone audit trail logging - track all milestone creation, updates, and status changes",
-      "timestamp": "2026-03-03T15:16:04+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Fix Firestore assertion failures - disable auto-reload and allow retry logic to work",
-      "timestamp": "2026-03-03T14:43:47+02:00"
-    },
-    {
-      "author": "BhutSipho",
       "message": "Merge Nathi-S11 with correct Firebase API keys and user creation permissions",
       "timestamp": "2026-03-03T12:13:31+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - enhance employee data handling in ManagerAlertsNudgesScreen to prevent UI flashing by caching the last known-good employee list",
-      "timestamp": "2026-03-03T10:08:17+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - update nudge action to show dialog instead of sending directly, and remove placeholder method for sending nudges",
-      "timestamp": "2026-03-03T09:50:02+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Integrate ManagerRealtimeService to exclude deleted accounts from employee lists in ManagerTeamWorkspaceScreen and TeamManagementScreen",
-      "timestamp": "2026-03-03T09:31:00+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "chore: update Firebase project references to pdh-v2 and upgrade dependencies in pubspec.lock",
-      "timestamp": "2026-03-04T10:05:44+02:00"
+      "message": "chore: update Firebase project configuration and add demo presentation script",
+      "timestamp": "2026-03-04T10:25:54+02:00"
     }
   ],
-  "total_commits": 9,
+  "total_commits": 4,
   "date_range": "2026-03-04"
 }
