@@ -11,6 +11,7 @@ import 'package:pdh/progress_visuals_screen.dart';
 import 'package:pdh/my_goal_workspace_screen.dart';
 import 'package:pdh/gamification_screen.dart';
 import 'package:pdh/repository_audit_screen.dart';
+import 'package:pdh/screens/milestone_audit_screen.dart';
 // Keep for reference
 import 'package:pdh/alerts_nudges_screen.dart';
 import 'package:pdh/season_challenge_screen.dart';
@@ -171,7 +172,8 @@ void main() async {
         'Caught Firestore internal assertion error - suppressing crash',
       );
       FirestoreWebCircuitBreaker.maybeReload(details.exception);
-      FirestoreWebCircuitBreaker.isBroken = true;
+      // Don't mark as broken to allow retry logic to work
+      // FirestoreWebCircuitBreaker.isBroken = true;
       // Don't show error dialog for Firestore internal errors
       return;
     }
@@ -188,7 +190,8 @@ void main() async {
   ui.PlatformDispatcher.instance.onError = (error, stack) {
     if (FirestoreWebCircuitBreaker.isFirestoreInternalUnexpectedState(error)) {
       FirestoreWebCircuitBreaker.maybeReload(error);
-      FirestoreWebCircuitBreaker.isBroken = true;
+      // Don't mark as broken to allow retry logic to work
+      // FirestoreWebCircuitBreaker.isBroken = true;
       return true;
     }
     return false;
@@ -399,6 +402,11 @@ class _MyAppState extends State<MyApp> {
                   title: 'Repository & Audit',
                   currentRouteName: '/repository_audit',
                   body: const RepositoryAuditScreen(),
+                ),
+                '/milestone_audit': (context) => MainLayout(
+                  title: 'Milestone Audit',
+                  currentRouteName: '/milestone_audit',
+                  body: const MilestoneAuditScreen(),
                 ),
                 '/alerts_nudges': (context) => const AlertsNudgesScreen(),
                 '/season_challenge': (context) => const SeasonChallengeScreen(),

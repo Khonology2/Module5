@@ -55,7 +55,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBUS2dYjMleU1EqQKy2fWAUViyA54yBoS0',
+    apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
     appId: '1:638896632756:android:fe586c9180a35ec8e378e1',
     messagingSenderId: '638896632756',
     projectId: 'pdh-v2',
@@ -63,8 +63,8 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDuVGLc4Dx3wBVTd3ZubrUmtoqg7m187xc',
-    appId: '1:638896632756:ios:d26381157f00b859e378e1',
+    apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
+    appId: '1:638896632756:ios:000000000000000000000001',
     messagingSenderId: '638896632756',
     projectId: 'pdh-v2',
     storageBucket: 'pdh-v2.firebasestorage.app',
@@ -73,8 +73,8 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDuVGLc4Dx3wBVTd3ZubrUmtoqg7m187xc',
-    appId: '1:638896632756:ios:d26381157f00b859e378e1',
+    apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
+    appId: '1:638896632756:ios:000000000000000000000001',
     messagingSenderId: '638896632756',
     projectId: 'pdh-v2',
     storageBucket: 'pdh-v2.firebasestorage.app',
@@ -84,7 +84,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions windows = FirebaseOptions(
     apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
-    appId: '1:638896632756:web:3ab9570e5c5eb3e1e378e1',
+    appId: '1:638896632756:web:000000000000000000000001',
     messagingSenderId: '638896632756',
     projectId: 'pdh-v2',
     authDomain: 'pdh-v2.firebaseapp.com',

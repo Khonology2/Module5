@@ -37,7 +37,7 @@ the **Firebase Authentication** server is rejecting the sign-up request. The app
 
 ### 1. Enable Email/Password sign-in (most common)
 
-- Open [Firebase Console](https://console.firebase.google.com/) → your project (e.g. **PDH-v2** or **pdh-fe6eb**).
+- Open [Firebase Console](https://console.firebase.google.com/) → your project (**pdh-v2**).
 - Go to **Authentication** → **Sign-in method**.
 - Click **Email/Password**.
 - Turn **Enable** ON and save.
@@ -110,7 +110,7 @@ In Google Cloud Console → **APIs & Services** → **Enabled APIs & services**:
 **3. Use a valid key from Firebase**  
 If the key was deleted or regenerated, your `firebase_options.dart` may be outdated:
 
-- In [Firebase Console](https://console.firebase.google.com/) → your project (e.g. **PDH-v2**) → **Project settings** (gear) → **General** → **Your apps** → select the **Web** app.
+- In [Firebase Console](https://console.firebase.google.com/) → your project (**pdh-v2**) → **Project settings** (gear) → **General** → **Your apps** → select the **Web** app.
 - Copy the **Web API Key** (or create a new web app to get a new key).
 - Update `lib/firebase_options.dart` with that key for the `web` (and `windows` if you use the same key there), or run FlutterFire to regenerate the file (see below).
 

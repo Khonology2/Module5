@@ -12,6 +12,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/audit_entry.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdh/services/cloudinary_service.dart';
@@ -1077,21 +1079,74 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             style: TextStyle(color: Colors.white),
           );
         }
-        return StreamBuilder<List<Goal>>(
-          stream: DatabaseService.getUserGoalsStream(user.uid).handleError((
-            error,
-          ) {
-            // Silently handle errors to prevent unmount errors
-            // The error will be caught by hasError check below
-            return;
-          }),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: CircularProgressIndicator(),
+        return FutureBuilder<String?>(
+          future: RoleService.instance.getRole(),
+          builder: (context, roleSnap) {
+            final role = roleSnap.data ?? RoleService.instance.cachedRole;
+            final isManager = role == 'manager';
+            if (isManager) {
+              return StreamBuilder<List<EmployeeData>>(
+                stream: ManagerRealtimeService.getTeamDataStream(),
+                builder: (context, teamSnap) {
+                  if (teamSnap.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    );
+                  }
+                  if (teamSnap.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'Unable to load team goals. Please try again.',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    );
+                  }
+                  final employees = teamSnap.data ?? [];
+                  final pairs = <({Goal goal, String employeeName})>[];
+                  for (final emp in employees) {
+                    for (final g in emp.goals) {
+                      if (_mapGoalToExcellence(g) == excellence) {
+                        pairs.add((
+                          goal: g,
+                          employeeName: emp.profile.displayName.isNotEmpty
+                              ? emp.profile.displayName
+                              : emp.profile.email,
+                        ));
+                      }
+                    }
+                  }
+                  if (pairs.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text(
+                        'No goals yet',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    );
+                  }
+                  return Column(
+                    children: pairs
+                        .map((p) => _buildGoalCard(p.goal, employeeName: p.employeeName))
+                        .toList(),
+                  );
+                },
               );
             }
+            return StreamBuilder<List<Goal>>(
+              stream: DatabaseService.getUserGoalsStream(user.uid).handleError((
+                error,
+              ) {
+                return;
+              }),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: CircularProgressIndicator(),
+                  );
+                }
 
             // Handle errors gracefully
             if (snapshot.hasError) {
@@ -1192,54 +1247,71 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             }
 
             return Column(
-              children: goals.map((goal) {
-                // Ensure we have a valid goal
-                if (goal.id.isEmpty) {
-                  return const SizedBox.shrink(); // Skip invalid goals
-                }
-                return Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
+              children: goals.map((goal) => _buildGoalCard(goal)).toList(),
+            );
+          },
+        );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildGoalCard(Goal goal, {String? employeeName}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (employeeName != null && employeeName.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6.0),
+                child: Text(
+                  'Employee: $employeeName',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    goal.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                goal.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '${goal.progress}%',
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: (goal.progress.clamp(0, 100)) / 100.0,
-                          backgroundColor: Colors.white12,
-                          color: const Color(0xFFC10D00),
-                          minHeight: 6,
-                        ),
-                        const SizedBox(height: 12),
+                ),
+                Text(
+                  '${goal.progress}%',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: (goal.progress.clamp(0, 100)) / 100.0,
+              backgroundColor: Colors.white12,
+              color: const Color(0xFFC10D00),
+              minHeight: 6,
+            ),
+            const SizedBox(height: 12),
 
-                        // Show attached evidence if any
-                        if (goal.evidence.isNotEmpty) ...[
-                          Container(
+            // Show attached evidence if any
+            if (goal.evidence.isNotEmpty) ...[
+              Container(
                             width: double.infinity,
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
@@ -1553,11 +1625,5 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     ),
                   ),
                 );
-              }).toList(),
-            );
-          },
-        );
-      },
-    );
   }
 }

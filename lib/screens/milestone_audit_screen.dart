@@ -189,11 +189,58 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
                       color: AppColors.textSecondary,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Try running the backfill to create historical entries',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    margin: const EdgeInsets.symmetric(horizontal: 40),
+                    decoration: BoxDecoration(
+                      color: AppColors.activeColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.activeColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Start Creating Milestones',
+                          style: AppTypography.bodyLarge.copyWith(
+                            color: AppColors.activeColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '1. Go to My Goal Workspace\n'
+                          '2. Create a new goal and get it approved\n'
+                          '3. Open goal details and add milestones\n'
+                          '4. Track milestone progress and status changes\n'
+                          '5. All activities will appear here automatically',
+                          textAlign: TextAlign.center,
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            // Navigate to goal workspace
+                            Navigator.of(
+                              context,
+                            ).pushNamed('/my_goal_workspace');
+                          },
+                          icon: const Icon(Icons.arrow_forward),
+                          label: const Text('Go to Goal Workspace'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.activeColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -522,7 +569,9 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: (actionInfo['color'] as Color).withValues(alpha: 0.1),
+                      color: (actionInfo['color'] as Color).withValues(
+                        alpha: 0.1,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(

@@ -13,7 +13,8 @@ class FirestoreWebCircuitBreaker {
   static bool _triggered = false;
   static bool isBroken = false;
   // Default to true on web; guarded to reload once per session.
-  static bool enableAutoReload = true;
+  // Disabled for development to allow retry logic to work
+  static bool enableAutoReload = false;
   static const String _reloadFlagKey = 'pdh_fs_reload_attempted';
 
   static bool isFirestoreInternalUnexpectedState(Object error) {
@@ -59,4 +60,3 @@ class FirestoreWebCircuitBreaker {
     } catch (_) {}
   }
 }
-

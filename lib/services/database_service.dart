@@ -15,6 +15,7 @@ import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/services/points_service.dart';
 import 'package:pdh/services/timeline_service.dart';
+import 'package:pdh/services/unified_milestone_audit.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -124,15 +125,30 @@ class DatabaseService {
     required String targetUserId,
   }) async* {
     final isOwner = viewerId == targetUserId;
-    final viewerRole = await _getUserRole(viewerId);
-    final settings = await _getUserPrivacySettings(targetUserId);
+    String viewerRole;
+    Map<String, dynamic> settings;
+    try {
+      viewerRole = await _getUserRole(viewerId);
+      settings = await _getUserPrivacySettings(targetUserId);
+    } catch (_) {
+      viewerRole = 'employee';
+      settings = {
+        'privateGoals': false,
+        'privateMilestones': false,
+        'privateProgress': false,
+      };
+    }
 
     if (!isOwner && viewerRole != 'manager') {
       if (settings['managerOnly'] == true || settings['privateGoals'] == true) {
         yield <Goal>[];
-        // Still subscribe minimally to pick up future changes
+        return;
       }
     }
+
+    // Emit initial empty list so StreamBuilder leaves ConnectionState.waiting
+    // immediately; avoids infinite loading if Firestore is slow or errors.
+    yield <Goal>[];
 
     yield* FirebaseFirestore.instance
         .collection('goals')
@@ -461,6 +477,18 @@ class DatabaseService {
         reason: reason,
       );
     } catch (_) {}
+
+    // Log goal rejection to audit trail
+    try {
+      await _logGoalRejected(
+        goalId: goalId,
+        goalTitle: (goalData!['title'] ?? '') as String? ?? '',
+        userId: (goalData!['userId'] ?? '') as String? ?? '',
+        rejectionReason: reason ?? '',
+      );
+    } catch (e) {
+      developer.log('Error logging goal rejection: $e');
+    }
   }
 
   static Future<Goal?> getGoalById(String goalId) async {
@@ -579,16 +607,37 @@ class DatabaseService {
           } catch (_) {}
         });
 
+        // Log goal creation to audit trail
+        // ignore: unawaited_futures
+        Future(() async {
+          try {
+            await _logGoalCreated(
+              goalId: docRef.id,
+              goalTitle: goal.title,
+              userId: goal.userId,
+            );
+          } catch (e) {
+            developer.log('Error logging goal creation: $e');
+          }
+        });
+
         return docRef.id;
       } catch (e) {
         lastError = e;
-        developer.log('Goal create attempt ${attempt + 1}/$maxAttempts failed: $e');
-        final isRetryable = _isFirestoreInternalAssertion(e) ||
+        developer.log(
+          'Goal create attempt ${attempt + 1}/$maxAttempts failed: $e',
+        );
+        final isRetryable =
+            _isFirestoreInternalAssertion(e) ||
             (e is FirebaseException &&
-                ['unavailable', 'deadline-exceeded', 'resource-exhausted']
-                    .contains(e.code.toLowerCase()));
+                [
+                  'unavailable',
+                  'deadline-exceeded',
+                  'resource-exhausted',
+                ].contains(e.code.toLowerCase()));
         if (attempt < maxAttempts - 1 && isRetryable) {
-          final delayMs = retryDelaysMs[attempt.clamp(0, retryDelaysMs.length - 1)];
+          final delayMs =
+              retryDelaysMs[attempt.clamp(0, retryDelaysMs.length - 1)];
           await Future.delayed(Duration(milliseconds: delayMs));
         } else {
           rethrow;
@@ -998,6 +1047,25 @@ class DatabaseService {
     });
     final snapshot = await docRef.get();
     final milestone = GoalMilestone.fromFirestore(snapshot);
+
+    // Log milestone creation to audit trail
+    try {
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      final goalTitle = goalSnap.data()?['title'] ?? 'Unknown Goal';
+
+      await UnifiedMilestoneAudit.logMilestoneCreated(
+        goalId: goalId,
+        milestoneId: milestone.id,
+        milestoneTitle: milestone.title,
+        goalTitle: goalTitle,
+      );
+    } catch (e) {
+      developer.log('Failed to log milestone creation: $e');
+    }
+
     await _afterMilestoneMutation(
       goalId: goalId,
       milestone: milestone,
@@ -1078,6 +1146,48 @@ class DatabaseService {
     await docRef.update(updates);
     final afterSnap = await docRef.get();
     final milestone = GoalMilestone.fromFirestore(afterSnap);
+
+    // Log milestone updates to audit trail
+    try {
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      final goalTitle = goalSnap.data()?['title'] ?? 'Unknown Goal';
+
+      // Log milestone update if any field changed
+      if (title != null || description != null || dueDate != null) {
+        final changes = <String, dynamic>{};
+        if (title != null) changes['title'] = title;
+        if (description != null) changes['description'] = description;
+        if (dueDate != null) changes['dueDate'] = dueDate.toString();
+
+        await UnifiedMilestoneAudit.logMilestoneUpdated(
+          goalId: goalId,
+          milestoneId: milestone.id,
+          milestoneTitle: milestone.title,
+          goalTitle: goalTitle,
+          changes: changes,
+        );
+      }
+
+      // Log milestone status change
+      if (status != null &&
+          previousStatus != null &&
+          status != previousStatus) {
+        await UnifiedMilestoneAudit.logMilestoneStatusChanged(
+          goalId: goalId,
+          milestoneId: milestone.id,
+          milestoneTitle: milestone.title,
+          goalTitle: goalTitle,
+          oldStatus: previousStatus.name,
+          newStatus: status.name,
+        );
+      }
+    } catch (e) {
+      developer.log('Failed to log milestone update: $e');
+    }
+
     await _afterMilestoneMutation(
       goalId: goalId,
       milestone: milestone,
@@ -1845,6 +1955,43 @@ class DatabaseService {
     }
   }
 
+  /// Gets onboarding document data by userId, or by email if doc not found by userId.
+  /// Returns the document map or empty map if not found.
+  static Future<Map<String, dynamic>> getOnboardingData({
+    required String userId,
+    String? email,
+  }) async {
+    if (FirestoreWebCircuitBreaker.isBroken) {
+      return {};
+    }
+    try {
+      var onboardingDoc = await FirebaseFirestore.instance
+          .collection('onboarding')
+          .doc(userId)
+          .get();
+
+      if (!onboardingDoc.exists && email != null && email.isNotEmpty) {
+        final onboardingQuery = await FirebaseFirestore.instance
+            .collection('onboarding')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+
+        if (onboardingQuery.docs.isNotEmpty) {
+          onboardingDoc = onboardingQuery.docs.first;
+        }
+      }
+
+      if (onboardingDoc.exists) {
+        return onboardingDoc.data() ?? {};
+      }
+    } catch (e) {
+      developer.log('Error getting onboarding data: $e');
+      FirestoreWebCircuitBreaker.maybeReload(e);
+    }
+    return {};
+  }
+
   /// Gets user name from onboarding collection
   /// Tries multiple field names: displayName, fullName, name, firstName, or firstName + lastName
   static Future<String?> getUserNameFromOnboarding({
@@ -1990,199 +2137,64 @@ class DatabaseService {
     };
   }
 
-  /// Get onboarding data from onboarding collection
-  /// Queries by user_id first, then by email if user_id not found
-  /// Returns a map with fullName, designation, department, and phoneNumber fields
-  static Future<Map<String, String?>> getOnboardingData({
-    String? userId,
-    String? email,
-  }) async {
-    try {
-      final firestore = FirebaseFirestore.instance;
-      Map<String, String?> result = {
-        'fullName': null,
-        'designation': null,
-        'department': null,
-        'phoneNumber': null,
-      };
-
-      // Try to get by user_id first (most reliable)
-      if (userId != null && userId.isNotEmpty) {
-        // Try document ID first
-        final docById = await firestore
-            .collection('onboarding')
-            .doc(userId)
-            .get();
-
-        if (docById.exists) {
-          final data = docById.data();
-          // Always retrieve designation, department, and phoneNumber from onboarding
-          result['fullName'] = data?['fullName'] as String?;
-          result['designation'] = data?['designation'] as String?;
-          result['department'] = data?['department'] as String?;
-          result['phoneNumber'] = data?['phoneNumber'] as String?;
-
-          // If fullName is not available, try name + surname
-          if (result['fullName'] == null || result['fullName']!.isEmpty) {
-            final name = data?['name'] as String? ?? '';
-            final surname = data?['surname'] as String? ?? '';
-            if (name.isNotEmpty || surname.isNotEmpty) {
-              result['fullName'] = '${name.trim()} ${surname.trim()}'.trim();
-            }
-          }
-
-          // Always return result with designation and department from onboarding
-          // This ensures profile screens get the correct values
-          return result;
-        }
-
-        // Try querying by user_id field
-        final queryByUserId = await firestore
-            .collection('onboarding')
-            .where('user_id', isEqualTo: userId)
-            .limit(1)
-            .get();
-
-        if (queryByUserId.docs.isNotEmpty) {
-          final data = queryByUserId.docs.first.data();
-          // Always retrieve designation, department, and phoneNumber from onboarding
-          result['fullName'] = data['fullName'] as String?;
-          result['designation'] = data['designation'] as String?;
-          result['department'] = data['department'] as String?;
-          result['phoneNumber'] = data['phoneNumber'] as String?;
-
-          // If fullName is not available, try name + surname
-          if (result['fullName'] == null || result['fullName']!.isEmpty) {
-            final name = data['name'] as String? ?? '';
-            final surname = data['surname'] as String? ?? '';
-            if (name.isNotEmpty || surname.isNotEmpty) {
-              result['fullName'] = '${name.trim()} ${surname.trim()}'.trim();
-            }
-          }
-
-          // Always return result with designation and department from onboarding
-          // This ensures profile screens get the correct values
-          return result;
-        }
-      }
-
-      // Fallback: try by email if provided
-      if (email != null && email.isNotEmpty) {
-        final queryByEmail = await firestore
-            .collection('onboarding')
-            .where('email', isEqualTo: email)
-            .limit(1)
-            .get();
-
-        if (queryByEmail.docs.isNotEmpty) {
-          final data = queryByEmail.docs.first.data();
-          // Always retrieve designation, department, and phoneNumber from onboarding
-          result['fullName'] = data['fullName'] as String?;
-          result['designation'] = data['designation'] as String?;
-          result['department'] = data['department'] as String?;
-          result['phoneNumber'] = data['phoneNumber'] as String?;
-
-          // If fullName is not available, try name + surname
-          if (result['fullName'] == null || result['fullName']!.isEmpty) {
-            final name = data['name'] as String? ?? '';
-            final surname = data['surname'] as String? ?? '';
-            if (name.isNotEmpty || surname.isNotEmpty) {
-              result['fullName'] = '${name.trim()} ${surname.trim()}'.trim();
-            }
-          }
-
-          // Return result with designation and department from onboarding
-          return result;
-        }
-      }
-
-      return result;
-    } catch (e) {
-      developer.log('Error getting onboarding data: $e');
-      return {
-        'fullName': null,
-        'designation': null,
-        'department': null,
-        'phoneNumber': null,
-      };
-    }
-  }
-
-  /// Update onboarding collection with phone number
-  static Future<void> updateOnboardingPhoneNumber({
+  /// Log goal rejection to audit_entries collection
+  static Future<void> _logGoalRejected({
+    required String goalId,
+    required String goalTitle,
     required String userId,
-    String? email,
-    required String phoneNumber,
+    required String rejectionReason,
   }) async {
     try {
-      final firestore = FirebaseFirestore.instance;
+      final event = {
+        'action': 'goal_rejected',
+        'goalId': goalId,
+        'userId': userId,
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'Goal rejected: $goalTitle',
+        'metadata': {
+          'goalTitle': goalTitle,
+          'goalId': goalId,
+          'rejectionReason': rejectionReason,
+        },
+        'status': 'rejected',
+      };
 
-      // Try to update by document ID first
-      final docRef = firestore.collection('onboarding').doc(userId);
-      final doc = await docRef.get();
-
-      if (doc.exists) {
-        await docRef.update({'phoneNumber': phoneNumber});
-        return;
-      }
-
-      // Try to find by user_id field
-      if (userId.isNotEmpty) {
-        final queryByUserId = await firestore
-            .collection('onboarding')
-            .where('user_id', isEqualTo: userId)
-            .limit(1)
-            .get();
-
-        if (queryByUserId.docs.isNotEmpty) {
-          await queryByUserId.docs.first.reference.update({
-            'phoneNumber': phoneNumber,
-          });
-          return;
-        }
-      }
-
-      // Fallback: try by email if provided
-      if (email != null && email.isNotEmpty) {
-        final queryByEmail = await firestore
-            .collection('onboarding')
-            .where('email', isEqualTo: email)
-            .limit(1)
-            .get();
-
-        if (queryByEmail.docs.isNotEmpty) {
-          await queryByEmail.docs.first.reference.update({
-            'phoneNumber': phoneNumber,
-          });
-          return;
-        }
-      }
-
-      // If no document found, create one with phone number
-      if (userId.isNotEmpty) {
-        await docRef.set({
-          'user_id': userId,
-          'email': email,
-          'phoneNumber': phoneNumber,
-        }, SetOptions(merge: true));
-      }
-    } catch (e) {
-      developer.log('Error updating onboarding phone number: $e');
-      // Don't throw - phone number update is not critical
+      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      developer.log('Goal rejection logged: $goalTitle for user $userId');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error logging goal rejection: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
-  /// Get user name from onboarding collection
-  /// Queries by user_id first, then by email if user_id not found
-  /// Returns fullName field if available, otherwise falls back to name + surname
-  static Future<String?> fetchUserNameFromOnboarding({
-    String? userId,
-    String? email,
+  /// Log goal creation to audit_entries collection
+  static Future<void> _logGoalCreated({
+    required String goalId,
+    required String goalTitle,
+    required String userId,
   }) async {
-    final onboardingData = await getOnboardingData(
-      userId: userId,
-      email: email,
-    );
-    return onboardingData['fullName'];
+    try {
+      final event = {
+        'action': 'goal_created',
+        'goalId': goalId,
+        'userId': userId,
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'Goal created: $goalTitle',
+        'metadata': {'goalTitle': goalTitle, 'goalId': goalId},
+        'status': 'pending', // Goals start as pending approval
+      };
+
+      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      developer.log('Goal creation logged: $goalTitle for user $userId');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error logging goal creation: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
   }
 }

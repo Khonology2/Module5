@@ -22,6 +22,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/debouncer.dart';
+import 'package:pdh/services/unified_milestone_audit.dart';
 
 class RepositoryAuditScreen extends StatefulWidget {
   const RepositoryAuditScreen({super.key});
@@ -154,6 +155,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       _buildRepositorySection(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildApprovedGoalsSection(isManager: isManager),
+                      const SizedBox(height: 24),
+                      _buildMilestoneAuditSection(isManager: isManager),
                     ],
                   );
                 },
@@ -689,6 +692,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           final entries = <AuditEntry>[];
           if (snapshot.hasData) {
             for (final doc in snapshot.data!.docs) {
+              final data = doc.data() as Map<String, dynamic>? ?? {};
+              if ((data['goalId'] ?? '').toString().isEmpty) continue;
+              if (data['action'] != null) continue;
               try {
                 entries.add(AuditEntry.fromFirestore(doc));
               } catch (e) {
@@ -708,15 +714,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         },
       );
     } else {
-      // For employees, use the existing service stream
-      return StreamBuilder<List<AuditEntry>>(
-        stream: AuditService.getEmployeeAuditEntriesStream(
-          status: null, // Get all statuses for accurate counts
-        ),
+      // For employees, use the new goal audit tracking stream
+      return StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _getGoalAuditStream(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             developer.log(
-              'Error in employee audit entries stream: ${snapshot.error}',
+              'Error in goal audit stream: ${snapshot.error}',
               name: 'RepositoryAuditScreen',
             );
             return _buildStatsContainer(emptyStats, isManager: false);
@@ -725,9 +729,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           final entries = snapshot.data ?? [];
           final stats = <String, int>{
             'total': entries.length,
-            'verified': entries.where((e) => e.status == 'verified').length,
-            'pending': entries.where((e) => e.status == 'pending').length,
-            'rejected': entries.where((e) => e.status == 'rejected').length,
+            'verified': entries.where((e) => e['status'] == 'verified').length,
+            'pending': entries.where((e) => e['status'] == 'pending').length,
+            'rejected': entries.where((e) => e['status'] == 'rejected').length,
+            'approved': entries.where((e) => e['status'] == 'approved').length,
+            'created': entries
+                .where((e) => e['action'] == 'goal_created')
+                .length,
           };
 
           return _buildStatsContainer(stats, isManager: false);
@@ -773,20 +781,26 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _buildStatusChip(
-                'Verified',
-                stats['verified'] ?? 0,
-                AppColors.successColor,
-              ),
+              _buildStatusChip('Created', stats['created'] ?? 0, Colors.blue),
               _buildStatusChip(
                 'Pending',
                 stats['pending'] ?? 0,
                 AppColors.warningColor,
               ),
               _buildStatusChip(
+                'Approved',
+                stats['approved'] ?? 0,
+                Colors.green,
+              ),
+              _buildStatusChip(
                 'Rejected',
                 stats['rejected'] ?? 0,
                 AppColors.dangerColor,
+              ),
+              _buildStatusChip(
+                'Verified',
+                stats['verified'] ?? 0,
+                AppColors.successColor,
               ),
             ],
           ),
@@ -2753,7 +2767,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         ),
         const SizedBox(height: 16),
         StreamBuilder<List<Map<String, dynamic>>>(
-          stream: const Stream.empty(),
+          stream: UnifiedMilestoneAudit.getAllMilestoneAuditStream(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -2802,6 +2816,38 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       'Using Unified Audit System',
                       style: AppTypography.bodySmall.copyWith(
                         color: AppColors.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.activeColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.activeColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'How to create milestones:',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.activeColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '1. Create a goal and get it approved\n'
+                            '2. Open goal details and add milestones\n'
+                            '3. Update milestone status to track progress\n'
+                            '4. All milestone actions will appear here',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -2925,6 +2971,60 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error exporting milestone audit: $e')),
       );
+    }
+  }
+
+  /// Get goal audit stream for current user
+  Stream<List<Map<String, dynamic>>> _getGoalAuditStream() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return Stream.value([]);
+
+    return FirebaseFirestore.instance
+        .collection('audit_entries')
+        .where('userId', isEqualTo: currentUser.uid)
+        .where(
+          'action',
+          whereIn: [
+            'goal_created',
+            'goal_approved',
+            'goal_rejected',
+            'goal_verified',
+          ],
+        )
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  /// Get color for goal status
+  Color _getGoalStatusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return Colors.orange;
+      case 'approved':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'verified':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  /// Get icon for goal action
+  IconData _getGoalStatusIcon(String action) {
+    switch (action) {
+      case 'goal_created':
+        return Icons.add_circle_outline;
+      case 'goal_approved':
+        return Icons.check_circle;
+      case 'goal_rejected':
+        return Icons.cancel;
+      case 'goal_verified':
+        return Icons.verified;
+      default:
+        return Icons.help_outline;
     }
   }
 }
