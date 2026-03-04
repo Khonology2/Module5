@@ -3142,6 +3142,60 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       );
     }
   }
+
+  /// Get goal audit stream for current user
+  Stream<List<Map<String, dynamic>>> _getGoalAuditStream() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return Stream.value([]);
+
+    return FirebaseFirestore.instance
+        .collection('audit_entries')
+        .where('userId', isEqualTo: currentUser.uid)
+        .where(
+          'action',
+          whereIn: [
+            'goal_created',
+            'goal_approved',
+            'goal_rejected',
+            'goal_verified',
+          ],
+        )
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  /// Get color for goal status
+  Color _getGoalStatusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return Colors.orange;
+      case 'approved':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'verified':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  /// Get icon for goal action
+  IconData _getGoalStatusIcon(String action) {
+    switch (action) {
+      case 'goal_created':
+        return Icons.add_circle_outline;
+      case 'goal_approved':
+        return Icons.check_circle;
+      case 'goal_rejected':
+        return Icons.cancel;
+      case 'goal_verified':
+        return Icons.verified;
+      default:
+        return Icons.help_outline;
+    }
+  }
 }
 
 class ProfessionalMilestoneAuditCard extends StatefulWidget {
@@ -3644,63 +3698,5 @@ class ProfessionalMilestoneAuditCardState
       'Dec',
     ];
     return '${months[eventTime.month - 1]} ${eventTime.day}, ${eventTime.year}';
-  }
-
-  /// Get goal audit stream for current user
-  Stream<List<Map<String, dynamic>>> _getGoalAuditStream() {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return Stream.value([]);
-
-    return FirebaseFirestore.instance
-        .collection('audit_entries')
-        .where('userId', isEqualTo: currentUser.uid)
-        .where(
-          'action',
-          whereIn: [
-            'goal_created',
-            'goal_approved',
-            'goal_rejected',
-            'goal_verified',
-          ],
-        )
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => doc.data() as Map<String, dynamic>)
-              .toList(),
-        );
-  }
-
-  /// Get color for goal status
-  Color _getGoalStatusColor(String status) {
-    switch (status) {
-      case 'pending':
-        return Colors.orange;
-      case 'approved':
-        return Colors.green;
-      case 'rejected':
-        return Colors.red;
-      case 'verified':
-        return Colors.blue;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  /// Get icon for goal action
-  IconData _getGoalStatusIcon(String action) {
-    switch (action) {
-      case 'goal_created':
-        return Icons.add_circle_outline;
-      case 'goal_approved':
-        return Icons.check_circle;
-      case 'goal_rejected':
-        return Icons.cancel;
-      case 'goal_verified':
-        return Icons.verified;
-      default:
-        return Icons.help_outline;
-    }
   }
 }
