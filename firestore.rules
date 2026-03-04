@@ -251,14 +251,10 @@ service cloud.firestore {
       // Allow any signed-in user to create a goal for themselves (userId must match auth.uid).
       allow create: if isSignedIn() && goalOwnerUidFromData(request.resource.data) == userId();
 
-      // Tighten list/query access:
-      // - managers/admins can list any goals
-      // - employees can only list when the query is scoped to their own userId
-      allow list: if isSignedIn() && (
-        isManager() ||
-        isAdmin() ||
-        request.query.where('userId', '==', userId())
-      );
+      // List: any signed-in user can run queries. The read rule above ensures only
+      // documents the user is allowed to see (own goals, or manager/admin) are returned.
+      // Note: request.query does not expose where() filters, so we cannot restrict by query.
+      allow list: if isSignedIn();
 
       match /milestones/{milestoneId} {
         allow list: if isSignedIn() && canAccessGoal(goalId);
