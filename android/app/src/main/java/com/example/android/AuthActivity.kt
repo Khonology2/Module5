@@ -47,7 +47,7 @@ class AuthActivity : AppCompatActivity() {
 
     private fun sendSignInLink(email: String) {
         val actionCodeSettings = ActionCodeSettings.newBuilder()
-            .setUrl("https://pdh-fe6eb.firebaseapp.com/finishSignUp?cartId=1234") // Replace with your whitelisted domain
+            .setUrl("https://pdh-v2.firebaseapp.com/finishSignUp?cartId=1234") // Replace with your whitelisted domain
             .setHandleCodeInApp(true)
             .setIOSBundleId("com.example.ios") // Optional, if you have an iOS app
             .setAndroidPackageName(

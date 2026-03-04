@@ -15,6 +15,7 @@ import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/services/points_service.dart';
 import 'package:pdh/services/timeline_service.dart';
+import 'package:pdh/services/unified_milestone_audit.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -124,15 +125,30 @@ class DatabaseService {
     required String targetUserId,
   }) async* {
     final isOwner = viewerId == targetUserId;
-    final viewerRole = await _getUserRole(viewerId);
-    final settings = await _getUserPrivacySettings(targetUserId);
+    String viewerRole;
+    Map<String, dynamic> settings;
+    try {
+      viewerRole = await _getUserRole(viewerId);
+      settings = await _getUserPrivacySettings(targetUserId);
+    } catch (_) {
+      viewerRole = 'employee';
+      settings = {
+        'privateGoals': false,
+        'privateMilestones': false,
+        'privateProgress': false,
+      };
+    }
 
     if (!isOwner && viewerRole != 'manager') {
       if (settings['managerOnly'] == true || settings['privateGoals'] == true) {
         yield <Goal>[];
-        // Still subscribe minimally to pick up future changes
+        return;
       }
     }
+
+    // Emit initial empty list so StreamBuilder leaves ConnectionState.waiting
+    // immediately; avoids infinite loading if Firestore is slow or errors.
+    yield <Goal>[];
 
     yield* FirebaseFirestore.instance
         .collection('goals')
@@ -582,13 +598,20 @@ class DatabaseService {
         return docRef.id;
       } catch (e) {
         lastError = e;
-        developer.log('Goal create attempt ${attempt + 1}/$maxAttempts failed: $e');
-        final isRetryable = _isFirestoreInternalAssertion(e) ||
+        developer.log(
+          'Goal create attempt ${attempt + 1}/$maxAttempts failed: $e',
+        );
+        final isRetryable =
+            _isFirestoreInternalAssertion(e) ||
             (e is FirebaseException &&
-                ['unavailable', 'deadline-exceeded', 'resource-exhausted']
-                    .contains(e.code.toLowerCase()));
+                [
+                  'unavailable',
+                  'deadline-exceeded',
+                  'resource-exhausted',
+                ].contains(e.code.toLowerCase()));
         if (attempt < maxAttempts - 1 && isRetryable) {
-          final delayMs = retryDelaysMs[attempt.clamp(0, retryDelaysMs.length - 1)];
+          final delayMs =
+              retryDelaysMs[attempt.clamp(0, retryDelaysMs.length - 1)];
           await Future.delayed(Duration(milliseconds: delayMs));
         } else {
           rethrow;
@@ -998,6 +1021,25 @@ class DatabaseService {
     });
     final snapshot = await docRef.get();
     final milestone = GoalMilestone.fromFirestore(snapshot);
+
+    // Log milestone creation to audit trail
+    try {
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      final goalTitle = goalSnap.data()?['title'] ?? 'Unknown Goal';
+
+      await UnifiedMilestoneAudit.logMilestoneCreated(
+        goalId: goalId,
+        milestoneId: milestone.id,
+        milestoneTitle: milestone.title,
+        goalTitle: goalTitle,
+      );
+    } catch (e) {
+      developer.log('Failed to log milestone creation: $e');
+    }
+
     await _afterMilestoneMutation(
       goalId: goalId,
       milestone: milestone,
@@ -1078,6 +1120,48 @@ class DatabaseService {
     await docRef.update(updates);
     final afterSnap = await docRef.get();
     final milestone = GoalMilestone.fromFirestore(afterSnap);
+
+    // Log milestone updates to audit trail
+    try {
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      final goalTitle = goalSnap.data()?['title'] ?? 'Unknown Goal';
+
+      // Log milestone update if any field changed
+      if (title != null || description != null || dueDate != null) {
+        final changes = <String, dynamic>{};
+        if (title != null) changes['title'] = title;
+        if (description != null) changes['description'] = description;
+        if (dueDate != null) changes['dueDate'] = dueDate.toString();
+
+        await UnifiedMilestoneAudit.logMilestoneUpdated(
+          goalId: goalId,
+          milestoneId: milestone.id,
+          milestoneTitle: milestone.title,
+          goalTitle: goalTitle,
+          changes: changes,
+        );
+      }
+
+      // Log milestone status change
+      if (status != null &&
+          previousStatus != null &&
+          status != previousStatus) {
+        await UnifiedMilestoneAudit.logMilestoneStatusChanged(
+          goalId: goalId,
+          milestoneId: milestone.id,
+          milestoneTitle: milestone.title,
+          goalTitle: goalTitle,
+          oldStatus: previousStatus.name,
+          newStatus: status.name,
+        );
+      }
+    } catch (e) {
+      developer.log('Failed to log milestone update: $e');
+    }
+
     await _afterMilestoneMutation(
       goalId: goalId,
       milestone: milestone,
