@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.BC4.SIT",
-  "generated_at": "2026-03-04T08:26:44Z",
+  "version": "2026.03.BC5.SIT",
+  "generated_at": "2026-03-04T08:28:16Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -21,8 +21,13 @@
       "author": "Thembelihle",
       "message": "chore: update Firebase project configuration and add demo presentation script",
       "timestamp": "2026-03-04T10:25:54+02:00"
+    },
+    {
+      "author": "Nathi2266",
+      "message": "chore: update Firebase project references to pdh-v2 and upgrade dependencies in pubspec.lock",
+      "timestamp": "2026-03-04T10:05:44+02:00"
     }
   ],
-  "total_commits": 4,
+  "total_commits": 5,
   "date_range": "2026-03-04"
 }
