@@ -462,6 +462,18 @@ class DatabaseService {
         reason: reason,
       );
     } catch (_) {}
+
+    // Log goal rejection to audit trail
+    try {
+      await _logGoalRejected(
+        goalId: goalId,
+        goalTitle: (goalData!['title'] ?? '') as String? ?? '',
+        userId: (goalData!['userId'] ?? '') as String? ?? '',
+        rejectionReason: reason ?? '',
+      );
+    } catch (e) {
+      developer.log('Error logging goal rejection: $e');
+    }
   }
 
   static Future<Goal?> getGoalById(String goalId) async {
@@ -578,6 +590,20 @@ class DatabaseService {
           try {
             await BadgeService.checkAndAwardBadgesV2(goal.userId);
           } catch (_) {}
+        });
+
+        // Log goal creation to audit trail
+        // ignore: unawaited_futures
+        Future(() async {
+          try {
+            await _logGoalCreated(
+              goalId: docRef.id,
+              goalTitle: goal.title,
+              userId: goal.userId,
+            );
+          } catch (e) {
+            developer.log('Error logging goal creation: $e');
+          }
         });
 
         return docRef.id;
@@ -2058,5 +2084,66 @@ class DatabaseService {
       'badges': badges.docs.map((d) => d.data()).toList(),
       'alerts': alerts.docs.map((d) => d.data()).toList(),
     };
+  }
+
+  /// Log goal rejection to audit_entries collection
+  static Future<void> _logGoalRejected({
+    required String goalId,
+    required String goalTitle,
+    required String userId,
+    required String rejectionReason,
+  }) async {
+    try {
+      final event = {
+        'action': 'goal_rejected',
+        'goalId': goalId,
+        'userId': userId,
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'Goal rejected: $goalTitle',
+        'metadata': {
+          'goalTitle': goalTitle,
+          'goalId': goalId,
+          'rejectionReason': rejectionReason,
+        },
+        'status': 'rejected',
+      };
+
+      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      developer.log('Goal rejection logged: $goalTitle for user $userId');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error logging goal rejection: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  /// Log goal creation to audit_entries collection
+  static Future<void> _logGoalCreated({
+    required String goalId,
+    required String goalTitle,
+    required String userId,
+  }) async {
+    try {
+      final event = {
+        'action': 'goal_created',
+        'goalId': goalId,
+        'userId': userId,
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'Goal created: $goalTitle',
+        'metadata': {'goalTitle': goalTitle, 'goalId': goalId},
+        'status': 'pending', // Goals start as pending approval
+      };
+
+      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      developer.log('Goal creation logged: $goalTitle for user $userId');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error logging goal creation: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
   }
 }
