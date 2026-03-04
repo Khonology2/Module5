@@ -125,15 +125,30 @@ class DatabaseService {
     required String targetUserId,
   }) async* {
     final isOwner = viewerId == targetUserId;
-    final viewerRole = await _getUserRole(viewerId);
-    final settings = await _getUserPrivacySettings(targetUserId);
+    String viewerRole;
+    Map<String, dynamic> settings;
+    try {
+      viewerRole = await _getUserRole(viewerId);
+      settings = await _getUserPrivacySettings(targetUserId);
+    } catch (_) {
+      viewerRole = 'employee';
+      settings = {
+        'privateGoals': false,
+        'privateMilestones': false,
+        'privateProgress': false,
+      };
+    }
 
     if (!isOwner && viewerRole != 'manager') {
       if (settings['managerOnly'] == true || settings['privateGoals'] == true) {
         yield <Goal>[];
-        // Still subscribe minimally to pick up future changes
+        return;
       }
     }
+
+    // Emit initial empty list so StreamBuilder leaves ConnectionState.waiting
+    // immediately; avoids infinite loading if Firestore is slow or errors.
+    yield <Goal>[];
 
     yield* FirebaseFirestore.instance
         .collection('goals')
