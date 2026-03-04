@@ -1,31 +1,11 @@
 {
-  "version": "2026.03.BC9.SIT",
-  "generated_at": "2026-03-04T06:36:54Z",
+  "version": "2026.03.BC6.SIT",
+  "generated_at": "2026-03-04T08:09:55Z",
   "commits": [
     {
       "author": "GitHub Action",
       "message": "Update daily commits data []",
       "timestamp": "2026-02-24T06:19:19Z"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Fix milestone audit trail UI - connect Repository Audit screen to milestone audit stream and add MilestoneAuditScreen route",
-      "timestamp": "2026-03-03T15:38:04+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Add milestone audit trail logging - track all milestone creation, updates, and status changes",
-      "timestamp": "2026-03-03T15:16:04+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Fix Firestore assertion failures - disable auto-reload and allow retry logic to work",
-      "timestamp": "2026-03-03T14:43:47+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Merge Nathi-S11 with correct Firebase API keys and user creation permissions",
-      "timestamp": "2026-03-03T12:13:31+02:00"
     },
     {
       "author": "Nathi2266",
@@ -46,8 +26,13 @@
       "author": "Thembelihle",
       "message": "Feature -  Integrate ManagerRealtimeService to exclude deleted accounts from employee lists in ManagerTeamWorkspaceScreen and TeamManagementScreen",
       "timestamp": "2026-03-03T09:31:00+02:00"
+    },
+    {
+      "author": "BhutSipho",
+      "message": "Fix project ID mismatch - update firebase.json and .firebaserc to use pdh-v2 consistently across all configurations",
+      "timestamp": "2026-03-04T10:08:21+02:00"
     }
   ],
-  "total_commits": 9,
+  "total_commits": 6,
   "date_range": "2026-03-04"
 }
