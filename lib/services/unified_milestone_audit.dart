@@ -127,17 +127,60 @@ class UnifiedMilestoneAudit {
     }
   }
 
-  /// Get milestone audit entries for a goal (same pattern as existing goal audit)
+  /// Get milestone audit entries for a goal (simplified to prevent assertions)
   static Stream<List<Map<String, dynamic>>> getMilestoneAuditStream(
     String goalId,
   ) async* {
     try {
-      // Add delay to prevent rapid-fire queries that cause assertions
-      await Future.delayed(const Duration(milliseconds: 100));
-
+      // Simplified query to prevent Firestore assertions
       final stream = _firestore
           .collection('audit_entries')
           .where('goalId', isEqualTo: goalId)
+          .orderBy('timestamp', descending: true)
+          .limit(20) // Reduced limit to prevent overwhelming
+          .snapshots();
+
+      await for (final snapshot in stream) {
+        try {
+          final audits = snapshot.docs
+              .map((doc) => {'id': doc.id, ...doc.data()})
+              .where((audit) {
+                // Client-side filtering for milestone actions
+                final action = audit['action'] as String? ?? '';
+                return [
+                  'milestone_created',
+                  'milestone_updated',
+                  'milestone_status_changed',
+                ].contains(action);
+              })
+              .toList();
+          yield audits;
+        } catch (e, stackTrace) {
+          developer.log(
+            'Error processing audit snapshot: $e',
+            error: e,
+            stackTrace: stackTrace,
+          );
+          yield []; // Fallback to empty list on error
+        }
+      }
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error in getMilestoneAuditStream: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      yield []; // Fallback to empty list
+    }
+  }
+
+  /// Get all milestone audit entries (for current user's goals only)
+  static Stream<List<Map<String, dynamic>>>
+  getAllMilestoneAuditStream() async* {
+    try {
+      // Simplified query to prevent Firestore assertions
+      final stream = _firestore
+          .collection('audit_entries')
           .where(
             'action',
             whereIn: [
@@ -147,45 +190,7 @@ class UnifiedMilestoneAudit {
             ],
           )
           .orderBy('timestamp', descending: true)
-          .limit(50) // Limit to prevent large result sets
-          .snapshots();
-
-      await for (final snapshot in stream) {
-        try {
-          final audits = snapshot.docs
-              .map((doc) => {'id': doc.id, ...doc.data()})
-              .toList();
-          yield audits;
-        } catch (e) {
-          developer.log('Error processing audit snapshot: $e');
-          yield []; // Fallback to empty list
-        }
-      }
-    } catch (e) {
-      developer.log('Error in getMilestoneAuditStream: $e');
-      yield []; // Fallback to empty list
-    }
-  }
-
-  /// Get all milestone audit entries (for current user's goals only)
-  static Stream<List<Map<String, dynamic>>>
-  getAllMilestoneAuditStream() async* {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) {
-        yield [];
-        return;
-      }
-
-      // Add delay to prevent rapid-fire queries that cause assertions
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      // Most basic query - get all audit entries and filter client-side
-      // This avoids any permission issues with complex queries
-      final stream = _firestore
-          .collection('audit_entries')
-          .orderBy('timestamp', descending: true)
-          .limit(50) // Smaller limit to prevent overwhelming
+          .limit(20) // Reduced limit to prevent overwhelming
           .snapshots();
 
       await for (final snapshot in stream) {
@@ -193,26 +198,36 @@ class UnifiedMilestoneAudit {
           final audits = snapshot.docs
               .map((doc) => {'id': doc.id, ...doc.data()})
               .where((audit) {
-                // Client-side filtering for user's own milestone actions
+                // Simple client-side filtering
                 final action = audit['action'] as String? ?? '';
                 final userId = audit['userId'] as String? ?? '';
+                final currentUserId = _auth.currentUser?.uid;
 
-                return [
+                return currentUserId != null &&
+                    userId == currentUserId &&
+                    [
                       'milestone_created',
                       'milestone_updated',
                       'milestone_status_changed',
-                    ].contains(action) &&
-                    userId == user.uid;
+                    ].contains(action);
               })
               .toList();
           yield audits;
-        } catch (e) {
-          developer.log('Error processing audit snapshot: $e');
-          yield []; // Fallback to empty list
+        } catch (e, stackTrace) {
+          developer.log(
+            'Error processing milestone audit snapshot: $e',
+            error: e,
+            stackTrace: stackTrace,
+          );
+          yield []; // Fallback to empty list on error
         }
       }
-    } catch (e) {
-      developer.log('Error in getAllMilestoneAuditStream: $e');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error in getAllMilestoneAuditStream: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       yield []; // Fallback to empty list
     }
   }
