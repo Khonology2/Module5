@@ -3019,20 +3019,28 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         html.Url.revokeObjectUrl(url);
       } else {
         // Mobile/desktop download would need file picker implementation
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('CSV data ready - mobile download coming soon!'),
+            ),
+          );
+        }
+      }
+
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('CSV data ready - mobile download coming soon!'),
+            content: Text('Milestone audit exported successfully!'),
           ),
         );
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Milestone audit exported successfully!')),
-      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error exporting milestone audit: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error exporting milestone audit: $e')),
+        );
+      }
     }
   }
 
