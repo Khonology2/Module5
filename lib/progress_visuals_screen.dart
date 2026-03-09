@@ -321,6 +321,20 @@ class _CategoryProgressItem {
   const _CategoryProgressItem({required this.label, required this.progress});
 }
 
+class _TrendSeries {
+  final List<double> points;
+  final List<String> labels;
+
+  const _TrendSeries({required this.points, required this.labels});
+}
+
+class _DateRange {
+  final DateTime start;
+  final DateTime endExclusive;
+
+  const _DateRange({required this.start, required this.endExclusive});
+}
+
 class _DonutSegment {
   final String label;
   final double fraction;
@@ -359,6 +373,7 @@ class _DonutChartPainter extends CustomPainter {
 
 class _TeamProgressLineChartPainter extends CustomPainter {
   final List<double> data;
+  final List<String> xLabels;
   final Color lineColor;
   final Color gridColor;
   final Color textColor;
@@ -366,6 +381,7 @@ class _TeamProgressLineChartPainter extends CustomPainter {
 
   const _TeamProgressLineChartPainter({
     required this.data,
+    required this.xLabels,
     required this.lineColor,
     required this.gridColor,
     required this.textColor,
@@ -442,9 +458,9 @@ class _TeamProgressLineChartPainter extends CustomPainter {
       }
     }
 
-    // X-axis labels (W1..Wn)
+    // X-axis labels (dynamic)
     for (var i = 0; i < pts.length; i++) {
-      final label = 'W${i + 1}';
+      final label = i < xLabels.length ? xLabels[i] : 'P${i + 1}';
       final tp = TextPainter(
         text: TextSpan(
           text: label,
@@ -459,6 +475,7 @@ class _TeamProgressLineChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TeamProgressLineChartPainter oldDelegate) {
     return oldDelegate.data != data ||
+        oldDelegate.xLabels != xLabels ||
         oldDelegate.lineColor != lineColor ||
         oldDelegate.gridColor != gridColor ||
         oldDelegate.textColor != textColor ||
@@ -468,8 +485,12 @@ class _TeamProgressLineChartPainter extends CustomPainter {
 
 class _InteractiveTeamTrendChart extends StatefulWidget {
   final List<double> points;
+  final List<String> labels;
 
-  const _InteractiveTeamTrendChart({required this.points});
+  const _InteractiveTeamTrendChart({
+    required this.points,
+    required this.labels,
+  });
 
   @override
   State<_InteractiveTeamTrendChart> createState() =>
@@ -549,6 +570,7 @@ class _InteractiveTeamTrendChartState extends State<_InteractiveTeamTrendChart> 
                   child: CustomPaint(
                     painter: _TeamProgressLineChartPainter(
                       data: widget.points,
+                      xLabels: widget.labels,
                       lineColor: AppColors.activeColor,
                       gridColor: Colors.white.withValues(alpha: 0.15),
                       textColor: AppColors.textSecondary,
@@ -605,7 +627,7 @@ class _ManagerProgressVisualsContentState
   late Stream<List<EmployeeData>> _teamStream;
   String _teamStreamKey = '';
   String _teamTrendKey = '';
-  Future<List<double>>? _teamTrendFuture;
+  Future<_TrendSeries>? _teamTrendFuture;
   List<EmployeeData> _lastEnrichedTeamEmployees = const [];
 
   // In-memory caches to avoid an entry-time "blank loading" state.
@@ -757,20 +779,21 @@ class _ManagerProgressVisualsContentState
         final categoryProgress = _calculateGoalCategoryProgress(employees);
 
         final trendFuture = _getTeamTrendFuture(employees);
-        return FutureBuilder<List<double>>(
+        return FutureBuilder<_TrendSeries>(
           future: trendFuture,
           builder: (context, trendSnapshot) {
-            final realTrendPoints = trendSnapshot.data ?? const <double>[];
-            final effectiveTrendPoints = realTrendPoints.length >= 2
-                ? realTrendPoints
-                : _buildTrendPoints(metrics, employees);
+            final effectiveSeries = trendSnapshot.data ??
+                _TrendSeries(
+                  points: const <double>[],
+                  labels: _fallbackLabelsForFilter(0),
+                );
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildTeamAnalyticsFilters(),
                 const SizedBox(height: AppSpacing.xl),
-                _buildTeamProgressTrendSection(effectiveTrendPoints),
+                _buildTeamProgressTrendSection(effectiveSeries),
                 const SizedBox(height: AppSpacing.xl),
                 _buildGoalStatusAndEngagementRow(
                   goalStatusCounts,
@@ -785,7 +808,7 @@ class _ManagerProgressVisualsContentState
                   goalStatusCounts: goalStatusCounts,
                   engagementByDay: engagementByDay,
                   categoryProgress: categoryProgress,
-                  trendPoints: effectiveTrendPoints,
+                  trendPoints: effectiveSeries.points,
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 _buildGoalCategoryProgressSection(categoryProgress),
@@ -2204,7 +2227,7 @@ class _ManagerProgressVisualsContentState
 
   TeamMetrics _calculateTeamMetrics(List<EmployeeData> employees) {
     final now = DateTime.now();
-    final filterStart = _trendSinceDate(currentTimeFilter);
+    final range = _historicalFilterRange(currentTimeFilter);
 
     int activeCount = 0;
     int onTrackCount = 0;
@@ -2215,7 +2238,8 @@ class _ManagerProgressVisualsContentState
     double totalProgress = 0;
 
     for (final employee in employees) {
-      if (employee.lastActivity.isAfter(filterStart)) {
+      if (!employee.lastActivity.isBefore(range.start) &&
+          employee.lastActivity.isBefore(range.endExclusive)) {
         activeCount++;
       }
 
@@ -2262,8 +2286,11 @@ class _ManagerProgressVisualsContentState
   }
 
   List<Goal> _goalsForCurrentFilter(EmployeeData employee) {
-    final since = _trendSinceDate(currentTimeFilter);
-    return employee.goals.where((g) => !g.createdAt.isBefore(since)).toList(growable: false);
+    final range = _historicalFilterRange(currentTimeFilter);
+    return employee.goals
+        .where((g) => !g.createdAt.isBefore(range.start))
+        .where((g) => g.createdAt.isBefore(range.endExclusive))
+        .toList(growable: false);
   }
 
   double _averageProgressForEmployee(EmployeeData employee) {
@@ -2303,11 +2330,14 @@ class _ManagerProgressVisualsContentState
   /// Unique active employees per weekday (Mon..Fri) within the selected filter window.
   List<int> _calculateEngagementByWeekday(List<EmployeeData> employees) {
     final activeByDay = List<Set<String>>.generate(5, (_) => <String>{});
-    final since = _trendSinceDate(currentTimeFilter);
+    final range = _historicalFilterRange(currentTimeFilter);
 
     for (final emp in employees) {
       for (final act in emp.recentActivities) {
-        if (act.timestamp.isBefore(since)) continue;
+        if (act.timestamp.isBefore(range.start) ||
+            !act.timestamp.isBefore(range.endExclusive)) {
+          continue;
+        }
         final weekday = act.timestamp.weekday;
         if (weekday >= 1 && weekday <= 5) {
           activeByDay[weekday - 1].add(emp.profile.uid);
@@ -2413,7 +2443,7 @@ class _ManagerProgressVisualsContentState
               icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
               style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
               items: TimeFilter.values
-                  .where((t) => t != TimeFilter.today)
+                  .where((t) => t != TimeFilter.today && t != TimeFilter.year)
                   .map((t) => DropdownMenuItem<TimeFilter>(
                         value: t,
                         child: Text(
@@ -2446,7 +2476,7 @@ class _ManagerProgressVisualsContentState
           ),
         ),
         Text(
-          'Showing: ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)}',
+          'Showing: Previous ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)}',
           style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
         ),
       ],
@@ -2462,18 +2492,35 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildTeamProgressTrendSection(List<double> points) {
+  Widget _buildTeamProgressTrendSection(_TrendSeries series) {
+    if (series.points.isEmpty) {
+      return _buildSectionCard(
+        title: 'Team Progress Trend',
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Text(
+            'No historical snapshot data found for this period.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      );
+    }
     return _buildSectionCard(
       title: 'Team Progress Trend',
       child: SizedBox(
         height: 180,
         width: double.infinity,
-        child: _InteractiveTeamTrendChart(points: points),
+        child: _InteractiveTeamTrendChart(
+          points: series.points,
+          labels: series.labels,
+        ),
       ),
     );
   }
 
-  Future<List<double>> _getTeamTrendFuture(List<EmployeeData> employees) {
+  Future<_TrendSeries> _getTeamTrendFuture(List<EmployeeData> employees) {
     final ids = employees.map((e) => e.profile.uid).toList()..sort();
     final key = '${currentTimeFilter.name}|${ids.join(',')}';
     if (_teamTrendFuture != null && _teamTrendKey == key) {
@@ -2484,33 +2531,61 @@ class _ManagerProgressVisualsContentState
     return _teamTrendFuture!;
   }
 
-  DateTime _trendSinceDate(TimeFilter filter) {
+  _DateRange _historicalFilterRange(TimeFilter filter) {
     final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
     switch (filter) {
       case TimeFilter.today:
-        return now.subtract(const Duration(days: 1));
+        return _DateRange(
+          start: todayStart,
+          endExclusive: todayStart.add(const Duration(days: 1)),
+        );
       case TimeFilter.week:
-        return now.subtract(const Duration(days: 7));
+        // Previous full business week window (Mon -> next Mon).
+        final thisWeekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+        final lastWeekStart = thisWeekStart.subtract(const Duration(days: 7));
+        return _DateRange(start: lastWeekStart, endExclusive: thisWeekStart);
       case TimeFilter.month:
-        return now.subtract(const Duration(days: 30));
+        // Previous full month.
+        final thisMonthStart = DateTime(now.year, now.month, 1);
+        final lastMonthStart = DateTime(thisMonthStart.year, thisMonthStart.month - 1, 1);
+        return _DateRange(start: lastMonthStart, endExclusive: thisMonthStart);
       case TimeFilter.quarter:
-        return now.subtract(const Duration(days: 90));
+        // Previous full quarter.
+        final thisQuarterStartMonth = ((now.month - 1) ~/ 3) * 3 + 1;
+        final thisQuarterStart = DateTime(now.year, thisQuarterStartMonth, 1);
+        final lastQuarterStart = DateTime(
+          thisQuarterStart.year,
+          thisQuarterStart.month - 3,
+          1,
+        );
+        return _DateRange(start: lastQuarterStart, endExclusive: thisQuarterStart);
       case TimeFilter.year:
-        return now.subtract(const Duration(days: 365));
+        final thisYearStart = DateTime(now.year, 1, 1);
+        return _DateRange(
+          start: DateTime(now.year - 1, 1, 1),
+          endExclusive: thisYearStart,
+        );
     }
   }
 
-  Future<List<double>> _fetchTeamTrendPointsFromSnapshots(
+  Future<_TrendSeries> _fetchTeamTrendPointsFromSnapshots(
     List<EmployeeData> employees,
   ) async {
-    if (employees.isEmpty) return const <double>[];
+    if (employees.isEmpty) {
+      return const _TrendSeries(points: <double>[], labels: <String>[]);
+    }
 
     final userIds = employees.map((e) => e.profile.uid).where((id) => id.isNotEmpty).toList();
-    if (userIds.isEmpty) return const <double>[];
+    if (userIds.isEmpty) {
+      return const _TrendSeries(points: <double>[], labels: <String>[]);
+    }
 
-    final since = _trendSinceDate(currentTimeFilter);
+    final range = _historicalFilterRange(currentTimeFilter);
     final sinceKey =
-        '${since.year}-${since.month.toString().padLeft(2, '0')}-${since.day.toString().padLeft(2, '0')}';
+        '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
+    final untilKey =
+        '${range.endExclusive.year}-${range.endExclusive.month.toString().padLeft(2, '0')}-${range.endExclusive.day.toString().padLeft(2, '0')}';
 
     final Map<String, List<double>> byDate = <String, List<double>>{};
 
@@ -2521,6 +2596,7 @@ class _ManagerProgressVisualsContentState
           .collection('goal_daily_progress')
           .where('userId', whereIn: chunk)
           .where('date', isGreaterThanOrEqualTo: sinceKey)
+          .where('date', isLessThan: untilKey)
           .limit(2000);
 
       final snapshot = await query.get();
@@ -2534,36 +2610,146 @@ class _ManagerProgressVisualsContentState
       }
     }
 
-    if (byDate.isEmpty) return const <double>[];
+    if (byDate.isEmpty) {
+      return const _TrendSeries(points: <double>[], labels: <String>[]);
+    }
 
     final dates = byDate.keys.toList()..sort();
-    final dailyAverages = dates.map((d) {
+    final dailySeries = dates.map((d) {
       final values = byDate[d]!;
       final sum = values.fold<double>(0, (a, b) => a + b);
-      return sum / values.length;
-    }).toList();
+      return MapEntry(d, (sum / values.length).clamp(0.0, 100.0));
+    }).toList(growable: false);
 
-    return _downsampleTrend(dailyAverages, targetPoints: 4);
+    switch (currentTimeFilter) {
+      case TimeFilter.week:
+        return _buildWeeklySeries(dailySeries);
+      case TimeFilter.month:
+        return _buildMonthlySeries(dailySeries);
+      case TimeFilter.quarter:
+        return _buildQuarterlySeries(dailySeries);
+      case TimeFilter.year:
+        return _buildYearlySeries(dailySeries);
+      case TimeFilter.today:
+        return _TrendSeries(
+          points: dailySeries.map((e) => e.value).toList(growable: false),
+          labels: dailySeries.map((e) => e.key.substring(5)).toList(growable: false),
+        );
+    }
   }
 
-  List<double> _downsampleTrend(List<double> values, {int targetPoints = 4}) {
-    if (values.length <= targetPoints) return values;
-    final result = <double>[];
-    final bucket = (values.length / targetPoints).ceil();
-    for (int i = 0; i < targetPoints; i++) {
-      final start = i * bucket;
-      if (start >= values.length) break;
-      final end = (start + bucket < values.length) ? start + bucket : values.length;
-      final slice = values.sublist(start, end);
-      final avg = slice.fold<double>(0, (a, b) => a + b) / slice.length;
-      result.add(avg.clamp(0.0, 100.0));
+  _TrendSeries _buildWeeklySeries(List<MapEntry<String, double>> dailySeries) {
+    const labels = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    final byLabel = <String, List<double>>{for (final l in labels) l: <double>[]};
+    for (final e in dailySeries) {
+      final dt = DateTime.tryParse(e.key);
+      if (dt == null) continue;
+      final idx = dt.weekday - 1;
+      if (idx >= 0 && idx < labels.length) {
+        byLabel[labels[idx]]!.add(e.value);
+      }
     }
-    return result;
+    final points = labels.map((l) {
+      final values = byLabel[l]!;
+      if (values.isEmpty) return 0.0;
+      return values.reduce((a, b) => a + b) / values.length;
+    }).toList(growable: false);
+    return _TrendSeries(points: points, labels: labels);
+  }
+
+  _TrendSeries _buildMonthlySeries(List<MapEntry<String, double>> dailySeries) {
+    final buckets = <List<double>>[<double>[], <double>[], <double>[], <double>[]];
+    for (final e in dailySeries) {
+      final dt = DateTime.tryParse(e.key);
+      if (dt == null) continue;
+      final bucket = ((dt.day - 1) / 8).floor().clamp(0, 3);
+      buckets[bucket].add(e.value);
+    }
+    final points = buckets.map((values) {
+      if (values.isEmpty) return 0.0;
+      return values.reduce((a, b) => a + b) / values.length;
+    }).toList(growable: false);
+    return _TrendSeries(
+      points: points,
+      labels: const <String>['W1', 'W2', 'W3', 'W4'],
+    );
+  }
+
+  _TrendSeries _buildQuarterlySeries(List<MapEntry<String, double>> dailySeries) {
+    final buckets = <List<double>>[<double>[], <double>[], <double>[]];
+    for (final e in dailySeries) {
+      final dt = DateTime.tryParse(e.key);
+      if (dt == null) continue;
+      final monthBucket = ((dt.month - 1) % 3).clamp(0, 2);
+      buckets[monthBucket].add(e.value);
+    }
+    final points = buckets.map((values) {
+      if (values.isEmpty) return 0.0;
+      return values.reduce((a, b) => a + b) / values.length;
+    }).toList(growable: false);
+    return _TrendSeries(
+      points: points,
+      labels: const <String>['M1', 'M2', 'M3'],
+    );
+  }
+
+  _TrendSeries _buildYearlySeries(List<MapEntry<String, double>> dailySeries) {
+    const monthLabels = <String>[
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final buckets = List<List<double>>.generate(12, (_) => <double>[]);
+    for (final e in dailySeries) {
+      final dt = DateTime.tryParse(e.key);
+      if (dt == null) continue;
+      buckets[dt.month - 1].add(e.value);
+    }
+    final points = buckets.map((values) {
+      if (values.isEmpty) return 0.0;
+      return values.reduce((a, b) => a + b) / values.length;
+    }).toList(growable: false);
+    return _TrendSeries(points: points, labels: monthLabels);
+  }
+
+  List<String> _fallbackLabelsForFilter(int count) {
+    switch (currentTimeFilter) {
+      case TimeFilter.week:
+        return const <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+            .take(count)
+            .toList(growable: false);
+      case TimeFilter.month:
+        return List<String>.generate(count, (i) => 'W${i + 1}', growable: false);
+      case TimeFilter.quarter:
+        return List<String>.generate(count, (i) => 'M${i + 1}', growable: false);
+      case TimeFilter.year:
+        const months = <String>[
+          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        ];
+        return months.take(count).toList(growable: false);
+      case TimeFilter.today:
+        return List<String>.generate(count, (i) => 'P${i + 1}', growable: false);
+    }
   }
 
   List<double> _buildTrendPoints(TeamMetrics metrics, List<EmployeeData> employees) {
     // Fallback trend when no historical snapshots are available yet.
     final avg = metrics.avgTeamProgress.clamp(0.0, 100.0);
+    if (currentTimeFilter == TimeFilter.week) {
+      // Keep 5 points so weekday labels (Mon..Fri) always render in Week mode.
+      final weekPoints = <double>[
+        (avg * 0.88).clamp(0.0, 100.0),
+        (avg * 0.92).clamp(0.0, 100.0),
+        (avg * 0.96).clamp(0.0, 100.0),
+        (avg * 0.98).clamp(0.0, 100.0),
+        avg,
+      ];
+      if (avg < 1 && employees.isNotEmpty) {
+        return <double>[10.0, 16.0, 24.0, 31.0, 40.0];
+      }
+      return weekPoints;
+    }
+
     final points = <double>[
       (avg * 0.72).clamp(0.0, 100.0),
       (avg * 0.81).clamp(0.0, 100.0),
