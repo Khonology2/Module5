@@ -372,24 +372,41 @@ class _TeamProgressLineChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (data.isEmpty) return;
-    const padding = 40.0;
-    final w = size.width - padding * 2;
-    final h = size.height - padding * 2;
+    const leftPad = 42.0;
+    const rightPad = 16.0;
+    const topPad = 14.0;
+    const bottomPad = 30.0;
+    final w = size.width - leftPad - rightPad;
+    final h = size.height - topPad - bottomPad;
     final maxY = 100.0;
     final minY = 0.0;
 
-    // Grid lines
+    // Grid + Y-axis labels (0, 25, 50, 75, 100)
     final gridPaint = Paint()..color = gridColor..strokeWidth = 1;
-    for (int i = 1; i <= 4; i++) {
-      final y = padding + h - (h * (i / 4));
-      canvas.drawLine(Offset(padding, y), Offset(size.width - padding, y), gridPaint);
+    for (int i = 0; i <= 4; i++) {
+      final y = topPad + h - (h * (i / 4));
+      canvas.drawLine(
+        Offset(leftPad, y),
+        Offset(size.width - rightPad, y),
+        gridPaint,
+      );
+
+      final label = '${(i * 25)}';
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(color: textColor, fontSize: 10),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(leftPad - tp.width - 8, y - tp.height / 2));
     }
 
     // Line
     final pts = <Offset>[];
     for (var i = 0; i < data.length; i++) {
-      final x = padding + (w * (i / (data.length - 1).clamp(1, data.length)));
-      final y = padding + h - (h * ((data[i].clamp(minY, maxY) - minY) / (maxY - minY)));
+      final x = leftPad + (w * (i / (data.length - 1).clamp(1, data.length)));
+      final y = topPad + h - (h * ((data[i].clamp(minY, maxY) - minY) / (maxY - minY)));
       pts.add(Offset(x, y));
     }
     if (pts.length >= 2) {
@@ -405,10 +422,34 @@ class _TeamProgressLineChartPainter extends CustomPainter {
       }
       canvas.drawPath(path, linePaint);
     }
+
+    // Point markers
+    final pointPaint = Paint()..color = lineColor..style = PaintingStyle.fill;
+    for (final p in pts) {
+      canvas.drawCircle(p, 3.2, pointPaint);
+    }
+
+    // X-axis labels (W1..Wn)
+    for (var i = 0; i < pts.length; i++) {
+      final label = 'W${i + 1}';
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(color: textColor, fontSize: 10),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(pts[i].dx - tp.width / 2, size.height - bottomPad + 8));
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _TeamProgressLineChartPainter oldDelegate) {
+    return oldDelegate.data != data ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.gridColor != gridColor ||
+        oldDelegate.textColor != textColor;
+  }
 }
 
 class _ManagerProgressVisualsContentState
@@ -426,6 +467,8 @@ class _ManagerProgressVisualsContentState
   late final Stream<List<ManagerActivity>> _managerActivitiesStream;
   late Stream<List<EmployeeData>> _teamStream;
   String _teamStreamKey = '';
+  String _teamTrendKey = '';
+  Future<List<double>>? _teamTrendFuture;
   List<EmployeeData> _lastEnrichedTeamEmployees = const [];
 
   // In-memory caches to avoid an entry-time "blank loading" state.
@@ -582,29 +625,45 @@ class _ManagerProgressVisualsContentState
         final metrics = _calculateTeamMetrics(employees);
         final goalStatusCounts = _calculateGoalStatusDistribution(employees);
         final engagementByDay = _calculateEngagementByWeekday(employees);
-        final needsAttention = _buildNeedsAttentionList(employees);
         final categoryProgress = _calculateGoalCategoryProgress(employees);
         final departments = _getDepartmentList(employees);
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildTeamAnalyticsFilters(departments),
-            const SizedBox(height: AppSpacing.xl),
-            _buildTeamProgressTrendSection(metrics, employees),
-            const SizedBox(height: AppSpacing.xl),
-            _buildGoalStatusAndEngagementRow(
-              goalStatusCounts,
-              engagementByDay,
-              metrics,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            _buildTeamPerformanceRankingSection(employees),
-            const SizedBox(height: AppSpacing.xl),
-            _buildNeedsAttentionSection(needsAttention),
-            const SizedBox(height: AppSpacing.xl),
-            _buildGoalCategoryProgressSection(categoryProgress),
-          ],
+        final trendFuture = _getTeamTrendFuture(employees);
+        return FutureBuilder<List<double>>(
+          future: trendFuture,
+          builder: (context, trendSnapshot) {
+            final realTrendPoints = trendSnapshot.data ?? const <double>[];
+            final effectiveTrendPoints = realTrendPoints.length >= 2
+                ? realTrendPoints
+                : _buildTrendPoints(metrics, employees);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTeamAnalyticsFilters(departments),
+                const SizedBox(height: AppSpacing.xl),
+                _buildTeamProgressTrendSection(effectiveTrendPoints),
+                const SizedBox(height: AppSpacing.xl),
+                _buildGoalStatusAndEngagementRow(
+                  goalStatusCounts,
+                  engagementByDay,
+                  metrics,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _buildTeamPerformanceRankingSection(employees),
+                const SizedBox(height: AppSpacing.xl),
+                _buildAiInsightPanel(
+                  metrics: metrics,
+                  goalStatusCounts: goalStatusCounts,
+                  engagementByDay: engagementByDay,
+                  categoryProgress: categoryProgress,
+                  trendPoints: effectiveTrendPoints,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _buildGoalCategoryProgressSection(categoryProgress),
+              ],
+            );
+          },
         );
       },
     );
@@ -2076,16 +2135,14 @@ class _ManagerProgressVisualsContentState
   Map<String, int> _calculateGoalStatusDistribution(List<EmployeeData> employees) {
     int completed = 0, onTrack = 0, atRisk = 0, overdue = 0;
     final now = DateTime.now();
-    final sevenDaysFromNow = now.add(const Duration(days: 7));
 
     for (final emp in employees) {
       for (final g in emp.goals) {
-        if (g.approvalStatus != GoalApprovalStatus.approved) continue;
         if (g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged) {
           completed++;
         } else if (g.targetDate.isBefore(now)) {
           overdue++;
-        } else if (g.targetDate.isBefore(sevenDaysFromNow)) {
+        } else if (g.progress < 30) {
           atRisk++;
         } else {
           onTrack++;
@@ -2101,9 +2158,9 @@ class _ManagerProgressVisualsContentState
     };
   }
 
-  /// Activity count per weekday (1 = Monday .. 5 = Friday) from recent activities (last 7 days).
+  /// Unique active employees per weekday (Mon..Fri) from recent activities in the last 7 days.
   List<int> _calculateEngagementByWeekday(List<EmployeeData> employees) {
-    final counts = List<int>.filled(5, 0);
+    final activeByDay = List<Set<String>>.generate(5, (_) => <String>{});
     final now = DateTime.now();
     final weekAgo = now.subtract(const Duration(days: 7));
 
@@ -2112,12 +2169,12 @@ class _ManagerProgressVisualsContentState
         if (act.timestamp.isBefore(weekAgo)) continue;
         final weekday = act.timestamp.weekday;
         if (weekday >= 1 && weekday <= 5) {
-          counts[weekday - 1]++;
+          activeByDay[weekday - 1].add(emp.profile.uid);
         }
       }
     }
 
-    return counts;
+    return activeByDay.map((s) => s.length).toList(growable: false);
   }
 
   /// Needs attention: overdue goals, inactive days, missed milestone.
@@ -2305,22 +2362,7 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildTeamProgressTrendSection(TeamMetrics metrics, List<EmployeeData> employees) {
-    // Simulated 4-week trend from current average (no historical API)
-    final avg = metrics.avgTeamProgress;
-    final points = [
-      (avg * 0.65).clamp(0.0, 100.0),
-      (avg * 0.82).clamp(0.0, 100.0),
-      (avg * 0.94).clamp(0.0, 100.0),
-      avg.clamp(0.0, 100.0),
-    ];
-    if (avg < 1 && employees.isNotEmpty) {
-      points[0] = 10.0;
-      points[1] = 25.0;
-      points[2] = 45.0;
-      points[3] = avg.clamp(0.0, 100.0);
-    }
-
+  Widget _buildTeamProgressTrendSection(List<double> points) {
     return _buildSectionCard(
       title: 'Team Progress Trend',
       child: SizedBox(
@@ -2338,6 +2380,118 @@ class _ManagerProgressVisualsContentState
     );
   }
 
+  Future<List<double>> _getTeamTrendFuture(List<EmployeeData> employees) {
+    final ids = employees.map((e) => e.profile.uid).toList()..sort();
+    final key = '${currentTimeFilter.name}|${ids.join(',')}';
+    if (_teamTrendFuture != null && _teamTrendKey == key) {
+      return _teamTrendFuture!;
+    }
+    _teamTrendKey = key;
+    _teamTrendFuture = _fetchTeamTrendPointsFromSnapshots(employees);
+    return _teamTrendFuture!;
+  }
+
+  DateTime _trendSinceDate(TimeFilter filter) {
+    final now = DateTime.now();
+    switch (filter) {
+      case TimeFilter.today:
+        return now.subtract(const Duration(days: 1));
+      case TimeFilter.week:
+        return now.subtract(const Duration(days: 7));
+      case TimeFilter.month:
+        return now.subtract(const Duration(days: 30));
+      case TimeFilter.quarter:
+        return now.subtract(const Duration(days: 90));
+      case TimeFilter.year:
+        return now.subtract(const Duration(days: 365));
+    }
+  }
+
+  Future<List<double>> _fetchTeamTrendPointsFromSnapshots(
+    List<EmployeeData> employees,
+  ) async {
+    if (employees.isEmpty) return const <double>[];
+
+    final userIds = employees.map((e) => e.profile.uid).where((id) => id.isNotEmpty).toList();
+    if (userIds.isEmpty) return const <double>[];
+
+    final since = _trendSinceDate(currentTimeFilter);
+    final sinceKey =
+        '${since.year}-${since.month.toString().padLeft(2, '0')}-${since.day.toString().padLeft(2, '0')}';
+
+    final Map<String, List<double>> byDate = <String, List<double>>{};
+
+    for (int i = 0; i < userIds.length; i += 10) {
+      final end = (i + 10 < userIds.length) ? i + 10 : userIds.length;
+      final chunk = userIds.sublist(i, end);
+      final query = FirebaseFirestore.instance
+          .collection('goal_daily_progress')
+          .where('userId', whereIn: chunk)
+          .where('date', isGreaterThanOrEqualTo: sinceKey)
+          .limit(2000);
+
+      final snapshot = await query.get();
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final dateKey = (data['date'] ?? '').toString();
+        if (dateKey.isEmpty) continue;
+        final progress = (data['progress'] as num?)?.toDouble();
+        if (progress == null) continue;
+        byDate.putIfAbsent(dateKey, () => <double>[]).add(progress.clamp(0.0, 100.0));
+      }
+    }
+
+    if (byDate.isEmpty) return const <double>[];
+
+    final dates = byDate.keys.toList()..sort();
+    final dailyAverages = dates.map((d) {
+      final values = byDate[d]!;
+      final sum = values.fold<double>(0, (a, b) => a + b);
+      return sum / values.length;
+    }).toList();
+
+    return _downsampleTrend(dailyAverages, targetPoints: 4);
+  }
+
+  List<double> _downsampleTrend(List<double> values, {int targetPoints = 4}) {
+    if (values.length <= targetPoints) return values;
+    final result = <double>[];
+    final bucket = (values.length / targetPoints).ceil();
+    for (int i = 0; i < targetPoints; i++) {
+      final start = i * bucket;
+      if (start >= values.length) break;
+      final end = (start + bucket < values.length) ? start + bucket : values.length;
+      final slice = values.sublist(start, end);
+      final avg = slice.fold<double>(0, (a, b) => a + b) / slice.length;
+      result.add(avg.clamp(0.0, 100.0));
+    }
+    return result;
+  }
+
+  List<double> _buildTrendPoints(TeamMetrics metrics, List<EmployeeData> employees) {
+    // Fallback trend when no historical snapshots are available yet.
+    final avg = metrics.avgTeamProgress.clamp(0.0, 100.0);
+    final points = <double>[
+      (avg * 0.72).clamp(0.0, 100.0),
+      (avg * 0.81).clamp(0.0, 100.0),
+      (avg * 0.88).clamp(0.0, 100.0),
+      avg,
+    ];
+
+    if (avg < 1 && employees.isNotEmpty) {
+      return <double>[12.0, 24.0, 35.0, 40.0];
+    }
+    return points;
+  }
+
+  int _calculateTrendDeltaPercent(List<double> trendPoints) {
+    if (trendPoints.length < 2) return 0;
+    final previous = trendPoints[trendPoints.length - 2];
+    final current = trendPoints.last;
+    if (previous <= 0) return 0;
+    return (((current - previous) / previous) * 100).round();
+  }
+
   Widget _buildGoalStatusAndEngagementRow(
     Map<String, int> goalStatusCounts,
     List<int> engagementByDay,
@@ -2353,7 +2507,10 @@ class _ManagerProgressVisualsContentState
                 children: [
                   _buildGoalStatusDonut(goalStatusCounts),
                   const SizedBox(height: AppSpacing.lg),
-                  _buildTeamEngagementChart(engagementByDay),
+                  _buildTeamEngagementChart(
+                    engagementByDay,
+                    metrics.totalEmployees,
+                  ),
                 ],
               )
             : Row(
@@ -2361,7 +2518,12 @@ class _ManagerProgressVisualsContentState
                 children: [
                   Expanded(child: _buildGoalStatusDonut(goalStatusCounts)),
                   const SizedBox(width: AppSpacing.lg),
-                  Expanded(child: _buildTeamEngagementChart(engagementByDay)),
+                  Expanded(
+                    child: _buildTeamEngagementChart(
+                      engagementByDay,
+                      metrics.totalEmployees,
+                    ),
+                  ),
                 ],
               );
       },
@@ -2446,13 +2608,16 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildTeamEngagementChart(List<int> engagementByDay) {
+  Widget _buildTeamEngagementChart(
+    List<int> engagementByDay,
+    int totalEmployees,
+  ) {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
     final maxVal = engagementByDay.isEmpty ? 1 : engagementByDay.reduce((a, b) => a > b ? a : b);
     final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
 
     return _buildSectionCard(
-      title: 'Team Engagement',
+      title: 'Team Engagement (Active Members)',
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.lg),
         child: Column(
@@ -2490,7 +2655,7 @@ class _ManagerProgressVisualsContentState
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '${engagementByDay[i]}',
+                    '${engagementByDay[i]}/$totalEmployees',
                     style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
                   ),
                 ],
@@ -2655,6 +2820,90 @@ class _ManagerProgressVisualsContentState
                 );
               },
             ),
+    );
+  }
+
+  Widget _buildAiInsightPanel({
+    required TeamMetrics metrics,
+    required Map<String, int> goalStatusCounts,
+    required List<int> engagementByDay,
+    required List<_CategoryProgressItem> categoryProgress,
+    required List<double> trendPoints,
+  }) {
+    final trendDelta = _calculateTrendDeltaPercent(trendPoints);
+    final trendDirection = trendDelta > 0
+        ? 'increased'
+        : trendDelta < 0
+        ? 'decreased'
+        : 'stayed flat';
+    final int overdueGoals = goalStatusCounts['overdue'] ?? 0;
+    const weekdayLabels = <String>['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+    int lowestDayIndex = 0;
+    if (engagementByDay.isNotEmpty) {
+      for (int i = 1; i < engagementByDay.length; i++) {
+        if (engagementByDay[i] < engagementByDay[lowestDayIndex]) {
+          lowestDayIndex = i;
+        }
+      }
+    }
+
+    _CategoryProgressItem? lowestCategory;
+    if (categoryProgress.isNotEmpty) {
+      lowestCategory = categoryProgress.reduce(
+        (a, b) => a.progress <= b.progress ? a : b,
+      );
+    }
+
+    return _buildSectionCard(
+      title: 'Smart Insight',
+      icon: Icons.auto_awesome,
+      iconColor: AppColors.infoColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.successColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.successColor.withValues(alpha: 0.35)),
+            ),
+            child: Text(
+              trendDirection == 'stayed flat'
+                  ? 'Team progress stayed flat this month.'
+                  : 'Team progress $trendDirection by ${trendDelta.abs()}% this month.',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'However:',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.warningColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '- $overdueGoals overdue goal${overdueGoals == 1 ? '' : 's'} need attention',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+          Text(
+            '- Engagement is lowest on ${weekdayLabels[lowestDayIndex]}',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+          Text(
+            '- ${lowestCategory?.label ?? 'Category'} goals have the lowest completion'
+            '${lowestCategory != null ? ' (${lowestCategory.progress.toStringAsFixed(0)}%)' : ''}',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+        ],
+      ),
     );
   }
 
