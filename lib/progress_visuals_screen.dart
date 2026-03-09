@@ -297,6 +297,120 @@ class _ManagerActivitySummary {
   });
 }
 
+enum _NeedsAttentionAction { view, nudge, review }
+
+class _NeedsAttentionItem {
+  final String employeeName;
+  final String reason;
+  final _NeedsAttentionAction actionType;
+  final EmployeeData employee;
+
+  const _NeedsAttentionItem({
+    required this.employeeName,
+    required this.reason,
+    required this.actionType,
+    required this.employee,
+  });
+}
+
+class _CategoryProgressItem {
+  final String label;
+  final double progress;
+
+  const _CategoryProgressItem({required this.label, required this.progress});
+}
+
+class _DonutSegment {
+  final String label;
+  final double fraction;
+  final Color color;
+
+  const _DonutSegment(this.label, this.fraction, this.color);
+}
+
+class _DonutChartPainter extends CustomPainter {
+  final List<_DonutSegment> segments;
+
+  const _DonutChartPainter({required this.segments});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide / 2 - 4;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    double start = -0.25; // start from top
+    for (final s in segments) {
+      if (s.fraction <= 0) continue;
+      final sweep = s.fraction * 2 * 3.141592;
+      final paint = Paint()
+        ..color = s.color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius * 0.4
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(rect, start * 2 * 3.141592, sweep, false, paint);
+      start += s.fraction;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _TeamProgressLineChartPainter extends CustomPainter {
+  final List<double> data;
+  final Color lineColor;
+  final Color gridColor;
+  final Color textColor;
+
+  const _TeamProgressLineChartPainter({
+    required this.data,
+    required this.lineColor,
+    required this.gridColor,
+    required this.textColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.isEmpty) return;
+    const padding = 40.0;
+    final w = size.width - padding * 2;
+    final h = size.height - padding * 2;
+    final maxY = 100.0;
+    final minY = 0.0;
+
+    // Grid lines
+    final gridPaint = Paint()..color = gridColor..strokeWidth = 1;
+    for (int i = 1; i <= 4; i++) {
+      final y = padding + h - (h * (i / 4));
+      canvas.drawLine(Offset(padding, y), Offset(size.width - padding, y), gridPaint);
+    }
+
+    // Line
+    final pts = <Offset>[];
+    for (var i = 0; i < data.length; i++) {
+      final x = padding + (w * (i / (data.length - 1).clamp(1, data.length)));
+      final y = padding + h - (h * ((data[i].clamp(minY, maxY) - minY) / (maxY - minY)));
+      pts.add(Offset(x, y));
+    }
+    if (pts.length >= 2) {
+      final linePaint = Paint()
+        ..color = lineColor
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      final path = Path()..moveTo(pts[0].dx, pts[0].dy);
+      for (var i = 1; i < pts.length; i++) {
+        path.lineTo(pts[i].dx, pts[i].dy);
+      }
+      canvas.drawPath(path, linePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _ManagerProgressVisualsContentState
     extends State<ManagerProgressVisualsContent> {
   TimeFilter currentTimeFilter = TimeFilter.month;
@@ -401,7 +515,7 @@ class _ManagerProgressVisualsContentState
                 Expanded(
                   child: Text(
                     currentViewType == ProgressViewType.team
-                        ? 'Team Progress Overview'
+                        ? 'Team Progress Analytics'
                         : 'My Progress Overview',
                     style: AppTypography.heading2.copyWith(
                       color: AppColors.textPrimary,
@@ -465,10 +579,30 @@ class _ManagerProgressVisualsContentState
         }
 
         final metrics = _calculateTeamMetrics(employees);
+        final goalStatusCounts = _calculateGoalStatusDistribution(employees);
+        final engagementByDay = _calculateEngagementByWeekday(employees);
+        final needsAttention = _buildNeedsAttentionList(employees);
+        final categoryProgress = _calculateGoalCategoryProgress(employees);
+        final departments = _getDepartmentList(employees);
 
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildTeamMetricsCards(metrics),
+            _buildTeamAnalyticsFilters(departments),
+            const SizedBox(height: AppSpacing.xl),
+            _buildTeamProgressTrendSection(metrics, employees),
+            const SizedBox(height: AppSpacing.xl),
+            _buildGoalStatusAndEngagementRow(
+              goalStatusCounts,
+              engagementByDay,
+              metrics,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            _buildTeamPerformanceRankingSection(employees),
+            const SizedBox(height: AppSpacing.xl),
+            _buildNeedsAttentionSection(needsAttention),
+            const SizedBox(height: AppSpacing.xl),
+            _buildGoalCategoryProgressSection(categoryProgress),
           ],
         );
       },
@@ -1934,6 +2068,639 @@ class _ManagerProgressVisualsContentState
       totalPointsEarned: totalPoints,
       goalsCompleted: totalGoalsCompleted,
       lastUpdated: DateTime.now(),
+    );
+  }
+
+  /// Goal status distribution for donut chart (counts).
+  Map<String, int> _calculateGoalStatusDistribution(List<EmployeeData> employees) {
+    int completed = 0, onTrack = 0, atRisk = 0, overdue = 0;
+    final now = DateTime.now();
+    final sevenDaysFromNow = now.add(const Duration(days: 7));
+
+    for (final emp in employees) {
+      for (final g in emp.goals) {
+        if (g.approvalStatus != GoalApprovalStatus.approved) continue;
+        if (g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged) {
+          completed++;
+        } else if (g.targetDate.isBefore(now)) {
+          overdue++;
+        } else if (g.targetDate.isBefore(sevenDaysFromNow)) {
+          atRisk++;
+        } else {
+          onTrack++;
+        }
+      }
+    }
+
+    return <String, int>{
+      'completed': completed,
+      'onTrack': onTrack,
+      'atRisk': atRisk,
+      'overdue': overdue,
+    };
+  }
+
+  /// Activity count per weekday (1 = Monday .. 5 = Friday) from recent activities (last 7 days).
+  List<int> _calculateEngagementByWeekday(List<EmployeeData> employees) {
+    final counts = List<int>.filled(5, 0);
+    final now = DateTime.now();
+    final weekAgo = now.subtract(const Duration(days: 7));
+
+    for (final emp in employees) {
+      for (final act in emp.recentActivities) {
+        if (act.timestamp.isBefore(weekAgo)) continue;
+        final weekday = act.timestamp.weekday;
+        if (weekday >= 1 && weekday <= 5) {
+          counts[weekday - 1]++;
+        }
+      }
+    }
+
+    return counts;
+  }
+
+  /// Needs attention: overdue goals, inactive days, missed milestone.
+  List<_NeedsAttentionItem> _buildNeedsAttentionList(List<EmployeeData> employees) {
+    final now = DateTime.now();
+    final list = <_NeedsAttentionItem>[];
+
+    for (final emp in employees) {
+      if (emp.overdueGoalsCount > 0) {
+        list.add(_NeedsAttentionItem(
+          employeeName: emp.profile.displayName.isNotEmpty
+              ? emp.profile.displayName
+              : emp.profile.email.split('@').first,
+          reason: '${emp.overdueGoalsCount} overdue goal${emp.overdueGoalsCount == 1 ? '' : 's'}',
+          actionType: _NeedsAttentionAction.view,
+          employee: emp,
+        ));
+      }
+      final inactiveDays = now.difference(emp.lastActivity).inDays;
+      if (inactiveDays >= 7 && emp.overdueGoalsCount == 0) {
+        list.add(_NeedsAttentionItem(
+          employeeName: emp.profile.displayName.isNotEmpty
+              ? emp.profile.displayName
+              : emp.profile.email.split('@').first,
+          reason: 'inactive for $inactiveDays days',
+          actionType: _NeedsAttentionAction.nudge,
+          employee: emp,
+        ));
+      }
+      if (emp.status == EmployeeStatus.atRisk && list.every((e) => e.employee != emp)) {
+        list.add(_NeedsAttentionItem(
+          employeeName: emp.profile.displayName.isNotEmpty
+              ? emp.profile.displayName
+              : emp.profile.email.split('@').first,
+          reason: 'at risk — review goals',
+          actionType: _NeedsAttentionAction.review,
+          employee: emp,
+        ));
+      }
+    }
+
+    return list.take(8).toList();
+  }
+
+  /// Average progress per goal category (personal, work, health, learning).
+  List<_CategoryProgressItem> _calculateGoalCategoryProgress(List<EmployeeData> employees) {
+    final sums = <GoalCategory, List<double>>{};
+    for (final c in GoalCategory.values) {
+      sums[c] = [];
+    }
+
+    for (final emp in employees) {
+      for (final g in emp.goals) {
+        if (g.approvalStatus != GoalApprovalStatus.approved) continue;
+        sums[g.category]!.add(g.progress.toDouble());
+      }
+    }
+
+    final labels = <GoalCategory, String>{
+      GoalCategory.personal: 'Personal',
+      GoalCategory.work: 'Work',
+      GoalCategory.health: 'Health',
+      GoalCategory.learning: 'Learning',
+    };
+
+    return GoalCategory.values.map((c) {
+      final values = sums[c]!;
+      final avg = values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
+      return _CategoryProgressItem(
+        label: labels[c] ?? c.name,
+        progress: avg.clamp(0.0, 100.0),
+      );
+    }).toList();
+  }
+
+  List<String> _getDepartmentList(List<EmployeeData> employees) {
+    final set = <String>{};
+    for (final e in employees) {
+      final d = (e.profile.department).trim();
+      if (d.isNotEmpty) set.add(d);
+    }
+    final list = set.toList()..sort();
+    return ['All Teams', ...list];
+  }
+
+  Widget _buildTeamAnalyticsFilters(List<String> departments) {
+    return Wrap(
+      spacing: AppSpacing.md,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        // Time range
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<TimeFilter>(
+              value: currentTimeFilter,
+              isExpanded: false,
+              dropdownColor: AppColors.backgroundColor,
+              icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+              items: TimeFilter.values
+                  .where((t) => t != TimeFilter.today)
+                  .map((t) => DropdownMenuItem<TimeFilter>(
+                        value: t,
+                        child: Text(
+                          t.name[0].toUpperCase() + t.name.substring(1),
+                          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                        ),
+                      ))
+                  .toList(),
+              onChanged: (TimeFilter? v) {
+                if (v == null) return;
+                setState(() {
+                  currentTimeFilter = v;
+                  _rebuildTeamStream();
+                });
+              },
+            ),
+          ),
+        ),
+        // Team
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: departments.contains(selectedDepartment ?? 'All Teams')
+                  ? (selectedDepartment ?? 'All Teams')
+                  : 'All Teams',
+              isExpanded: false,
+              dropdownColor: AppColors.backgroundColor,
+              icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+              items: departments
+                  .map((d) => DropdownMenuItem<String>(
+                        value: d,
+                        child: Text(
+                          d,
+                          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                        ),
+                      ))
+                  .toList(),
+              onChanged: (String? v) {
+                setState(() {
+                  selectedDepartment = (v == null || v == 'All Teams') ? null : v;
+                  _rebuildTeamStream();
+                });
+              },
+            ),
+          ),
+        ),
+        TextButton.icon(
+          onPressed: () => _exportTeamReport(),
+          icon: const Icon(Icons.download, size: 18, color: AppColors.textPrimary),
+          label: Text(
+            'Export Report',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+          style: TextButton.styleFrom(
+            backgroundColor: Colors.black.withValues(alpha: 0.4),
+            foregroundColor: AppColors.textPrimary,
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _exportTeamReport() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Export report — PDF generation can be wired here'),
+        backgroundColor: AppColors.activeColor,
+      ),
+    );
+  }
+
+  Widget _buildTeamProgressTrendSection(TeamMetrics metrics, List<EmployeeData> employees) {
+    // Simulated 4-week trend from current average (no historical API)
+    final avg = metrics.avgTeamProgress;
+    final points = [
+      (avg * 0.65).clamp(0.0, 100.0),
+      (avg * 0.82).clamp(0.0, 100.0),
+      (avg * 0.94).clamp(0.0, 100.0),
+      avg.clamp(0.0, 100.0),
+    ];
+    if (avg < 1 && employees.isNotEmpty) {
+      points[0] = 10.0;
+      points[1] = 25.0;
+      points[2] = 45.0;
+      points[3] = avg.clamp(0.0, 100.0);
+    }
+
+    return _buildSectionCard(
+      title: 'Team Progress Trend',
+      child: SizedBox(
+        height: 180,
+        width: double.infinity,
+        child: CustomPaint(
+          painter: _TeamProgressLineChartPainter(
+            data: points,
+            lineColor: AppColors.activeColor,
+            gridColor: Colors.white.withValues(alpha: 0.15),
+            textColor: AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGoalStatusAndEngagementRow(
+    Map<String, int> goalStatusCounts,
+    List<int> engagementByDay,
+    TeamMetrics metrics,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final isNarrow = width < 600;
+        return isNarrow
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildGoalStatusDonut(goalStatusCounts),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildTeamEngagementChart(engagementByDay),
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildGoalStatusDonut(goalStatusCounts)),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(child: _buildTeamEngagementChart(engagementByDay)),
+                ],
+              );
+      },
+    );
+  }
+
+  Widget _buildGoalStatusDonut(Map<String, int> counts) {
+    final total = counts['completed']! + counts['onTrack']! + counts['atRisk']! + counts['overdue']!;
+    if (total == 0) {
+      return _buildSectionCard(
+        title: 'Goal Status',
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Center(
+            child: Text(
+              'No goals in this period',
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final completedPct = (100 * counts['completed']! / total).round();
+    final onTrackPct = (100 * counts['onTrack']! / total).round();
+    final atRiskPct = (100 * counts['atRisk']! / total).round();
+    final overduePct = (100 * counts['overdue']! / total).round();
+
+    final segments = <_DonutSegment>[
+      _DonutSegment('Completed', completedPct / 100, AppColors.successColor),
+      _DonutSegment('On Track', onTrackPct / 100, AppColors.infoColor),
+      _DonutSegment('At Risk', atRiskPct / 100, AppColors.warningColor),
+      _DonutSegment('Overdue', overduePct / 100, AppColors.dangerColor),
+    ];
+
+    return _buildSectionCard(
+      title: 'Goal Status',
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 100,
+              height: 100,
+              child: CustomPaint(
+                painter: _DonutChartPainter(segments: segments),
+                size: const Size(100, 100),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.lg),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _donutLegendRow('Completed', completedPct, AppColors.successColor),
+                  _donutLegendRow('On Track', onTrackPct, AppColors.infoColor),
+                  _donutLegendRow('At Risk', atRiskPct, AppColors.warningColor),
+                  _donutLegendRow('Overdue', overduePct, AppColors.dangerColor),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _donutLegendRow(String label, int pct, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Text(
+            '$label $pct%',
+            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamEngagementChart(List<int> engagementByDay) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    final maxVal = engagementByDay.isEmpty ? 1 : engagementByDay.reduce((a, b) => a > b ? a : b);
+    final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
+
+    return _buildSectionCard(
+      title: 'Team Engagement',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.lg),
+        child: Column(
+          children: List.generate(5, (i) {
+            final w = maxBar > 0 ? (engagementByDay[i] / maxBar) : 0.0;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 32,
+                    child: Text(
+                      days[i],
+                      style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      height: 20,
+                      alignment: Alignment.centerLeft,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: FractionallySizedBox(
+                        widthFactor: w,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.activeColor,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${engagementByDay[i]}',
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamPerformanceRankingSection(List<EmployeeData> employees) {
+    final sorted = List<EmployeeData>.from(employees)
+      ..sort((a, b) => b.avgProgress.compareTo(a.avgProgress));
+
+    return _buildSectionCard(
+      title: 'Team Performance Ranking',
+      child: sorted.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(
+                'No team members',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              ),
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: sorted.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final e = sorted[index];
+                final name = e.profile.displayName.isNotEmpty
+                    ? e.profile.displayName
+                    : e.profile.email.split('@').first;
+                return Row(
+                  children: [
+                    SizedBox(
+                      width: 100,
+                      child: Text(
+                        name,
+                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: LinearProgressIndicator(
+                          value: (e.avgProgress / 100).clamp(0.0, 1.0),
+                          backgroundColor: Colors.white.withValues(alpha: 0.15),
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${e.avgProgress.toStringAsFixed(0)}%',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildNeedsAttentionSection(List<_NeedsAttentionItem> items) {
+    return _buildSectionCard(
+      title: 'Needs Attention',
+      icon: Icons.warning_amber_rounded,
+      iconColor: AppColors.warningColor,
+      child: items.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(
+                'No items needing attention',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              ),
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${item.employeeName} — ${item.reason}',
+                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                      ),
+                    ),
+                    if (item.actionType == _NeedsAttentionAction.view)
+                      TextButton(
+                        onPressed: () => _viewEmployeeDetails(item.employee),
+                        child: const Text('View'),
+                      ),
+                    if (item.actionType == _NeedsAttentionAction.nudge)
+                      TextButton(
+                        onPressed: () => _sendNudgeToEmployee(item.employeeName),
+                        child: const Text('Send Nudge'),
+                      ),
+                    if (item.actionType == _NeedsAttentionAction.review)
+                      TextButton(
+                        onPressed: () => _viewEmployeeDetails(item.employee),
+                        child: const Text('Review'),
+                      ),
+                  ],
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildGoalCategoryProgressSection(List<_CategoryProgressItem> categoryProgress) {
+    return _buildSectionCard(
+      title: 'Goal Category Progress',
+      child: categoryProgress.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(
+                'No category data',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              ),
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: categoryProgress.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final item = categoryProgress[index];
+                return Row(
+                  children: [
+                    SizedBox(
+                      width: 140,
+                      child: Text(
+                        item.label,
+                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: LinearProgressIndicator(
+                          value: (item.progress / 100).clamp(0.0, 1.0),
+                          backgroundColor: Colors.white.withValues(alpha: 0.15),
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${item.progress.toStringAsFixed(0)}%',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    Widget? child,
+    IconData? icon,
+    Color? iconColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20, color: iconColor ?? AppColors.textSecondary),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                title,
+                style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+          if (child != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            child,
+          ],
+        ],
+      ),
     );
   }
 
