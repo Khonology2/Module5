@@ -444,12 +444,17 @@ class _ManagerReviewTeamDashboardScreenState
           Colors.transparent, // Set Scaffold background to transparent
       extendBodyBehindAppBar: true, // Extend the body behind the AppBar
       appBar: AppBar(
-        backgroundColor: Colors.transparent, // Make AppBar transparent
-        elevation: 0, // Remove AppBar shadow
-        automaticallyImplyLeading: false, // Remove back arrow button
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          color: AppColors.textPrimary,
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
+        ),
         title: const SizedBox.shrink(),
         centerTitle: false,
-        actions: [], // Hide profile button on dashboard
+        actions: const [],
       ),
       body: Stack(
         children: [
