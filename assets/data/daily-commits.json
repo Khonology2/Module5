@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.AA5.SIT",
-  "generated_at": "2026-03-09T08:21:10Z",
+  "version": "2026.03.AA6.SIT",
+  "generated_at": "2026-03-09T08:42:33Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,10 +24,15 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature - add back navigation button to manager review team dashboard",
+      "timestamp": "2026-03-09T10:41:48+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature - Implement tappable KPIs in manager dashboard and add status filter functionality in review team dashboard",
       "timestamp": "2026-03-09T10:20:20+02:00"
     }
   ],
-  "total_commits": 5,
+  "total_commits": 6,
   "date_range": "2026-03-09"
 }
