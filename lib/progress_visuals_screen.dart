@@ -1,6 +1,7 @@
 // ignore_for_file: unused_element
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -361,12 +362,14 @@ class _TeamProgressLineChartPainter extends CustomPainter {
   final Color lineColor;
   final Color gridColor;
   final Color textColor;
+  final int? hoveredIndex;
 
   const _TeamProgressLineChartPainter({
     required this.data,
     required this.lineColor,
     required this.gridColor,
     required this.textColor,
+    this.hoveredIndex,
   });
 
   @override
@@ -425,8 +428,18 @@ class _TeamProgressLineChartPainter extends CustomPainter {
 
     // Point markers
     final pointPaint = Paint()..color = lineColor..style = PaintingStyle.fill;
-    for (final p in pts) {
+    for (int i = 0; i < pts.length; i++) {
+      final p = pts[i];
       canvas.drawCircle(p, 3.2, pointPaint);
+      if (hoveredIndex == i) {
+        canvas.drawCircle(
+          p,
+          6.0,
+          Paint()
+            ..color = lineColor.withValues(alpha: 0.25)
+            ..style = PaintingStyle.fill,
+        );
+      }
     }
 
     // X-axis labels (W1..Wn)
@@ -448,14 +461,138 @@ class _TeamProgressLineChartPainter extends CustomPainter {
     return oldDelegate.data != data ||
         oldDelegate.lineColor != lineColor ||
         oldDelegate.gridColor != gridColor ||
-        oldDelegate.textColor != textColor;
+        oldDelegate.textColor != textColor ||
+        oldDelegate.hoveredIndex != hoveredIndex;
+  }
+}
+
+class _InteractiveTeamTrendChart extends StatefulWidget {
+  final List<double> points;
+
+  const _InteractiveTeamTrendChart({required this.points});
+
+  @override
+  State<_InteractiveTeamTrendChart> createState() =>
+      _InteractiveTeamTrendChartState();
+}
+
+class _InteractiveTeamTrendChartState extends State<_InteractiveTeamTrendChart> {
+  int? _hoveredIndex;
+  Offset? _hoveredPoint;
+
+  static const double _leftPad = 42.0;
+  static const double _rightPad = 16.0;
+  static const double _topPad = 14.0;
+  static const double _bottomPad = 30.0;
+
+  List<Offset> _pointsForSize(Size size) {
+    final data = widget.points;
+    if (data.isEmpty) return const <Offset>[];
+    final w = size.width - _leftPad - _rightPad;
+    final h = size.height - _topPad - _bottomPad;
+    final maxY = 100.0;
+    final minY = 0.0;
+    return List<Offset>.generate(data.length, (i) {
+      final x = _leftPad + (w * (i / (data.length - 1).clamp(1, data.length)));
+      final y =
+          _topPad + h - (h * ((data[i].clamp(minY, maxY) - minY) / (maxY - minY)));
+      return Offset(x, y);
+    }, growable: false);
+  }
+
+  void _updateHover(Offset localPosition, Size size) {
+    final pts = _pointsForSize(size);
+    if (pts.isEmpty) return;
+    int nearest = 0;
+    double nearestDist = double.infinity;
+    for (int i = 0; i < pts.length; i++) {
+      final dx = localPosition.dx - pts[i].dx;
+      final dy = localPosition.dy - pts[i].dy;
+      final dist = math.sqrt(dx * dx + dy * dy);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = i;
+      }
+    }
+    if (nearestDist <= 20) {
+      setState(() {
+        _hoveredIndex = nearest;
+        _hoveredPoint = pts[nearest];
+      });
+    } else if (_hoveredIndex != null) {
+      setState(() {
+        _hoveredIndex = null;
+        _hoveredPoint = null;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        return MouseRegion(
+          onHover: (event) => _updateHover(event.localPosition, size),
+          onExit: (_) => setState(() {
+            _hoveredIndex = null;
+            _hoveredPoint = null;
+          }),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) => _updateHover(details.localPosition, size),
+            onPanUpdate: (details) => _updateHover(details.localPosition, size),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _TeamProgressLineChartPainter(
+                      data: widget.points,
+                      lineColor: AppColors.activeColor,
+                      gridColor: Colors.white.withValues(alpha: 0.15),
+                      textColor: AppColors.textSecondary,
+                      hoveredIndex: _hoveredIndex,
+                    ),
+                  ),
+                ),
+                if (_hoveredIndex != null && _hoveredPoint != null)
+                  Positioned(
+                    left: (_hoveredPoint!.dx - 34).clamp(0.0, size.width - 68),
+                    top: (_hoveredPoint!.dy - 36).clamp(0.0, size.height - 24),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Text(
+                        '${widget.points[_hoveredIndex!].toStringAsFixed(1)}%',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
 class _ManagerProgressVisualsContentState
     extends State<ManagerProgressVisualsContent> {
   TimeFilter currentTimeFilter = TimeFilter.month;
-  String? selectedDepartment;
   ProgressViewType currentViewType = ProgressViewType.myProgress;
   String _rankingDisplayMode = 'top3';
   bool _hasAppliedDefaultView = false;
@@ -511,22 +648,14 @@ class _ManagerProgressVisualsContentState
     _hasAppliedDefaultView = true;
   }
 
-  String _makeTeamStreamKey({
-    String? department,
-    TimeFilter? timeFilter,
-  }) {
-    final dept = (department ?? '').trim().toLowerCase();
+  String _makeTeamStreamKey({TimeFilter? timeFilter}) {
     final tf = (timeFilter ?? currentTimeFilter).name;
-    return '$dept|$tf';
+    return tf;
   }
 
   void _rebuildTeamStream() {
-    _teamStreamKey = _makeTeamStreamKey(
-      department: selectedDepartment,
-      timeFilter: currentTimeFilter,
-    );
+    _teamStreamKey = _makeTeamStreamKey(timeFilter: currentTimeFilter);
     _teamStream = ManagerRealtimeService.getTeamDataStream(
-      department: selectedDepartment,
       timeFilter: currentTimeFilter,
     );
   }
@@ -626,7 +755,6 @@ class _ManagerProgressVisualsContentState
         final goalStatusCounts = _calculateGoalStatusDistribution(employees);
         final engagementByDay = _calculateEngagementByWeekday(employees);
         final categoryProgress = _calculateGoalCategoryProgress(employees);
-        final departments = _getDepartmentList(employees);
 
         final trendFuture = _getTeamTrendFuture(employees);
         return FutureBuilder<List<double>>(
@@ -640,7 +768,7 @@ class _ManagerProgressVisualsContentState
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildTeamAnalyticsFilters(departments),
+                _buildTeamAnalyticsFilters(),
                 const SizedBox(height: AppSpacing.xl),
                 _buildTeamProgressTrendSection(effectiveTrendPoints),
                 const SizedBox(height: AppSpacing.xl),
@@ -2076,7 +2204,7 @@ class _ManagerProgressVisualsContentState
 
   TeamMetrics _calculateTeamMetrics(List<EmployeeData> employees) {
     final now = DateTime.now();
-    final activeThreshold = now.subtract(const Duration(days: 7));
+    final filterStart = _trendSinceDate(currentTimeFilter);
 
     int activeCount = 0;
     int onTrackCount = 0;
@@ -2087,27 +2215,29 @@ class _ManagerProgressVisualsContentState
     double totalProgress = 0;
 
     for (final employee in employees) {
-      if (employee.lastActivity.isAfter(activeThreshold)) {
+      if (employee.lastActivity.isAfter(filterStart)) {
         activeCount++;
       }
 
-      switch (employee.status) {
-        case EmployeeStatus.onTrack:
-          onTrackCount++;
-          break;
-        case EmployeeStatus.atRisk:
-          atRiskCount++;
-          break;
-        case EmployeeStatus.overdue:
+      final goals = _goalsForCurrentFilter(employee);
+      for (final g in goals) {
+        if (g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged) {
+          continue;
+        }
+        if (g.targetDate.isBefore(now)) {
           overdueCount++;
-          break;
-        case EmployeeStatus.inactive:
-          break;
+        } else if (g.progress < 30) {
+          atRiskCount++;
+        } else {
+          onTrackCount++;
+        }
       }
 
       totalPoints += employee.totalPoints;
-      totalGoalsCompleted += employee.completedGoalsCount;
-      totalProgress += employee.avgProgress;
+      totalGoalsCompleted += goals
+          .where((g) => g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged)
+          .length;
+      totalProgress += _averageProgressForEmployee(employee);
     }
 
     final avgProgress = employees.isNotEmpty
@@ -2131,13 +2261,25 @@ class _ManagerProgressVisualsContentState
     );
   }
 
+  List<Goal> _goalsForCurrentFilter(EmployeeData employee) {
+    final since = _trendSinceDate(currentTimeFilter);
+    return employee.goals.where((g) => !g.createdAt.isBefore(since)).toList(growable: false);
+  }
+
+  double _averageProgressForEmployee(EmployeeData employee) {
+    final goals = _goalsForCurrentFilter(employee);
+    if (goals.isEmpty) return 0.0;
+    final sum = goals.fold<double>(0.0, (acc, g) => acc + g.progress.toDouble());
+    return (sum / goals.length).clamp(0.0, 100.0);
+  }
+
   /// Goal status distribution for donut chart (counts).
   Map<String, int> _calculateGoalStatusDistribution(List<EmployeeData> employees) {
     int completed = 0, onTrack = 0, atRisk = 0, overdue = 0;
     final now = DateTime.now();
 
     for (final emp in employees) {
-      for (final g in emp.goals) {
+      for (final g in _goalsForCurrentFilter(emp)) {
         if (g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged) {
           completed++;
         } else if (g.targetDate.isBefore(now)) {
@@ -2158,15 +2300,14 @@ class _ManagerProgressVisualsContentState
     };
   }
 
-  /// Unique active employees per weekday (Mon..Fri) from recent activities in the last 7 days.
+  /// Unique active employees per weekday (Mon..Fri) within the selected filter window.
   List<int> _calculateEngagementByWeekday(List<EmployeeData> employees) {
     final activeByDay = List<Set<String>>.generate(5, (_) => <String>{});
-    final now = DateTime.now();
-    final weekAgo = now.subtract(const Duration(days: 7));
+    final since = _trendSinceDate(currentTimeFilter);
 
     for (final emp in employees) {
       for (final act in emp.recentActivities) {
-        if (act.timestamp.isBefore(weekAgo)) continue;
+        if (act.timestamp.isBefore(since)) continue;
         final weekday = act.timestamp.weekday;
         if (weekday >= 1 && weekday <= 5) {
           activeByDay[weekday - 1].add(emp.profile.uid);
@@ -2227,7 +2368,7 @@ class _ManagerProgressVisualsContentState
     }
 
     for (final emp in employees) {
-      for (final g in emp.goals) {
+      for (final g in _goalsForCurrentFilter(emp)) {
         if (g.approvalStatus != GoalApprovalStatus.approved) continue;
         sums[g.category]!.add(g.progress.toDouble());
       }
@@ -2250,17 +2391,7 @@ class _ManagerProgressVisualsContentState
     }).toList();
   }
 
-  List<String> _getDepartmentList(List<EmployeeData> employees) {
-    final set = <String>{};
-    for (final e in employees) {
-      final d = (e.profile.department).trim();
-      if (d.isNotEmpty) set.add(d);
-    }
-    final list = set.toList()..sort();
-    return ['All Teams', ...list];
-  }
-
-  Widget _buildTeamAnalyticsFilters(List<String> departments) {
+  Widget _buildTeamAnalyticsFilters() {
     return Wrap(
       spacing: AppSpacing.md,
       runSpacing: AppSpacing.sm,
@@ -2301,41 +2432,6 @@ class _ManagerProgressVisualsContentState
             ),
           ),
         ),
-        // Team
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: departments.contains(selectedDepartment ?? 'All Teams')
-                  ? (selectedDepartment ?? 'All Teams')
-                  : 'All Teams',
-              isExpanded: false,
-              dropdownColor: AppColors.backgroundColor,
-              icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-              items: departments
-                  .map((d) => DropdownMenuItem<String>(
-                        value: d,
-                        child: Text(
-                          d,
-                          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-                        ),
-                      ))
-                  .toList(),
-              onChanged: (String? v) {
-                setState(() {
-                  selectedDepartment = (v == null || v == 'All Teams') ? null : v;
-                  _rebuildTeamStream();
-                });
-              },
-            ),
-          ),
-        ),
         TextButton.icon(
           onPressed: () => _exportTeamReport(),
           icon: const Icon(Icons.download, size: 18, color: AppColors.textPrimary),
@@ -2348,6 +2444,10 @@ class _ManagerProgressVisualsContentState
             foregroundColor: AppColors.textPrimary,
             side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
           ),
+        ),
+        Text(
+          'Showing: ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)}',
+          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
         ),
       ],
     );
@@ -2368,14 +2468,7 @@ class _ManagerProgressVisualsContentState
       child: SizedBox(
         height: 180,
         width: double.infinity,
-        child: CustomPaint(
-          painter: _TeamProgressLineChartPainter(
-            data: points,
-            lineColor: AppColors.activeColor,
-            gridColor: Colors.white.withValues(alpha: 0.15),
-            textColor: AppColors.textSecondary,
-          ),
-        ),
+        child: _InteractiveTeamTrendChart(points: points),
       ),
     );
   }
@@ -2669,7 +2762,7 @@ class _ManagerProgressVisualsContentState
 
   Widget _buildTeamPerformanceRankingSection(List<EmployeeData> employees) {
     final sorted = List<EmployeeData>.from(employees)
-      ..sort((a, b) => b.avgProgress.compareTo(a.avgProgress));
+      ..sort((a, b) => _averageProgressForEmployee(b).compareTo(_averageProgressForEmployee(a)));
     final bool showAll = _rankingDisplayMode == 'all';
     final List<EmployeeData> visibleEmployees =
         showAll ? sorted : sorted.take(3).toList();
@@ -2724,6 +2817,7 @@ class _ManagerProgressVisualsContentState
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final e = visibleEmployees[index];
+                    final progress = _averageProgressForEmployee(e);
                     final name = e.profile.displayName.isNotEmpty
                         ? e.profile.displayName
                         : e.profile.email.split('@').first;
@@ -2741,7 +2835,7 @@ class _ManagerProgressVisualsContentState
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                             child: LinearProgressIndicator(
-                              value: (e.avgProgress / 100).clamp(0.0, 1.0),
+                              value: (progress / 100).clamp(0.0, 1.0),
                               backgroundColor: Colors.white.withValues(alpha: 0.15),
                               valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
                               minHeight: 8,
@@ -2751,7 +2845,7 @@ class _ManagerProgressVisualsContentState
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '${e.avgProgress.toStringAsFixed(0)}%',
+                          '${progress.toStringAsFixed(0)}%',
                           style: AppTypography.bodySmall.copyWith(
                             color: AppColors.textSecondary,
                             fontWeight: FontWeight.w600,
