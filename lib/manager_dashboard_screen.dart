@@ -830,9 +830,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              _kpi('Total', totalEmployees.toString()),
+              _kpiTap('Total', totalEmployees.toString(), null),
               const SizedBox(width: 8),
-              _kpi('Active (7d)', activeEmployees.toString()),
+              _kpiTap('Active (7d)', activeEmployees.toString(), 'active7d'),
               const SizedBox(width: 8),
               _kpi('Avg Progress', '${avgProgress.toStringAsFixed(0)}%'),
             ],
@@ -860,11 +860,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              _kpi('On Track', onTrack.toString()),
+              _kpiTap('On Track', onTrack.toString(), 'onTrack'),
               const SizedBox(width: 8),
-              _kpi('At Risk', atRisk.toString()),
+              _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
               const SizedBox(width: 8),
-              _kpi('Overdue', overdue.toString()),
+              _kpiTap('Overdue', overdue.toString(), 'overdue'),
             ],
           ),
         ],
@@ -873,27 +873,48 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   }
 
   Widget _kpi(String label, String value) {
+    return Expanded(child: _kpiInner(label, value));
+  }
+
+  /// Tappable KPI that navigates to the team list with an optional status filter.
+  /// [filterKey] null = no drill-down; non-null = navigate to Review Team with that filter.
+  Widget _kpiTap(String label, String value, String? filterKey) {
+    final inner = _kpiInner(label, value);
+    if (filterKey == null) return Expanded(child: inner);
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          // Transparent black for KPI tiles to match card styling
-          color: Colors.black.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
-              ),
+      child: InkWell(
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            '/manager_review_team_dashboard',
+            arguments: <String, String>{'statusFilter': filterKey},
+          );
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: inner,
+      ),
+    );
+  }
+
+  Widget _kpiInner(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
             ),
-            const SizedBox(height: 4),
-            Text(label, style: AppTypography.muted),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: AppTypography.muted),
+        ],
       ),
     );
   }
@@ -926,26 +947,27 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              _kpi('Active Today', activeToday.toString()),
+              _kpiTap('Active Today', activeToday.toString(), 'activeToday'),
               const SizedBox(width: 8),
-              _kpi('Active (7d)', activeThisWeek.toString()),
+              _kpiTap('Active (7d)', activeThisWeek.toString(), 'active7d'),
               const SizedBox(width: 8),
-              _kpi('Inactive', inactive.toString()),
+              _kpiTap('Inactive', inactive.toString(), 'inactive'),
             ],
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              _kpi('Overdue', overdue.toString()),
+              _kpiTap('Overdue', overdue.toString(), 'overdue'),
               const SizedBox(width: 8),
-              _kpi('At Risk', atRisk.toString()),
+              _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
               const SizedBox(width: 8),
-              _kpi(
+              _kpiTap(
                 'On Track',
                 employees
                     .where((e) => e.status == EmployeeStatus.onTrack)
                     .length
                     .toString(),
+                'onTrack',
               ),
             ],
           ),
