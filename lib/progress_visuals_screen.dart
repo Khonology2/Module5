@@ -416,6 +416,7 @@ class _ManagerProgressVisualsContentState
   TimeFilter currentTimeFilter = TimeFilter.month;
   String? selectedDepartment;
   ProgressViewType currentViewType = ProgressViewType.myProgress;
+  String _rankingDisplayMode = 'top3';
   bool _hasAppliedDefaultView = false;
   // Keep a stable focus anchor so we don't leave focus on a disposed widget
   // when swapping between "Team" and "My Progress" subtrees (web can crash on this).
@@ -2504,6 +2505,9 @@ class _ManagerProgressVisualsContentState
   Widget _buildTeamPerformanceRankingSection(List<EmployeeData> employees) {
     final sorted = List<EmployeeData>.from(employees)
       ..sort((a, b) => b.avgProgress.compareTo(a.avgProgress));
+    final bool showAll = _rankingDisplayMode == 'all';
+    final List<EmployeeData> visibleEmployees =
+        showAll ? sorted : sorted.take(3).toList();
 
     return _buildSectionCard(
       title: 'Team Performance Ranking',
@@ -2515,49 +2519,91 @@ class _ManagerProgressVisualsContentState
                 style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
               ),
             )
-          : ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: sorted.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final e = sorted[index];
-                final name = e.profile.displayName.isNotEmpty
-                    ? e.profile.displayName
-                    : e.profile.email.split('@').first;
-                return Row(
-                  children: [
-                    SizedBox(
-                      width: 100,
-                      child: Text(
-                        name,
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-                        overflow: TextOverflow.ellipsis,
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _rankingDisplayMode,
+                        dropdownColor: AppColors.backgroundColor,
+                        icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
+                        style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary),
+                        items: const [
+                          DropdownMenuItem(value: 'top3', child: Text('Top 3')),
+                          DropdownMenuItem(value: 'all', child: Text('Show all')),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _rankingDisplayMode = value;
+                          });
+                        },
                       ),
                     ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: LinearProgressIndicator(
-                          value: (e.avgProgress / 100).clamp(0.0, 1.0),
-                          backgroundColor: Colors.white.withValues(alpha: 0.15),
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                          minHeight: 8,
-                          borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: visibleEmployees.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final e = visibleEmployees[index];
+                    final name = e.profile.displayName.isNotEmpty
+                        ? e.profile.displayName
+                        : e.profile.email.split('@').first;
+                    return Row(
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          child: Text(
+                            name,
+                            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${e.avgProgress.toStringAsFixed(0)}%',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                );
-              },
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: LinearProgressIndicator(
+                              value: (e.avgProgress / 100).clamp(0.0, 1.0),
+                              backgroundColor: Colors.white.withValues(alpha: 0.15),
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                              minHeight: 8,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${e.avgProgress.toStringAsFixed(0)}%',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                if (!showAll && sorted.length > 3) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    '+${sorted.length - 3} more employees',
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ],
             ),
     );
   }
