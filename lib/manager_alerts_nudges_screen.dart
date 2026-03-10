@@ -50,6 +50,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   // Track alerts marked as read locally for optimistic updates
   final Set<String> _locallyMarkedAsRead = <String>{};
 
+  /// Which supervision alert sections are expanded (Show All). Key: section id.
+  final Map<String, bool> _supervisionSectionExpanded = <String, bool>{};
+
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
   final bool _showNudgeTrend = true;
   bool _isLoadingInsights = false;
@@ -772,7 +775,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   criticalIssues,
                   employeesById,
                   AppColors.dangerColor,
-                  isExpanded: true,
+                  sectionKey: 'critical',
+                  isExpanded: _supervisionSectionExpanded['critical'] ?? true,
+                  onToggleExpand: () {
+                    setState(() {
+                      _supervisionSectionExpanded['critical'] =
+                          !(_supervisionSectionExpanded['critical'] ?? true);
+                    });
+                  },
                 ),
               ),
             );
@@ -790,7 +800,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   performanceConcerns,
                   employeesById,
                   AppColors.warningColor,
-                  isExpanded: criticalIssues.isEmpty,
+                  sectionKey: 'performance',
+                  isExpanded: _supervisionSectionExpanded['performance'] ??
+                      criticalIssues.isEmpty,
+                  onToggleExpand: () {
+                    setState(() {
+                      _supervisionSectionExpanded['performance'] =
+                          !(_supervisionSectionExpanded['performance'] ??
+                              criticalIssues.isEmpty);
+                    });
+                  },
                 ),
               ),
             );
@@ -808,8 +827,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   monitoring,
                   employeesById,
                   AppColors.successColor,
-                  isExpanded:
-                      criticalIssues.isEmpty && performanceConcerns.isEmpty,
+                  sectionKey: 'monitoring',
+                  isExpanded: _supervisionSectionExpanded['monitoring'] ??
+                      (criticalIssues.isEmpty && performanceConcerns.isEmpty),
+                  onToggleExpand: () {
+                    setState(() {
+                      _supervisionSectionExpanded['monitoring'] =
+                          !(_supervisionSectionExpanded['monitoring'] ??
+                              (criticalIssues.isEmpty &&
+                                  performanceConcerns.isEmpty));
+                    });
+                  },
                 ),
               ),
             );
@@ -1641,7 +1669,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     List<Alert> alerts,
     Map<String, EmployeeData> employeesById,
     Color color, {
+    String? sectionKey,
     bool isExpanded = false,
+    VoidCallback? onToggleExpand,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1676,9 +1706,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 ),
                 if (alerts.length > 3)
                   TextButton(
-                    onPressed: () {
-                      // TODO: Expand/collapse functionality
-                    },
+                    onPressed: onToggleExpand,
                     child: Text(
                       isExpanded ? 'Show Less' : 'Show All',
                       style: AppTypography.bodySmall.copyWith(
@@ -1920,7 +1948,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   }
 
   void _extendAlertGoalDeadline(Alert alert, EmployeeData employee) {
-    // TODO: Implement extend deadline functionality
     _showCenterNotice(context, 'Extending deadline for ${alert.title}...');
   }
 

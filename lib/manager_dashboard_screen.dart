@@ -934,27 +934,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  /// Team progress comparison placeholder (chart/summary of team progress).
-  Widget _buildTeamProgressComparison(List<EmployeeData> employees) {
-    final onTrack = employees.where((e) => e.status == EmployeeStatus.onTrack).length;
-    final atRisk = employees.where((e) => e.status == EmployeeStatus.atRisk).length;
-    final overdue = employees.where((e) => e.status == EmployeeStatus.overdue).length;
-    final total = employees.length;
-    return _card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Team progress', style: AppTypography.heading2),
-          const SizedBox(height: 8),
-          Text(
-            'On track: $onTrack · At risk: $atRisk · Overdue: $overdue of $total',
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Progress trends over time: activity in the last 7 days (from recentActivities).
   Widget _buildProgressTrends(List<EmployeeData> employees) {
     final now = DateTime.now();
@@ -971,9 +950,114 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         }
       }
     }
-    final onTrack = employees.where((e) => e.status == EmployeeStatus.onTrack).length;
-    final atRisk = employees.where((e) => e.status == EmployeeStatus.atRisk).length;
-    final overdue = employees.where((e) => e.status == EmployeeStatus.overdue).length;
+    final maxCount = dayCounts.isEmpty ? 1 : dayCounts.reduce((a, b) => a > b ? a : b);
+    final maxVal = maxCount == 0 ? 1 : maxCount;
+
+    String dayLabel(int i) {
+      final d = today.subtract(Duration(days: 6 - i));
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return days[d.weekday - 1];
+    }
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.show_chart, color: AppColors.activeColor, size: 22),
+              const SizedBox(width: 8),
+              Text('Progress trends', style: AppTypography.heading2),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Team activity over the last 7 days.',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: List.generate(7, (i) {
+              final h = maxVal > 0 ? (dayCounts[i] / maxVal).clamp(0.1, 1.0) : 0.1;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        height: 80,
+                        alignment: Alignment.bottomCenter,
+                        child: Container(
+                          height: 80 * h,
+                          decoration: BoxDecoration(
+                            color: AppColors.activeColor.withValues(alpha: 0.8),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(6),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        dayLabel(i),
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        '${dayCounts[i]}',
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Visual comparison of team members by progress (and points).
+  Widget _buildTeamProgressComparison(List<EmployeeData> employees) {
+    final sorted = [...employees]
+      ..sort((a, b) => b.avgProgress.compareTo(a.avgProgress));
+    if (sorted.isEmpty) {
+      return _card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Team progress comparison', style: AppTypography.heading2),
+            const SizedBox(height: 12),
+            Text('No team members yet.', style: AppTypography.muted),
+          ],
+        ),
+      );
+    }
+
+    final now = DateTime.now();
+    int onTrack = 0;
+    int atRisk = 0;
+    int overdue = employees.fold<int>(0, (acc, e) => acc + e.overdueGoalsCount);
+    for (final e in employees) {
+      for (final g in e.goals) {
+        if (g.status != GoalStatus.completed && g.targetDate.isAfter(now)) {
+          if (g.progress >= 30) {
+            onTrack++;
+          } else {
+            atRisk++;
+          }
+        }
+      }
+    }
 
     return _card(
       child: Column(
@@ -986,6 +1070,64 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
               const SizedBox(width: 8),
               _kpiTap('Overdue', overdue.toString(), 'overdue'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Risks: overdue goals and low engagement with actionable list of who.
+  Widget _buildRisksCard(List<EmployeeData> employees) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+    final activeToday = employees
+        .where((e) => e.lastActivity.isAfter(today))
+        .length;
+    final activeThisWeek = employees
+        .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+        .length;
+    final inactive = employees
+        .where((e) => e.status == EmployeeStatus.inactive)
+        .length;
+    final overdue = employees
+        .where((e) => e.status == EmployeeStatus.overdue)
+        .length;
+    final atRisk = employees
+        .where((e) => e.status == EmployeeStatus.atRisk)
+        .length;
+
+    return AppComponents.card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Risks', style: AppTypography.heading2),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _kpiTap('Active Today', activeToday.toString(), 'activeToday'),
+              const SizedBox(width: 8),
+              _kpiTap('Active (7d)', activeThisWeek.toString(), 'active7d'),
+              const SizedBox(width: 8),
+              _kpiTap('Inactive', inactive.toString(), 'inactive'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _kpiTap('Overdue', overdue.toString(), 'overdue'),
+              const SizedBox(width: 8),
+              _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
+              const SizedBox(width: 8),
+              _kpiTap(
+                'On Track',
+                employees
+                    .where((e) => e.status == EmployeeStatus.onTrack)
+                    .length
+                    .toString(),
+                'onTrack',
+              ),
             ],
           ),
         ],
@@ -1040,8 +1182,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  /// Risks: overdue goals and low engagement with actionable list of who.
-  Widget _buildRisksCard(List<EmployeeData> employees) {
+  // ignore: unused_element
+  Widget _buildActivitySummary(List<EmployeeData> employees) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final sevenDaysAgo = now.subtract(const Duration(days: 7));
