@@ -581,7 +581,7 @@ class _NavTileState extends State<_NavTile> {
         label = 'Team Review';
         break;
       case '/admin_dashboard':
-        label = localizations.nav_admin_dashboard;
+        label = localizations.nav_dashboard;
         break;
       case '/user_management':
         label = localizations.nav_user_management;

@@ -1841,6 +1841,9 @@ class DatabaseService {
         userData['tutorialEnabled'] = true;
         // Don't set managerSidebarTutorialCompleted - leave it as null
         // so tutorial will show on first login
+      } else if (role == 'admin') {
+        userData['tutorialEnabled'] = false;
+        // Admin portal has no sidebar tutorial
       }
 
       await userDocRef.set(userData);

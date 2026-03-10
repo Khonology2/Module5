@@ -1368,6 +1368,213 @@ class ManagerRealtimeService {
     });
   }
 
+  /// Stream of all users with role == 'manager', as [EmployeeData].
+  /// Used by the admin dashboard to show manager KPIs and comparisons.
+  static Stream<List<EmployeeData>> getManagersDataStream({
+    TimeFilter timeFilter = TimeFilter.month,
+  }) {
+    return Stream<List<EmployeeData>>.multi((controller) async {
+      StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? sub;
+      bool isCancelled = false;
+
+      try {
+        final usersQuery = _firestore
+            .collection('users')
+            .where('role', isEqualTo: 'manager')
+            .limit(200);
+
+        Future<void> rebuildAndEmit(
+          QuerySnapshot<Map<String, dynamic>> snapshot,
+          Set<String> deletedUids,
+        ) async {
+          if (isCancelled) return;
+
+          final managerDocs = snapshot.docs.where((doc) {
+            if (deletedUids.contains(doc.id)) return false;
+            final data = doc.data();
+            final role = (data['role'] as String? ?? '').trim().toLowerCase();
+            return role == 'manager';
+          }).toList();
+
+          final managerIds = managerDocs.map((d) => d.id).toList();
+          if (managerIds.isEmpty) {
+            if (!isCancelled) controller.add([]);
+            return;
+          }
+
+          final startDate = _getStartDateForFilter(timeFilter);
+
+          Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> fetchInBatches(
+            String collection,
+          ) async {
+            final results = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+            for (var i = 0; i < managerIds.length; i += 10) {
+              final batch = managerIds.sublist(
+                i,
+                i + 10 > managerIds.length ? managerIds.length : i + 10,
+              );
+              Query<Map<String, dynamic>> base = _firestore
+                  .collection(collection)
+                  .where('userId', whereIn: batch);
+              try {
+                if (collection == 'activities') {
+                  final thirtyDaysAgo =
+                      DateTime.now().subtract(const Duration(days: 30));
+                  base = base
+                      .where('timestamp',
+                          isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
+                      .orderBy('timestamp', descending: true)
+                      .limit(200);
+                } else if (collection == 'alerts') {
+                  final thirtyDaysAgo =
+                      DateTime.now().subtract(const Duration(days: 30));
+                  base = base
+                      .where('isDismissed', isEqualTo: false)
+                      .where('createdAt',
+                          isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
+                      .orderBy('createdAt', descending: true)
+                      .limit(200);
+                } else if (collection == 'goals') {
+                  base = base
+                      .where('createdAt',
+                          isGreaterThan: Timestamp.fromDate(startDate))
+                      .limit(500);
+                }
+                final snap = await base.get();
+                results.addAll(snap.docs);
+              } on FirebaseException {
+                final snap = await _firestore
+                    .collection(collection)
+                    .where('userId', whereIn: batch)
+                    .get();
+                results.addAll(snap.docs);
+              }
+            }
+            return results;
+          }
+
+          final results = await Future.wait([
+            fetchInBatches('goals'),
+            fetchInBatches('activities'),
+            fetchInBatches('alerts'),
+          ]);
+
+          if (isCancelled) return;
+
+          final goalsByUser = <String, List<Goal>>{};
+          for (final doc in results[0]) {
+            final goal = Goal.fromFirestore(doc);
+            goalsByUser.putIfAbsent(goal.userId, () => []).add(goal);
+          }
+          final activitiesByUser = <String, List<EmployeeActivity>>{};
+          for (final doc in results[1]) {
+            final activity = EmployeeActivity.fromFirestore(doc);
+            activitiesByUser
+                .putIfAbsent(activity.userId, () => [])
+                .add(activity);
+          }
+          final alertsByUser = <String, List<Alert>>{};
+          for (final doc in results[2]) {
+            final alert = Alert.fromFirestore(doc);
+            alertsByUser.putIfAbsent(alert.userId, () => []).add(alert);
+          }
+
+          final now = DateTime.now();
+          final dataList = <EmployeeData>[];
+
+          for (final userDoc in managerDocs) {
+            final profile = UserProfile.fromFirestore(userDoc);
+            final rawAlerts = alertsByUser[userDoc.id] ?? [];
+            final activeAlerts = rawAlerts.where((a) {
+              if (a.isDismissed) return false;
+              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) {
+                return false;
+              }
+              return true;
+            }).toList();
+            final employeeData = await _buildEmployeeData(
+              profile,
+              timeFilter,
+              goalsByUser[userDoc.id] ?? [],
+              activitiesByUser[userDoc.id] ?? [],
+              activeAlerts,
+            );
+            dataList.add(employeeData);
+          }
+
+          dataList.sort((a, b) {
+            final aRisk = _getRiskScore(a);
+            final bRisk = _getRiskScore(b);
+            if (aRisk != bRisk) return bRisk.compareTo(aRisk);
+            return b.totalPoints.compareTo(a.totalPoints);
+          });
+
+          if (!isCancelled) controller.add(dataList);
+        }
+
+        sub = FirestoreSafe.stream(usersQuery.snapshots()).listen(
+          (snapshot) async {
+            if (isCancelled) return;
+            final deletedUids = await getDeletedAccountUids();
+            if (isCancelled) return;
+
+            try {
+              final minimal = snapshot.docs
+                  .where((d) => !deletedUids.contains(d.id))
+                  .map((d) => UserProfile.fromFirestore(d))
+                  .where((p) =>
+                      (p.role.trim().toLowerCase()) == 'manager')
+                  .map((p) {
+                    final lastActive = p.lastActivityAt ??
+                        p.lastLoginAt ??
+                        DateTime.fromMillisecondsSinceEpoch(0);
+                    return EmployeeData(
+                      profile: p,
+                      goals: const [],
+                      recentActivities: const [],
+                      recentAlerts: const [],
+                      completedGoalsCount: 0,
+                      overdueGoalsCount: 0,
+                      totalPoints: p.totalPoints,
+                      lastActivity: lastActive,
+                      avgProgress: 0.0,
+                      streakDays: 0,
+                      status: EmployeeStatus.onTrack,
+                      weeklyActivityCount: 0,
+                      engagementScore: 0.0,
+                      motivationLevel: 'N/A',
+                      isPlaceholder: true,
+                    );
+                  }).toList();
+              if (minimal.isNotEmpty && !isCancelled) {
+                controller.add(minimal);
+              }
+            } catch (_) {}
+
+            if (!isCancelled) await rebuildAndEmit(snapshot, deletedUids);
+          },
+          onError: (e) {
+            if (!isCancelled) {
+              developer.log('Error in managers data stream: $e');
+              if (e is Object) FirestoreWebCircuitBreaker.maybeReload(e);
+              controller.addError(e);
+            }
+          },
+        );
+
+        controller.onCancel = () {
+          isCancelled = true;
+          sub?.cancel();
+        };
+      } catch (e) {
+        if (!isCancelled) {
+          developer.log('Error setting up managers stream: $e');
+          controller.addError(e);
+        }
+      }
+    }).asBroadcastStream();
+  }
+
   // Get AI-generated insights for the team
   static Stream<List<TeamInsight>> getTeamInsightsStream({
     String? department,
