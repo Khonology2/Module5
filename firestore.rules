@@ -248,13 +248,21 @@ service cloud.firestore {
         isAdmin()
       );
 
-      // Allow any signed-in user to create a goal for themselves (userId must match auth.uid).
-      allow create: if isSignedIn() && goalOwnerUidFromData(request.resource.data) == userId();
+      // Only allow employees to create goals for themselves.
+      // Managers are NOT allowed to create goals.
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (!isManager() && goalOwnerUidFromData(request.resource.data) == userId())
+      );
 
-      // List: any signed-in user can run queries. The read rule above ensures only
-      // documents the user is allowed to see (own goals, or manager/admin) are returned.
-      // Note: request.query does not expose where() filters, so we cannot restrict by query.
-      allow list: if isSignedIn();
+      // Tighten list/query access:
+      // - managers/admins can list any goals
+      // - employees can only list when query is scoped to their own userId
+      allow list: if isSignedIn() && (
+        isManager() ||
+        isAdmin() ||
+        request.query.where('userId', '==', userId())
+      );
 
       match /milestones/{milestoneId} {
         allow list: if isSignedIn() && canAccessGoal(goalId);
@@ -395,7 +403,7 @@ service cloud.firestore {
                  request.resource.data.status == 'accepted' &&
                  request.resource.data.waitingOn == 'none') ||
                 // Suggest new time
-                (request.resource.data.status == 'rescheduled' &&
+                (resource.data.status == 'rescheduled' &&
                  request.resource.data.waitingOn == 'manager' &&
                  request.resource.data.proposedDateTime is timestamp) ||
                 // Acknowledge intent-only request (no time)
@@ -403,7 +411,7 @@ service cloud.firestore {
                  request.resource.data.status == 'requested' &&
                  request.resource.data.waitingOn == 'manager') ||
                 // Cancel
-                (request.resource.data.status == 'cancelled' &&
+                (resource.data.status == 'cancelled' &&
                  request.resource.data.waitingOn == 'none')
               )
             ) ||
