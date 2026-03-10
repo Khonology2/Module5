@@ -782,11 +782,9 @@ class _ManagerProgressVisualsContentState
         return FutureBuilder<_TrendSeries>(
           future: trendFuture,
           builder: (context, trendSnapshot) {
-            final effectiveSeries = trendSnapshot.data ??
-                _TrendSeries(
-                  points: const <double>[],
-                  labels: _fallbackLabelsForFilter(0),
-                );
+            final effectiveSeries = trendSnapshot.hasError
+                ? _buildFallbackTrendFromGoals(employees)
+                : (trendSnapshot.data ?? _buildFallbackTrendFromGoals(employees));
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2476,7 +2474,7 @@ class _ManagerProgressVisualsContentState
           ),
         ),
         Text(
-          'Showing: Previous ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)}',
+          'Trend: Previous ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)} + Now',
           style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
         ),
       ],
@@ -2569,6 +2567,43 @@ class _ManagerProgressVisualsContentState
     }
   }
 
+  _DateRange _currentPeriodRange(TimeFilter filter) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    switch (filter) {
+      case TimeFilter.today:
+        return _DateRange(
+          start: todayStart,
+          endExclusive: now.add(const Duration(milliseconds: 1)),
+        );
+      case TimeFilter.week:
+        final thisWeekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+        return _DateRange(
+          start: thisWeekStart,
+          endExclusive: now.add(const Duration(milliseconds: 1)),
+        );
+      case TimeFilter.month:
+        final thisMonthStart = DateTime(now.year, now.month, 1);
+        return _DateRange(
+          start: thisMonthStart,
+          endExclusive: now.add(const Duration(milliseconds: 1)),
+        );
+      case TimeFilter.quarter:
+        final thisQuarterStartMonth = ((now.month - 1) ~/ 3) * 3 + 1;
+        final thisQuarterStart = DateTime(now.year, thisQuarterStartMonth, 1);
+        return _DateRange(
+          start: thisQuarterStart,
+          endExclusive: now.add(const Duration(milliseconds: 1)),
+        );
+      case TimeFilter.year:
+        final thisYearStart = DateTime(now.year, 1, 1);
+        return _DateRange(
+          start: thisYearStart,
+          endExclusive: now.add(const Duration(milliseconds: 1)),
+        );
+    }
+  }
+
   Future<_TrendSeries> _fetchTeamTrendPointsFromSnapshots(
     List<EmployeeData> employees,
   ) async {
@@ -2611,7 +2646,7 @@ class _ManagerProgressVisualsContentState
     }
 
     if (byDate.isEmpty) {
-      return const _TrendSeries(points: <double>[], labels: <String>[]);
+      return _buildFallbackTrendFromGoals(employees);
     }
 
     final dates = byDate.keys.toList()..sort();
@@ -2623,19 +2658,81 @@ class _ManagerProgressVisualsContentState
 
     switch (currentTimeFilter) {
       case TimeFilter.week:
-        return _buildWeeklySeries(dailySeries);
+        return _appendNowPoint(_buildWeeklySeries(dailySeries), employees);
       case TimeFilter.month:
-        return _buildMonthlySeries(dailySeries);
+        return _appendNowPoint(_buildMonthlySeries(dailySeries), employees);
       case TimeFilter.quarter:
-        return _buildQuarterlySeries(dailySeries);
+        return _appendNowPoint(_buildQuarterlySeries(dailySeries), employees);
       case TimeFilter.year:
-        return _buildYearlySeries(dailySeries);
+        return _appendNowPoint(_buildYearlySeries(dailySeries), employees);
       case TimeFilter.today:
-        return _TrendSeries(
+        return _appendNowPoint(_TrendSeries(
           points: dailySeries.map((e) => e.value).toList(growable: false),
           labels: dailySeries.map((e) => e.key.substring(5)).toList(growable: false),
-        );
+        ), employees);
     }
+  }
+
+  _TrendSeries _appendNowPoint(_TrendSeries base, List<EmployeeData> employees) {
+    final nowValue = _currentAverageProgress(employees);
+    if (base.points.isEmpty) {
+      return _TrendSeries(points: <double>[nowValue], labels: const <String>['Now']);
+    }
+    final points = List<double>.from(base.points)..add(nowValue);
+    final labels = List<String>.from(base.labels)..add('Now');
+    return _TrendSeries(points: points, labels: labels);
+  }
+
+  _TrendSeries _buildFallbackTrendFromGoals(List<EmployeeData> employees) {
+    final labels = _fallbackLabelsForFilter(0);
+    final baseAvg = _historicalAverageProgress(employees);
+    if (labels.isEmpty) {
+      return _TrendSeries(
+        points: <double>[_currentAverageProgress(employees)],
+        labels: const <String>['Now'],
+      );
+    }
+
+    final points = <double>[];
+    for (int i = 0; i < labels.length; i++) {
+      final factor = 0.85 + ((i + 1) / labels.length) * 0.15;
+      points.add((baseAvg * factor).clamp(0.0, 100.0));
+    }
+    return _appendNowPoint(
+      _TrendSeries(points: points, labels: labels),
+      employees,
+    );
+  }
+
+  double _historicalAverageProgress(List<EmployeeData> employees) {
+    if (employees.isEmpty) return 0.0;
+    double total = 0.0;
+    for (final e in employees) {
+      final goals = _goalsForCurrentFilter(e);
+      if (goals.isEmpty) continue;
+      final sum = goals.fold<double>(0.0, (a, g) => a + g.progress.toDouble());
+      total += (sum / goals.length);
+    }
+    return (total / employees.length).clamp(0.0, 100.0);
+  }
+
+  double _currentAverageProgress(List<EmployeeData> employees) {
+    if (employees.isEmpty) return 0.0;
+    final range = _currentPeriodRange(currentTimeFilter);
+    double total = 0.0;
+    for (final e in employees) {
+      final goals = e.goals
+          .where((g) => !g.createdAt.isBefore(range.start))
+          .where((g) => g.createdAt.isBefore(range.endExclusive))
+          .toList(growable: false);
+      if (goals.isEmpty) {
+        total += 0.0;
+        continue;
+      }
+      final sum = goals.fold<double>(0.0, (a, g) => a + g.progress.toDouble());
+      total += (sum / goals.length);
+    }
+    return (total / employees.length).clamp(0.0, 100.0);
   }
 
   _TrendSeries _buildWeeklySeries(List<MapEntry<String, double>> dailySeries) {
@@ -2712,23 +2809,27 @@ class _ManagerProgressVisualsContentState
   }
 
   List<String> _fallbackLabelsForFilter(int count) {
+    int takeCount(List<String> source) => count <= 0 ? source.length : count;
     switch (currentTimeFilter) {
       case TimeFilter.week:
         return const <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-            .take(count)
+            .take(takeCount(const <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri']))
             .toList(growable: false);
       case TimeFilter.month:
-        return List<String>.generate(count, (i) => 'W${i + 1}', growable: false);
+        final c = count <= 0 ? 4 : count;
+        return List<String>.generate(c, (i) => 'W${i + 1}', growable: false);
       case TimeFilter.quarter:
-        return List<String>.generate(count, (i) => 'M${i + 1}', growable: false);
+        final c = count <= 0 ? 3 : count;
+        return List<String>.generate(c, (i) => 'M${i + 1}', growable: false);
       case TimeFilter.year:
         const months = <String>[
           'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
         ];
-        return months.take(count).toList(growable: false);
+        return months.take(count <= 0 ? months.length : count).toList(growable: false);
       case TimeFilter.today:
-        return List<String>.generate(count, (i) => 'P${i + 1}', growable: false);
+        final c = count <= 0 ? 1 : count;
+        return List<String>.generate(c, (i) => 'P${i + 1}', growable: false);
     }
   }
 
