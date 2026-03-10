@@ -321,7 +321,9 @@ class UnifiedMilestoneAudit {
   }
 
   /// Get milestone audit entries as Future (safe alternative)
-  static Future<List<Map<String, dynamic>>> getMilestoneAudits() async {
+  static Future<List<Map<String, dynamic>>> getMilestoneAudits({
+    bool forManager = false,
+  }) async {
     try {
       final user = _auth.currentUser;
       if (user == null) {
@@ -332,26 +334,39 @@ class UnifiedMilestoneAudit {
       final snapshot = await _firestore
           .collection('audit_entries')
           .orderBy('timestamp', descending: true)
-          .limit(50)
+          .limit(100) // Increased limit for managers
           .get();
 
       final audits = snapshot.docs
           .map((doc) => {'id': doc.id, ...doc.data()})
           .where((audit) {
-            // Client-side filtering for user's own milestone actions
+            // Client-side filtering for milestone actions
             final action = audit['action'] as String? ?? '';
             final userId = audit['userId'] as String? ?? '';
             final isMilestoneAction = [
               'milestone_created',
               'milestone_updated',
               'milestone_status_changed',
+              'milestone_completed',
+              'milestone_acknowledged',
+              'milestone_pending_review',
+              'milestone_rejected',
+              'milestone_dismissed',
             ].contains(action);
 
-            return isMilestoneAction && userId == user.uid;
+            // For managers: show all milestone actions from their department
+            if (forManager) {
+              return isMilestoneAction; // Managers see all milestone actions
+            } else {
+              return isMilestoneAction &&
+                  userId == user.uid; // Employees see only their own
+            }
           })
           .toList();
 
-      developer.log('Future query: Found ${audits.length} milestone audits');
+      developer.log(
+        'Future query: Found ${audits.length} milestone audits (forManager: $forManager)',
+      );
       return audits;
     } catch (e) {
       developer.log('Error in getMilestoneAudits: $e');
