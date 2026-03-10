@@ -27,7 +27,7 @@ import 'package:pdh/utils/debouncer.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 
-// ignore: deprecated_member_use
+// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'dart:html'
     as html; // Keep using dart:html for now until migration to package:web is complete
 
@@ -753,8 +753,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               final data = doc.data() as Map<String, dynamic>? ?? {};
               // Only process audit entries (not general audit trail entries)
               if ((data['goalId'] ?? '').toString().isEmpty) continue;
-              if (data.containsKey('action'))
+              if (data.containsKey('action')) {
                 continue; // Skip milestone audit entries
+              }
               try {
                 entries.add(AuditEntry.fromFirestore(doc));
               } catch (e) {
