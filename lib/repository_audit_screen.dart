@@ -41,6 +41,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   List<Map<String, dynamic>> _milestoneAudits = [];
   bool _isLoadingMilestones = false;
   bool _hasLoadedOnce = false; // Prevent repeated loading
+  bool _isManager = false; // Track current user role
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -122,7 +123,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     });
 
     try {
-      final audits = await UnifiedMilestoneAudit.getMilestoneAudits();
+      final audits = await UnifiedMilestoneAudit.getMilestoneAudits(
+        forManager: _isManager,
+      );
       setState(() {
         _milestoneAudits = audits;
         _isLoadingMilestones = false;
@@ -192,6 +195,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   final role =
                       roleSnapshot.data ?? RoleService.instance.cachedRole;
                   final isManager = role == 'manager';
+
+                  // Update state variable to track current role
+                  if (_isManager != isManager) {
+                    setState(() {
+                      _isManager = isManager;
+                    });
+                  }
+
                   return Column(
                     children: [
                       _buildRoleSummaryBar(isManager: isManager),
@@ -720,11 +731,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('audit_entries')
-            .snapshots()
-            .handleError((error) {
-              // Silently handle errors to prevent unmount errors
-              developer.log('Error in audit_entries stream: $error');
-            }),
+            .where(
+              'goalId',
+              isGreaterThan: '',
+            ) // Filter to only include entries with goalId
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             developer.log(
@@ -738,8 +749,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           if (snapshot.hasData) {
             for (final doc in snapshot.data!.docs) {
               final data = doc.data() as Map<String, dynamic>? ?? {};
+              // Only process audit entries (not general audit trail entries)
               if ((data['goalId'] ?? '').toString().isEmpty) continue;
-              if (data['action'] != null) continue;
+              if (data.containsKey('action'))
+                continue; // Skip milestone audit entries
               try {
                 entries.add(AuditEntry.fromFirestore(doc));
               } catch (e) {
@@ -764,7 +777,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     } else {
       // For employees, use goal audit tracking stream
       return StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _getGoalAuditStream(),
+        stream: _getGoalAuditStream().handleError((error) {
+          developer.log(
+            'Error in goal audit stream: $error',
+            name: 'RepositoryAuditScreen',
+          );
+          return <Map<String, dynamic>>[];
+        }),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             developer.log(
