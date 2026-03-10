@@ -820,7 +820,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     final total = m?.totalEmployees ?? employees.length;
     final active = m?.activeEmployees ??
         employees.where((e) => e.lastActivity.isAfter(sevenDaysAgo)).length;
-    final avgProgress = m?.avgTeamProgress ?? 0.0;
     final engagement = m?.teamEngagement ??
         (total > 0 ? (active / total) * 100.0 : 0.0);
     final overdue = m?.overdueGoals ?? 0;
@@ -842,9 +841,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              _kpi('Team size', total.toString()),
+              _kpiTap('Total', total.toString(), null),
               const SizedBox(width: 8),
-              _kpi('Avg progress', '${avgProgress.toStringAsFixed(0)}%'),
+              _kpiTap('Active (7d)', active.toString(), 'active7d'),
               const SizedBox(width: 8),
               _kpi('Engagement (7d)', '${engagement.toStringAsFixed(0)}%'),
             ],
@@ -1003,15 +1002,33 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       );
     }
 
+    final now = DateTime.now();
+    int onTrack = 0;
+    int atRisk = 0;
+    int overdue = employees.fold<int>(0, (acc, e) => acc + e.overdueGoalsCount);
+    for (final e in employees) {
+      for (final g in e.goals) {
+        if (g.status != GoalStatus.completed && g.targetDate.isAfter(now)) {
+          if (g.progress >= 30) {
+            onTrack++;
+          } else {
+            atRisk++;
+          }
+        }
+      }
+    }
+
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.bar_chart_rounded, color: AppColors.activeColor, size: 22),
+              _kpiTap('On Track', onTrack.toString(), 'onTrack'),
               const SizedBox(width: 8),
-              Text('Team progress comparison', style: AppTypography.heading2),
+              _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
+              const SizedBox(width: 8),
+              _kpiTap('Overdue', overdue.toString(), 'overdue'),
             ],
           ),
           const SizedBox(height: 6),
@@ -1249,27 +1266,106 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   }
 
   Widget _kpi(String label, String value) {
+    return Expanded(child: _kpiInner(label, value));
+  }
+
+  /// Tappable KPI that navigates to the team list with an optional status filter.
+  /// [filterKey] null = no drill-down; non-null = navigate to Review Team with that filter.
+  Widget _kpiTap(String label, String value, String? filterKey) {
+    final inner = _kpiInner(label, value);
+    if (filterKey == null) return Expanded(child: inner);
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          // Transparent black for KPI tiles to match card styling
-          color: Colors.black.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
-              ),
+      child: InkWell(
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            '/manager_review_team_dashboard',
+            arguments: <String, String>{'statusFilter': filterKey},
+          );
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: inner,
+      ),
+    );
+  }
+
+  Widget _kpiInner(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
             ),
-            const SizedBox(height: 4),
-            Text(label, style: AppTypography.muted),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: AppTypography.muted),
+        ],
+      ),
+    );
+  }
+
+  // ignore: unused_element
+  Widget _buildActivitySummary(List<EmployeeData> employees) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+    final activeToday = employees
+        .where((e) => e.lastActivity.isAfter(today))
+        .length;
+    final activeThisWeek = employees
+        .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+        .length;
+    final inactive = employees
+        .where((e) => e.status == EmployeeStatus.inactive)
+        .length;
+    final overdue = employees
+        .where((e) => e.status == EmployeeStatus.overdue)
+        .length;
+    final atRisk = employees
+        .where((e) => e.status == EmployeeStatus.atRisk)
+        .length;
+
+    return AppComponents.card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Activity Summary', style: AppTypography.heading2),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _kpiTap('Active Today', activeToday.toString(), 'activeToday'),
+              const SizedBox(width: 8),
+              _kpiTap('Active (7d)', activeThisWeek.toString(), 'active7d'),
+              const SizedBox(width: 8),
+              _kpiTap('Inactive', inactive.toString(), 'inactive'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _kpiTap('Overdue', overdue.toString(), 'overdue'),
+              const SizedBox(width: 8),
+              _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
+              const SizedBox(width: 8),
+              _kpiTap(
+                'On Track',
+                employees
+                    .where((e) => e.status == EmployeeStatus.onTrack)
+                    .length
+                    .toString(),
+                'onTrack',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

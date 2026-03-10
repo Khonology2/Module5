@@ -85,11 +85,6 @@ class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
           final testGoal = goals.first;
           _testResults.add('✅ Found goal: ${testGoal.title}');
 
-          // TODO: Implement audit stream when milestone audit service is available
-          // final auditStream = UnifiedMilestoneAudit.getMilestoneAuditStream(
-          //   testGoal.id,
-          // );
-
           _testResults.add('⚠️  Milestone audit service not yet implemented');
 
           setState(() {
@@ -129,9 +124,6 @@ class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
 
     try {
       _testResults.add('🔄 Starting backfill test...');
-
-      // TODO: Implement backfill when milestone audit service is available
-      // await UnifiedMilestoneAudit.backfillExistingMilestones();
 
       _testResults.add('⚠️  Milestone backfill service not yet implemented');
 
