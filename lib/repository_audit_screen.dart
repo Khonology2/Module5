@@ -2890,14 +2890,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           duration: Duration(seconds: 2),
         ),
       );
-
-      // TODO: Implement milestone backfill functionality
-      // This should:
-      // 1. Fetch all existing milestones from Firestore
-      // 2. Create audit entries for any milestones that don't have them
-      // 3. Store audit entries with proper metadata
-      // await AuditService.backfillExistingMilestones();
-
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -2918,12 +2911,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   Future<void> _exportMilestoneAudit() async {
     // Implementation for exporting milestone audit data
     try {
-      // TODO: Implement export functionality similar to existing export service
-      // This should:
-      // 1. Fetch milestone audit data from Firestore
-      // 2. Format data for CSV/PDF export
-      // 3. Use RepositoryExportService patterns for consistency
-      // 4. Support filtering by date, user, status
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Milestone audit export coming soon!')),
       );
