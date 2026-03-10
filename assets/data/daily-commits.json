@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.CB7.SIT",
-  "generated_at": "2026-03-10T10:45:37Z",
+  "version": "2026.03.CB6.SIT",
+  "generated_at": "2026-03-10T14:33:26Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -8,29 +8,24 @@
       "timestamp": "2026-02-24T06:19:19Z"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature - enhance employee data handling in ManagerAlertsNudgesScreen to prevent UI flashing by caching the last known-good employee list",
-      "timestamp": "2026-03-03T10:08:17+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - update nudge action to show dialog instead of sending directly, and remove placeholder method for sending nudges",
-      "timestamp": "2026-03-03T09:50:02+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Integrate ManagerRealtimeService to exclude deleted accounts from employee lists in ManagerTeamWorkspaceScreen and TeamManagementScreen",
-      "timestamp": "2026-03-03T09:31:00+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "chore: update Firebase project references to pdh-v2 and upgrade dependencies in pubspec.lock",
-      "timestamp": "2026-03-04T10:05:44+02:00"
+      "author": "BhutSipho",
+      "message": "Fix milestone audit trail UI - connect Repository Audit screen to milestone audit stream and add MilestoneAuditScreen route",
+      "timestamp": "2026-03-03T15:38:04+02:00"
     },
     {
       "author": "BhutSipho",
-      "message": "Fix manager milestone audit trail visibility",
-      "timestamp": "2026-03-10T12:43:56+02:00"
+      "message": "Merge Nathi-S11 with correct Firebase API keys and user creation permissions",
+      "timestamp": "2026-03-03T12:13:31+02:00"
+    },
+    {
+      "author": "Nathi2266",
+      "message": "feat: implement multiple admin screens including dashboard, inbox, leaderboard, oversight, and repository audit; enhance navigation and user experience",
+      "timestamp": "2026-03-10T15:55:08+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Enhance team progress visuals by adding fallback trend generation, current period calculations.",
+      "timestamp": "2026-03-10T11:52:29+02:00"
     },
     {
       "author": "BhutSipho",
@@ -38,6 +33,6 @@
       "timestamp": "2026-03-10T08:00:39+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 6,
   "date_range": "2026-03-10"
 }
