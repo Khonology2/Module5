@@ -2,7 +2,7 @@
 
 import 'dart:developer' as developer;
 import 'dart:convert' as convert;
-import 'dart:html' as html;
+import 'dart:async'; // Add Timer import
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -25,6 +25,10 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:pdh/utils/debouncer.dart';
 
+// ignore: deprecated_member_use
+import 'dart:html'
+    as html; // Keep using dart:html for now until migration to package:web is complete
+
 class RepositoryAuditScreen extends StatefulWidget {
   const RepositoryAuditScreen({super.key});
 
@@ -33,6 +37,11 @@ class RepositoryAuditScreen extends StatefulWidget {
 }
 
 class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
+  // Add state for milestone audits with caching
+  List<Map<String, dynamic>> _milestoneAudits = [];
+  bool _isLoadingMilestones = false;
+  bool _hasLoadedOnce = false; // Prevent repeated loading
+
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String? _statusFilter;
@@ -41,6 +50,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   @override
   void initState() {
     super.initState();
+    _loadMilestoneAuditsOnce();
     // Initialize debouncer for search queries
     _searchDebouncer = ValueDebouncer<String>(
       delay: const Duration(milliseconds: 500),
@@ -102,6 +112,40 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         name: 'RepositoryAuditScreen',
       );
     }
+  }
+
+  Future<void> _loadMilestoneAuditsOnce() async {
+    if (_hasLoadedOnce) return; // Prevent repeated loading
+
+    setState(() {
+      _isLoadingMilestones = true;
+    });
+
+    try {
+      final audits = await UnifiedMilestoneAudit.getMilestoneAudits();
+      setState(() {
+        _milestoneAudits = audits;
+        _isLoadingMilestones = false;
+        _hasLoadedOnce = true;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingMilestones = false;
+        _hasLoadedOnce = true;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading milestone audits: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _refreshMilestoneAudits() async {
+    setState(() {
+      _hasLoadedOnce = false; // Allow refresh
+    });
+    await _loadMilestoneAuditsOnce();
   }
 
   @override
@@ -706,16 +750,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
           final stats = <String, int>{
             'total': entries.length,
-            'verified': entries.where((e) => e.status == 'verified').length,
+            'created': entries
+                .length, // All entries in audit_entries are created/submitted goals
             'pending': entries.where((e) => e.status == 'pending').length,
+            'approved': entries.where((e) => e.status == 'verified').length,
             'rejected': entries.where((e) => e.status == 'rejected').length,
+            'verified': entries.where((e) => e.status == 'verified').length,
           };
 
           return _buildStatsContainer(stats, isManager: true);
         },
       );
     } else {
-      // For employees, use the new goal audit tracking stream
+      // For employees, use goal audit tracking stream
       return StreamBuilder<List<Map<String, dynamic>>>(
         stream: _getGoalAuditStream(),
         builder: (context, snapshot) {
@@ -724,6 +771,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               'Error in goal audit stream: ${snapshot.error}',
               name: 'RepositoryAuditScreen',
             );
+            return _buildStatsContainer(emptyStats, isManager: false);
+          }
+
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return _buildStatsContainer(emptyStats, isManager: false);
           }
 
@@ -782,27 +834,71 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _buildStatusChip('Created', stats['created'] ?? 0, Colors.blue),
+              _buildStatusChip(
+                'Created',
+                stats['created'] ?? 0,
+                Colors.blue,
+                isManager: isManager,
+              ),
               _buildStatusChip(
                 'Pending',
                 stats['pending'] ?? 0,
                 AppColors.warningColor,
+                isManager: isManager,
               ),
               _buildStatusChip(
                 'Approved',
                 stats['approved'] ?? 0,
                 Colors.green,
+                isManager: isManager,
               ),
               _buildStatusChip(
                 'Rejected',
                 stats['rejected'] ?? 0,
                 AppColors.dangerColor,
+                isManager: isManager,
               ),
               _buildStatusChip(
                 'Verified',
                 stats['verified'] ?? 0,
                 AppColors.successColor,
+                isManager: isManager,
               ),
+              if (_statusFilter != null) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _statusFilter = null;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerColor,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.clear, size: 16, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Clear Filter',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ],
@@ -810,32 +906,64 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  Widget _buildStatusChip(String label, int count, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  Widget _buildStatusChip(
+    String label,
+    int count,
+    Color color, {
+    bool isManager = false,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          // Toggle filter: if same filter selected, clear it; otherwise set new filter
+          if (_statusFilter == label.toLowerCase()) {
+            _statusFilter = null;
+          } else {
+            _statusFilter = label.toLowerCase();
+          }
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: _statusFilter == label.toLowerCase()
+              ? color
+              : color.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _statusFilter == label.toLowerCase()
+                ? color
+                : color.withValues(alpha: 0.5),
+            width: _statusFilter == label.toLowerCase() ? 2 : 1,
           ),
-          const SizedBox(width: 6),
-          Text(
-            '$label $count',
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Text(
+              '$label $count',
+              style: TextStyle(
+                color: _statusFilter == label.toLowerCase()
+                    ? Colors.white
+                    : color,
+                fontWeight: _statusFilter == label.toLowerCase()
+                    ? FontWeight.bold
+                    : FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+            if (_statusFilter == label.toLowerCase()) ...[
+              const SizedBox(width: 4),
+              Icon(Icons.close, size: 14, color: Colors.white),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -2757,117 +2885,133 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 color: AppColors.textPrimary,
               ),
             ),
-            IconButton(
-              tooltip: 'Backfill Existing Milestones',
-              onPressed: _backfillMilestoneAudit,
-              icon: const Icon(Icons.history_rounded),
-              color: Colors.purple,
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Backfill Existing Milestones',
+                  onPressed: _backfillMilestoneAudit,
+                  icon: const Icon(Icons.history_rounded),
+                  color: Colors.purple,
+                ),
+                IconButton(
+                  tooltip: 'Refresh Milestone Audit',
+                  onPressed: _refreshMilestoneAudits,
+                  icon: const Icon(Icons.refresh_rounded),
+                  color: AppColors.activeColor,
+                ),
+              ],
             ),
           ],
         ),
         const SizedBox(height: 16),
-        StreamBuilder<List<Map<String, dynamic>>>(
-          stream: UnifiedMilestoneAudit.getAllMilestoneAuditStream(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(color: AppColors.activeColor),
-              );
-            }
-
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  'Error loading milestone audit: ${snapshot.error}',
+        if (_isLoadingMilestones)
+          const Center(
+            child: CircularProgressIndicator(color: AppColors.activeColor),
+          )
+        else if (_milestoneAudits.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.history, size: 48, color: AppColors.textSecondary),
+                const SizedBox(height: 16),
+                Text(
+                  'No milestone audit history available',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.dangerColor,
+                    color: AppColors.textSecondary,
                   ),
                 ),
-              );
-            }
-
-            final audits = snapshot.data ?? [];
-            if (audits.isEmpty) {
-              return Container(
-                padding: const EdgeInsets.all(24),
+                const SizedBox(height: 8),
+                Text(
+                  'Using Unified Audit System',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.activeColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.activeColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: AppColors.activeColor,
+                        size: 20,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Milestone audit entries will appear here once you create or update milestones.',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.activeColor,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          Column(
+            children: [
+              // Summary section
+              Container(
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.4),
+                  color: AppColors.activeColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: AppColors.activeColor.withValues(alpha: 0.3),
                   ),
                 ),
-                child: Column(
+                child: Row(
                   children: [
                     Icon(
-                      Icons.history,
-                      size: 48,
-                      color: AppColors.textSecondary,
+                      Icons.analytics_outlined,
+                      color: AppColors.activeColor,
+                      size: 20,
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No milestone audit history available',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Using Unified Audit System',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.activeColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: AppColors.activeColor.withValues(alpha: 0.3),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Showing ${_milestoneAudits.length} milestone audit entries',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.activeColor,
+                          fontWeight: FontWeight.w600,
                         ),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'How to create milestones:',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.activeColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '1. Create a goal and get it approved\n'
-                            '2. Open goal details and add milestones\n'
-                            '3. Update milestone status to track progress\n'
-                            '4. All milestone actions will appear here',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ],
                 ),
-              );
-            }
-
-            return ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: audits.length,
-              separatorBuilder: (_, _) =>
-                  const Divider(color: AppColors.borderColor),
-              itemBuilder: (context, index) {
-                final audit = audits[index];
-                return _buildUnifiedMilestoneAuditCard(audit);
-              },
-            );
-          },
-        ),
+              ),
+              const SizedBox(height: 16),
+              // Audit list
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _milestoneAudits.length,
+                separatorBuilder: (_, _) =>
+                    const Divider(color: AppColors.borderColor),
+                itemBuilder: (context, index) {
+                  final audit = _milestoneAudits[index];
+                  return _buildUnifiedMilestoneAuditCard(audit);
+                },
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -3114,6 +3258,8 @@ class ProfessionalMilestoneAuditCardState
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   late AnimationController _animationController;
+  String? _currentMilestoneStatus; // Store current milestone status
+  Timer? _statusRefreshTimer; // Timer for periodic status updates
 
   @override
   void initState() {
@@ -3122,11 +3268,58 @@ class ProfessionalMilestoneAuditCardState
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
+    _fetchCurrentMilestoneStatus();
+    _startPeriodicStatusRefresh();
+  }
+
+  // Start periodic status refresh for real-time tracking
+  void _startPeriodicStatusRefresh() {
+    _statusRefreshTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (mounted) {
+        _fetchCurrentMilestoneStatus();
+      }
+    });
+  }
+
+  // Fetch the actual current milestone status from Firestore
+  Future<void> _fetchCurrentMilestoneStatus() async {
+    try {
+      final metadata = widget.entry['metadata'] as Map<String, dynamic>? ?? {};
+      final milestoneId = metadata['milestoneId'] as String?;
+      final goalId =
+          metadata['goalId'] as String? ?? widget.entry['goalId'] as String?;
+
+      if (milestoneId != null && goalId != null) {
+        final milestoneDoc = await FirebaseFirestore.instance
+            .collection('goals')
+            .doc(goalId)
+            .collection('milestones')
+            .doc(milestoneId)
+            .get();
+
+        if (milestoneDoc.exists) {
+          final milestoneData = milestoneDoc.data() ?? {};
+          final status = milestoneData['status'] as String?;
+
+          if (mounted && status != null && status != _currentMilestoneStatus) {
+            setState(() {
+              _currentMilestoneStatus = status;
+            });
+            developer.log(
+              ' Real-time status updated: $status for milestone $milestoneId',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      developer.log(' Error fetching milestone status: $e');
+    }
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _statusRefreshTimer?.cancel(); // Cancel the timer
     super.dispose();
   }
 
@@ -3226,7 +3419,7 @@ class ProfessionalMilestoneAuditCardState
                             ),
                             const SizedBox(width: 8),
                             // Status Badge in collapsed view
-                            _buildCompactStatusBadge(action),
+                            _buildCompactStatusBadge(action, metadata),
                           ],
                         ),
                       ],
@@ -3434,28 +3627,149 @@ class ProfessionalMilestoneAuditCardState
     );
   }
 
-  Widget _buildCompactStatusBadge(String action) {
+  Widget _buildCompactStatusBadge(
+    String action,
+    Map<String, dynamic> metadata,
+  ) {
     String status = 'Unknown';
     Color statusColor = AppColors.textSecondary;
 
-    if (action.contains('pending_review')) {
-      status = 'Pending';
-      statusColor = AppColors.warningColor;
-    } else if (action.contains('acknowledged')) {
-      status = 'Acknowledged';
-      statusColor = AppColors.successColor;
-    } else if (action.contains('rejected')) {
-      status = 'Rejected';
-      statusColor = AppColors.dangerColor;
-    } else if (action.contains('dismissed')) {
-      status = 'Dismissed';
-      statusColor = AppColors.textMuted;
-    } else if (action.contains('created')) {
-      status = 'Created';
-      statusColor = AppColors.infoColor;
-    } else if (action.contains('updated')) {
-      status = 'Updated';
-      statusColor = AppColors.warningColor;
+    // Use the fetched current milestone status first (most accurate)
+    if (_currentMilestoneStatus != null) {
+      switch (_currentMilestoneStatus!) {
+        case 'NotStarted':
+          status = 'Not Started';
+          statusColor = AppColors.textMuted;
+          break;
+        case 'InProgress':
+          status = 'In Progress';
+          statusColor = AppColors.activeColor;
+          break;
+        case 'PendingReview':
+        case 'pendingManagerReview':
+          status = 'Pending Review';
+          statusColor = AppColors.warningColor;
+          break;
+        case 'Completed':
+          status = 'Completed';
+          statusColor = AppColors.successColor;
+          break;
+        case 'CompletedAcknowledged':
+          status = 'Acknowledged';
+          statusColor = AppColors.successColor;
+          break;
+        case 'Blocked':
+          status = 'Blocked';
+          statusColor = AppColors.dangerColor;
+          break;
+        default:
+          // Use metadata status as fallback
+          final newStatus = metadata['newStatus'] as String?;
+          final currentStatus = metadata['status'] as String?;
+          final milestoneStatus = newStatus ?? currentStatus;
+
+          if (milestoneStatus != null) {
+            switch (milestoneStatus) {
+              case 'NotStarted':
+                status = 'Not Started';
+                statusColor = AppColors.textMuted;
+                break;
+              case 'InProgress':
+                status = 'In Progress';
+                statusColor = AppColors.activeColor;
+                break;
+              case 'PendingReview':
+              case 'pendingManagerReview':
+                status = 'Pending Review';
+                statusColor = AppColors.warningColor;
+                break;
+              case 'Completed':
+                status = 'Completed';
+                statusColor = AppColors.successColor;
+                break;
+              case 'CompletedAcknowledged':
+                status = 'Acknowledged';
+                statusColor = AppColors.successColor;
+                break;
+              case 'Blocked':
+                status = 'Blocked';
+                statusColor = AppColors.dangerColor;
+                break;
+            }
+          }
+          break;
+      }
+    } else {
+      // Fallback to metadata when current status not yet fetched
+      final newStatus = metadata['newStatus'] as String?;
+      final currentStatus = metadata['status'] as String?;
+      final milestoneStatus = newStatus ?? currentStatus;
+
+      if (milestoneStatus != null) {
+        switch (milestoneStatus) {
+          case 'NotStarted':
+            status = 'Not Started';
+            statusColor = AppColors.textMuted;
+            break;
+          case 'InProgress':
+            status = 'In Progress';
+            statusColor = AppColors.activeColor;
+            break;
+          case 'PendingReview':
+          case 'pendingManagerReview':
+            status = 'Pending Review';
+            statusColor = AppColors.warningColor;
+            break;
+          case 'Completed':
+            status = 'Completed';
+            statusColor = AppColors.successColor;
+            break;
+          case 'CompletedAcknowledged':
+            status = 'Acknowledged';
+            statusColor = AppColors.successColor;
+            break;
+          case 'Blocked':
+            status = 'Blocked';
+            statusColor = AppColors.dangerColor;
+            break;
+          default:
+            // Final fallback to action-based status
+            if (action.contains('acknowledged')) {
+              status = 'Acknowledged';
+              statusColor = AppColors.successColor;
+            } else if (action.contains('rejected')) {
+              status = 'Rejected';
+              statusColor = AppColors.dangerColor;
+            } else if (action.contains('created')) {
+              status = 'Created';
+              statusColor = AppColors.infoColor;
+            } else if (action.contains('updated')) {
+              status = 'Updated';
+              statusColor = AppColors.warningColor;
+            } else {
+              status = 'Unknown';
+              statusColor = AppColors.textSecondary;
+            }
+        }
+      } else {
+        // Final fallback to action-based status
+        if (action.contains('acknowledged')) {
+          status = 'Acknowledged';
+          statusColor = AppColors.successColor;
+        } else if (action.contains('rejected')) {
+          status = 'Rejected';
+          statusColor = AppColors.dangerColor;
+        } else if (action.contains('created')) {
+          status = 'Created';
+          statusColor = AppColors.infoColor;
+        } else if (action.contains('updated')) {
+          status = 'Updated';
+          statusColor = AppColors.warningColor;
+        } else {
+          status = 'Unknown';
+          statusColor = AppColors.textSecondary;
+        }
+      }
     }
 
     return Container(
@@ -3508,6 +3822,90 @@ class ProfessionalMilestoneAuditCardState
     );
   }
 
+  // Helper method to get status from metadata (fallback)
+  Map<String, String> _getMetadataStatus(
+    String action,
+    Map<String, dynamic> metadata,
+  ) {
+    String status = 'Unknown';
+    Color statusColor = AppColors.textSecondary;
+
+    // Get the actual milestone status from metadata if available
+    final newStatus = metadata['newStatus'] as String?;
+    final currentStatus = metadata['status'] as String?;
+
+    // Use the actual milestone status, not just the action type
+    final milestoneStatus = newStatus ?? currentStatus;
+
+    if (milestoneStatus != null) {
+      switch (milestoneStatus) {
+        case 'NotStarted':
+          status = 'Not Started';
+          statusColor = AppColors.textMuted;
+          break;
+        case 'InProgress':
+          status = 'In Progress';
+          statusColor = AppColors.activeColor;
+          break;
+        case 'PendingReview':
+        case 'pendingManagerReview':
+          status = 'Pending Review';
+          statusColor = AppColors.warningColor;
+          break;
+        case 'Completed':
+          status = 'Completed';
+          statusColor = AppColors.successColor;
+          break;
+        case 'CompletedAcknowledged':
+          status = 'Acknowledged';
+          statusColor = AppColors.successColor;
+          break;
+        case 'Blocked':
+          status = 'Blocked';
+          statusColor = AppColors.dangerColor;
+          break;
+        default:
+          // Fallback to action-based status if no milestone status
+          if (action.contains('acknowledged')) {
+            status = 'Acknowledged';
+            statusColor = AppColors.successColor;
+          } else if (action.contains('rejected')) {
+            status = 'Rejected';
+            statusColor = AppColors.dangerColor;
+          } else if (action.contains('created')) {
+            status = 'Created';
+            statusColor = AppColors.infoColor;
+          } else if (action.contains('updated')) {
+            status = 'Updated';
+            statusColor = AppColors.warningColor;
+          } else {
+            status = 'Unknown';
+            statusColor = AppColors.textSecondary;
+          }
+      }
+    } else {
+      // Fallback to action-based status if no metadata
+      if (action.contains('acknowledged')) {
+        status = 'Acknowledged';
+        statusColor = AppColors.successColor;
+      } else if (action.contains('rejected')) {
+        status = 'Rejected';
+        statusColor = AppColors.dangerColor;
+      } else if (action.contains('created')) {
+        status = 'Created';
+        statusColor = AppColors.infoColor;
+      } else if (action.contains('updated')) {
+        status = 'Updated';
+        statusColor = AppColors.warningColor;
+      } else {
+        status = 'Unknown';
+        statusColor = AppColors.textSecondary;
+      }
+    }
+
+    return {'status': status, 'color': statusColor.toString()};
+  }
+
   Map<String, dynamic> _getActionInfo(String action) {
     switch (action) {
       case 'milestone_created':
@@ -3521,6 +3919,12 @@ class ProfessionalMilestoneAuditCardState
           'title': 'Milestone Updated',
           'icon': Icons.edit,
           'color': AppColors.warningColor,
+        };
+      case 'milestone_status_changed':
+        return {
+          'title': 'Status Changed',
+          'icon': Icons.sync,
+          'color': AppColors.infoColor,
         };
       case 'milestone_pending_review':
         return {
