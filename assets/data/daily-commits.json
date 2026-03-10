@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.BE8.SIT",
-  "generated_at": "2026-03-06T07:00:43Z",
+  "version": "2026.03.BE9.SIT",
+  "generated_at": "2026-03-06T07:34:06Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -29,6 +29,11 @@
     },
     {
       "author": "BhutSipho",
+      "message": "Fix Firestore internal assertion errors in milestone audit streams",
+      "timestamp": "2026-03-06T09:32:05+02:00"
+    },
+    {
+      "author": "BhutSipho",
       "message": "Fix BuildContext async gaps warnings",
       "timestamp": "2026-03-06T08:59:17+02:00"
     },
@@ -43,6 +48,6 @@
       "timestamp": "2026-03-06T07:55:29+02:00"
     }
   ],
-  "total_commits": 8,
+  "total_commits": 9,
   "date_range": "2026-03-06"
 }
