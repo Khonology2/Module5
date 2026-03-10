@@ -1162,12 +1162,13 @@ class DatabaseService {
         if (description != null) changes['description'] = description;
         if (dueDate != null) changes['dueDate'] = dueDate.toString();
 
-        await UnifiedMilestoneAudit.logMilestoneUpdated(
+        await UnifiedMilestoneAudit.logMilestoneStatusChanged(
           goalId: goalId,
           milestoneId: milestone.id,
           milestoneTitle: milestone.title,
           goalTitle: goalTitle,
-          changes: changes,
+          oldStatus: previousStatus?.name ?? 'NotStarted',
+          newStatus: status?.name ?? 'NotStarted',
         );
       }
 
