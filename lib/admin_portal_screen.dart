@@ -6,6 +6,13 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/sign_in_screen.dart';
+import 'package:pdh/admin_profile_screen.dart';
+import 'package:pdh/admin_dashboard_screen.dart';
+import 'package:pdh/admin_manager_oversight_screen.dart';
+import 'package:pdh/admin_inbox_screen.dart';
+import 'package:pdh/admin_leaderboard_screen.dart';
+import 'package:pdh/admin_repository_audit_screen.dart';
+import 'package:pdh/settings_screen.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -19,7 +26,31 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   bool _didInitFromArgs = false;
 
   Widget _getBodyWidget() {
-    // All admin routes show a placeholder until real screens are built
+    if (_currentRoute == '/admin_dashboard') {
+      return AdminDashboardScreen(
+        embedded: true,
+        onNavigate: _onNavigate,
+      );
+    }
+    if (_currentRoute == '/admin_profile') {
+      return const AdminProfileScreen(embedded: true);
+    }
+    if (_currentRoute == '/manager_oversight') {
+      return const AdminManagerOversightScreen(embedded: true);
+    }
+    if (_currentRoute == '/admin_inbox') {
+      return const AdminInboxScreen(embedded: true);
+    }
+    if (_currentRoute == '/org_leaderboard') {
+      return const AdminLeaderboardScreen(embedded: true);
+    }
+    if (_currentRoute == '/admin_repository_audit') {
+      return const AdminRepositoryAuditScreen(embedded: true);
+    }
+    if (_currentRoute == '/admin_settings') {
+      return const SettingsScreen();
+    }
+    // Analytics, Team Challenge, etc. show placeholder until built
     final matching =
         SidebarConfig.adminItems.where((e) => e.route == _currentRoute);
     final label =
@@ -95,7 +126,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const NotificationsBell(),
+                NotificationsBell(onTap: () => _onNavigate('/admin_inbox')),
                 const SizedBox(width: 8),
                 _buildProfileButton(context),
               ],

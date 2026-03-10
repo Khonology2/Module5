@@ -177,70 +177,51 @@ class SidebarConfig {
   ]);
 
   // ===== ADMIN SIDEBAR ITEMS =====
+  // Icons/assets aligned with manager sidebar by item name (Dashboard, Progress Visuals, Goal Workspace, Team Challenges, Leaderboard, Repository & Audit, My Profile, Settings & Privacy).
   static List<SidebarItem> get adminItems => List.unmodifiable([
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Dashboard_White.png',
       red: 'assets/Khonodemy Icons/Dashboard_Red.png',
-      label: 'Admin Dashboard',
+      label: 'Dashboard',
       route: '/admin_dashboard',
     ),
-    SidebarItem(
-      icon: Icons.supervisor_account,
-      label: 'Manager Oversight',
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
+      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+      label: 'Progress & Visuals',
       route: '/manager_oversight',
     ),
-    SidebarItem(
-      icon: Icons.analytics_outlined,
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
+      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
       label: 'System Analytics',
       route: '/analytics',
     ),
     SidebarItem(
-      icon: Icons.flag_outlined,
-      label: 'Goal & Content Oversight',
-      route: '/goal_oversight',
+      icon: Icons.inbox_outlined,
+      label: 'Inbox',
+      route: '/admin_inbox',
     ),
     SidebarItem(
-      icon: Icons.emoji_events_outlined,
-      label: 'Team Challenge Admin',
+      icon: Icons.emoji_events,
+      label: 'Team Challenge',
       route: '/team_challenge_admin',
-    ),
-    SidebarItem(
-      icon: Icons.psychology_outlined,
-      label: 'AI Insights & Analytics',
-      route: '/ai_insights',
-    ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Settings_White.png',
-      red: 'assets/Khonodemy Icons/Settings_Red.png',
-      label: 'System Settings',
-      route: '/system_settings',
-    ),
-    SidebarItem(
-      icon: Icons.verified_user_outlined,
-      label: 'Compliance & Audit',
-      route: '/compliance_audit',
-    ),
-    SidebarItem(
-      icon: Icons.backup,
-      label: 'Backup & Restore',
-      route: '/backup_restore',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
       red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
-      label: 'Organization Leaderboard',
+      label: 'Leaderboard',
       route: '/org_leaderboard',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
       red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
-      label: 'Repository & Audit (Admin View)',
+      label: 'Repository & Audit',
       route: '/admin_repository_audit',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Profile_White.png',
-      red: 'assets/Khonodemy Icons/Profile_Red.png',
-      label: 'Admin Profile',
+    SidebarItem(
+      icon: Icons.manage_accounts,
+      label: 'Profile',
       route: '/admin_profile',
     ),
     itemWithAssets(
@@ -270,12 +251,8 @@ class SidebarConfig {
     '/admin_dashboard',
     '/manager_oversight',
     '/analytics',
-    '/goal_oversight',
+    '/admin_inbox',
     '/team_challenge_admin',
-    '/ai_insights',
-    '/system_settings',
-    '/compliance_audit',
-    '/backup_restore',
     '/org_leaderboard',
     '/admin_repository_audit',
     '/admin_profile',
