@@ -23,6 +23,7 @@ import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/manager_leaderboard_screen.dart';
 import 'package:pdh/employee_dashboard_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
+import 'package:pdh/admin_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/manager_alerts_nudges_screen.dart';
 import 'package:pdh/manager_inbox_screen.dart';
@@ -404,6 +405,10 @@ class _MyAppState extends State<MyApp> {
                 '/manager_portal': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
                   child: const ManagerPortalScreen(),
+                ),
+                '/admin_portal': (context) => RoleGate(
+                  requiredRole: RequiredRole.admin,
+                  child: const AdminPortalScreen(),
                 ),
                 '/dashboard': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
