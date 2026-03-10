@@ -178,27 +178,76 @@ class SidebarConfig {
 
   // ===== ADMIN SIDEBAR ITEMS =====
   static List<SidebarItem> get adminItems => List.unmodifiable([
-    SidebarItem(
-      icon: Icons.admin_panel_settings,
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Dashboard_White.png',
+      red: 'assets/Khonodemy Icons/Dashboard_Red.png',
       label: 'Admin Dashboard',
       route: '/admin_dashboard',
     ),
     SidebarItem(
-      icon: Icons.people,
-      label: 'User Management',
-      route: '/user_management',
+      icon: Icons.supervisor_account,
+      label: 'Manager Oversight',
+      route: '/manager_oversight',
     ),
-    SidebarItem(icon: Icons.analytics, label: 'Analytics', route: '/analytics'),
     SidebarItem(
-      icon: Icons.settings,
+      icon: Icons.analytics_outlined,
+      label: 'System Analytics',
+      route: '/analytics',
+    ),
+    SidebarItem(
+      icon: Icons.flag_outlined,
+      label: 'Goal & Content Oversight',
+      route: '/goal_oversight',
+    ),
+    SidebarItem(
+      icon: Icons.emoji_events_outlined,
+      label: 'Team Challenge Admin',
+      route: '/team_challenge_admin',
+    ),
+    SidebarItem(
+      icon: Icons.psychology_outlined,
+      label: 'AI Insights & Analytics',
+      route: '/ai_insights',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Settings_White.png',
+      red: 'assets/Khonodemy Icons/Settings_Red.png',
       label: 'System Settings',
       route: '/system_settings',
     ),
-    SidebarItem(icon: Icons.security, label: 'Security', route: '/security'),
+    SidebarItem(
+      icon: Icons.verified_user_outlined,
+      label: 'Compliance & Audit',
+      route: '/compliance_audit',
+    ),
     SidebarItem(
       icon: Icons.backup,
       label: 'Backup & Restore',
-      route: '/backup',
+      route: '/backup_restore',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
+      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+      label: 'Organization Leaderboard',
+      route: '/org_leaderboard',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
+      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
+      label: 'Repository & Audit (Admin View)',
+      route: '/admin_repository_audit',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Profile_White.png',
+      red: 'assets/Khonodemy Icons/Profile_Red.png',
+      label: 'Admin Profile',
+      route: '/admin_profile',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Settings_White.png',
+      red: 'assets/Khonodemy Icons/Settings_Red.png',
+      label: 'Settings & Privacy',
+      route: '/admin_settings',
     ),
   ]);
 
@@ -216,14 +265,31 @@ class SidebarConfig {
     }
   }
 
+  /// Admin route paths (used for getItemsForRoute; excludes /manager* used by manager).
+  static const Set<String> _adminRoutes = {
+    '/admin_dashboard',
+    '/manager_oversight',
+    '/analytics',
+    '/goal_oversight',
+    '/team_challenge_admin',
+    '/ai_insights',
+    '/system_settings',
+    '/compliance_audit',
+    '/backup_restore',
+    '/org_leaderboard',
+    '/admin_repository_audit',
+    '/admin_profile',
+    '/admin_settings',
+  };
+
   static List<SidebarItem> getItemsForRoute(String route) {
+    if (_adminRoutes.contains(route)) {
+      return adminItems;
+    }
     if (route.startsWith('/manager') || route.startsWith('/dashboard')) {
       return managerItems;
-    } else if (route.startsWith('/admin')) {
-      return adminItems;
-    } else {
-      return employeeItems;
     }
+    return employeeItems;
   }
 
   static bool isRouteValidForRole(String route, String role) {
