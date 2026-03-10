@@ -12,7 +12,7 @@ class RoleService {
   RoleService._internal();
   static final RoleService instance = RoleService._internal();
 
-  String? _cachedRole; // 'manager' | 'employee'
+  String? _cachedRole; // 'manager' | 'employee' | 'admin'
   Stream<String?>? _roleBroadcast;
   String? _currentUserId; // Track which user the stream is for
   String? _onboardingInferAttemptedUserId;
@@ -292,11 +292,12 @@ String? _normalizeRole(String? role) {
   if (r.isEmpty) return null;
   final lower = r.toLowerCase();
   if (lower.contains('staff')) return 'employee';
+  if (lower.contains('admin')) return 'admin';
   if (lower.contains('manager')) return 'manager';
-  if (lower.contains('admin')) return 'manager';
   if (lower.contains('employee')) return 'employee';
   if (lower == 'mgr') return 'manager';
   if (lower == 'emp') return 'employee';
+  if (lower == 'adm') return 'admin';
   return r;
 }
 
@@ -617,7 +618,7 @@ class _Unauthorized extends StatelessWidget {
                   if (role == 'manager') {
                     Navigator.pushReplacementNamed(context, '/manager_portal');
                   } else if (role == 'admin') {
-                    Navigator.pushReplacementNamed(context, '/admin_portal');
+                    Navigator.pushReplacementNamed(context, '/admin_dashboard');
                   } else {
                     Navigator.pushReplacementNamed(context, '/employee_portal');
                   }

@@ -281,25 +281,31 @@ class _PersonalDevelopmentHubScreenState
         'Landing screen: Token format valid - 3 parts with lengths: ${tokenParts.map((p) => p.length).join(", ")}',
       );
 
-      // Extract PDH role from roles list
+      // Extract PDH role from roles list (backend returns e.g. PDH - Employee, PDH - Manager, PDH - Admin)
       String? pdhRole;
       if (roles != null && roles.isNotEmpty) {
         bool hasEmployeeOrStaff = false;
-        bool hasAdminOrManager = false;
+        bool hasAdmin = false;
+        bool hasManager = false;
         for (final role in roles) {
           final s = role.toString().toLowerCase();
           if (s.contains('employee') || s.contains('staff')) {
             hasEmployeeOrStaff = true;
           }
-          if (s.contains('admin') || s.contains('manager')) {
-            hasAdminOrManager = true;
+          if (s.contains('admin')) {
+            hasAdmin = true;
+          }
+          if (s.contains('manager')) {
+            hasManager = true;
           }
         }
-        // Prioritize Employee/Staff over Admin/Manager if both are present
+        // Prioritize: Employee/Staff > Admin > Manager
         if (hasEmployeeOrStaff) {
           pdhRole = 'PDH - Employee';
-        } else if (hasAdminOrManager) {
+        } else if (hasAdmin) {
           pdhRole = 'PDH - Admin';
+        } else if (hasManager) {
+          pdhRole = 'PDH - Manager';
         }
       }
 
@@ -330,8 +336,10 @@ class _PersonalDevelopmentHubScreenState
           String internalRole;
           if (pdhRole == 'PDH - Employee') {
             internalRole = 'employee';
+          } else if (pdhRole == 'PDH - Admin') {
+            internalRole = 'admin';
           } else {
-            internalRole = 'manager'; // Admin uses manager role internally
+            internalRole = 'manager';
           }
 
           // Brief delay so Firestore client picks up the new auth token (avoids permission-denied race)
@@ -483,6 +491,17 @@ class _PersonalDevelopmentHubScreenState
               (e) => debugPrint('Landing screen: Navigation error: $e'),
             );
       } else if (pdhRole == 'PDH - Admin') {
+        debugPrint('Landing screen: Navigating to admin dashboard...');
+        Navigator.pushReplacementNamed(context, '/admin_dashboard')
+            .then(
+              (_) => debugPrint(
+                'Landing screen: Navigation to admin dashboard completed',
+              ),
+            )
+            .catchError(
+              (e) => debugPrint('Landing screen: Navigation error: $e'),
+            );
+      } else if (pdhRole == 'PDH - Manager') {
         debugPrint('Landing screen: Navigating to manager dashboard...');
         Navigator.pushReplacementNamed(context, '/manager_dashboard')
             .then(

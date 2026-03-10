@@ -277,7 +277,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         // Tutorial will start automatically when dashboard loads
         Navigator.pushReplacementNamed(context, '/employee_dashboard');
       } else if (currentRole == 'admin') {
-        Navigator.pushReplacementNamed(context, '/admin_portal');
+        Navigator.pushReplacementNamed(context, '/admin_dashboard');
       } else {
         // Unknown role or no role selected, redirect to sign in as fallback
         Navigator.pushReplacementNamed(

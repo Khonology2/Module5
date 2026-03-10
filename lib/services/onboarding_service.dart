@@ -38,6 +38,8 @@ class OnboardingService {
                 return 'employee';
               } else if (personaLower == 'manager') {
                 return 'manager';
+              } else if (personaLower == 'admin') {
+                return 'admin';
               }
             }
           }

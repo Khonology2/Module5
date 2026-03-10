@@ -74,7 +74,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             if (role == 'manager') {
               targetRoute = '/manager_portal';
             } else if (role == 'admin') {
-              targetRoute = '/admin_portal';
+              targetRoute = '/admin_dashboard';
             } else {
               targetRoute = '/employee_dashboard';
             }

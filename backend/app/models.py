@@ -65,7 +65,7 @@ class AuthCallbackRequest(BaseModel):
     )
     role: Optional[str] = Field(
         None,
-        description="User role (PDH - Employee or PDH - Admin)",
+        description="User role (PDH - Employee, PDH - Manager, or PDH - Admin)",
         example="PDH - Employee"
     )
     authenticated: bool = Field(

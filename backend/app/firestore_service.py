@@ -204,7 +204,7 @@ def get_user_roles_from_onboarding(onboarding_data: Dict[str, Any]) -> List[str]
     # Split by comma if multiple roles are present
     roles = [role.strip() for role in module_access_role.split(',')]
     
-    # Filter to only PDH-related roles
+    # Filter to only PDH-related roles (e.g. PDH - Employee, PDH - Manager, PDH - Admin)
     pdh_roles = [role for role in roles if 'PDH' in role.upper()]
     
     # If no PDH roles found, return all roles
