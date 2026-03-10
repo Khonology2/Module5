@@ -39,6 +39,10 @@ class _ManagerReviewTeamDashboardScreenState
   String? _initialMeetingId;
   bool _initialMeetingHandled = false;
 
+  /// When set, only employees matching this KPI filter are shown (from dashboard drill-down).
+  String? _statusFilter;
+  bool _routeFilterApplied = false;
+
   @override
   void initState() {
     super.initState();
@@ -48,16 +52,22 @@ class _ManagerReviewTeamDashboardScreenState
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_initialMeetingHandled) return;
 
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map) {
       final employeeId = args['employeeId']?.toString().trim();
       final meetingId = args['meetingId']?.toString().trim();
-      if (employeeId != null && employeeId.isNotEmpty) {
+      if (employeeId != null && employeeId.isNotEmpty && !_initialMeetingHandled) {
         _initialEmployeeId = employeeId;
         if (meetingId != null && meetingId.isNotEmpty) {
           _initialMeetingId = meetingId;
+        }
+      }
+      if (!_routeFilterApplied) {
+        final statusFilter = args['statusFilter']?.toString().trim();
+        if (statusFilter != null && statusFilter.isNotEmpty) {
+          _statusFilter = statusFilter;
+          _routeFilterApplied = true;
         }
       }
     }
@@ -121,6 +131,64 @@ class _ManagerReviewTeamDashboardScreenState
       final haystack = '$name $email';
       return terms.every(haystack.contains);
     }).toList();
+  }
+
+  /// Applies the KPI drill-down filter (from dashboard). Returns [employees] unchanged if [_statusFilter] is null.
+  List<EmployeeData> _filterByStatus(List<EmployeeData> employees) {
+    final filter = _statusFilter;
+    if (filter == null || filter.isEmpty) return employees;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+    switch (filter) {
+      case 'inactive':
+        return employees
+            .where((e) => e.status == EmployeeStatus.inactive)
+            .toList();
+      case 'onTrack':
+        return employees
+            .where((e) => e.status == EmployeeStatus.onTrack)
+            .toList();
+      case 'atRisk':
+        return employees
+            .where((e) => e.status == EmployeeStatus.atRisk)
+            .toList();
+      case 'overdue':
+        return employees
+            .where((e) => e.status == EmployeeStatus.overdue)
+            .toList();
+      case 'active7d':
+        return employees
+            .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+            .toList();
+      case 'activeToday':
+        return employees
+            .where((e) => e.lastActivity.isAfter(today))
+            .toList();
+      default:
+        return employees;
+    }
+  }
+
+  String? _statusFilterLabel() {
+    switch (_statusFilter) {
+      case 'inactive':
+        return 'Inactive';
+      case 'onTrack':
+        return 'On Track';
+      case 'atRisk':
+        return 'At Risk';
+      case 'overdue':
+        return 'Overdue';
+      case 'active7d':
+        return 'Active (7d)';
+      case 'activeToday':
+        return 'Active Today';
+      default:
+        return null;
+    }
   }
 
   List<TeamInsight> _computeInsights(List<EmployeeData> employees) {
@@ -290,10 +358,51 @@ class _ManagerReviewTeamDashboardScreenState
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
-      child: const Center(
+      child: Center(
         child: Text(
-          'No employees match your search.',
-          style: TextStyle(color: Colors.white70),
+          _statusFilter != null
+              ? 'No employees match the current filter.'
+              : 'No employees match your search.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusFilterChip() {
+    final label = _statusFilterLabel();
+    if (label == null) return const SizedBox.shrink();
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _statusFilter = null),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.activeColor.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppColors.activeColor.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Showing: $label',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.close,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -335,12 +444,17 @@ class _ManagerReviewTeamDashboardScreenState
           Colors.transparent, // Set Scaffold background to transparent
       extendBodyBehindAppBar: true, // Extend the body behind the AppBar
       appBar: AppBar(
-        backgroundColor: Colors.transparent, // Make AppBar transparent
-        elevation: 0, // Remove AppBar shadow
-        automaticallyImplyLeading: false, // Remove back arrow button
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          color: AppColors.textPrimary,
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
+        ),
         title: const SizedBox.shrink(),
         centerTitle: false,
-        actions: [], // Hide profile button on dashboard
+        actions: const [],
       ),
       body: Stack(
         children: [
@@ -452,12 +566,22 @@ class _ManagerReviewTeamDashboardScreenState
                             const SizedBox(height: 10),
                             _buildEmployeeSearchBar(
                               totalCount: employees.length,
-                              filteredCount: _filterEmployees(employees).length,
+                              filteredCount: _filterByStatus(
+                                    _filterEmployees(employees),
+                                  ).length,
                             ),
+                            if (_statusFilter != null) ...[
+                              const SizedBox(height: 8),
+                              _buildStatusFilterChip(),
+                            ],
                             const SizedBox(height: 12),
-                            if (_filterEmployees(employees).isNotEmpty)
+                            if (_filterByStatus(
+                                  _filterEmployees(employees),
+                                ).isNotEmpty)
                               _buildRealTimeEmployeeList(
-                                _filterEmployees(employees),
+                                _filterByStatus(
+                                  _filterEmployees(employees),
+                                ),
                               )
                             else
                               _buildNoSearchResults(),

@@ -1,3 +1,10 @@
-{"projects":{"default":"pdh-v2","PDH-v2":"pdh-v2"},"targets":{},"etags":{}}
+{
 
-{"projects": {"default": "pdh-v2", "PDH": "pdh-v2"}, "targets": {}, "etags": {}}
+  "projects": {
+    "default": "pdh-v2",
+    "PDH": "pdh-v2"
+  },
+  "targets": {},
+  "etags": {}
+}
+ 

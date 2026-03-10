@@ -861,7 +861,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     final total = m?.totalEmployees ?? employees.length;
     final active = m?.activeEmployees ??
         employees.where((e) => e.lastActivity.isAfter(sevenDaysAgo)).length;
-    final avgProgress = m?.avgTeamProgress ?? 0.0;
     final engagement = m?.teamEngagement ??
         (total > 0 ? (active / total) * 100.0 : 0.0);
     final overdue = m?.overdueGoals ?? 0;
@@ -883,9 +882,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              _kpi('Team size', total.toString()),
+              _kpiTap('Total', total.toString(), null),
               const SizedBox(width: 8),
-              _kpi('Avg progress', '${avgProgress.toStringAsFixed(0)}%'),
+              _kpiTap('Active (7d)', active.toString(), 'active7d'),
               const SizedBox(width: 8),
               _kpi('Engagement (7d)', '${engagement.toStringAsFixed(0)}%'),
             ],
@@ -935,6 +934,27 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
+  /// Team progress comparison placeholder (chart/summary of team progress).
+  Widget _buildTeamProgressComparison(List<EmployeeData> employees) {
+    final onTrack = employees.where((e) => e.status == EmployeeStatus.onTrack).length;
+    final atRisk = employees.where((e) => e.status == EmployeeStatus.atRisk).length;
+    final overdue = employees.where((e) => e.status == EmployeeStatus.overdue).length;
+    final total = employees.length;
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Team progress', style: AppTypography.heading2),
+          const SizedBox(height: 8),
+          Text(
+            'On track: $onTrack · At risk: $atRisk · Overdue: $overdue of $total',
+            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Progress trends over time: activity in the last 7 days (from recentActivities).
   Widget _buildProgressTrends(List<EmployeeData> employees) {
     final now = DateTime.now();
@@ -951,14 +971,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         }
       }
     }
-    final maxCount = dayCounts.isEmpty ? 1 : dayCounts.reduce((a, b) => a > b ? a : b);
-    final maxVal = maxCount == 0 ? 1 : maxCount;
-
-    String dayLabel(int i) {
-      final d = today.subtract(Duration(days: 6 - i));
-      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      return days[d.weekday - 1];
-    }
+    final onTrack = employees.where((e) => e.status == EmployeeStatus.onTrack).length;
+    final atRisk = employees.where((e) => e.status == EmployeeStatus.atRisk).length;
+    final overdue = employees.where((e) => e.status == EmployeeStatus.overdue).length;
 
     return _card(
       child: Column(
@@ -966,174 +981,60 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.show_chart, color: AppColors.activeColor, size: 22),
+              _kpiTap('On Track', onTrack.toString(), 'onTrack'),
               const SizedBox(width: 8),
-              Text('Progress trends', style: AppTypography.heading2),
+              _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
+              const SizedBox(width: 8),
+              _kpiTap('Overdue', overdue.toString(), 'overdue'),
             ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Team activity over the last 7 days.',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(7, (i) {
-              final h = maxVal > 0 ? (dayCounts[i] / maxVal).clamp(0.1, 1.0) : 0.1;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        height: 80,
-                        alignment: Alignment.bottomCenter,
-                        child: Container(
-                          height: 80 * h,
-                          decoration: BoxDecoration(
-                            color: AppColors.activeColor.withValues(alpha: 0.8),
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(6),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        dayLabel(i),
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        '${dayCounts[i]}',
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
           ),
         ],
       ),
     );
   }
 
-  /// Visual comparison of team members by progress (and points).
-  Widget _buildTeamProgressComparison(List<EmployeeData> employees) {
-    final sorted = [...employees]
-      ..sort((a, b) => b.avgProgress.compareTo(a.avgProgress));
-    if (sorted.isEmpty) {
-      return _card(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Team progress comparison', style: AppTypography.heading2),
-            const SizedBox(height: 12),
-            Text('No team members yet.', style: AppTypography.muted),
-          ],
-        ),
-      );
-    }
+  Widget _kpi(String label, String value) {
+    return Expanded(child: _kpiInner(label, value));
+  }
 
-    return _card(
+  /// Tappable KPI that navigates to the team list with an optional status filter.
+  /// [filterKey] null = no drill-down; non-null = navigate to Review Team with that filter.
+  Widget _kpiTap(String label, String value, String? filterKey) {
+    final inner = _kpiInner(label, value);
+    if (filterKey == null) return Expanded(child: inner);
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            '/manager_review_team_dashboard',
+            arguments: <String, String>{'statusFilter': filterKey},
+          );
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: inner,
+      ),
+    );
+  }
+
+  Widget _kpiInner(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.bar_chart_rounded, color: AppColors.activeColor, size: 22),
-              const SizedBox(width: 8),
-              Text('Team progress comparison', style: AppTypography.heading2),
-            ],
-          ),
-          const SizedBox(height: 6),
           Text(
-            'Compare progress across team members. Top to low performers.',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
+            value,
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 16),
-          ...sorted.map((e) {
-            final isTop = sorted.indexOf(e) < 3;
-            final isLow = sorted.indexOf(e) >= sorted.length - 2 && sorted.length >= 3;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircleAvatar(
-                      backgroundColor: isTop
-                          ? AppColors.successColor.withValues(alpha: 0.3)
-                          : isLow
-                              ? AppColors.warningColor.withValues(alpha: 0.3)
-                              : Colors.white.withValues(alpha: 0.15),
-                      child: Text(
-                        e.profile.displayName.isNotEmpty
-                            ? e.profile.displayName[0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      e.profile.displayName,
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: isTop ? FontWeight.w600 : null,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: LinearProgressIndicator(
-                      value: (e.avgProgress / 100).clamp(0.0, 1.0),
-                      backgroundColor: Colors.white.withValues(alpha: 0.1),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        isTop
-                            ? AppColors.successColor
-                            : isLow
-                                ? AppColors.warningColor
-                                : AppColors.activeColor,
-                      ),
-                      minHeight: 8,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 40,
-                    child: Text(
-                      '${e.avgProgress.toStringAsFixed(0)}%',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
+          const SizedBox(height: 4),
+          Text(label, style: AppTypography.muted),
         ],
       ),
     );
@@ -1142,175 +1043,57 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   /// Risks: overdue goals and low engagement with actionable list of who.
   Widget _buildRisksCard(List<EmployeeData> employees) {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final sevenDaysAgo = now.subtract(const Duration(days: 7));
-    final overdue = employees.where((e) => e.overdueGoalsCount > 0).toList();
-    final lowEngagement = employees
-        .where((e) => !e.lastActivity.isAfter(sevenDaysAgo))
-        .toList();
+    final activeToday = employees
+        .where((e) => e.lastActivity.isAfter(today))
+        .length;
+    final activeThisWeek = employees
+        .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+        .length;
+    final inactive = employees
+        .where((e) => e.status == EmployeeStatus.inactive)
+        .length;
+    final overdue = employees
+        .where((e) => e.status == EmployeeStatus.overdue)
+        .length;
+    final atRisk = employees
+        .where((e) => e.status == EmployeeStatus.atRisk)
+        .length;
 
-    if (overdue.isEmpty && lowEngagement.isEmpty) {
-      return _card(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.check_circle_outline,
-                    color: AppColors.successColor, size: 22),
-                const SizedBox(width: 8),
-                Text('Risks & attention', style: AppTypography.heading2),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'No overdue goals or low-engagement team members right now.',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return _card(
+    return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Activity Summary', style: AppTypography.heading2),
+          const SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.warning_amber_rounded,
-                  color: AppColors.warningColor, size: 22),
+              _kpiTap('Active Today', activeToday.toString(), 'activeToday'),
               const SizedBox(width: 8),
-              Text('Risks & attention', style: AppTypography.heading2),
+              _kpiTap('Active (7d)', activeThisWeek.toString(), 'active7d'),
+              const SizedBox(width: 8),
+              _kpiTap('Inactive', inactive.toString(), 'inactive'),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Overdue goals and low engagement. Review and nudge where needed.',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (overdue.isNotEmpty) ...[
-            Row(
-              children: [
-                Icon(Icons.assignment_late, size: 18, color: AppColors.warningColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Overdue goals (${overdue.length} team member(s))',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.warningColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            ...overdue.take(5).map(
-                  (e) => Padding(
-                    padding: const EdgeInsets.only(left: 26, bottom: 4),
-                    child: Text(
-                      '${e.profile.displayName} · ${e.overdueGoalsCount} overdue',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-            if (overdue.length > 5)
-              Padding(
-                padding: const EdgeInsets.only(left: 26, top: 4),
-                child: Text(
-                  '+ ${overdue.length - 5} more',
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _kpiTap('Overdue', overdue.toString(), 'overdue'),
+              const SizedBox(width: 8),
+              _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
+              const SizedBox(width: 8),
+              _kpiTap(
+                'On Track',
+                employees
+                    .where((e) => e.status == EmployeeStatus.onTrack)
+                    .length
+                    .toString(),
+                'onTrack',
               ),
-            const SizedBox(height: 16),
-          ],
-          if (lowEngagement.isNotEmpty) ...[
-            Row(
-              children: [
-                Icon(Icons.person_off_outlined, size: 18, color: AppColors.textSecondary),
-                const SizedBox(width: 8),
-                Text(
-                  'Low engagement — no activity in 7 days (${lowEngagement.length})',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            ...lowEngagement.take(5).map(
-                  (e) => Padding(
-                    padding: const EdgeInsets.only(left: 26, bottom: 4),
-                    child: Text(
-                      e.profile.displayName,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-            if (lowEngagement.length > 5)
-              Padding(
-                padding: const EdgeInsets.only(left: 26, top: 4),
-                child: Text(
-                  '+ ${lowEngagement.length - 5} more',
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 8),
-          ],
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pushNamed(context, '/manager_review_team_dashboard');
-              },
-              icon: const Icon(Icons.people, size: 18),
-              label: const Text('Open Team Review'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.activeColor,
-                side: BorderSide(color: AppColors.activeColor.withValues(alpha: 0.6)),
-              ),
-            ),
+            ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _kpi(String label, String value) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          // Transparent black for KPI tiles to match card styling
-          color: Colors.black.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(label, style: AppTypography.muted),
-          ],
-        ),
       ),
     );
   }

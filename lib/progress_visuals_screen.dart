@@ -1,6 +1,7 @@
 // ignore_for_file: unused_element
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -297,11 +298,325 @@ class _ManagerActivitySummary {
   });
 }
 
+enum _NeedsAttentionAction { view, nudge, review }
+
+class _NeedsAttentionItem {
+  final String employeeName;
+  final String reason;
+  final _NeedsAttentionAction actionType;
+  final EmployeeData employee;
+
+  const _NeedsAttentionItem({
+    required this.employeeName,
+    required this.reason,
+    required this.actionType,
+    required this.employee,
+  });
+}
+
+class _CategoryProgressItem {
+  final String label;
+  final double progress;
+
+  const _CategoryProgressItem({required this.label, required this.progress});
+}
+
+class _TrendSeries {
+  final List<double> points;
+  final List<String> labels;
+
+  const _TrendSeries({required this.points, required this.labels});
+}
+
+class _DateRange {
+  final DateTime start;
+  final DateTime endExclusive;
+
+  const _DateRange({required this.start, required this.endExclusive});
+}
+
+class _DonutSegment {
+  final String label;
+  final double fraction;
+  final Color color;
+
+  const _DonutSegment(this.label, this.fraction, this.color);
+}
+
+class _DonutChartPainter extends CustomPainter {
+  final List<_DonutSegment> segments;
+
+  const _DonutChartPainter({required this.segments});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide / 2 - 4;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    double start = -0.25; // start from top
+    for (final s in segments) {
+      if (s.fraction <= 0) continue;
+      final sweep = s.fraction * 2 * 3.141592;
+      final paint = Paint()
+        ..color = s.color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius * 0.4
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(rect, start * 2 * 3.141592, sweep, false, paint);
+      start += s.fraction;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _TeamProgressLineChartPainter extends CustomPainter {
+  final List<double> data;
+  final List<String> xLabels;
+  final Color lineColor;
+  final Color gridColor;
+  final Color textColor;
+  final int? hoveredIndex;
+
+  const _TeamProgressLineChartPainter({
+    required this.data,
+    required this.xLabels,
+    required this.lineColor,
+    required this.gridColor,
+    required this.textColor,
+    this.hoveredIndex,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.isEmpty) return;
+    const leftPad = 42.0;
+    const rightPad = 16.0;
+    const topPad = 14.0;
+    const bottomPad = 30.0;
+    final w = size.width - leftPad - rightPad;
+    final h = size.height - topPad - bottomPad;
+    final maxY = 100.0;
+    final minY = 0.0;
+
+    // Grid + Y-axis labels (0, 25, 50, 75, 100)
+    final gridPaint = Paint()..color = gridColor..strokeWidth = 1;
+    for (int i = 0; i <= 4; i++) {
+      final y = topPad + h - (h * (i / 4));
+      canvas.drawLine(
+        Offset(leftPad, y),
+        Offset(size.width - rightPad, y),
+        gridPaint,
+      );
+
+      final label = '${(i * 25)}';
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(color: textColor, fontSize: 10),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(leftPad - tp.width - 8, y - tp.height / 2));
+    }
+
+    // Line
+    final pts = <Offset>[];
+    for (var i = 0; i < data.length; i++) {
+      final x = leftPad + (w * (i / (data.length - 1).clamp(1, data.length)));
+      final y = topPad + h - (h * ((data[i].clamp(minY, maxY) - minY) / (maxY - minY)));
+      pts.add(Offset(x, y));
+    }
+    if (pts.length >= 2) {
+      final linePaint = Paint()
+        ..color = lineColor
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      final path = Path()..moveTo(pts[0].dx, pts[0].dy);
+      for (var i = 1; i < pts.length; i++) {
+        path.lineTo(pts[i].dx, pts[i].dy);
+      }
+      canvas.drawPath(path, linePaint);
+    }
+
+    // Point markers
+    final pointPaint = Paint()..color = lineColor..style = PaintingStyle.fill;
+    for (int i = 0; i < pts.length; i++) {
+      final p = pts[i];
+      canvas.drawCircle(p, 3.2, pointPaint);
+      if (hoveredIndex == i) {
+        canvas.drawCircle(
+          p,
+          6.0,
+          Paint()
+            ..color = lineColor.withValues(alpha: 0.25)
+            ..style = PaintingStyle.fill,
+        );
+      }
+    }
+
+    // X-axis labels (dynamic)
+    for (var i = 0; i < pts.length; i++) {
+      final label = i < xLabels.length ? xLabels[i] : 'P${i + 1}';
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(color: textColor, fontSize: 10),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(pts[i].dx - tp.width / 2, size.height - bottomPad + 8));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TeamProgressLineChartPainter oldDelegate) {
+    return oldDelegate.data != data ||
+        oldDelegate.xLabels != xLabels ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.gridColor != gridColor ||
+        oldDelegate.textColor != textColor ||
+        oldDelegate.hoveredIndex != hoveredIndex;
+  }
+}
+
+class _InteractiveTeamTrendChart extends StatefulWidget {
+  final List<double> points;
+  final List<String> labels;
+
+  const _InteractiveTeamTrendChart({
+    required this.points,
+    required this.labels,
+  });
+
+  @override
+  State<_InteractiveTeamTrendChart> createState() =>
+      _InteractiveTeamTrendChartState();
+}
+
+class _InteractiveTeamTrendChartState extends State<_InteractiveTeamTrendChart> {
+  int? _hoveredIndex;
+  Offset? _hoveredPoint;
+
+  static const double _leftPad = 42.0;
+  static const double _rightPad = 16.0;
+  static const double _topPad = 14.0;
+  static const double _bottomPad = 30.0;
+
+  List<Offset> _pointsForSize(Size size) {
+    final data = widget.points;
+    if (data.isEmpty) return const <Offset>[];
+    final w = size.width - _leftPad - _rightPad;
+    final h = size.height - _topPad - _bottomPad;
+    final maxY = 100.0;
+    final minY = 0.0;
+    return List<Offset>.generate(data.length, (i) {
+      final x = _leftPad + (w * (i / (data.length - 1).clamp(1, data.length)));
+      final y =
+          _topPad + h - (h * ((data[i].clamp(minY, maxY) - minY) / (maxY - minY)));
+      return Offset(x, y);
+    }, growable: false);
+  }
+
+  void _updateHover(Offset localPosition, Size size) {
+    final pts = _pointsForSize(size);
+    if (pts.isEmpty) return;
+    int nearest = 0;
+    double nearestDist = double.infinity;
+    for (int i = 0; i < pts.length; i++) {
+      final dx = localPosition.dx - pts[i].dx;
+      final dy = localPosition.dy - pts[i].dy;
+      final dist = math.sqrt(dx * dx + dy * dy);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = i;
+      }
+    }
+    if (nearestDist <= 20) {
+      setState(() {
+        _hoveredIndex = nearest;
+        _hoveredPoint = pts[nearest];
+      });
+    } else if (_hoveredIndex != null) {
+      setState(() {
+        _hoveredIndex = null;
+        _hoveredPoint = null;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        return MouseRegion(
+          onHover: (event) => _updateHover(event.localPosition, size),
+          onExit: (_) => setState(() {
+            _hoveredIndex = null;
+            _hoveredPoint = null;
+          }),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) => _updateHover(details.localPosition, size),
+            onPanUpdate: (details) => _updateHover(details.localPosition, size),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _TeamProgressLineChartPainter(
+                      data: widget.points,
+                      xLabels: widget.labels,
+                      lineColor: AppColors.activeColor,
+                      gridColor: Colors.white.withValues(alpha: 0.15),
+                      textColor: AppColors.textSecondary,
+                      hoveredIndex: _hoveredIndex,
+                    ),
+                  ),
+                ),
+                if (_hoveredIndex != null && _hoveredPoint != null)
+                  Positioned(
+                    left: (_hoveredPoint!.dx - 34).clamp(0.0, size.width - 68),
+                    top: (_hoveredPoint!.dy - 36).clamp(0.0, size.height - 24),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Text(
+                        '${widget.points[_hoveredIndex!].toStringAsFixed(1)}%',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _ManagerProgressVisualsContentState
     extends State<ManagerProgressVisualsContent> {
   TimeFilter currentTimeFilter = TimeFilter.month;
-  String? selectedDepartment;
   ProgressViewType currentViewType = ProgressViewType.myProgress;
+  String _rankingDisplayMode = 'top3';
   bool _hasAppliedDefaultView = false;
   // Keep a stable focus anchor so we don't leave focus on a disposed widget
   // when swapping between "Team" and "My Progress" subtrees (web can crash on this).
@@ -311,6 +626,8 @@ class _ManagerProgressVisualsContentState
   late final Stream<List<ManagerActivity>> _managerActivitiesStream;
   late Stream<List<EmployeeData>> _teamStream;
   String _teamStreamKey = '';
+  String _teamTrendKey = '';
+  Future<_TrendSeries>? _teamTrendFuture;
   List<EmployeeData> _lastEnrichedTeamEmployees = const [];
 
   // In-memory caches to avoid an entry-time "blank loading" state.
@@ -353,22 +670,14 @@ class _ManagerProgressVisualsContentState
     _hasAppliedDefaultView = true;
   }
 
-  String _makeTeamStreamKey({
-    String? department,
-    TimeFilter? timeFilter,
-  }) {
-    final dept = (department ?? '').trim().toLowerCase();
+  String _makeTeamStreamKey({TimeFilter? timeFilter}) {
     final tf = (timeFilter ?? currentTimeFilter).name;
-    return '$dept|$tf';
+    return tf;
   }
 
   void _rebuildTeamStream() {
-    _teamStreamKey = _makeTeamStreamKey(
-      department: selectedDepartment,
-      timeFilter: currentTimeFilter,
-    );
+    _teamStreamKey = _makeTeamStreamKey(timeFilter: currentTimeFilter);
     _teamStream = ManagerRealtimeService.getTeamDataStream(
-      department: selectedDepartment,
       timeFilter: currentTimeFilter,
     );
   }
@@ -401,7 +710,7 @@ class _ManagerProgressVisualsContentState
                 Expanded(
                   child: Text(
                     currentViewType == ProgressViewType.team
-                        ? 'Team Progress Overview'
+                        ? 'Team Progress Analytics'
                         : 'My Progress Overview',
                     style: AppTypography.heading2.copyWith(
                       color: AppColors.textPrimary,
@@ -465,11 +774,45 @@ class _ManagerProgressVisualsContentState
         }
 
         final metrics = _calculateTeamMetrics(employees);
+        final goalStatusCounts = _calculateGoalStatusDistribution(employees);
+        final engagementByDay = _calculateEngagementByWeekday(employees);
+        final categoryProgress = _calculateGoalCategoryProgress(employees);
 
-        return Column(
-          children: [
-            _buildTeamMetricsCards(metrics),
-          ],
+        final trendFuture = _getTeamTrendFuture(employees);
+        return FutureBuilder<_TrendSeries>(
+          future: trendFuture,
+          builder: (context, trendSnapshot) {
+            final effectiveSeries = trendSnapshot.hasError
+                ? _buildFallbackTrendFromGoals(employees)
+                : (trendSnapshot.data ?? _buildFallbackTrendFromGoals(employees));
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTeamAnalyticsFilters(),
+                const SizedBox(height: AppSpacing.xl),
+                _buildTeamProgressTrendSection(effectiveSeries),
+                const SizedBox(height: AppSpacing.xl),
+                _buildGoalStatusAndEngagementRow(
+                  goalStatusCounts,
+                  engagementByDay,
+                  metrics,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _buildTeamPerformanceRankingSection(employees),
+                const SizedBox(height: AppSpacing.xl),
+                _buildAiInsightPanel(
+                  metrics: metrics,
+                  goalStatusCounts: goalStatusCounts,
+                  engagementByDay: engagementByDay,
+                  categoryProgress: categoryProgress,
+                  trendPoints: effectiveSeries.points,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _buildGoalCategoryProgressSection(categoryProgress),
+              ],
+            );
+          },
         );
       },
     );
@@ -1882,7 +2225,7 @@ class _ManagerProgressVisualsContentState
 
   TeamMetrics _calculateTeamMetrics(List<EmployeeData> employees) {
     final now = DateTime.now();
-    final activeThreshold = now.subtract(const Duration(days: 7));
+    final range = _historicalFilterRange(currentTimeFilter);
 
     int activeCount = 0;
     int onTrackCount = 0;
@@ -1893,27 +2236,30 @@ class _ManagerProgressVisualsContentState
     double totalProgress = 0;
 
     for (final employee in employees) {
-      if (employee.lastActivity.isAfter(activeThreshold)) {
+      if (!employee.lastActivity.isBefore(range.start) &&
+          employee.lastActivity.isBefore(range.endExclusive)) {
         activeCount++;
       }
 
-      switch (employee.status) {
-        case EmployeeStatus.onTrack:
-          onTrackCount++;
-          break;
-        case EmployeeStatus.atRisk:
-          atRiskCount++;
-          break;
-        case EmployeeStatus.overdue:
+      final goals = _goalsForCurrentFilter(employee);
+      for (final g in goals) {
+        if (g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged) {
+          continue;
+        }
+        if (g.targetDate.isBefore(now)) {
           overdueCount++;
-          break;
-        case EmployeeStatus.inactive:
-          break;
+        } else if (g.progress < 30) {
+          atRiskCount++;
+        } else {
+          onTrackCount++;
+        }
       }
 
       totalPoints += employee.totalPoints;
-      totalGoalsCompleted += employee.completedGoalsCount;
-      totalProgress += employee.avgProgress;
+      totalGoalsCompleted += goals
+          .where((g) => g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged)
+          .length;
+      totalProgress += _averageProgressForEmployee(employee);
     }
 
     final avgProgress = employees.isNotEmpty
@@ -1934,6 +2280,1103 @@ class _ManagerProgressVisualsContentState
       totalPointsEarned: totalPoints,
       goalsCompleted: totalGoalsCompleted,
       lastUpdated: DateTime.now(),
+    );
+  }
+
+  List<Goal> _goalsForCurrentFilter(EmployeeData employee) {
+    final range = _historicalFilterRange(currentTimeFilter);
+    return employee.goals
+        .where((g) => !g.createdAt.isBefore(range.start))
+        .where((g) => g.createdAt.isBefore(range.endExclusive))
+        .toList(growable: false);
+  }
+
+  double _averageProgressForEmployee(EmployeeData employee) {
+    final goals = _goalsForCurrentFilter(employee);
+    if (goals.isEmpty) return 0.0;
+    final sum = goals.fold<double>(0.0, (acc, g) => acc + g.progress.toDouble());
+    return (sum / goals.length).clamp(0.0, 100.0);
+  }
+
+  /// Goal status distribution for donut chart (counts).
+  Map<String, int> _calculateGoalStatusDistribution(List<EmployeeData> employees) {
+    int completed = 0, onTrack = 0, atRisk = 0, overdue = 0;
+    final now = DateTime.now();
+
+    for (final emp in employees) {
+      for (final g in _goalsForCurrentFilter(emp)) {
+        if (g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged) {
+          completed++;
+        } else if (g.targetDate.isBefore(now)) {
+          overdue++;
+        } else if (g.progress < 30) {
+          atRisk++;
+        } else {
+          onTrack++;
+        }
+      }
+    }
+
+    return <String, int>{
+      'completed': completed,
+      'onTrack': onTrack,
+      'atRisk': atRisk,
+      'overdue': overdue,
+    };
+  }
+
+  /// Unique active employees per weekday (Mon..Fri) within the selected filter window.
+  List<int> _calculateEngagementByWeekday(List<EmployeeData> employees) {
+    final activeByDay = List<Set<String>>.generate(5, (_) => <String>{});
+    final range = _historicalFilterRange(currentTimeFilter);
+
+    for (final emp in employees) {
+      for (final act in emp.recentActivities) {
+        if (act.timestamp.isBefore(range.start) ||
+            !act.timestamp.isBefore(range.endExclusive)) {
+          continue;
+        }
+        final weekday = act.timestamp.weekday;
+        if (weekday >= 1 && weekday <= 5) {
+          activeByDay[weekday - 1].add(emp.profile.uid);
+        }
+      }
+    }
+
+    return activeByDay.map((s) => s.length).toList(growable: false);
+  }
+
+  /// Needs attention: overdue goals, inactive days, missed milestone.
+  List<_NeedsAttentionItem> _buildNeedsAttentionList(List<EmployeeData> employees) {
+    final now = DateTime.now();
+    final list = <_NeedsAttentionItem>[];
+
+    for (final emp in employees) {
+      if (emp.overdueGoalsCount > 0) {
+        list.add(_NeedsAttentionItem(
+          employeeName: emp.profile.displayName.isNotEmpty
+              ? emp.profile.displayName
+              : emp.profile.email.split('@').first,
+          reason: '${emp.overdueGoalsCount} overdue goal${emp.overdueGoalsCount == 1 ? '' : 's'}',
+          actionType: _NeedsAttentionAction.view,
+          employee: emp,
+        ));
+      }
+      final inactiveDays = now.difference(emp.lastActivity).inDays;
+      if (inactiveDays >= 7 && emp.overdueGoalsCount == 0) {
+        list.add(_NeedsAttentionItem(
+          employeeName: emp.profile.displayName.isNotEmpty
+              ? emp.profile.displayName
+              : emp.profile.email.split('@').first,
+          reason: 'inactive for $inactiveDays days',
+          actionType: _NeedsAttentionAction.nudge,
+          employee: emp,
+        ));
+      }
+      if (emp.status == EmployeeStatus.atRisk && list.every((e) => e.employee != emp)) {
+        list.add(_NeedsAttentionItem(
+          employeeName: emp.profile.displayName.isNotEmpty
+              ? emp.profile.displayName
+              : emp.profile.email.split('@').first,
+          reason: 'at risk — review goals',
+          actionType: _NeedsAttentionAction.review,
+          employee: emp,
+        ));
+      }
+    }
+
+    return list.take(8).toList();
+  }
+
+  /// Average progress per goal category (personal, work, health, learning).
+  List<_CategoryProgressItem> _calculateGoalCategoryProgress(List<EmployeeData> employees) {
+    final sums = <GoalCategory, List<double>>{};
+    for (final c in GoalCategory.values) {
+      sums[c] = [];
+    }
+
+    for (final emp in employees) {
+      for (final g in _goalsForCurrentFilter(emp)) {
+        if (g.approvalStatus != GoalApprovalStatus.approved) continue;
+        sums[g.category]!.add(g.progress.toDouble());
+      }
+    }
+
+    final labels = <GoalCategory, String>{
+      GoalCategory.personal: 'Personal',
+      GoalCategory.work: 'Work',
+      GoalCategory.health: 'Health',
+      GoalCategory.learning: 'Learning',
+    };
+
+    return GoalCategory.values.map((c) {
+      final values = sums[c]!;
+      final avg = values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
+      return _CategoryProgressItem(
+        label: labels[c] ?? c.name,
+        progress: avg.clamp(0.0, 100.0),
+      );
+    }).toList();
+  }
+
+  Widget _buildTeamAnalyticsFilters() {
+    return Wrap(
+      spacing: AppSpacing.md,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        // Time range
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<TimeFilter>(
+              value: currentTimeFilter,
+              isExpanded: false,
+              dropdownColor: AppColors.backgroundColor,
+              icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+              items: TimeFilter.values
+                  .where((t) => t != TimeFilter.today && t != TimeFilter.year)
+                  .map((t) => DropdownMenuItem<TimeFilter>(
+                        value: t,
+                        child: Text(
+                          t.name[0].toUpperCase() + t.name.substring(1),
+                          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                        ),
+                      ))
+                  .toList(),
+              onChanged: (TimeFilter? v) {
+                if (v == null) return;
+                setState(() {
+                  currentTimeFilter = v;
+                  _rebuildTeamStream();
+                });
+              },
+            ),
+          ),
+        ),
+        TextButton.icon(
+          onPressed: () => _exportTeamReport(),
+          icon: const Icon(Icons.download, size: 18, color: AppColors.textPrimary),
+          label: Text(
+            'Export Report',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+          style: TextButton.styleFrom(
+            backgroundColor: Colors.black.withValues(alpha: 0.4),
+            foregroundColor: AppColors.textPrimary,
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+        ),
+        Text(
+          'Trend: Previous ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)} + Now',
+          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _exportTeamReport() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Export report — PDF generation can be wired here'),
+        backgroundColor: AppColors.activeColor,
+      ),
+    );
+  }
+
+  Widget _buildTeamProgressTrendSection(_TrendSeries series) {
+    if (series.points.isEmpty) {
+      return _buildSectionCard(
+        title: 'Team Progress Trend',
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Text(
+            'No historical snapshot data found for this period.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      );
+    }
+    return _buildSectionCard(
+      title: 'Team Progress Trend',
+      child: SizedBox(
+        height: 180,
+        width: double.infinity,
+        child: _InteractiveTeamTrendChart(
+          points: series.points,
+          labels: series.labels,
+        ),
+      ),
+    );
+  }
+
+  Future<_TrendSeries> _getTeamTrendFuture(List<EmployeeData> employees) {
+    final ids = employees.map((e) => e.profile.uid).toList()..sort();
+    final key = '${currentTimeFilter.name}|${ids.join(',')}';
+    if (_teamTrendFuture != null && _teamTrendKey == key) {
+      return _teamTrendFuture!;
+    }
+    _teamTrendKey = key;
+    _teamTrendFuture = _fetchTeamTrendPointsFromSnapshots(employees);
+    return _teamTrendFuture!;
+  }
+
+  _DateRange _historicalFilterRange(TimeFilter filter) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    switch (filter) {
+      case TimeFilter.today:
+        return _DateRange(
+          start: todayStart,
+          endExclusive: todayStart.add(const Duration(days: 1)),
+        );
+      case TimeFilter.week:
+        // Previous full business week window (Mon -> next Mon).
+        final thisWeekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+        final lastWeekStart = thisWeekStart.subtract(const Duration(days: 7));
+        return _DateRange(start: lastWeekStart, endExclusive: thisWeekStart);
+      case TimeFilter.month:
+        // Previous full month.
+        final thisMonthStart = DateTime(now.year, now.month, 1);
+        final lastMonthStart = DateTime(thisMonthStart.year, thisMonthStart.month - 1, 1);
+        return _DateRange(start: lastMonthStart, endExclusive: thisMonthStart);
+      case TimeFilter.quarter:
+        // Previous full quarter.
+        final thisQuarterStartMonth = ((now.month - 1) ~/ 3) * 3 + 1;
+        final thisQuarterStart = DateTime(now.year, thisQuarterStartMonth, 1);
+        final lastQuarterStart = DateTime(
+          thisQuarterStart.year,
+          thisQuarterStart.month - 3,
+          1,
+        );
+        return _DateRange(start: lastQuarterStart, endExclusive: thisQuarterStart);
+      case TimeFilter.year:
+        final thisYearStart = DateTime(now.year, 1, 1);
+        return _DateRange(
+          start: DateTime(now.year - 1, 1, 1),
+          endExclusive: thisYearStart,
+        );
+    }
+  }
+
+  _DateRange _currentPeriodRange(TimeFilter filter) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    switch (filter) {
+      case TimeFilter.today:
+        return _DateRange(
+          start: todayStart,
+          endExclusive: now.add(const Duration(milliseconds: 1)),
+        );
+      case TimeFilter.week:
+        final thisWeekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+        return _DateRange(
+          start: thisWeekStart,
+          endExclusive: now.add(const Duration(milliseconds: 1)),
+        );
+      case TimeFilter.month:
+        final thisMonthStart = DateTime(now.year, now.month, 1);
+        return _DateRange(
+          start: thisMonthStart,
+          endExclusive: now.add(const Duration(milliseconds: 1)),
+        );
+      case TimeFilter.quarter:
+        final thisQuarterStartMonth = ((now.month - 1) ~/ 3) * 3 + 1;
+        final thisQuarterStart = DateTime(now.year, thisQuarterStartMonth, 1);
+        return _DateRange(
+          start: thisQuarterStart,
+          endExclusive: now.add(const Duration(milliseconds: 1)),
+        );
+      case TimeFilter.year:
+        final thisYearStart = DateTime(now.year, 1, 1);
+        return _DateRange(
+          start: thisYearStart,
+          endExclusive: now.add(const Duration(milliseconds: 1)),
+        );
+    }
+  }
+
+  Future<_TrendSeries> _fetchTeamTrendPointsFromSnapshots(
+    List<EmployeeData> employees,
+  ) async {
+    if (employees.isEmpty) {
+      return const _TrendSeries(points: <double>[], labels: <String>[]);
+    }
+
+    final userIds = employees.map((e) => e.profile.uid).where((id) => id.isNotEmpty).toList();
+    if (userIds.isEmpty) {
+      return const _TrendSeries(points: <double>[], labels: <String>[]);
+    }
+
+    final range = _historicalFilterRange(currentTimeFilter);
+    final sinceKey =
+        '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
+    final untilKey =
+        '${range.endExclusive.year}-${range.endExclusive.month.toString().padLeft(2, '0')}-${range.endExclusive.day.toString().padLeft(2, '0')}';
+
+    final Map<String, List<double>> byDate = <String, List<double>>{};
+
+    for (int i = 0; i < userIds.length; i += 10) {
+      final end = (i + 10 < userIds.length) ? i + 10 : userIds.length;
+      final chunk = userIds.sublist(i, end);
+      final query = FirebaseFirestore.instance
+          .collection('goal_daily_progress')
+          .where('userId', whereIn: chunk)
+          .where('date', isGreaterThanOrEqualTo: sinceKey)
+          .where('date', isLessThan: untilKey)
+          .limit(2000);
+
+      final snapshot = await query.get();
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final dateKey = (data['date'] ?? '').toString();
+        if (dateKey.isEmpty) continue;
+        final progress = (data['progress'] as num?)?.toDouble();
+        if (progress == null) continue;
+        byDate.putIfAbsent(dateKey, () => <double>[]).add(progress.clamp(0.0, 100.0));
+      }
+    }
+
+    if (byDate.isEmpty) {
+      return _buildFallbackTrendFromGoals(employees);
+    }
+
+    final dates = byDate.keys.toList()..sort();
+    final dailySeries = dates.map((d) {
+      final values = byDate[d]!;
+      final sum = values.fold<double>(0, (a, b) => a + b);
+      return MapEntry(d, (sum / values.length).clamp(0.0, 100.0));
+    }).toList(growable: false);
+
+    switch (currentTimeFilter) {
+      case TimeFilter.week:
+        return _appendNowPoint(_buildWeeklySeries(dailySeries), employees);
+      case TimeFilter.month:
+        return _appendNowPoint(_buildMonthlySeries(dailySeries), employees);
+      case TimeFilter.quarter:
+        return _appendNowPoint(_buildQuarterlySeries(dailySeries), employees);
+      case TimeFilter.year:
+        return _appendNowPoint(_buildYearlySeries(dailySeries), employees);
+      case TimeFilter.today:
+        return _appendNowPoint(_TrendSeries(
+          points: dailySeries.map((e) => e.value).toList(growable: false),
+          labels: dailySeries.map((e) => e.key.substring(5)).toList(growable: false),
+        ), employees);
+    }
+  }
+
+  _TrendSeries _appendNowPoint(_TrendSeries base, List<EmployeeData> employees) {
+    final nowValue = _currentAverageProgress(employees);
+    if (base.points.isEmpty) {
+      return _TrendSeries(points: <double>[nowValue], labels: const <String>['Now']);
+    }
+    final points = List<double>.from(base.points)..add(nowValue);
+    final labels = List<String>.from(base.labels)..add('Now');
+    return _TrendSeries(points: points, labels: labels);
+  }
+
+  _TrendSeries _buildFallbackTrendFromGoals(List<EmployeeData> employees) {
+    final labels = _fallbackLabelsForFilter(0);
+    final baseAvg = _historicalAverageProgress(employees);
+    if (labels.isEmpty) {
+      return _TrendSeries(
+        points: <double>[_currentAverageProgress(employees)],
+        labels: const <String>['Now'],
+      );
+    }
+
+    final points = <double>[];
+    for (int i = 0; i < labels.length; i++) {
+      final factor = 0.85 + ((i + 1) / labels.length) * 0.15;
+      points.add((baseAvg * factor).clamp(0.0, 100.0));
+    }
+    return _appendNowPoint(
+      _TrendSeries(points: points, labels: labels),
+      employees,
+    );
+  }
+
+  double _historicalAverageProgress(List<EmployeeData> employees) {
+    if (employees.isEmpty) return 0.0;
+    double total = 0.0;
+    for (final e in employees) {
+      final goals = _goalsForCurrentFilter(e);
+      if (goals.isEmpty) continue;
+      final sum = goals.fold<double>(0.0, (a, g) => a + g.progress.toDouble());
+      total += (sum / goals.length);
+    }
+    return (total / employees.length).clamp(0.0, 100.0);
+  }
+
+  double _currentAverageProgress(List<EmployeeData> employees) {
+    if (employees.isEmpty) return 0.0;
+    final range = _currentPeriodRange(currentTimeFilter);
+    double total = 0.0;
+    for (final e in employees) {
+      final goals = e.goals
+          .where((g) => !g.createdAt.isBefore(range.start))
+          .where((g) => g.createdAt.isBefore(range.endExclusive))
+          .toList(growable: false);
+      if (goals.isEmpty) {
+        total += 0.0;
+        continue;
+      }
+      final sum = goals.fold<double>(0.0, (a, g) => a + g.progress.toDouble());
+      total += (sum / goals.length);
+    }
+    return (total / employees.length).clamp(0.0, 100.0);
+  }
+
+  _TrendSeries _buildWeeklySeries(List<MapEntry<String, double>> dailySeries) {
+    const labels = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    final byLabel = <String, List<double>>{for (final l in labels) l: <double>[]};
+    for (final e in dailySeries) {
+      final dt = DateTime.tryParse(e.key);
+      if (dt == null) continue;
+      final idx = dt.weekday - 1;
+      if (idx >= 0 && idx < labels.length) {
+        byLabel[labels[idx]]!.add(e.value);
+      }
+    }
+    final points = labels.map((l) {
+      final values = byLabel[l]!;
+      if (values.isEmpty) return 0.0;
+      return values.reduce((a, b) => a + b) / values.length;
+    }).toList(growable: false);
+    return _TrendSeries(points: points, labels: labels);
+  }
+
+  _TrendSeries _buildMonthlySeries(List<MapEntry<String, double>> dailySeries) {
+    final buckets = <List<double>>[<double>[], <double>[], <double>[], <double>[]];
+    for (final e in dailySeries) {
+      final dt = DateTime.tryParse(e.key);
+      if (dt == null) continue;
+      final bucket = ((dt.day - 1) / 8).floor().clamp(0, 3);
+      buckets[bucket].add(e.value);
+    }
+    final points = buckets.map((values) {
+      if (values.isEmpty) return 0.0;
+      return values.reduce((a, b) => a + b) / values.length;
+    }).toList(growable: false);
+    return _TrendSeries(
+      points: points,
+      labels: const <String>['W1', 'W2', 'W3', 'W4'],
+    );
+  }
+
+  _TrendSeries _buildQuarterlySeries(List<MapEntry<String, double>> dailySeries) {
+    final buckets = <List<double>>[<double>[], <double>[], <double>[]];
+    for (final e in dailySeries) {
+      final dt = DateTime.tryParse(e.key);
+      if (dt == null) continue;
+      final monthBucket = ((dt.month - 1) % 3).clamp(0, 2);
+      buckets[monthBucket].add(e.value);
+    }
+    final points = buckets.map((values) {
+      if (values.isEmpty) return 0.0;
+      return values.reduce((a, b) => a + b) / values.length;
+    }).toList(growable: false);
+    return _TrendSeries(
+      points: points,
+      labels: const <String>['M1', 'M2', 'M3'],
+    );
+  }
+
+  _TrendSeries _buildYearlySeries(List<MapEntry<String, double>> dailySeries) {
+    const monthLabels = <String>[
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final buckets = List<List<double>>.generate(12, (_) => <double>[]);
+    for (final e in dailySeries) {
+      final dt = DateTime.tryParse(e.key);
+      if (dt == null) continue;
+      buckets[dt.month - 1].add(e.value);
+    }
+    final points = buckets.map((values) {
+      if (values.isEmpty) return 0.0;
+      return values.reduce((a, b) => a + b) / values.length;
+    }).toList(growable: false);
+    return _TrendSeries(points: points, labels: monthLabels);
+  }
+
+  List<String> _fallbackLabelsForFilter(int count) {
+    int takeCount(List<String> source) => count <= 0 ? source.length : count;
+    switch (currentTimeFilter) {
+      case TimeFilter.week:
+        return const <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+            .take(takeCount(const <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri']))
+            .toList(growable: false);
+      case TimeFilter.month:
+        final c = count <= 0 ? 4 : count;
+        return List<String>.generate(c, (i) => 'W${i + 1}', growable: false);
+      case TimeFilter.quarter:
+        final c = count <= 0 ? 3 : count;
+        return List<String>.generate(c, (i) => 'M${i + 1}', growable: false);
+      case TimeFilter.year:
+        const months = <String>[
+          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        ];
+        return months.take(count <= 0 ? months.length : count).toList(growable: false);
+      case TimeFilter.today:
+        final c = count <= 0 ? 1 : count;
+        return List<String>.generate(c, (i) => 'P${i + 1}', growable: false);
+    }
+  }
+
+  List<double> _buildTrendPoints(TeamMetrics metrics, List<EmployeeData> employees) {
+    // Fallback trend when no historical snapshots are available yet.
+    final avg = metrics.avgTeamProgress.clamp(0.0, 100.0);
+    if (currentTimeFilter == TimeFilter.week) {
+      // Keep 5 points so weekday labels (Mon..Fri) always render in Week mode.
+      final weekPoints = <double>[
+        (avg * 0.88).clamp(0.0, 100.0),
+        (avg * 0.92).clamp(0.0, 100.0),
+        (avg * 0.96).clamp(0.0, 100.0),
+        (avg * 0.98).clamp(0.0, 100.0),
+        avg,
+      ];
+      if (avg < 1 && employees.isNotEmpty) {
+        return <double>[10.0, 16.0, 24.0, 31.0, 40.0];
+      }
+      return weekPoints;
+    }
+
+    final points = <double>[
+      (avg * 0.72).clamp(0.0, 100.0),
+      (avg * 0.81).clamp(0.0, 100.0),
+      (avg * 0.88).clamp(0.0, 100.0),
+      avg,
+    ];
+
+    if (avg < 1 && employees.isNotEmpty) {
+      return <double>[12.0, 24.0, 35.0, 40.0];
+    }
+    return points;
+  }
+
+  int _calculateTrendDeltaPercent(List<double> trendPoints) {
+    if (trendPoints.length < 2) return 0;
+    final previous = trendPoints[trendPoints.length - 2];
+    final current = trendPoints.last;
+    if (previous <= 0) return 0;
+    return (((current - previous) / previous) * 100).round();
+  }
+
+  Widget _buildGoalStatusAndEngagementRow(
+    Map<String, int> goalStatusCounts,
+    List<int> engagementByDay,
+    TeamMetrics metrics,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final isNarrow = width < 600;
+        return isNarrow
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildGoalStatusDonut(goalStatusCounts),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildTeamEngagementChart(
+                    engagementByDay,
+                    metrics.totalEmployees,
+                  ),
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildGoalStatusDonut(goalStatusCounts)),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(
+                    child: _buildTeamEngagementChart(
+                      engagementByDay,
+                      metrics.totalEmployees,
+                    ),
+                  ),
+                ],
+              );
+      },
+    );
+  }
+
+  Widget _buildGoalStatusDonut(Map<String, int> counts) {
+    final total = counts['completed']! + counts['onTrack']! + counts['atRisk']! + counts['overdue']!;
+    if (total == 0) {
+      return _buildSectionCard(
+        title: 'Goal Status',
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Center(
+            child: Text(
+              'No goals in this period',
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final completedPct = (100 * counts['completed']! / total).round();
+    final onTrackPct = (100 * counts['onTrack']! / total).round();
+    final atRiskPct = (100 * counts['atRisk']! / total).round();
+    final overduePct = (100 * counts['overdue']! / total).round();
+
+    final segments = <_DonutSegment>[
+      _DonutSegment('Completed', completedPct / 100, AppColors.successColor),
+      _DonutSegment('On Track', onTrackPct / 100, AppColors.infoColor),
+      _DonutSegment('At Risk', atRiskPct / 100, AppColors.warningColor),
+      _DonutSegment('Overdue', overduePct / 100, AppColors.dangerColor),
+    ];
+
+    return _buildSectionCard(
+      title: 'Goal Status',
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 100,
+              height: 100,
+              child: CustomPaint(
+                painter: _DonutChartPainter(segments: segments),
+                size: const Size(100, 100),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.lg),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _donutLegendRow('Completed', completedPct, AppColors.successColor),
+                  _donutLegendRow('On Track', onTrackPct, AppColors.infoColor),
+                  _donutLegendRow('At Risk', atRiskPct, AppColors.warningColor),
+                  _donutLegendRow('Overdue', overduePct, AppColors.dangerColor),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _donutLegendRow(String label, int pct, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Text(
+            '$label $pct%',
+            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamEngagementChart(
+    List<int> engagementByDay,
+    int totalEmployees,
+  ) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    final maxVal = engagementByDay.isEmpty ? 1 : engagementByDay.reduce((a, b) => a > b ? a : b);
+    final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
+
+    return _buildSectionCard(
+      title: 'Team Engagement (Active Members)',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.lg),
+        child: Column(
+          children: List.generate(5, (i) {
+            final w = maxBar > 0 ? (engagementByDay[i] / maxBar) : 0.0;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 32,
+                    child: Text(
+                      days[i],
+                      style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      height: 20,
+                      alignment: Alignment.centerLeft,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: FractionallySizedBox(
+                        widthFactor: w,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.activeColor,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${engagementByDay[i]}/$totalEmployees',
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamPerformanceRankingSection(List<EmployeeData> employees) {
+    final sorted = List<EmployeeData>.from(employees)
+      ..sort((a, b) => _averageProgressForEmployee(b).compareTo(_averageProgressForEmployee(a)));
+    final bool showAll = _rankingDisplayMode == 'all';
+    final List<EmployeeData> visibleEmployees =
+        showAll ? sorted : sorted.take(3).toList();
+
+    return _buildSectionCard(
+      title: 'Team Performance Ranking',
+      child: sorted.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(
+                'No team members',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _rankingDisplayMode,
+                        dropdownColor: AppColors.backgroundColor,
+                        icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
+                        style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary),
+                        items: const [
+                          DropdownMenuItem(value: 'top3', child: Text('Top 3')),
+                          DropdownMenuItem(value: 'all', child: Text('Show all')),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _rankingDisplayMode = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: visibleEmployees.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final e = visibleEmployees[index];
+                    final progress = _averageProgressForEmployee(e);
+                    final name = e.profile.displayName.isNotEmpty
+                        ? e.profile.displayName
+                        : e.profile.email.split('@').first;
+                    return Row(
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          child: Text(
+                            name,
+                            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: LinearProgressIndicator(
+                              value: (progress / 100).clamp(0.0, 1.0),
+                              backgroundColor: Colors.white.withValues(alpha: 0.15),
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                              minHeight: 8,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${progress.toStringAsFixed(0)}%',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                if (!showAll && sorted.length > 3) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    '+${sorted.length - 3} more employees',
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+
+  Widget _buildNeedsAttentionSection(List<_NeedsAttentionItem> items) {
+    return _buildSectionCard(
+      title: 'Needs Attention',
+      icon: Icons.warning_amber_rounded,
+      iconColor: AppColors.warningColor,
+      child: items.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(
+                'No items needing attention',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              ),
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: items.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${item.employeeName} — ${item.reason}',
+                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                      ),
+                    ),
+                    if (item.actionType == _NeedsAttentionAction.view)
+                      TextButton(
+                        onPressed: () => _viewEmployeeDetails(item.employee),
+                        child: const Text('View'),
+                      ),
+                    if (item.actionType == _NeedsAttentionAction.nudge)
+                      TextButton(
+                        onPressed: () => _sendNudgeToEmployee(item.employeeName),
+                        child: const Text('Send Nudge'),
+                      ),
+                    if (item.actionType == _NeedsAttentionAction.review)
+                      TextButton(
+                        onPressed: () => _viewEmployeeDetails(item.employee),
+                        child: const Text('Review'),
+                      ),
+                  ],
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildAiInsightPanel({
+    required TeamMetrics metrics,
+    required Map<String, int> goalStatusCounts,
+    required List<int> engagementByDay,
+    required List<_CategoryProgressItem> categoryProgress,
+    required List<double> trendPoints,
+  }) {
+    final trendDelta = _calculateTrendDeltaPercent(trendPoints);
+    final trendDirection = trendDelta > 0
+        ? 'increased'
+        : trendDelta < 0
+        ? 'decreased'
+        : 'stayed flat';
+    final int overdueGoals = goalStatusCounts['overdue'] ?? 0;
+    const weekdayLabels = <String>['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+    int lowestDayIndex = 0;
+    if (engagementByDay.isNotEmpty) {
+      for (int i = 1; i < engagementByDay.length; i++) {
+        if (engagementByDay[i] < engagementByDay[lowestDayIndex]) {
+          lowestDayIndex = i;
+        }
+      }
+    }
+
+    _CategoryProgressItem? lowestCategory;
+    if (categoryProgress.isNotEmpty) {
+      lowestCategory = categoryProgress.reduce(
+        (a, b) => a.progress <= b.progress ? a : b,
+      );
+    }
+
+    return _buildSectionCard(
+      title: 'Smart Insight',
+      icon: Icons.auto_awesome,
+      iconColor: AppColors.infoColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.successColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.successColor.withValues(alpha: 0.35)),
+            ),
+            child: Text(
+              trendDirection == 'stayed flat'
+                  ? 'Team progress stayed flat this month.'
+                  : 'Team progress $trendDirection by ${trendDelta.abs()}% this month.',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'However:',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.warningColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '- $overdueGoals overdue goal${overdueGoals == 1 ? '' : 's'} need attention',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+          Text(
+            '- Engagement is lowest on ${weekdayLabels[lowestDayIndex]}',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+          Text(
+            '- ${lowestCategory?.label ?? 'Category'} goals have the lowest completion'
+            '${lowestCategory != null ? ' (${lowestCategory.progress.toStringAsFixed(0)}%)' : ''}',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalCategoryProgressSection(List<_CategoryProgressItem> categoryProgress) {
+    return _buildSectionCard(
+      title: 'Goal Category Progress',
+      child: categoryProgress.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(
+                'No category data',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              ),
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: categoryProgress.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final item = categoryProgress[index];
+                return Row(
+                  children: [
+                    SizedBox(
+                      width: 140,
+                      child: Text(
+                        item.label,
+                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: LinearProgressIndicator(
+                          value: (item.progress / 100).clamp(0.0, 1.0),
+                          backgroundColor: Colors.white.withValues(alpha: 0.15),
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${item.progress.toStringAsFixed(0)}%',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    Widget? child,
+    IconData? icon,
+    Color? iconColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20, color: iconColor ?? AppColors.textSecondary),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                title,
+                style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+          if (child != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            child,
+          ],
+        ],
+      ),
     );
   }
 
