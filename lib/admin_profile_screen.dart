@@ -4,65 +4,27 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/models/user_profile.dart'; // Removed as it is not directly used in this file's UI logic.
 import 'package:image_picker/image_picker.dart';
 // import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
 // import 'dart:io'; // Removed: use XFile.readAsBytes() for web compatibility
 
-import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Manager Profile',
-      theme: ThemeData(
-        fontFamily: 'Poppins',
-        scaffoldBackgroundColor: const Color(
-          0xFF040610,
-        ), // Set scaffold background color here
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFC10D00),
-          secondary: Color(0xFF1F2840),
-          surface: Color(0xFF2C3E50), // Ensure only one surface property
-          onPrimary: Colors.white,
-          onSecondary: Color(0xFFC10D00),
-          onSurface: Colors.white,
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          fillColor: Colors.white10,
-          filled: true,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(8.0)),
-            borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-      home: const ManagerProfileScreen(),
-    );
-  }
-}
-
-class ManagerProfileScreen extends StatefulWidget {
-  const ManagerProfileScreen({super.key, this.embedded = false});
+class AdminProfileScreen extends StatefulWidget {
+  const AdminProfileScreen({super.key, this.embedded = false});
 
   final bool embedded;
 
   @override
-  State<ManagerProfileScreen> createState() => _ManagerProfileScreenState();
+  State<AdminProfileScreen> createState() => _AdminProfileScreenState();
 }
 
-class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
+class _AdminProfileScreenState extends State<AdminProfileScreen> {
   static const List<String> _jobTitleOptions = [
     'Director',
     'Developer',
@@ -122,14 +84,14 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   double _saveButtonScale = 1.0;
 
   static const String _developmentPlanSystemInstruction =
-      '''You are KhonoPal's leadership development copilot. Collaborate with managers to co-create personalized development plans anchored in the context provided (skills, growth areas, projects, aspirations, learning preferences). Always synthesize a practical, strengths-based plan.
+      '''You are KhonoPal's leadership development copilot. Collaborate with admins to co-create personalized development plans anchored in the context provided (skills, growth areas, projects, aspirations, learning preferences). Always synthesize a practical, strengths-based plan.
 
 Respond ONLY with valid JSON following this schema (no prose outside the JSON):
 {
   "narrative": "Overall plan summary in 3-4 sentences.",
   "shortTermGoal": "SMART goal for the next 3-6 months.",
   "longTermGoal": "Ambitious goal or capability for 12-24 months.",
-  "careerVision": "How this plan supports the manager's larger aspiration.",
+  "careerVision": "How this plan supports the admin's larger aspiration.",
   "currentFocus": "Projects or business priorities the plan reinforces.",
   "developmentAreas": ["Growth area 1", "Growth area 2"],
   "strengthsToLeverage": ["Key strength 1", "Key strength 2"],
@@ -145,24 +107,15 @@ Guidelines:
   @override
   void initState() {
     super.initState();
-    _loadManagerProfile();
+    _loadAdminProfile();
   }
 
-  Future<void> _loadManagerProfile() async {
+  Future<void> _loadAdminProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     try {
-      // First, try to get data from onboarding collection
-      // ignore: unused_local_variable
-      final onboardingData = await DatabaseService.getOnboardingData(
-        userId: user.uid,
-        email: user.email,
-      );
-
-      // Then get user profile for other fields
       final userProfile = await DatabaseService.getUserProfile(user.uid);
-
       setState(() {
         _fullNameController.text = userProfile.displayName;
         _selectedJobTitle = _jobTitleOptions.contains(userProfile.jobTitle)
@@ -246,35 +199,25 @@ Guidelines:
     }
   }
 
-  Future<void> _showAlertDialog(
-    String title,
-    String message, {
-    bool isSuccess = false,
-  }) async {
+  Future<void> _showAlertDialog(String title, String message) async {
     return showDialog<void>(
       context: context,
-      barrierDismissible: isSuccess,
       builder: (BuildContext context) {
-        return Center(
-          child: AlertDialog(
-            backgroundColor: const Color(0xFF2C3E50),
-            title: Text(title, style: const TextStyle(color: Colors.white)),
-            content: Text(
-              message,
-              style: const TextStyle(color: Colors.white70),
-            ),
-            actions: <Widget>[
-              TextButton(
-                style: TextButton.styleFrom(
-                  backgroundColor: const Color(0xFFC10D00),
-                ),
-                child: const Text('OK', style: TextStyle(color: Colors.white)),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2C3E50),
+          title: Text(title, style: const TextStyle(color: Colors.white)),
+          content: Text(message, style: const TextStyle(color: Colors.white70)),
+          actions: <Widget>[
+            TextButton(
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Color(0xFFC10D00)),
               ),
-            ],
-          ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
         );
       },
     );
@@ -529,15 +472,21 @@ Guidelines:
     if (payload.isEmpty) return;
 
     try {
-      const systemInstruction =
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
           'You are a writing coach. Refine each entry for clarity and executive tone without changing meaning. '
-          'Respond with JSON using the same keys. Keep each response under 2 sentences.';
-      final rawText = await AiFallbackService.generateTextWithFallback(
-        userPrompt:
-            'Refine the following responses and return JSON only:\n${jsonEncode(payload)}',
-        systemInstruction: systemInstruction,
+          'Respond with JSON using the same keys. Keep each response under 2 sentences.',
+        ),
       );
-      if (rawText.isEmpty) return;
+
+      final response = await model.generateContent([
+        Content.text(
+          'Refine the following responses and return JSON only:\n${jsonEncode(payload)}',
+        ),
+      ]);
+
+      final rawText = response.text ?? '';
       final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
       if (jsonMatch == null) return;
       final decoded = jsonDecode(jsonMatch.group(0)!);
@@ -555,10 +504,13 @@ Guidelines:
   }
 
   Future<_DevelopmentPlanResult> _requestDevelopmentPlan(String prompt) async {
-    final rawText = await AiFallbackService.generateTextWithFallback(
-      userPrompt: prompt,
-      systemInstruction: _developmentPlanSystemInstruction,
+    final model = FirebaseAI.googleAI().generativeModel(
+      model: 'gemini-2.5-flash',
+      systemInstruction: Content.text(_developmentPlanSystemInstruction),
     );
+
+    final response = await model.generateContent([Content.text(prompt)]);
+    final rawText = response.text?.trim() ?? '';
     final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
     if (jsonMatch == null) {
       throw Exception('Plan response was not in the expected JSON format.');
@@ -623,10 +575,7 @@ Guidelines:
         ),
       );
     } catch (e) {
-      if (!mounted) {
-        _isGeneratingDevelopmentPlan = false;
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _planGenerationError = e.toString();
         _planGenerationPhase = '';
@@ -700,7 +649,7 @@ Guidelines:
     }
 
     final buffer = StringBuffer();
-    final displayName = name.isEmpty ? 'this manager' : name;
+    final displayName = name.isEmpty ? 'this admin' : name;
 
     buffer.writeln(
       "Collaborate with $displayName to co-design a personalized development plan that feels achievable but ambitious.",
@@ -718,10 +667,10 @@ Guidelines:
       '- For each area, outline SMART goals, suggested rituals or resources (courses, mentors, playbooks), and checkpoints (30/60/90 days or 12-week arcs).',
     );
     buffer.writeln(
-      '- Suggest how to track progress (metrics, reflections, stakeholder feedback) and where the manager may need support.',
+      '- Suggest how to track progress (metrics, reflections, stakeholder feedback) and where the admin may need support.',
     );
     buffer.writeln(
-      '- Close with a motivational nudge plus a question that invites the manager to refine the plan with you.',
+      '- Close with a motivational nudge plus a question that invites the admin to refine the plan with you.',
     );
     buffer.writeln(
       '\nTone: strengths-based, specific, and collaborative — behave like KhonoPal’s development copilot, not a lecturer.',
@@ -906,8 +855,7 @@ Guidelines:
       if (showDialog) {
         _showAlertDialog(
           successTitle ?? 'Profile Saved',
-          successMessage ?? 'Your manager profile has been saved successfully!',
-          isSuccess: true,
+          successMessage ?? 'Your admin profile has been saved successfully!',
         );
       }
     } catch (e) {
@@ -1147,87 +1095,21 @@ Guidelines:
     );
   }
 
-  bool _isBasicInfoComplete() {
-    return _fullNameController.text.trim().isNotEmpty &&
-        _selectedJobTitle != null &&
-        _selectedDepartment != null &&
-        _workEmailController.text.trim().isNotEmpty;
-  }
-
-  Future<bool> _onWillPop() async {
-    if (!_isBasicInfoComplete()) {
-      final shouldLeave = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return Center(
-            child: AlertDialog(
-              backgroundColor: const Color(0xFF2C3E50),
-              title: const Text(
-                'Incomplete Profile',
-                style: TextStyle(color: Colors.white),
-              ),
-              content: const Text(
-                'Please fill in all basic information fields (Full Name, Job Title, Department, and Email Address) before leaving the profile screen.',
-                style: TextStyle(color: Colors.white70),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: const Color(0xFFC10D00),
-                  ),
-                  onPressed: () {
-                    Navigator.of(context).pop(false);
-                  },
-                  child: const Text(
-                    'OK',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-      return shouldLeave ?? false;
-    }
-    return true;
-  }
-
   @override
   Widget build(BuildContext context) {
     if (widget.embedded) {
-      return PopScope(
-        canPop: _isBasicInfoComplete(),
-        onPopInvokedWithResult: (bool didPop, dynamic result) async {
-          if (!didPop && !_isBasicInfoComplete()) {
-            await _onWillPop();
-          }
-        },
-        child: _buildProfileContent(),
-      );
+      return _buildProfileContent();
     }
 
-    return PopScope(
-      canPop: _isBasicInfoComplete(),
-      onPopInvokedWithResult: (bool didPop, dynamic result) async {
-        if (!didPop && !_isBasicInfoComplete()) {
-          await _onWillPop();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-        body: AppComponents.backgroundWithImage(
-          imagePath: 'assets/khono_bg.png',
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24.0,
-              vertical: 64.0,
-            ),
-            child: _buildProfileContent(),
-          ),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      body: AppComponents.backgroundWithImage(
+        imagePath: 'assets/khono_bg.png',
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
+          child: _buildProfileContent(),
         ),
       ),
     );
@@ -1325,7 +1207,7 @@ Guidelines:
         decoration: const InputDecoration(
           labelText: 'Job Title / Role',
           hintText: 'Select Job Title',
-          hintStyle: TextStyle(color: Colors.white),
+          hintStyle: TextStyle(color: Color(0xFFC10D00)),
           filled: true,
           fillColor: Color.fromARGB(13, 255, 255, 255),
           border: OutlineInputBorder(
@@ -1368,7 +1250,7 @@ Guidelines:
         decoration: const InputDecoration(
           labelText: 'Department / Team',
           hintText: 'Select Department',
-          hintStyle: TextStyle(color: Colors.white),
+          hintStyle: TextStyle(color: Color(0xFFC10D00)),
           filled: true,
           fillColor: Color.fromARGB(13, 255, 255, 255),
           border: OutlineInputBorder(

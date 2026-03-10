@@ -284,7 +284,7 @@ class RoleService {
   }
 }
 
-enum RequiredRole { manager, employee, any }
+enum RequiredRole { manager, employee, admin, any }
 
 String? _normalizeRole(String? role) {
   if (role == null) return null;
@@ -378,6 +378,7 @@ class _RoleGateState extends State<RoleGate> {
           widget.requiredRole == RequiredRole.any) {
         return widget.child;
       }
+      // Admin and manager see loading until role is resolved
       return Center(child: CircularProgressIndicator(color: Color(0xFFC10D00)));
     }
 
@@ -478,7 +479,8 @@ class _RoleGateState extends State<RoleGate> {
             (widget.requiredRole == RequiredRole.manager &&
                 role == 'manager') ||
             (widget.requiredRole == RequiredRole.employee &&
-                role == 'employee');
+                role == 'employee') ||
+            (widget.requiredRole == RequiredRole.admin && role == 'admin');
         if (ok) return widget.child;
         SchedulerBinding.instance.addPostFrameCallback((_) {
           if (context.mounted) {
@@ -613,10 +615,9 @@ class _Unauthorized extends StatelessWidget {
               ElevatedButton(
                 onPressed: () {
                   if (role == 'manager') {
-                    Navigator.pushReplacementNamed(
-                      context,
-                      '/manager_dashboard',
-                    );
+                    Navigator.pushReplacementNamed(context, '/manager_portal');
+                  } else if (role == 'admin') {
+                    Navigator.pushReplacementNamed(context, '/admin_portal');
                   } else {
                     Navigator.pushReplacementNamed(context, '/employee_portal');
                   }

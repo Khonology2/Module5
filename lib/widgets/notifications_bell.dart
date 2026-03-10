@@ -4,11 +4,13 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
-import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/database_service.dart';
 
 class NotificationsBell extends StatefulWidget {
-  const NotificationsBell({super.key});
+  const NotificationsBell({super.key, this.onTap});
+
+  /// When set, this callback is used instead of the default role-based navigation (e.g. admin portal can route to admin inbox).
+  final VoidCallback? onTap;
 
   @override
   State<NotificationsBell> createState() => _NotificationsBellState();
@@ -48,6 +50,10 @@ class _NotificationsBellState extends State<NotificationsBell>
       _animationController.stop();
       _animationController.reset();
     }
+  }
+
+  void _openAlerts(BuildContext context) {
+    Navigator.pushNamed(context, '/alerts_nudges');
   }
 
   Future<bool> _isProfileIncomplete() async {
@@ -96,24 +102,10 @@ class _NotificationsBellState extends State<NotificationsBell>
             final unreadCount = unreadAlertsCount + (profileIncomplete ? 1 : 0);
             final hasUnread = unreadCount > 0;
 
-            // Update animation based on unread status
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _updateAnimation(hasUnread);
-            });
-
-            void openAlerts() {
-              final role = RoleService.instance.cachedRole;
-              final route = role == 'manager'
-                  ? '/manager_alerts_nudges'
-                  : '/alerts_nudges';
-              final current = ModalRoute.of(context)?.settings.name;
-              if (current != route) {
-                Navigator.pushNamed(context, route);
-              }
-            }
+            _updateAnimation(hasUnread);
 
             return InkWell(
-              onTap: openAlerts,
+              onTap: widget.onTap ?? () => _openAlerts(context),
               borderRadius: BorderRadius.circular(20),
               child: Stack(
                 clipBehavior: Clip.none,
@@ -125,39 +117,40 @@ class _NotificationsBellState extends State<NotificationsBell>
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: const Color(0x1FFFFFFF)),
                     ),
-                    child: AnimatedBuilder(
-                      animation: _opacityAnimation,
-                      builder: (context, child) {
-                        return Opacity(
-                          opacity: hasUnread ? _opacityAnimation.value : 1.0,
-                          child: const Icon(
-                            Icons.notifications_none,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                        );
-                      },
+                    child: const Icon(
+                      Icons.notifications_none,
+                      color: Colors.white,
+                      size: 18,
                     ),
                   ),
                   if (hasUnread)
                     Positioned(
                       right: -2,
                       top: -2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.dangerColor,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          unreadCount > 99 ? '99+' : '$unreadCount',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                      child: AnimatedBuilder(
+                        animation: _opacityAnimation,
+                        builder: (context, child) {
+                          return Opacity(
+                            opacity: hasUnread ? _opacityAnimation.value : 1.0,
+                            child: child,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.dangerColor,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),

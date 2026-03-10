@@ -70,9 +70,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
               );
             }
 
-            final targetRoute = role == 'manager'
-                ? '/manager_portal'
-                : '/employee_dashboard';
+            final String targetRoute;
+            if (role == 'manager') {
+              targetRoute = '/manager_portal';
+            } else if (role == 'admin') {
+              targetRoute = '/admin_portal';
+            } else {
+              targetRoute = '/employee_dashboard';
+            }
 
             // Navigate after the current frame to avoid build-time navigation
             WidgetsBinding.instance.addPostFrameCallback((_) {

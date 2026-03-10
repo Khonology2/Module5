@@ -255,13 +255,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     children: [
                       _buildTextFieldWithGenerate(
                         controller: _goalTitleController,
-                        hintText: 'Enter your development goal title',
+                        hintText: 'Enter your development goal title (required)',
                         onGenerate: () =>
                             _showGenerateDescriptionDialog(context),
                       ),
                       _buildTextField(
                         controller: _goalDescriptionController,
-                        hintText: 'Describe your goal in detail...',
+                        hintText: 'Describe your goal in detail (optional)...',
                         maxLines: 5,
                       ),
                     ],
@@ -305,7 +305,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                           Expanded(
                             child: _buildDateInput(
                               context,
-                              'Target Date',
+                              'Target Date (required)',
                               _targetDate,
                               isStartDate: false,
                             ),
@@ -362,6 +362,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xxl),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: Text(
+                      'You can create a goal with just a title and target date. '
+                      'Suggest and Generate are optional.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
                   _buildSectionCard(children: [_buildActionButtons()]),
                 ],
               ),
