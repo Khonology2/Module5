@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/unified_milestone_audit.dart';
 
 /// Test page to verify milestone audit functionality
 class MilestoneAuditTestPage extends StatefulWidget {
@@ -85,12 +87,29 @@ class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
           final testGoal = goals.first;
           _testResults.add('✅ Found goal: ${testGoal.title}');
 
-          // TODO: Implement audit stream when milestone audit service is available
-          // final auditStream = UnifiedMilestoneAudit.getMilestoneAuditStream(
-          //   testGoal.id,
-          // );
+          // Test milestone audit stream
+          final auditStream = UnifiedMilestoneAudit.getMilestoneAuditStream(
+            testGoal.id,
+          );
 
-          _testResults.add('⚠️  Milestone audit service not yet implemented');
+          await for (final auditEntries in auditStream) {
+            if (auditEntries.isNotEmpty) {
+              _testResults.add('✅ Found ${auditEntries.length} audit entries');
+
+              for (final entry in auditEntries) {
+                final action = entry['action'] ?? 'unknown';
+                final timestamp = entry['timestamp'] as Timestamp?;
+                _testResults.add(
+                  '📝 $action at ${timestamp?.toDate() ?? 'unknown time'}',
+                );
+              }
+
+              break; // Test first batch only
+            } else {
+              _testResults.add('ℹ️  No audit entries found for this goal');
+              break;
+            }
+          }
 
           setState(() {
             _status = 'Audit stream test completed';
@@ -130,10 +149,10 @@ class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
     try {
       _testResults.add('🔄 Starting backfill test...');
 
-      // TODO: Implement backfill when milestone audit service is available
-      // await UnifiedMilestoneAudit.backfillExistingMilestones();
+      // Test milestone backfill
+      await UnifiedMilestoneAudit.backfillExistingMilestones();
 
-      _testResults.add('⚠️  Milestone backfill service not yet implemented');
+      _testResults.add('✅ Milestone backfill completed successfully');
 
       setState(() {
         _status = 'Backfill test completed';

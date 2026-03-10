@@ -1,6 +1,9 @@
 {
   "firestore": {
-    "rules": "firestore.rules"
+    "database": "(default)",
+    "location": "africa-south1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "storage": {
     "rules": "storage.rules"
@@ -22,10 +25,10 @@
           "projectId": "pdh-v2",
           "configurations": {
             "android": "1:638896632756:android:fe586c9180a35ec8e378e1",
-            "ios": "1:638896632756:ios:000000000000000000000001",
-            "macos": "1:638896632756:ios:000000000000000000000001",
+"ios": "1:638896632756:ios:7561461d42d0858888401be",
+            "macos": "1:638896632756:ios:7561461d42d0858888401be",
             "web": "1:638896632756:web:6df76beff446f75ee378e1",
-            "windows": "1:638896632756:web:000000000000000000000001"
+            "windows": "1:638896632756:web:5baabea0d2d8ce3f8401be"
           }
         }
       }

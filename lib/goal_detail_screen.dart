@@ -1355,8 +1355,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           break;
       }
     } else {
-      // For new milestones, default to In Progress instead of Not Started
-      status = GoalMilestoneStatus.inProgress;
+      // For new milestones, default to Not Started
+      status = GoalMilestoneStatus.notStarted;
     }
     bool saving = false;
     String? successMessage;
@@ -1549,6 +1549,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       decoration: const InputDecoration(labelText: 'Status'),
                       items:
                           const [
+                                GoalMilestoneStatus.notStarted,
                                 GoalMilestoneStatus.inProgress,
                                 GoalMilestoneStatus.completed,
                               ]
@@ -2501,6 +2502,9 @@ class _GoalMilestoneTile extends StatelessWidget {
                       case 'edit':
                         onEdit();
                         break;
+                      case 'not_started':
+                        await onUpdateStatus(GoalMilestoneStatus.notStarted);
+                        break;
                       case 'progress':
                         await onUpdateStatus(GoalMilestoneStatus.inProgress);
                         break;
@@ -2517,6 +2521,10 @@ class _GoalMilestoneTile extends StatelessWidget {
                     // Only show employee-appropriate options
                     if (RoleService.instance.cachedRole != 'manager') ...[
                       const PopupMenuDivider(),
+                      const PopupMenuItem(
+                        value: 'not_started',
+                        child: Text('Mark Not Started'),
+                      ),
                       const PopupMenuItem(
                         value: 'progress',
                         child: Text('Mark In Progress'),
