@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.CB6.SIT",
-  "generated_at": "2026-03-10T06:18:47Z",
+  "version": "2026.03.CB7.SIT",
+  "generated_at": "2026-03-10T10:45:37Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -29,10 +29,15 @@
     },
     {
       "author": "BhutSipho",
+      "message": "Fix manager milestone audit trail visibility",
+      "timestamp": "2026-03-10T12:43:56+02:00"
+    },
+    {
+      "author": "BhutSipho",
       "message": "Fix real-time status counters and add clickable filters for employee/manager portals",
       "timestamp": "2026-03-10T08:00:39+02:00"
     }
   ],
-  "total_commits": 6,
+  "total_commits": 7,
   "date_range": "2026-03-10"
 }
