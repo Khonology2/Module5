@@ -24,6 +24,8 @@ import 'package:pdh/services/unified_milestone_audit.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:pdh/utils/debouncer.dart';
+import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/design_system/app_spacing.dart';
 
 // ignore: deprecated_member_use
 import 'dart:html'
@@ -988,51 +990,25 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildAuditEntriesList({required bool isManager}) {
-    return StreamBuilder<List<AuditEntry>>(
+    return StreamBuilder<QuerySnapshot>(
       stream: isManager
-          ? AuditService.getManagerAuditEntriesStream(
-              status: _statusFilter,
-              searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
-            )
-          : AuditService.getEmployeeAuditEntriesStream(
-              status: _statusFilter,
-              searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
-            ),
+          ? FirebaseFirestore.instance
+                .collection('audit_entries')
+                .where('goalId', isGreaterThan: '')
+                .orderBy('timestamp', descending: true)
+                .limit(100)
+                .snapshots()
+          : FirebaseFirestore.instance
+                .collection('audit_entries')
+                .where(
+                  'userId',
+                  isEqualTo: FirebaseAuth.instance.currentUser?.uid ?? '',
+                )
+                .where('goalId', isGreaterThan: '')
+                .orderBy('timestamp', descending: true)
+                .limit(100)
+                .snapshots(),
       builder: (context, snapshot) {
-        // Show loading only if we're truly waiting AND haven't received any data yet
-        // This prevents infinite loading when stream hasn't emitted yet but will emit soon
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
-          // Only show loading for a short time, then assume empty
-          return FutureBuilder<bool>(
-            future: Future.delayed(
-              const Duration(milliseconds: 500),
-              () => true,
-            ),
-            builder: (context, timeoutSnapshot) {
-              if (timeoutSnapshot.hasData &&
-                  snapshot.connectionState == ConnectionState.waiting &&
-                  !snapshot.hasData) {
-                // After timeout, show empty state instead of infinite loading
-                return _buildEmptyState(isManager: isManager);
-              }
-              return const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(color: AppColors.activeColor),
-                    SizedBox(height: 16),
-                    Text(
-                      'Loading audit entries...',
-                      style: TextStyle(color: AppColors.textMuted),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        }
-
         if (snapshot.hasError) {
           developer.log(
             'Audit entries error: ${snapshot.error}',
@@ -1046,7 +1022,75 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           );
         }
 
-        final entries = snapshot.data ?? [];
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: AppColors.activeColor),
+                SizedBox(height: 16),
+                Text(
+                  'Loading audit entries...',
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final entries = <AuditEntry>[];
+        if (snapshot.hasData) {
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>? ?? {};
+
+            // Only process audit entries (not general audit trail entries)
+            if ((data['goalId'] ?? '').toString().isEmpty) continue;
+            if (data.containsKey('action'))
+              continue; // Skip milestone audit entries
+
+            // Apply status filter if set
+            if (_statusFilter != null && data['status'] != _statusFilter)
+              continue;
+
+            // Apply search filter if set
+            if (_searchQuery.isNotEmpty) {
+              final goalTitle = (data['goalTitle'] ?? '')
+                  .toString()
+                  .toLowerCase();
+              final userDisplayName = (data['userDisplayName'] ?? '')
+                  .toString()
+                  .toLowerCase();
+              final query = _searchQuery.toLowerCase();
+              if (!goalTitle.contains(query) &&
+                  !userDisplayName.contains(query))
+                continue;
+            }
+
+            try {
+              entries.add(AuditEntry.fromFirestore(doc));
+            } catch (e) {
+              developer.log('Error parsing audit entry ${doc.id}: $e');
+              // Try to create a basic entry anyway
+              final timestamp =
+                  (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+              entries.add(
+                AuditEntry(
+                  id: doc.id,
+                  userId: data['userId'] ?? '',
+                  goalId: data['goalId'] ?? '',
+                  goalTitle: data['goalTitle'] ?? 'Unknown Goal',
+                  status: data['status'] ?? 'unknown',
+                  completedDate: timestamp,
+                  submittedDate: timestamp,
+                  userDisplayName: data['userDisplayName'] ?? 'Unknown User',
+                  userDepartment: data['userDepartment'] ?? 'Unknown Dept',
+                  evidence: [],
+                ),
+              );
+            }
+          }
+        }
 
         if (entries.isEmpty) {
           return _buildEmptyState(isManager: isManager);

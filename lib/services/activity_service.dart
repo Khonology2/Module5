@@ -94,6 +94,71 @@ class ActivityService {
         });
   }
 
+  /// Record goal status change activities
+  static Future<void> recordGoalStatusChange({
+    required String goalId,
+    required String goalTitle,
+    required String oldStatus,
+    required String newStatus,
+    String? userId,
+  }) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final targetUserId = userId ?? currentUser?.uid;
+
+    if (targetUserId == null) {
+      developer.log('Error: No user ID available to record status change');
+      return;
+    }
+
+    await recordActivity(
+      activityType: 'goal_status_change',
+      description: 'Goal status changed from $oldStatus to $newStatus',
+      metadata: {
+        'goalId': goalId,
+        'goalTitle': goalTitle,
+        'oldStatus': oldStatus,
+        'newStatus': newStatus,
+        'isRejection': newStatus == 'rejected',
+        'requiresAction': newStatus == 'pending' || newStatus == 'rejected',
+      },
+      userId: targetUserId,
+    );
+
+    developer.log(
+      'Recorded goal status change: $goalId from $oldStatus to $newStatus',
+    );
+  }
+
+  /// Record goal rejection specifically
+  static Future<void> recordGoalRejection({
+    required String goalId,
+    required String goalTitle,
+    required String rejectionReason,
+    String? userId,
+  }) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final targetUserId = userId ?? currentUser?.uid;
+
+    if (targetUserId == null) {
+      developer.log('Error: No user ID available to record rejection');
+      return;
+    }
+
+    await recordActivity(
+      activityType: 'goal_rejected',
+      description: 'Goal rejected: $rejectionReason',
+      metadata: {
+        'goalId': goalId,
+        'goalTitle': goalTitle,
+        'rejectionReason': rejectionReason,
+        'requiresAction': true,
+      },
+      userId: targetUserId,
+    );
+
+    developer.log('Recorded goal rejection: $goalId - $rejectionReason');
+  }
+
   /// Create sample activities for demo/development
   static Future<void> createSampleActivities(String userId) async {
     final activities = [
