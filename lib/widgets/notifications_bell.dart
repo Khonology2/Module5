@@ -7,7 +7,10 @@ import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
 
 class NotificationsBell extends StatelessWidget {
-  const NotificationsBell({super.key});
+  const NotificationsBell({super.key, this.onTap});
+
+  /// When set, this callback is used instead of the default role-based navigation (e.g. admin portal can route to admin inbox).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +38,7 @@ class NotificationsBell extends StatelessWidget {
         }
 
         return InkWell(
-          onTap: openAlerts,
+          onTap: onTap ?? openAlerts,
           borderRadius: BorderRadius.circular(20),
           child: Stack(
             clipBehavior: Clip.none,

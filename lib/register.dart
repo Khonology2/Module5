@@ -738,11 +738,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
             color: Colors.white,
             fontFamily: 'Poppins',
           ), // Apply Poppins to selected item
-          items: <String>['employee', 'manager'].map((String value) {
+          items: <String>['employee', 'manager', 'admin'].map((String value) {
+            final label = value == 'employee'
+                ? 'Employee'
+                : value == 'manager'
+                    ? 'Manager'
+                    : 'Admin';
             return DropdownMenuItem<String>(
               value: value,
               child: Text(
-                value == 'employee' ? 'Employee' : 'Manager',
+                label,
                 style: const TextStyle(
                   color: Colors.white,
                   fontFamily: 'Poppins',

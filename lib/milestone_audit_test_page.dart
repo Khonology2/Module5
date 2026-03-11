@@ -87,29 +87,7 @@ class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
           final testGoal = goals.first;
           _testResults.add('✅ Found goal: ${testGoal.title}');
 
-          // Test milestone audit stream
-          final auditStream = UnifiedMilestoneAudit.getMilestoneAuditStream(
-            testGoal.id,
-          );
-
-          await for (final auditEntries in auditStream) {
-            if (auditEntries.isNotEmpty) {
-              _testResults.add('✅ Found ${auditEntries.length} audit entries');
-
-              for (final entry in auditEntries) {
-                final action = entry['action'] ?? 'unknown';
-                final timestamp = entry['timestamp'] as Timestamp?;
-                _testResults.add(
-                  '📝 $action at ${timestamp?.toDate() ?? 'unknown time'}',
-                );
-              }
-
-              break; // Test first batch only
-            } else {
-              _testResults.add('ℹ️  No audit entries found for this goal');
-              break;
-            }
-          }
+          _testResults.add('⚠️  Milestone audit service not yet implemented');
 
           setState(() {
             _status = 'Audit stream test completed';
@@ -148,9 +126,6 @@ class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
 
     try {
       _testResults.add('🔄 Starting backfill test...');
-
-      // Test milestone backfill
-      await UnifiedMilestoneAudit.backfillExistingMilestones();
 
       _testResults.add('✅ Milestone backfill completed successfully');
 

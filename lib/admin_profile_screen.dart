@@ -15,54 +15,16 @@ import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Manager Profile',
-      theme: ThemeData(
-        fontFamily: 'Poppins',
-        scaffoldBackgroundColor: const Color(
-          0xFF040610,
-        ), // Set scaffold background color here
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFC10D00),
-          secondary: Color(0xFF1F2840),
-          surface: Color(0xFF2C3E50), // Ensure only one surface property
-          onPrimary: Colors.white,
-          onSecondary: Color(0xFFC10D00),
-          onSurface: Colors.white,
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          fillColor: Colors.white10,
-          filled: true,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(8.0)),
-            borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-      home: const ManagerProfileScreen(),
-    );
-  }
-}
-
-class ManagerProfileScreen extends StatefulWidget {
-  const ManagerProfileScreen({super.key, this.embedded = false});
+class AdminProfileScreen extends StatefulWidget {
+  const AdminProfileScreen({super.key, this.embedded = false});
 
   final bool embedded;
 
   @override
-  State<ManagerProfileScreen> createState() => _ManagerProfileScreenState();
+  State<AdminProfileScreen> createState() => _AdminProfileScreenState();
 }
 
-class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
+class _AdminProfileScreenState extends State<AdminProfileScreen> {
   static const List<String> _jobTitleOptions = [
     'Director',
     'Developer',
@@ -122,14 +84,14 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   double _saveButtonScale = 1.0;
 
   static const String _developmentPlanSystemInstruction =
-      '''You are KhonoPal's leadership development copilot. Collaborate with managers to co-create personalized development plans anchored in the context provided (skills, growth areas, projects, aspirations, learning preferences). Always synthesize a practical, strengths-based plan.
+      '''You are KhonoPal's leadership development copilot. Collaborate with admins to co-create personalized development plans anchored in the context provided (skills, growth areas, projects, aspirations, learning preferences). Always synthesize a practical, strengths-based plan.
 
 Respond ONLY with valid JSON following this schema (no prose outside the JSON):
 {
   "narrative": "Overall plan summary in 3-4 sentences.",
   "shortTermGoal": "SMART goal for the next 3-6 months.",
   "longTermGoal": "Ambitious goal or capability for 12-24 months.",
-  "careerVision": "How this plan supports the manager's larger aspiration.",
+  "careerVision": "How this plan supports the admin's larger aspiration.",
   "currentFocus": "Projects or business priorities the plan reinforces.",
   "developmentAreas": ["Growth area 1", "Growth area 2"],
   "strengthsToLeverage": ["Key strength 1", "Key strength 2"],
@@ -145,10 +107,10 @@ Guidelines:
   @override
   void initState() {
     super.initState();
-    _loadManagerProfile();
+    _loadAdminProfile();
   }
 
-  Future<void> _loadManagerProfile() async {
+  Future<void> _loadAdminProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -687,7 +649,7 @@ Guidelines:
     }
 
     final buffer = StringBuffer();
-    final displayName = name.isEmpty ? 'this manager' : name;
+    final displayName = name.isEmpty ? 'this admin' : name;
 
     buffer.writeln(
       "Collaborate with $displayName to co-design a personalized development plan that feels achievable but ambitious.",
@@ -705,10 +667,10 @@ Guidelines:
       '- For each area, outline SMART goals, suggested rituals or resources (courses, mentors, playbooks), and checkpoints (30/60/90 days or 12-week arcs).',
     );
     buffer.writeln(
-      '- Suggest how to track progress (metrics, reflections, stakeholder feedback) and where the manager may need support.',
+      '- Suggest how to track progress (metrics, reflections, stakeholder feedback) and where the admin may need support.',
     );
     buffer.writeln(
-      '- Close with a motivational nudge plus a question that invites the manager to refine the plan with you.',
+      '- Close with a motivational nudge plus a question that invites the admin to refine the plan with you.',
     );
     buffer.writeln(
       '\nTone: strengths-based, specific, and collaborative — behave like KhonoPal’s development copilot, not a lecturer.',
@@ -893,7 +855,7 @@ Guidelines:
       if (showDialog) {
         _showAlertDialog(
           successTitle ?? 'Profile Saved',
-          successMessage ?? 'Your manager profile has been saved successfully!',
+          successMessage ?? 'Your admin profile has been saved successfully!',
         );
       }
     } catch (e) {
