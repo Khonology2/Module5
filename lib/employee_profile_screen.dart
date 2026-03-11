@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 // For ImageFilter
 import 'package:pdh/design_system/app_components.dart';
-import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
@@ -1249,17 +1248,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Profile',
-              style: AppTypography.heading2.copyWith(color: Colors.white),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'These fields allow you to set up your identity, preferences, and development context.',
-              style: const TextStyle(color: Colors.white70, fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
             // Profile Photo Section - Centered at the top
             Center(
               child: Column(

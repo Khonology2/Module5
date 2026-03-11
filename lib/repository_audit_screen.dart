@@ -3138,10 +3138,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           duration: Duration(seconds: 2),
         ),
       );
-
-      // Implement milestone backfill functionality
-      await UnifiedMilestoneAudit.backfillExistingMilestones();
-
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -3162,86 +3159,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   Future<void> _exportMilestoneAudit() async {
     // Implementation for exporting milestone audit data
     try {
-      // Implement export functionality similar to existing export service
-      // Fetch milestone audit data from Firestore
-      final auditEntries = await FirebaseFirestore.instance
-          .collection('audit_entries')
-          .where(
-            'action',
-            whereIn: [
-              'milestone_created',
-              'milestone_updated',
-              'milestone_completed',
-            ],
-          )
-          .orderBy('timestamp', descending: true)
-          .limit(1000)
-          .get();
 
-      // Format data for CSV export
-      final csvData = <List<String>>[];
-      csvData.add([
-        'Action',
-        'Goal Title',
-        'Milestone Title',
-        'User',
-        'Timestamp',
-        'Description',
-      ]);
-
-      for (final doc in auditEntries.docs) {
-        final data = doc.data();
-        final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
-        csvData.add([
-          data['action'] ?? 'unknown',
-          data['metadata']?['goalTitle'] ?? 'Unknown Goal',
-          data['metadata']?['milestoneTitle'] ?? 'Unknown Milestone',
-          data['userId'] ?? 'Unknown User',
-          timestamp?.toIso8601String() ?? 'Unknown Time',
-          data['description'] ?? 'No description',
-        ]);
-      }
-
-      // Generate CSV content
-      final csvContent = csvData
-          .map(
-            (row) => row
-                .map((cell) => '"${cell.toString().replaceAll('"', '""')}"')
-                .join(','),
-          )
-          .join('\n');
-
-      // Trigger download (similar to RepositoryExportService)
-      if (kIsWeb) {
-        // Web download
-        final bytes = convert.utf8.encode(csvContent);
-        final blob = html.Blob([bytes]);
-        final url = html.Url.createObjectUrlFromBlob(blob);
-        html.AnchorElement(href: url)
-          ..setAttribute(
-            'download',
-            'milestone_audit_${DateTime.now().millisecondsSinceEpoch}.csv',
-          )
-          ..click();
-        html.Url.revokeObjectUrl(url);
-      } else {
-        // Mobile/desktop download would need file picker implementation
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('CSV data ready - mobile download coming soon!'),
-            ),
-          );
-        }
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Milestone audit exported successfully!'),
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Milestone audit export coming soon!')),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

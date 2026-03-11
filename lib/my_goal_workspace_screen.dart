@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'dart:convert';
 import 'package:pdh/design_system/app_colors.dart';
@@ -254,13 +256,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     children: [
                       _buildTextFieldWithGenerate(
                         controller: _goalTitleController,
-                        hintText: 'Enter your development goal title',
+                        hintText: 'Enter your development goal title (required)',
                         onGenerate: () =>
                             _showGenerateDescriptionDialog(context),
                       ),
                       _buildTextField(
                         controller: _goalDescriptionController,
-                        hintText: 'Describe your goal in detail...',
+                        hintText: 'Describe your goal in detail (optional)...',
                         maxLines: 5,
                       ),
                     ],
@@ -304,7 +306,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                           Expanded(
                             child: _buildDateInput(
                               context,
-                              'Target Date',
+                              'Target Date (required)',
                               _targetDate,
                               isStartDate: false,
                             ),
@@ -361,6 +363,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xxl),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: Text(
+                      'You can create a goal with just a title and target date. '
+                      'Suggest and Generate are optional.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
                   _buildSectionCard(children: [_buildActionButtons()]),
                 ],
               ),
@@ -1602,8 +1614,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         );
       }
     } catch (e) {
+      // Close dialog first; unfocus to avoid focus traversal null errors when tree updates.
       try {
         if (mounted) {
+          FocusScope.of(context).unfocus();
           Navigator.of(context).pop();
         }
       } catch (_) {}
@@ -1611,20 +1625,32 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       if (mounted) {
         final msg = e.toString();
         String userMsg = 'Couldn\'t create goal. Please try again.';
+        final isFirestoreInternalState =
+            msg.contains('INTERNAL ASSERTION') || msg.contains('Unexpected state');
         if (msg.contains('permission-denied') || msg.contains('PERMISSION_DENIED')) {
           userMsg = 'Permission denied. Make sure you\'re signed in and try again.';
         } else if (msg.contains('unavailable') || msg.contains('network')) {
           userMsg = 'Network issue. Check your connection and try again.';
-        } else if (msg.contains('INTERNAL ASSERTION') || msg.contains('Unexpected state')) {
-          userMsg = 'Temporary issue. Wait a moment and try again.';
+        } else if (isFirestoreInternalState) {
+          if (kIsWeb) {
+            userMsg = 'Temporary Firestore issue on web. Reload the page and try creating the goal again.';
+            FirestoreWebCircuitBreaker.maybeReload(e);
+          } else {
+            userMsg = 'Temporary issue. Wait a moment and try again.';
+          }
         }
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(userMsg),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        final message = userMsg;
+        // Defer SnackBar to next frame so focus traversal doesn't see a partially updated tree.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        });
       }
     }
   }
