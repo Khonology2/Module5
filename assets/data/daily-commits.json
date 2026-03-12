@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.CB6.SIT",
-  "generated_at": "2026-03-10T14:49:06Z",
+  "version": "2026.03.CD6.SIT",
+  "generated_at": "2026-03-12T08:43:41Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -18,11 +18,6 @@
       "timestamp": "2026-03-10T12:43:56+02:00"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature - Enhance team progress visuals by adding fallback trend generation, current period calculations.",
-      "timestamp": "2026-03-10T11:52:29+02:00"
-    },
-    {
       "author": "Nathi2266",
       "message": "feat: add Admin Portal with navigation and sidebar configuration; update role handling for admin users",
       "timestamp": "2026-03-10T10:51:58+02:00"
@@ -31,8 +26,13 @@
       "author": "BhutSipho",
       "message": "Fix real-time status counters and add clickable filters for employee/manager portals",
       "timestamp": "2026-03-10T08:00:39+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "chore: update package versions and SHA256 checksums in pubspec.lock",
+      "timestamp": "2026-03-12T10:42:57+02:00"
     }
   ],
   "total_commits": 6,
-  "date_range": "2026-03-10"
+  "date_range": "2026-03-12"
 }
