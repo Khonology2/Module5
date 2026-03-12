@@ -11,8 +11,10 @@ import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/goal.dart';
+
 class AdminDashboardScreen extends StatefulWidget {
   final bool embedded;
+
   /// When set, quick actions call this to switch admin portal route instead of pushing.
   final void Function(String route)? onNavigate;
 
@@ -37,7 +39,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     super.initState();
     _loadAdminName();
     _managersStream = ManagerRealtimeService.getManagersDataStream();
-    _loadWatch..reset()..start();
+    _loadWatch
+      ..reset()
+      ..start();
   }
 
   Future<void> _loadAdminName() async {
@@ -75,8 +79,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             );
           }
           if (!managersSnap.hasData) {
-            final timedOut = _loadWatch.elapsed >
-                const Duration(seconds: 12);
+            final timedOut = _loadWatch.elapsed > const Duration(seconds: 12);
             if (timedOut) {
               return Center(
                 child: ConstrainedBox(
@@ -109,8 +112,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               ElevatedButton(
                                 onPressed: () {
                                   setState(() {
-                                    _managersStream = ManagerRealtimeService.getManagersDataStream();
-                                    _loadWatch..reset()..start();
+                                    _managersStream =
+                                        ManagerRealtimeService.getManagersDataStream();
+                                    _loadWatch
+                                      ..reset()
+                                      ..start();
                                   });
                                 },
                                 style: ElevatedButton.styleFrom(
@@ -468,14 +474,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final now = DateTime.now();
     final sevenDaysAgo = now.subtract(const Duration(days: 7));
     final total = m?.totalEmployees ?? employees.length;
-    final active = m?.activeEmployees ??
+    final active =
+        m?.activeEmployees ??
         employees.where((e) => e.lastActivity.isAfter(sevenDaysAgo)).length;
     final avgProgress = m?.avgTeamProgress ?? 0.0;
-    final engagement = m?.teamEngagement ??
-        (total > 0 ? (active / total) * 100.0 : 0.0);
+    final engagement =
+        m?.teamEngagement ?? (total > 0 ? (active / total) * 100.0 : 0.0);
     final overdue = m?.overdueGoals ?? 0;
-    final lowEngagement =
-        total - active; // Inactive in last 7 days
+    final lowEngagement = total - active; // Inactive in last 7 days
 
     return _card(
       child: Column(
@@ -509,8 +515,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.warning_amber_rounded,
-                          size: 18, color: AppColors.warningColor),
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        size: 18,
+                        color: AppColors.warningColor,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         '$overdue overdue goal(s)',
@@ -525,8 +534,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.person_off_outlined,
-                          size: 18, color: AppColors.textSecondary),
+                      Icon(
+                        Icons.person_off_outlined,
+                        size: 18,
+                        color: AppColors.textSecondary,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         '$lowEngagement low engagement',
@@ -560,7 +572,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       }
     }
-    final maxCount = dayCounts.isEmpty ? 1 : dayCounts.reduce((a, b) => a > b ? a : b);
+    final maxCount = dayCounts.isEmpty
+        ? 1
+        : dayCounts.reduce((a, b) => a > b ? a : b);
     final maxVal = maxCount == 0 ? 1 : maxCount;
 
     String dayLabel(int i) {
@@ -591,7 +605,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: List.generate(7, (i) {
-              final h = maxVal > 0 ? (dayCounts[i] / maxVal).clamp(0.1, 1.0) : 0.1;
+              final h = maxVal > 0
+                  ? (dayCounts[i] / maxVal).clamp(0.1, 1.0)
+                  : 0.1;
               return Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -659,7 +675,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.bar_chart_rounded, color: AppColors.activeColor, size: 22),
+              Icon(
+                Icons.bar_chart_rounded,
+                color: AppColors.activeColor,
+                size: 22,
+              ),
               const SizedBox(width: 8),
               Text('Team progress comparison', style: AppTypography.heading2),
             ],
@@ -674,7 +694,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           const SizedBox(height: 16),
           ...sorted.map((e) {
             final isTop = sorted.indexOf(e) < 3;
-            final isLow = sorted.indexOf(e) >= sorted.length - 2 && sorted.length >= 3;
+            final isLow =
+                sorted.indexOf(e) >= sorted.length - 2 && sorted.length >= 3;
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Row(
@@ -686,8 +707,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       backgroundColor: isTop
                           ? AppColors.successColor.withValues(alpha: 0.3)
                           : isLow
-                              ? AppColors.warningColor.withValues(alpha: 0.3)
-                              : Colors.white.withValues(alpha: 0.15),
+                          ? AppColors.warningColor.withValues(alpha: 0.3)
+                          : Colors.white.withValues(alpha: 0.15),
                       child: Text(
                         e.profile.displayName.isNotEmpty
                             ? e.profile.displayName[0].toUpperCase()
@@ -721,8 +742,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         isTop
                             ? AppColors.successColor
                             : isLow
-                                ? AppColors.warningColor
-                                : AppColors.activeColor,
+                            ? AppColors.warningColor
+                            : AppColors.activeColor,
                       ),
                       minHeight: 8,
                       borderRadius: BorderRadius.circular(4),
@@ -764,8 +785,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.check_circle_outline,
-                    color: AppColors.successColor, size: 22),
+                Icon(
+                  Icons.check_circle_outline,
+                  color: AppColors.successColor,
+                  size: 22,
+                ),
                 const SizedBox(width: 8),
                 Text('Risks & attention', style: AppTypography.heading2),
               ],
@@ -788,8 +812,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber_rounded,
-                  color: AppColors.warningColor, size: 22),
+              Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.warningColor,
+                size: 22,
+              ),
               const SizedBox(width: 8),
               Text('Risks & attention', style: AppTypography.heading2),
             ],
@@ -805,7 +832,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           if (overdue.isNotEmpty) ...[
             Row(
               children: [
-                Icon(Icons.assignment_late, size: 18, color: AppColors.warningColor),
+                Icon(
+                  Icons.assignment_late,
+                  size: 18,
+                  color: AppColors.warningColor,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Overdue goals (${overdue.length} manager(s))',
@@ -817,7 +848,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ],
             ),
             const SizedBox(height: 6),
-            ...overdue.take(5).map(
+            ...overdue
+                .take(5)
+                .map(
                   (e) => Padding(
                     padding: const EdgeInsets.only(left: 26, bottom: 4),
                     child: Text(
@@ -843,7 +876,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           if (lowEngagement.isNotEmpty) ...[
             Row(
               children: [
-                Icon(Icons.person_off_outlined, size: 18, color: AppColors.textSecondary),
+                Icon(
+                  Icons.person_off_outlined,
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Low engagement — no activity in 7 days (${lowEngagement.length})',
@@ -855,7 +892,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ],
             ),
             const SizedBox(height: 6),
-            ...lowEngagement.take(5).map(
+            ...lowEngagement
+                .take(5)
+                .map(
                   (e) => Padding(
                     padding: const EdgeInsets.only(left: 26, bottom: 4),
                     child: Text(
@@ -893,7 +932,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               label: const Text('Open Manager Oversight'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.activeColor,
-                side: BorderSide(color: AppColors.activeColor.withValues(alpha: 0.6)),
+                side: BorderSide(
+                  color: AppColors.activeColor.withValues(alpha: 0.6),
+                ),
               ),
             ),
           ),
@@ -1034,14 +1075,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildQuickActions() {
     final items = [
-      ('Progress & Visuals', '/manager_oversight'),
-      ('System Analytics', '/analytics'),
-      ('Inbox', '/admin_inbox'),
-      ('Team Challenge', '/team_challenge_admin'),
+      ('Progress', '/manager_oversight'),
       ('Leaderboard', '/org_leaderboard'),
-      ('Repository & Audit', '/admin_repository_audit'),
-      ('Profile', '/admin_profile'),
       ('Settings & Privacy', '/admin_settings'),
+      ('Repository Audit', '/admin_repository_audit'),
     ];
     return AppComponents.card(
       child: Column(
@@ -1049,44 +1086,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Text('Quick Actions', style: AppTypography.heading4),
           const SizedBox(height: AppSpacing.md),
-          ...List.generate(
-            (items.length / 4).ceil(),
-            (row) {
-              final start = row * 4;
-              final rowItems = items.skip(start).take(4).toList();
-              return Padding(
-                padding: EdgeInsets.only(
-                  bottom: row < (items.length / 4).ceil() - 1
-                      ? AppSpacing.md
-                      : 0,
-                ),
-                child: Row(
-                  children: [
-                    for (int i = 0; i < 4; i++) ...[
-                      if (i > 0) const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: i < rowItems.length
-                            ? AppComponents.primaryButton(
-                                label: rowItems[i].$1,
-                                onPressed: () {
-                                  if (widget.onNavigate != null) {
-                                    widget.onNavigate!(rowItems[i].$2);
-                                  } else {
-                                    Navigator.pushNamed(
-                                      context,
-                                      rowItems[i].$2,
-                                    );
-                                  }
-                                },
-                              )
-                            : const SizedBox.shrink(),
-                      ),
-                    ],
+          ...List.generate((items.length / 4).ceil(), (row) {
+            final start = row * 4;
+            final rowItems = items.skip(start).take(4).toList();
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: row < (items.length / 4).ceil() - 1 ? AppSpacing.md : 0,
+              ),
+              child: Row(
+                children: [
+                  for (int i = 0; i < 4; i++) ...[
+                    if (i > 0) const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: i < rowItems.length
+                          ? AppComponents.primaryButton(
+                              label: rowItems[i].$1,
+                              onPressed: () {
+                                if (widget.onNavigate != null) {
+                                  widget.onNavigate!(rowItems[i].$2);
+                                } else {
+                                  Navigator.pushNamed(context, rowItems[i].$2);
+                                }
+                              },
+                            )
+                          : const SizedBox.shrink(),
+                    ),
                   ],
-                ),
-              );
-            },
-          ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
