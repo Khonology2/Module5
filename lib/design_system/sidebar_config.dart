@@ -195,7 +195,7 @@ class SidebarConfig {
       white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
       red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
       label: 'System Analytics',
-      route: '/analytics',
+      route: '/admin_analytics',
     ),
     SidebarItem(
       icon: Icons.inbox_outlined,
@@ -250,7 +250,7 @@ class SidebarConfig {
   static const Set<String> _adminRoutes = {
     '/admin_dashboard',
     '/manager_oversight',
-    '/analytics',
+    '/admin_analytics',
     '/admin_inbox',
     '/team_challenge_admin',
     '/org_leaderboard',
