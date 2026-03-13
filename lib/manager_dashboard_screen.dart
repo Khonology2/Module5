@@ -517,13 +517,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               const SizedBox(height: AppSpacing.xl),
               _buildQuickActions(),
               const SizedBox(height: AppSpacing.xl),
-              _buildTeamAtAGlance(metrics, employees),
+              _buildKpis(metrics, employees),
               const SizedBox(height: AppSpacing.xl),
-              _buildProgressTrends(employees),
+              _buildTeamHealth(metrics, employees),
               const SizedBox(height: AppSpacing.xl),
-              _buildTeamProgressComparison(employees),
-              const SizedBox(height: AppSpacing.xl),
-              _buildRisksCard(employees),
+              _buildActivitySummary(employees),
               const SizedBox(height: AppSpacing.xl),
               _buildSeasonProgressAlerts(),
               const SizedBox(height: AppSpacing.xl),
@@ -854,215 +852,53 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  /// Single consolidated card: no duplication of dashboard metrics.
-  Widget _buildTeamAtAGlance(TeamMetrics? m, List<EmployeeData> employees) {
-    final now = DateTime.now();
-    final sevenDaysAgo = now.subtract(const Duration(days: 7));
-    final total = m?.totalEmployees ?? employees.length;
-    final active = m?.activeEmployees ??
+  Widget _buildKpis(TeamMetrics? m, List<EmployeeData> employees) {
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    final totalEmployees = m?.totalEmployees ?? employees.length;
+    final activeEmployees =
+        m?.activeEmployees ??
         employees.where((e) => e.lastActivity.isAfter(sevenDaysAgo)).length;
-    final engagement = m?.teamEngagement ??
-        (total > 0 ? (active / total) * 100.0 : 0.0);
+    final avgProgress = m?.avgTeamProgress ?? 0.0;
+    final engagement =
+        m?.teamEngagement ??
+        (totalEmployees > 0 ? (activeEmployees / totalEmployees) * 100 : 0.0);
+
+    return AppComponents.card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Team KPIs', style: AppTypography.heading2),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _kpiTap('Total', totalEmployees.toString(), null),
+              const SizedBox(width: 8),
+              _kpiTap('Active (7d)', activeEmployees.toString(), 'active7d'),
+              const SizedBox(width: 8),
+              _kpi('Avg Progress', '${avgProgress.toStringAsFixed(0)}%'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Engagement: ${engagement.toStringAsFixed(0)}%',
+            style: AppTypography.muted,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamHealth(TeamMetrics? m, List<EmployeeData> employees) {
+    final onTrack = m?.onTrackGoals ?? 0;
+    final atRisk = m?.atRiskGoals ?? 0;
     final overdue = m?.overdueGoals ?? 0;
-    final lowEngagement =
-        total - active; // Inactive in last 7 days
 
-    return _card(
+    return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Team at a glance', style: AppTypography.heading2),
-          const SizedBox(height: 4),
-          Text(
-            'Key metrics without duplication. See trends and risks below.',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _kpiTap('Total', total.toString(), null),
-              const SizedBox(width: 8),
-              _kpiTap('Active (7d)', active.toString(), 'active7d'),
-              const SizedBox(width: 8),
-              _kpi('Engagement (7d)', '${engagement.toStringAsFixed(0)}%'),
-            ],
-          ),
-          if (overdue > 0 || lowEngagement > 0) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                if (overdue > 0)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.warning_amber_rounded,
-                          size: 18, color: AppColors.warningColor),
-                      const SizedBox(width: 6),
-                      Text(
-                        '$overdue overdue goal(s)',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.warningColor,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                if (lowEngagement > 0)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.person_off_outlined,
-                          size: 18, color: AppColors.textSecondary),
-                      const SizedBox(width: 6),
-                      Text(
-                        '$lowEngagement low engagement',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// Progress trends over time: activity in the last 7 days (from recentActivities).
-  Widget _buildProgressTrends(List<EmployeeData> employees) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dayCounts = List<int>.filled(7, 0);
-    for (var i = 0; i < 7; i++) {
-      final dayStart = today.subtract(Duration(days: 6 - i));
-      final dayEnd = dayStart.add(const Duration(days: 1));
-      for (final e in employees) {
-        for (final a in e.recentActivities) {
-          if (!a.timestamp.isBefore(dayStart) && a.timestamp.isBefore(dayEnd)) {
-            dayCounts[i]++;
-          }
-        }
-      }
-    }
-    final maxCount = dayCounts.isEmpty ? 1 : dayCounts.reduce((a, b) => a > b ? a : b);
-    final maxVal = maxCount == 0 ? 1 : maxCount;
-
-    String dayLabel(int i) {
-      final d = today.subtract(Duration(days: 6 - i));
-      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      return days[d.weekday - 1];
-    }
-
-    return _card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.show_chart, color: AppColors.activeColor, size: 22),
-              const SizedBox(width: 8),
-              Text('Progress trends', style: AppTypography.heading2),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Team activity over the last 7 days.',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(7, (i) {
-              final h = maxVal > 0 ? (dayCounts[i] / maxVal).clamp(0.1, 1.0) : 0.1;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        height: 80,
-                        alignment: Alignment.bottomCenter,
-                        child: Container(
-                          height: 80 * h,
-                          decoration: BoxDecoration(
-                            color: AppColors.activeColor.withValues(alpha: 0.8),
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(6),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        dayLabel(i),
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        '${dayCounts[i]}',
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Visual comparison of team members by progress (and points).
-  Widget _buildTeamProgressComparison(List<EmployeeData> employees) {
-    final sorted = [...employees]
-      ..sort((a, b) => b.avgProgress.compareTo(a.avgProgress));
-    if (sorted.isEmpty) {
-      return _card(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Team progress comparison', style: AppTypography.heading2),
-            const SizedBox(height: 12),
-            Text('No team members yet.', style: AppTypography.muted),
-          ],
-        ),
-      );
-    }
-
-    final now = DateTime.now();
-    int onTrack = 0;
-    int atRisk = 0;
-    int overdue = employees.fold<int>(0, (acc, e) => acc + e.overdueGoalsCount);
-    for (final e in employees) {
-      for (final g in e.goals) {
-        if (g.status != GoalStatus.completed && g.targetDate.isAfter(now)) {
-          if (g.progress >= 30) {
-            onTrack++;
-          } else {
-            atRisk++;
-          }
-        }
-      }
-    }
-
-    return _card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+          Text('Team Health', style: AppTypography.heading2),
+          const SizedBox(height: 12),
           Row(
             children: [
               _kpiTap('On Track', onTrack.toString(), 'onTrack'),
@@ -1070,64 +906,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
               const SizedBox(width: 8),
               _kpiTap('Overdue', overdue.toString(), 'overdue'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Risks: overdue goals and low engagement with actionable list of who.
-  Widget _buildRisksCard(List<EmployeeData> employees) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final sevenDaysAgo = now.subtract(const Duration(days: 7));
-    final activeToday = employees
-        .where((e) => e.lastActivity.isAfter(today))
-        .length;
-    final activeThisWeek = employees
-        .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
-        .length;
-    final inactive = employees
-        .where((e) => e.status == EmployeeStatus.inactive)
-        .length;
-    final overdue = employees
-        .where((e) => e.status == EmployeeStatus.overdue)
-        .length;
-    final atRisk = employees
-        .where((e) => e.status == EmployeeStatus.atRisk)
-        .length;
-
-    return AppComponents.card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Risks', style: AppTypography.heading2),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _kpiTap('Active Today', activeToday.toString(), 'activeToday'),
-              const SizedBox(width: 8),
-              _kpiTap('Active (7d)', activeThisWeek.toString(), 'active7d'),
-              const SizedBox(width: 8),
-              _kpiTap('Inactive', inactive.toString(), 'inactive'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _kpiTap('Overdue', overdue.toString(), 'overdue'),
-              const SizedBox(width: 8),
-              _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
-              const SizedBox(width: 8),
-              _kpiTap(
-                'On Track',
-                employees
-                    .where((e) => e.status == EmployeeStatus.onTrack)
-                    .length
-                    .toString(),
-                'onTrack',
-              ),
             ],
           ),
         ],
@@ -1182,7 +960,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  // ignore: unused_element
   Widget _buildActivitySummary(List<EmployeeData> employees) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
