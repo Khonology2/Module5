@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pdh/settings_screen.dart';
 import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -12,7 +13,7 @@ import 'package:pdh/admin_manager_oversight_screen.dart';
 import 'package:pdh/admin_inbox_screen.dart';
 import 'package:pdh/admin_leaderboard_screen.dart';
 import 'package:pdh/admin_repository_audit_screen.dart';
-import 'package:pdh/settings_screen.dart';
+import 'package:pdh/admin_analytics_screen.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -27,10 +28,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
 
   Widget _getBodyWidget() {
     if (_currentRoute == '/admin_dashboard') {
-      return AdminDashboardScreen(
-        embedded: true,
-        onNavigate: _onNavigate,
-      );
+      return AdminDashboardScreen(embedded: true, onNavigate: _onNavigate);
     }
     if (_currentRoute == '/admin_profile') {
       return const AdminProfileScreen(embedded: true);
@@ -47,14 +45,17 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
     if (_currentRoute == '/admin_repository_audit') {
       return const AdminRepositoryAuditScreen(embedded: true);
     }
+    if (_currentRoute == '/admin_analytics') {
+      return AdminAnalyticsScreen(embedded: true, onNavigate: _onNavigate);
+    }
     if (_currentRoute == '/admin_settings') {
       return const SettingsScreen();
     }
     // Analytics, Team Challenge, etc. show placeholder until built
-    final matching =
-        SidebarConfig.adminItems.where((e) => e.route == _currentRoute);
-    final label =
-        matching.isEmpty ? _currentRoute : matching.first.label;
+    final matching = SidebarConfig.adminItems.where(
+      (e) => e.route == _currentRoute,
+    );
+    final label = matching.isEmpty ? _currentRoute : matching.first.label;
     return _AdminPlaceholder(route: _currentRoute, label: label);
   }
 
@@ -100,10 +101,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
                 gradient: RadialGradient(
                   center: Alignment.center,
                   radius: 1.2,
-                  colors: [
-                    Color(0x880A0F1F),
-                    Color(0x88040610),
-                  ],
+                  colors: [Color(0x880A0F1F), Color(0x88040610)],
                   stops: [0.0, 1.0],
                 ),
               ),
@@ -199,9 +197,7 @@ class _AdminPlaceholder extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Coming soon',
-            style: AppTypography.bodyMedium.copyWith(
-              color: Colors.white70,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: Colors.white70),
           ),
         ],
       ),

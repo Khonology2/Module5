@@ -587,6 +587,7 @@ class _NavTileState extends State<_NavTile> {
         label = localizations.nav_user_management;
         break;
       case '/analytics':
+      case '/admin_analytics':
         label = localizations.nav_analytics;
         break;
       case '/system_settings':

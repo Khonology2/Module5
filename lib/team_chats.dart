@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/services/database_service.dart';
-import 'package:pdh/services/role_service.dart';
+import 'package:pdh/utils/attachment_opener.dart';
 
 // --- 1. Custom Color Definitions (Based on HTML/Tailwind) ---
 const Color chatPrimary = Color(0xFF4F46E5); // Indigo-600
@@ -28,6 +33,12 @@ class ChatMessage {
   final String? replyToText;
   final String? replyToSender;
   final Map<String, List<String>> reactions;
+  final String? attachmentUrl;
+  final String? attachmentName;
+  final String? attachmentType;
+  final int? attachmentSizeBytes;
+  final String? goalId;
+  final String? goalTitle;
 
   ChatMessage({
     required this.id,
@@ -42,6 +53,12 @@ class ChatMessage {
     this.replyToText,
     this.replyToSender,
     this.reactions = const {},
+    this.attachmentUrl,
+    this.attachmentName,
+    this.attachmentType,
+    this.attachmentSizeBytes,
+    this.goalId,
+    this.goalTitle,
   });
 }
 
@@ -97,6 +114,12 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
   final ScrollController _scrollController = ScrollController(
     initialScrollOffset: 0.0,
   );
+  Uint8List? _pendingAttachmentBytes;
+  String? _pendingAttachmentName;
+  int? _pendingAttachmentSizeBytes;
+  String? _pendingAttachmentType;
+  String? _selectedGoalId;
+  String? _selectedGoalTitle;
   String? _displayName;
   final Set<String> _processedIds = {};
   final List<ChatMessage> _visibleMessages = [];
@@ -104,6 +127,38 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
   bool _initializedStream = false;
   final Map<String, GlobalKey> _itemKeys = {};
   ChatMessage? _replyingTo;
+  bool _showGoalOnly = false;
+
+  // #region agent log
+  void _agentLog({
+    required String location,
+    required String message,
+    required Map<String, dynamic> data,
+    String hypothesisId = 'H0',
+    String runId = 'pre-fix',
+  }) {
+    final log = <String, dynamic>{
+      'sessionId': '1ae3fc',
+      'id': 'log_${DateTime.now().millisecondsSinceEpoch}',
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'location': location,
+      'message': message,
+      'data': data,
+      'runId': runId,
+      'hypothesisId': hypothesisId,
+    };
+    try {
+      final file = File('debug-1ae3fc.log');
+      file.writeAsStringSync(
+        '${jsonEncode(log)}\n',
+        mode: FileMode.append,
+        flush: true,
+      );
+    } catch (_) {
+      // Avoid impacting UX if logging fails
+    }
+  }
+  // #endregion
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
@@ -147,6 +202,8 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     });
   }
 
+  String? _profilePhotoUrl;
+
   Future<void> _loadDisplayName() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -156,10 +213,12 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         _displayName = profile.displayName.isNotEmpty
             ? profile.displayName
             : (user.displayName ?? user.email ?? user.uid);
+        _profilePhotoUrl = profile.profilePhotoUrl;
       });
     } catch (_) {
       setState(() {
         _displayName = user.displayName ?? user.email ?? user.uid;
+        _profilePhotoUrl = null;
       });
     }
   }
@@ -174,54 +233,370 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     super.dispose();
   }
 
-  void _handleSend() {
+  String _guessAttachmentType(String fileName) {
+    final ext = fileName.split('.').last.toLowerCase();
+    const imageExts = {
+      'png',
+      'jpg',
+      'jpeg',
+      'gif',
+      'webp',
+      'bmp',
+    };
+    if (imageExts.contains(ext)) return 'image';
+    return 'document';
+  }
+
+  Future<void> _pickAttachment() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        withData: true,
+        type: FileType.custom,
+        allowedExtensions: [
+          'pdf',
+          'doc',
+          'docx',
+          'png',
+          'jpg',
+          'jpeg',
+          'gif',
+          'webp',
+          'bmp',
+        ],
+      );
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      if (file.bytes == null) {
+        await _showCenterNotice(
+          // ignore: use_build_context_synchronously
+          context,
+          'Unable to read selected file. Please try again.',
+        );
+        return;
+      }
+      setState(() {
+        _pendingAttachmentBytes = file.bytes;
+        _pendingAttachmentName = file.name;
+        _pendingAttachmentSizeBytes = file.size;
+        _pendingAttachmentType = _guessAttachmentType(file.name);
+      });
+    } catch (e) {
+      _agentLog(
+        location: 'team_chats.dart:_pickAttachment',
+        message: 'pick_attachment_error',
+        data: {'error': e.toString()},
+        hypothesisId: 'ATTACH_OPEN',
+      );
+      // ignore: use_build_context_synchronously
+      await _showCenterNotice(context, 'Failed to pick file: $e');
+    }
+  }
+
+  void _clearPendingAttachment() {
+    setState(() {
+      _pendingAttachmentBytes = null;
+      _pendingAttachmentName = null;
+      _pendingAttachmentSizeBytes = null;
+      _pendingAttachmentType = null;
+    });
+  }
+
+  Future<void> _handleSend() async {
     final text = _textController.text.trim();
-    if (text.isEmpty) return;
+    final hasAttachment = _pendingAttachmentBytes != null;
+    if (text.isEmpty && !hasAttachment) return;
+    _agentLog(
+      location: 'team_chats.dart:_handleSend',
+      message: 'attempt_send',
+      data: {
+        'textLength': text.length,
+        'hasAttachment': hasAttachment,
+        'showGoalOnly': _showGoalOnly,
+      },
+      hypothesisId: 'SEND_UI_GLITCH',
+    );
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       _showCenterNotice(context, 'Sign in required to send messages.');
       return;
     }
-    () async {
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        final name = _displayName ?? user?.displayName ?? user?.email ?? '';
-        final payload = <String, dynamic>{
-          'senderId': uid,
-          'text': text,
-          'timestamp': FieldValue.serverTimestamp(),
-          'senderName': name,
-          'isDeleted': false,
-          'clientAt': Timestamp.fromDate(DateTime.now()),
-          'editedAt': null,
-        };
-        if (_replyingTo != null) {
-          payload['replyTo'] = _replyingTo!.id;
-          payload['replyToText'] = _replyingTo!.text;
-          payload['replyToSender'] =
-              _replyingTo!.senderName ?? _replyingTo!.senderId;
-        }
-        await FirebaseFirestore.instance.collection('team.chat').add(payload);
-        _textController.clear();
-        if (mounted) {
-          setState(() {
-            _replyingTo = null;
-          });
-        }
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients) {
-            _scrollController.animateTo(
-              _scrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          }
-        });
-      } catch (e) {
-        if (!mounted) return;
-        await _showCenterNotice(context, 'Failed to send: $e');
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final name = _displayName ?? user?.displayName ?? user?.email ?? '';
+      final payload = <String, dynamic>{
+        'senderId': uid,
+        'text': text,
+        'timestamp': FieldValue.serverTimestamp(),
+        'senderName': name,
+        'isDeleted': false,
+        'clientAt': Timestamp.fromDate(DateTime.now()),
+        'editedAt': null,
+      };
+      if (_replyingTo != null) {
+        payload['replyTo'] = _replyingTo!.id;
+        payload['replyToText'] = _replyingTo!.text;
+        payload['replyToSender'] =
+            _replyingTo!.senderName ?? _replyingTo!.senderId;
       }
-    }();
+      if (_selectedGoalId != null && _selectedGoalTitle != null) {
+        payload['goalId'] = _selectedGoalId;
+        payload['goalTitle'] = _selectedGoalTitle;
+      }
+      if (hasAttachment &&
+          _pendingAttachmentBytes != null &&
+          _pendingAttachmentName != null) {
+        final goalIdForUpload = _selectedGoalId ?? 'team_chat';
+        final secureUrl = await CloudinaryService.uploadFileUnsigned(
+          bytes: _pendingAttachmentBytes!,
+          fileName: _pendingAttachmentName!,
+          goalId: goalIdForUpload,
+        );
+        payload['attachmentUrl'] = secureUrl;
+        payload['attachmentName'] = _pendingAttachmentName;
+        payload['attachmentType'] = _pendingAttachmentType;
+        payload['attachmentSizeBytes'] = _pendingAttachmentSizeBytes;
+      }
+      final collection = FirebaseFirestore.instance.collection('team.chat');
+      final docRef = await collection.add(payload);
+      final now = DateTime.now();
+      final newMsg = ChatMessage(
+        id: docRef.id,
+        senderId: uid,
+        text: text,
+        timestamp: now,
+        senderName: name,
+        isDeleted: false,
+        editedAt: null,
+        replyTo: _replyingTo?.id,
+        replyToText: _replyingTo?.text,
+        replyToSender:
+            _replyingTo?.senderName ?? _replyingTo?.senderId,
+        reactions: const {},
+        attachmentUrl: payload['attachmentUrl'] as String?,
+        attachmentName: payload['attachmentName'] as String?,
+        attachmentType: payload['attachmentType'] as String?,
+        attachmentSizeBytes:
+            payload['attachmentSizeBytes'] as int?,
+        goalId: payload['goalId'] as String?,
+        goalTitle: payload['goalTitle'] as String?,
+      );
+      _processedIds.add(docRef.id);
+      setState(() {
+        // Keep newest messages at the front for reverse: true list
+        _visibleMessages.insert(0, newMsg);
+      });
+      _textController.clear();
+      if (mounted) {
+        setState(() {
+          _replyingTo = null;
+          _selectedGoalId = null;
+          _selectedGoalTitle = null;
+        });
+      }
+      _clearPendingAttachment();
+      _agentLog(
+        location: 'team_chats.dart:_handleSend',
+        message: 'send_success',
+        data: {
+          'textLength': text.length,
+          'hasAttachment': hasAttachment,
+          'visibleCount': _visibleMessages.length,
+        },
+        hypothesisId: 'SEND_UI_GLITCH',
+      );
+      _scrollToBottom(animate: true);
+    } catch (e) {
+      if (!mounted) return;
+      _agentLog(
+        location: 'team_chats.dart:_handleSend',
+        message: 'send_error',
+        data: {'error': e.toString()},
+        hypothesisId: 'SEND_UI_GLITCH',
+      );
+      await _showCenterNotice(context, 'Failed to send: $e');
+    }
+  }
+
+  List<ChatMessage> _repliesForMessage(String id) {
+    final replies = _visibleMessages
+        .where((m) => m.replyTo == id && !m.isTyping)
+        .toList();
+    replies.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return replies;
+  }
+
+  Future<void> _openAttachment(ChatMessage msg) async {
+    final url = msg.attachmentUrl;
+    if (url == null || url.isEmpty) return;
+    try {
+      _agentLog(
+        location: 'team_chats.dart:_openAttachment',
+        message: 'open_attachment_attempt',
+        data: {
+          'url': url,
+          'name': msg.attachmentName ?? '',
+          'type': msg.attachmentType ?? '',
+        },
+        hypothesisId: 'ATTACH_OPEN',
+      );
+      final opened = await openAttachmentUrl(url);
+      if (!opened) {
+        await _showCenterNotice(
+          // ignore: use_build_context_synchronously
+          context,
+          'Unable to open attachment.',
+        );
+      }
+    } catch (e) {
+      _agentLog(
+        location: 'team_chats.dart:_openAttachment',
+        message: 'open_attachment_error',
+        data: {
+          'error': e.toString(),
+          'url': url,
+        },
+        hypothesisId: 'ATTACH_OPEN',
+      );
+      // ignore: use_build_context_synchronously
+      await _showCenterNotice(context, 'Failed to open attachment: $e');
+    }
+  }
+
+  Widget _buildAttachmentPreviewBubble(ChatMessage msg) {
+    if (msg.attachmentUrl == null) return const SizedBox.shrink();
+    final isImage = msg.attachmentType == 'image';
+    final name = msg.attachmentName ?? 'Attachment';
+    final sizeBytes = msg.attachmentSizeBytes;
+    String? sizeLabel;
+    if (sizeBytes != null && sizeBytes > 0) {
+      final kb = sizeBytes / 1024;
+      if (kb < 1024) {
+        sizeLabel = '${kb.toStringAsFixed(1)} KB';
+      } else {
+        final mb = kb / 1024;
+        sizeLabel = '${mb.toStringAsFixed(1)} MB';
+      }
+    }
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white24, width: 0.5),
+      ),
+      child: InkWell(
+        onTap: () => _openAttachment(msg),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                isImage ? Icons.image : Icons.insert_drive_file,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (sizeLabel != null)
+                    Text(
+                      sizeLabel,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.download,
+              color: Colors.white70,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showThreadView(ChatMessage parent) async {
+    final replies = _repliesForMessage(parent.id);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF0F1629),
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Thread',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildMessageBubble(parent),
+                const SizedBox(height: 12),
+                const Divider(color: Colors.white24, height: 1),
+                const SizedBox(height: 8),
+                if (replies.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'No replies yet.',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: replies.length,
+                      itemBuilder: (context, index) {
+                        final m = replies[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: _buildMessageBubble(m),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildTranslucentContainer({required Widget child}) {
@@ -247,6 +622,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
               : displaySenderId);
 
     final bubbleKey = _itemKeys.putIfAbsent(msg.id, () => GlobalKey());
+    final replies = _repliesForMessage(msg.id);
     return Align(
       key: ValueKey(msg.id),
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -393,6 +769,56 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                               fontSize: 15,
                             ),
                           )),
+              if (msg.goalTitle != null && msg.goalTitle!.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(top: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white24, width: 0.5),
+                  ),
+                  child: Text(
+                    'Goal: ${msg.goalTitle}',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              _buildAttachmentPreviewBubble(msg),
+              if (replies.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 0,
+                        ),
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () => _showThreadView(msg),
+                      child: Text(
+                        replies.length == 1
+                            ? 'View thread (1 reply)'
+                            : 'View thread (${replies.length} replies)',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white70,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               if (msg.reactions.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
@@ -577,6 +1003,16 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      _agentLog(
+        location: 'team_chats.dart:_toggleReaction',
+        message: 'reaction_error',
+        data: {
+          'error': e.toString(),
+          'messageId': msg.id,
+          'emoji': emoji,
+        },
+        hypothesisId: 'REACT_RULES',
+      );
       await _showCenterNotice(context, 'Failed to react: $e');
     }
   }
@@ -697,15 +1133,27 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
       try {
         final idx = _visibleMessages.indexWhere((m) => m.id == msg.id);
         if (idx != -1) {
+          final current = _visibleMessages[idx];
           setState(() {
             _visibleMessages[idx] = ChatMessage(
-              id: _visibleMessages[idx].id,
-              senderId: _visibleMessages[idx].senderId,
-              text: _visibleMessages[idx].text,
-              timestamp: _visibleMessages[idx].timestamp,
-              senderName: _visibleMessages[idx].senderName,
+              id: current.id,
+              senderId: current.senderId,
+              text: current.text,
+              timestamp: current.timestamp,
+              senderName: current.senderName,
               isTyping: false,
               isDeleted: true,
+              editedAt: current.editedAt,
+              replyTo: current.replyTo,
+              replyToText: current.replyToText,
+              replyToSender: current.replyToSender,
+              reactions: current.reactions,
+              attachmentUrl: current.attachmentUrl,
+              attachmentName: current.attachmentName,
+              attachmentType: current.attachmentType,
+              attachmentSizeBytes: current.attachmentSizeBytes,
+              goalId: current.goalId,
+              goalTitle: current.goalTitle,
             );
           });
         }
@@ -722,6 +1170,97 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         await _showCenterNotice(context, 'Failed to delete: $e');
       }
     }
+  }
+
+  Future<void> _pickGoalContext() async {
+    final existingTitles = _visibleMessages
+        .map((m) => m.goalTitle)
+        .whereType<String>()
+        .where((t) => t.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF0F1629),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text(
+                  'Link message to a goal topic',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (existingTitles.isNotEmpty)
+                ...existingTitles.map(
+                  (title) => ListTile(
+                    title: Text(
+                      title,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    onTap: () => Navigator.pop(ctx, title),
+                  ),
+                ),
+              ListTile(
+                leading: const Icon(Icons.add, color: Colors.white),
+                title: const Text(
+                  'Create new goal topic',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () async {
+                  final controller = TextEditingController();
+                  final newTitle = await showDialog<String>(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: const Text('New goal topic'),
+                        content: TextField(
+                          controller: controller,
+                          decoration: const InputDecoration(
+                            hintText: 'Enter goal or topic title',
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(
+                              context,
+                              controller.text.trim(),
+                            ),
+                            child: const Text('Save'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                  if (newTitle != null && newTitle.trim().isNotEmpty) {
+                    // ignore: use_build_context_synchronously
+                    Navigator.pop(ctx, newTitle.trim());
+                  } else {
+                    // ignore: use_build_context_synchronously
+                    Navigator.pop(ctx);
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (choice == null || choice.isEmpty) return;
+    setState(() {
+      _selectedGoalTitle = choice;
+      _selectedGoalId = 'topic_${choice.hashCode}_${DateTime.now().millisecondsSinceEpoch}';
+    });
   }
 
   @override
@@ -749,37 +1288,6 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                       padding: const EdgeInsets.all(16.0),
                       child: Row(
                         children: [
-                          // Back button
-                          StreamBuilder<String?>(
-                            stream: RoleService.instance.roleStream(),
-                            builder: (context, roleSnapshot) {
-                              final role =
-                                  roleSnapshot.data ??
-                                  RoleService.instance.cachedRole;
-                              final isManager = role == 'manager';
-
-                              return IconButton(
-                                icon: const Icon(
-                                  Icons.arrow_back,
-                                  color: Colors.white,
-                                ),
-                                onPressed: () {
-                                  if (isManager) {
-                                    Navigator.pushReplacementNamed(
-                                      context,
-                                      '/manager_review_team_dashboard',
-                                    );
-                                  } else {
-                                    Navigator.pushReplacementNamed(
-                                      context,
-                                      '/employee_dashboard',
-                                    );
-                                  }
-                                },
-                                tooltip: 'Back to Dashboard',
-                              );
-                            },
-                          ),
                           const SizedBox(width: 8),
                           Builder(
                             builder: (context) {
@@ -791,10 +1299,19 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                                   '';
                               return Row(
                                 children: [
-                                  const Icon(
-                                    Icons.person_outline,
-                                    color: Colors.white,
-                                  ),
+                                  if (_profilePhotoUrl != null &&
+                                      _profilePhotoUrl!.isNotEmpty)
+                                    CircleAvatar(
+                                      radius: 16,
+                                      backgroundImage:
+                                          NetworkImage(_profilePhotoUrl!),
+                                      backgroundColor: Colors.white24,
+                                    )
+                                  else
+                                    const Icon(
+                                      Icons.person_outline,
+                                      color: Colors.white,
+                                    ),
                                   const SizedBox(width: 8),
                                   Tooltip(
                                     message: name.isEmpty
@@ -815,6 +1332,37 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                           ),
                         ],
                       ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        ChoiceChip(
+                          label: const Text('All'),
+                          selected: !_showGoalOnly,
+                          onSelected: (v) {
+                            if (!v) return;
+                            setState(() {
+                              _showGoalOnly = false;
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Goal discussions'),
+                          selected: _showGoalOnly,
+                          onSelected: (v) {
+                            if (!v) return;
+                            setState(() {
+                              _showGoalOnly = true;
+                            });
+                          },
+                        ),
+                      ],
                     ),
                   ),
                   Expanded(
@@ -886,6 +1434,33 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                                   }
                                 });
                               }
+                              final String? attachmentUrl =
+                                  (data['attachmentUrl'] is String)
+                                      ? data['attachmentUrl'] as String
+                                      : null;
+                              final String? attachmentName =
+                                  (data['attachmentName'] is String)
+                                      ? data['attachmentName'] as String
+                                      : null;
+                              final String? attachmentType =
+                                  (data['attachmentType'] is String)
+                                      ? data['attachmentType'] as String
+                                      : null;
+                              final int? attachmentSizeBytes =
+                                  data['attachmentSizeBytes'] is int
+                                      ? data['attachmentSizeBytes'] as int
+                                      : (data['attachmentSizeBytes'] is num
+                                          ? (data['attachmentSizeBytes'] as num)
+                                              .round()
+                                          : null);
+                              final String? goalId =
+                                  (data['goalId'] is String)
+                                      ? data['goalId'] as String
+                                      : null;
+                              final String? goalTitle =
+                                  (data['goalTitle'] is String)
+                                      ? data['goalTitle'] as String
+                                      : null;
                               return ChatMessage(
                                 id: doc.id,
                                 senderId: safeSenderId,
@@ -898,13 +1473,20 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                                 replyToText: replyToText,
                                 replyToSender: replyToSender,
                                 reactions: safeReactions,
+                                attachmentUrl: attachmentUrl,
+                                attachmentName: attachmentName,
+                                attachmentType: attachmentType,
+                                attachmentSizeBytes: attachmentSizeBytes,
+                                goalId: goalId,
+                                goalTitle: goalTitle,
                               );
                             }).toList(),
                           ),
                       initialData: const <ChatMessage>[],
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
+                                ConnectionState.waiting &&
+                            !_initializedStream) {
                           return const Center(
                             child: CircularProgressIndicator(
                               color: chatPrimary,
@@ -1012,13 +1594,26 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                             ),
                           );
                         }
+                        final displayedMessages = _showGoalOnly
+                            ? _visibleMessages
+                                .where((m) => m.goalId != null)
+                                .toList()
+                            : List<ChatMessage>.from(_visibleMessages);
+                        if (displayedMessages.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              'No goal discussions yet.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          );
+                        }
                         return ListView.builder(
                           reverse: true,
                           controller: _scrollController,
                           padding: const EdgeInsets.all(12),
-                          itemCount: _visibleMessages.length,
+                          itemCount: displayedMessages.length,
                           itemBuilder: (context, index) {
-                            final m = _visibleMessages[index];
+                            final m = displayedMessages[index];
                             return KeyedSubtree(
                               key: ValueKey(m.id),
                               child: _buildMessageBubble(m),
@@ -1031,121 +1626,238 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                   _buildTranslucentContainer(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (_replyingTo != null)
-                            Expanded(
-                              child: Container(
-                                margin: const EdgeInsets.only(
-                                  right: 8,
-                                  bottom: 8,
-                                ),
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.35),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.white24,
-                                    width: 0.5,
-                                  ),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            _replyingTo!.senderName ??
-                                                _replyingTo!.senderId,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.white70,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            _replyingTo!.text,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.white60,
-                                              fontStyle: FontStyle.italic,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    IconButton(
-                                      onPressed: () =>
-                                          setState(() => _replyingTo = null),
-                                      icon: const Icon(
-                                        Icons.close,
-                                        size: 16,
-                                        color: Colors.white70,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                    ),
-                                  ],
-                                ),
+                            Container(
+                              margin: const EdgeInsets.only(
+                                right: 8,
+                                bottom: 8,
                               ),
-                            ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: TextField(
-                                controller: _textController,
-                                minLines: 1,
-                                maxLines: 5,
-                                keyboardType: TextInputType.multiline,
-                                style: const TextStyle(color: Colors.white),
-                                decoration: InputDecoration(
-                                  hintText: 'Type your message...',
-                                  hintStyle: const TextStyle(
-                                    color: Colors.grey,
-                                  ),
-                                  filled: true,
-                                  fillColor: Colors.black.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                    horizontal: 16,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: IconButton(
-                              onPressed: _handleSend,
-                              icon: Image.asset(
-                                'assets/Send_Paper_Plane/send_plane.png',
-                                width: 36,
-                                height: 36,
-                                fit: BoxFit.contain,
-                              ),
-                              splashColor: Colors.transparent,
-                              highlightColor: Colors.transparent,
-                              hoverColor: Colors.transparent,
                               padding: const EdgeInsets.all(8),
-                              constraints: const BoxConstraints(
-                                minWidth: 56,
-                                minHeight: 56,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.white24,
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _replyingTo!.senderName ??
+                                              _replyingTo!.senderId,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white70,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _replyingTo!.text,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white60,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () =>
+                                        setState(() => _replyingTo = null),
+                                    icon: const Icon(
+                                      Icons.close,
+                                      size: 16,
+                                      color: Colors.white70,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
                               ),
                             ),
+                          if (_selectedGoalTitle != null &&
+                              _selectedGoalTitle!.isNotEmpty)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white24,
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.flag_outlined,
+                                    size: 16,
+                                    color: Colors.white70,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _selectedGoalTitle!,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedGoalId = null;
+                                        _selectedGoalTitle = null;
+                                      });
+                                    },
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 14,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (_pendingAttachmentName != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.white24,
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _pendingAttachmentType == 'image'
+                                        ? Icons.image
+                                        : Icons.attach_file,
+                                    color: Colors.white70,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _pendingAttachmentName!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: _clearPendingAttachment,
+                                    icon: const Icon(
+                                      Icons.close,
+                                      size: 16,
+                                      color: Colors.white70,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                onPressed: _pickGoalContext,
+                                icon: const Icon(
+                                  Icons.flag_outlined,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: _pickAttachment,
+                                icon: const Icon(
+                                  Icons.attach_file,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: TextField(
+                                    controller: _textController,
+                                    minLines: 1,
+                                    maxLines: 5,
+                                    keyboardType: TextInputType.multiline,
+                                    style:
+                                        const TextStyle(color: Colors.white),
+                                    decoration: InputDecoration(
+                                      hintText: 'Type your message...',
+                                      hintStyle: const TextStyle(
+                                        color: Colors.grey,
+                                      ),
+                                      filled: true,
+                                      fillColor: Colors.black.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                        vertical: 10,
+                                        horizontal: 16,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: IconButton(
+                                  onPressed: _handleSend,
+                                  icon: Image.asset(
+                                    'assets/Send_Paper_Plane/send_plane.png',
+                                    width: 36,
+                                    height: 36,
+                                    fit: BoxFit.contain,
+                                  ),
+                                  splashColor: Colors.transparent,
+                                  highlightColor: Colors.transparent,
+                                  hoverColor: Colors.transparent,
+                                  padding: const EdgeInsets.all(8),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 56,
+                                    minHeight: 56,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
