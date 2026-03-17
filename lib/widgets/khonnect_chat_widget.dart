@@ -17,13 +17,14 @@ void showKhonnectChatModal(BuildContext context) {
         child: Center(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final maxHeight = (MediaQuery.of(ctx).size.height * 0.8).clamp(
+              final screenSize = MediaQuery.of(ctx).size;
+              final maxHeight = (screenSize.height * 0.9).clamp(
                 360.0,
-                800.0,
+                screenSize.height,
               );
-              final maxWidth = (MediaQuery.of(ctx).size.width * 0.8).clamp(
+              final maxWidth = (screenSize.width * 0.9).clamp(
                 420.0,
-                640.0,
+                screenSize.width,
               );
 
               return Container(

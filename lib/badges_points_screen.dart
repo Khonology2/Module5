@@ -27,7 +27,16 @@ import 'package:pdh/widgets/badge_celebration_dialog.dart';
 class BadgesPointsScreen extends StatefulWidget {
   final bool embedded;
 
-  const BadgesPointsScreen({super.key, this.embedded = false});
+  /// When true, use manager sidebar and [managerGwMenuRoute] (for manager Goal Workspace menu); skip redirect to manager portal.
+  final bool forManagerGwMenu;
+  final String? managerGwMenuRoute;
+
+  const BadgesPointsScreen({
+    super.key,
+    this.embedded = false,
+    this.forManagerGwMenu = false,
+    this.managerGwMenuRoute,
+  });
 
   @override
   State<BadgesPointsScreen> createState() => _BadgesPointsScreenState();
@@ -59,7 +68,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   @override
   void initState() {
     super.initState();
-    _redirectIfManager();
+    if (!widget.forManagerGwMenu) _redirectIfManager();
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
@@ -392,16 +401,20 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 'onTutorialSkip': null,
               };
 
+        final sidebarItems = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+            ? SidebarConfig.managerItems
+            : (isManager
+                ? SidebarConfig.getItemsForRole('manager')
+                : SidebarConfig.employeeItems);
+        final routeName = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+            ? widget.managerGwMenuRoute!
+            : (isManager ? '/manager_badges_points' : '/badges_points');
         return AppScaffold(
           title: 'Badges & Points',
           showAppBar: false,
           embedded: widget.embedded,
-          items: isManager
-              ? SidebarConfig.getItemsForRole('manager')
-              : SidebarConfig.employeeItems,
-          currentRouteName: isManager
-              ? '/manager_badges_points'
-              : '/badges_points',
+          items: sidebarItems,
+          currentRouteName: routeName,
           tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
           sidebarTutorialKeys: null,
           onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
@@ -409,9 +422,12 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           onNavigate: (route) {
             if (widget.embedded) return;
 
+            if (widget.forManagerGwMenu) {
+              final current = ModalRoute.of(context)?.settings.name;
+              if (current != route) Navigator.pushNamed(context, route);
+              return;
+            }
             if (isManager) {
-              // Keep manager navigation inside the portal so sidebar order changes
-              // don't break content routing.
               Navigator.pushReplacementNamed(
                 context,
                 '/manager_portal',
