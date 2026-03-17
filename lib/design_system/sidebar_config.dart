@@ -117,8 +117,50 @@ class SidebarConfig {
       label: 'Dashboard',
       route: '/dashboard',
     ),
-    SidebarItem(icon: Icons.person, label: 'Goal Workspace', route: '/my_pdp'),
     SidebarItem(
+      icon: Icons.person,
+      label: 'Manager Workspace',
+      route: '/my_pdp',
+      children: [
+        const SidebarItem(
+          label: 'Dashboard',
+          route: '/manager_gw_menu_dashboard',
+        ),
+        const SidebarItem(
+          label: 'Goal Workspace',
+          route: '/manager_gw_menu_goal_workspace',
+        ),
+        const SidebarItem(
+          label: 'Alerts & Nudges',
+          route: '/manager_gw_menu_alerts',
+        ),
+        const SidebarItem(
+          label: 'My PDP',
+          route: '/manager_gw_menu_my_pdp',
+        ),
+        const SidebarItem(
+          label: 'Progress Visuals',
+          route: '/manager_gw_menu_progress',
+        ),
+        const SidebarItem(
+          label: 'Leaderboard',
+          route: '/manager_gw_menu_leaderboard',
+        ),
+        const SidebarItem(
+          label: 'Badges & Points',
+          route: '/manager_gw_menu_badges',
+        ),
+        const SidebarItem(
+          label: 'Season Challenges',
+          route: '/manager_gw_menu_season_challenges',
+        ),
+        const SidebarItem(
+          label: 'Repository & Audit',
+          route: '/manager_gw_menu_repository',
+        ),
+      ],
+    ),
+    const SidebarItem(
       icon: Icons.inbox_outlined,
       label: 'Manager IBox',
       route: '/manager_inbox',
@@ -195,7 +237,7 @@ class SidebarConfig {
       white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
       red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
       label: 'System Analytics',
-      route: '/analytics',
+      route: '/admin_analytics',
     ),
     SidebarItem(
       icon: Icons.inbox_outlined,
@@ -250,7 +292,7 @@ class SidebarConfig {
   static const Set<String> _adminRoutes = {
     '/admin_dashboard',
     '/manager_oversight',
-    '/analytics',
+    '/admin_analytics',
     '/admin_inbox',
     '/team_challenge_admin',
     '/org_leaderboard',

@@ -189,7 +189,32 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                                 it.route == '/manager_profile') &&
                             _isProfileIncomplete;
 
-                        final navTile = _NavTile(
+                        if (it.children != null && it.children!.isNotEmpty) {
+                          return _ExpandableNavGroup(
+                            key: ValueKey('expand_${it.route}_$index'),
+                            parent: it,
+                            currentRouteName: widget.currentRouteName,
+                            collapsed: effectiveCollapsed,
+                            onNavigate: widget.onNavigate,
+                            showProfileIndicator: showProfileIndicator,
+                            tutorialKey:
+                                widget.sidebarTutorialKeys != null &&
+                                    index < widget.sidebarTutorialKeys!.length
+                                    ? widget.sidebarTutorialKeys![index]
+                                    : null,
+                            showTutorial:
+                                widget.tutorialStepIndex != null &&
+                                widget.tutorialStepIndex == index,
+                            onTutorialNext: widget.onTutorialNext,
+                            onTutorialSkip: widget.onTutorialSkip,
+                            isLastTutorialStep:
+                                widget.tutorialStepIndex != null &&
+                                widget.tutorialStepIndex ==
+                                    widget.items.length - 1,
+                          );
+                        }
+
+                        return _NavTile(
                           key: ValueKey('nav_${it.route}_$index'),
                           icon: it.icon,
                           iconWidget: it.iconWidget,
@@ -216,7 +241,6 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                               widget.tutorialStepIndex ==
                                   widget.items.length - 1,
                         );
-                        return navTile;
                       }).toList(),
                     ),
                   ),
@@ -489,17 +513,15 @@ class _NavTile extends StatefulWidget {
     required this.isActive,
     required this.collapsed,
     required this.onTap,
+    this.isChild = false,
+    this.trailing,
     bool? showProfileIndicator,
     this.tutorialKey,
     this.showTutorial = false,
     this.onTutorialNext,
     this.onTutorialSkip,
     this.isLastTutorialStep = false,
-  }) : showProfileIndicator = showProfileIndicator ?? false,
-       assert(
-         icon != null || iconWidget != null || assetWhite != null,
-         'Provide icon, iconWidget, or assetWhite',
-       );
+  }) : showProfileIndicator = showProfileIndicator ?? false;
   final IconData? icon;
   final Widget? iconWidget;
   final String? assetWhite;
@@ -509,6 +531,8 @@ class _NavTile extends StatefulWidget {
   final bool isActive;
   final bool collapsed;
   final VoidCallback onTap;
+  final bool isChild;
+  final Widget? trailing;
   final bool showProfileIndicator;
   final GlobalKey? tutorialKey;
   final bool showTutorial;
@@ -522,6 +546,12 @@ class _NavTile extends StatefulWidget {
 
 class _NavTileState extends State<_NavTile> {
   bool hovering = false;
+
+  bool get _hasIcon =>
+      widget.icon != null ||
+      widget.iconWidget != null ||
+      widget.assetWhite != null;
+
   @override
   Widget build(BuildContext context) {
     final bool isHovered = hovering && !widget.isActive;
@@ -587,6 +617,7 @@ class _NavTileState extends State<_NavTile> {
         label = localizations.nav_user_management;
         break;
       case '/analytics':
+      case '/admin_analytics':
         label = localizations.nav_analytics;
         break;
       case '/system_settings':
@@ -603,7 +634,9 @@ class _NavTileState extends State<_NavTile> {
     }
 
     Widget navTileContent = Padding(
-      padding: AppSpacing.sidebarItemPadding,
+      padding: widget.isChild
+          ? const EdgeInsets.only(left: 36, right: 12, top: 4, bottom: 4)
+          : AppSpacing.sidebarItemPadding,
       child: MouseRegion(
         onEnter: (_) => setState(() => hovering = true),
         onExit: (_) => setState(() => hovering = false),
@@ -644,7 +677,7 @@ class _NavTileState extends State<_NavTile> {
                   ? Stack(
                       alignment: Alignment.center,
                       children: [
-                        _buildIcon(isSelected),
+                        if (_hasIcon) _buildIcon(isSelected),
                         if (widget.showProfileIndicator)
                           Positioned(
                             top: 0,
@@ -669,7 +702,7 @@ class _NavTileState extends State<_NavTile> {
                         // If there isn't enough width to safely render icon + label,
                         // fall back to icon-only to avoid overflows during animations/resizes.
                         final bool tooNarrow = constraints.maxWidth < 80;
-                        if (tooNarrow) {
+                        if (tooNarrow && _hasIcon) {
                           return Row(
                             mainAxisAlignment: MainAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
@@ -680,8 +713,10 @@ class _NavTileState extends State<_NavTile> {
                           mainAxisAlignment: MainAxisAlignment.start,
                           mainAxisSize: MainAxisSize.max,
                           children: [
-                            _buildIcon(isSelected),
-                            const SizedBox(width: AppSpacing.xs),
+                            if (_hasIcon) ...[
+                              _buildIcon(isSelected),
+                              const SizedBox(width: AppSpacing.xs),
+                            ],
                             Flexible(
                               child: Text(
                                 label,
@@ -700,6 +735,10 @@ class _NavTileState extends State<_NavTile> {
                                 size: 16,
                                 color: AppColors.activeColor,
                               ),
+                            ],
+                            if (widget.trailing != null) ...[
+                              const SizedBox(width: AppSpacing.xs),
+                              widget.trailing!,
                             ],
                           ],
                         );
@@ -860,6 +899,7 @@ class _NavTileState extends State<_NavTile> {
   }
 
   Widget _buildIcon(bool isSelected) {
+    if (!_hasIcon) return const SizedBox.shrink();
     // Priority: explicit asset pair -> iconWidget -> IconData
     if (widget.assetWhite != null) {
       // Requirement: White when expanded (even if selected); Red only when mini AND selected
@@ -892,22 +932,134 @@ class _NavTileState extends State<_NavTile> {
   }
 }
 
+class _ExpandableNavGroup extends StatefulWidget {
+  const _ExpandableNavGroup({
+    super.key,
+    required this.parent,
+    required this.currentRouteName,
+    required this.collapsed,
+    required this.onNavigate,
+    required this.showProfileIndicator,
+    this.tutorialKey,
+    this.showTutorial = false,
+    this.onTutorialNext,
+    this.onTutorialSkip,
+    this.isLastTutorialStep = false,
+  });
+
+  final SidebarItem parent;
+  final String? currentRouteName;
+  final bool collapsed;
+  final void Function(String route) onNavigate;
+  final bool showProfileIndicator;
+  final GlobalKey? tutorialKey;
+  final bool showTutorial;
+  final VoidCallback? onTutorialNext;
+  final VoidCallback? onTutorialSkip;
+  final bool isLastTutorialStep;
+
+  @override
+  State<_ExpandableNavGroup> createState() => _ExpandableNavGroupState();
+}
+
+class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final parent = widget.parent;
+    final children = parent.children ?? const <SidebarItem>[];
+
+    if (widget.collapsed) {
+      return _NavTile(
+        key: ValueKey('group_collapsed_${parent.route}'),
+        icon: parent.icon,
+        iconWidget: parent.iconWidget,
+        assetWhite: parent.assetWhite,
+        assetRed: parent.assetRed,
+        label: parent.label,
+        route: parent.route,
+        isActive: widget.currentRouteName == parent.route,
+        collapsed: widget.collapsed,
+        onTap: () => widget.onNavigate(parent.route),
+        showProfileIndicator: widget.showProfileIndicator,
+        tutorialKey: widget.tutorialKey,
+        showTutorial: widget.showTutorial,
+        onTutorialNext: widget.onTutorialNext,
+        onTutorialSkip: widget.onTutorialSkip,
+        isLastTutorialStep: widget.isLastTutorialStep,
+      );
+    }
+
+    final isActive = widget.currentRouteName == parent.route;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _NavTile(
+          key: ValueKey('group_${parent.route}'),
+          icon: parent.icon,
+          iconWidget: parent.iconWidget,
+          assetWhite: parent.assetWhite,
+          assetRed: parent.assetRed,
+          label: parent.label,
+          route: parent.route,
+          isActive: isActive,
+          collapsed: widget.collapsed,
+          onTap: () {
+            setState(() {
+              _expanded = !_expanded;
+            });
+          },
+          trailing: Icon(
+            _expanded ? Icons.expand_less : Icons.expand_more,
+            color: AppColors.textPrimary,
+            size: 24,
+          ),
+          showProfileIndicator: widget.showProfileIndicator,
+          tutorialKey: widget.tutorialKey,
+          showTutorial: widget.showTutorial,
+          onTutorialNext: widget.onTutorialNext,
+          onTutorialSkip: widget.onTutorialSkip,
+          isLastTutorialStep: widget.isLastTutorialStep,
+        ),
+        if (_expanded)
+          ...children.map(
+            (child) => _NavTile(
+              key: ValueKey('nav_child_${child.route}'),
+              icon: child.icon,
+              iconWidget: child.iconWidget,
+              assetWhite: child.assetWhite,
+              assetRed: child.assetRed,
+              label: child.label,
+              route: child.route,
+              isActive: widget.currentRouteName == child.route,
+              collapsed: widget.collapsed,
+              onTap: () => widget.onNavigate(child.route),
+              isChild: true,
+              showProfileIndicator: false,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class SidebarItem {
   const SidebarItem({
-    this.icon, // Make icon optional
-    this.iconWidget, // Add optional iconWidget
+    this.icon,
+    this.iconWidget,
     this.assetWhite,
     this.assetRed,
     required this.label,
     required this.route,
-  }) : assert(
-         icon != null || iconWidget != null || assetWhite != null,
-         'Provide icon, iconWidget, or assetWhite',
-       );
-  final IconData? icon; // Make icon nullable
-  final Widget? iconWidget; // New field for custom icon widget
-  final String? assetWhite; // unselected
-  final String? assetRed; // selected
+    this.children,
+  });
+  final IconData? icon;
+  final Widget? iconWidget;
+  final String? assetWhite;
+  final String? assetRed;
   final String label;
   final String route;
+  final List<SidebarItem>? children;
 }

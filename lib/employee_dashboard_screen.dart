@@ -27,7 +27,18 @@ import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
-  const EmployeeDashboardScreen({super.key});
+  const EmployeeDashboardScreen({
+    super.key,
+    this.forManagerGwMenu = false,
+    this.managerGwMenuRoute,
+    this.embedded = false,
+  });
+
+  /// When true, use manager sidebar and [managerGwMenuRoute] (for manager Goal Workspace menu).
+  final bool forManagerGwMenu;
+  final String? managerGwMenuRoute;
+  /// When true, only build content (no AppScaffold/sidebar); for use inside ManagerPortalScreen.
+  final bool embedded;
 
   @override
   State<EmployeeDashboardScreen> createState() =>
@@ -263,7 +274,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     if (!mounted || !_shouldShowTutorial) return;
 
     // Total steps = sidebar items + collapse toggle
-    final totalSteps = SidebarConfig.employeeItems.length + 1;
+    final totalSteps = (widget.forManagerGwMenu
+            ? SidebarConfig.managerItems.length
+            : SidebarConfig.employeeItems.length) +
+        1;
     if (_currentTutorialStep < totalSteps - 1) {
       final nextStep = _currentTutorialStep + 1;
 
@@ -614,11 +628,19 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         ? tutorialService.onTutorialSkip
         : (_shouldShowTutorial ? _skipTutorial : null);
 
+    final sidebarItems = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+        ? SidebarConfig.managerItems
+        : SidebarConfig.employeeItems;
+    final routeName =
+        widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+            ? widget.managerGwMenuRoute!
+            : '/employee_dashboard';
     return AppScaffold(
       title: 'Employee Dashboard',
       showAppBar: false,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/employee_dashboard',
+      embedded: widget.embedded,
+      items: sidebarItems,
+      currentRouteName: routeName,
       topRightAction: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
