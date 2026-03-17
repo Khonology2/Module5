@@ -27,7 +27,23 @@ import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
-  const EmployeeDashboardScreen({super.key});
+  const EmployeeDashboardScreen({
+    super.key,
+    this.forManagerGwMenu = false,
+    this.managerGwMenuRoute,
+    this.embedded = false,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
+  });
+
+  /// When true, use manager sidebar and [managerGwMenuRoute] (for manager Goal Workspace menu).
+  final bool forManagerGwMenu;
+  final String? managerGwMenuRoute;
+  /// When true, only build content (no AppScaffold/sidebar); for use inside ManagerPortalScreen.
+  final bool embedded;
+  /// When true, admin is viewing; data for [selectedManagerId] if set.
+  final bool forAdminOversight;
+  final String? selectedManagerId;
 
   @override
   State<EmployeeDashboardScreen> createState() =>
@@ -42,6 +58,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   int currentStreak = 0;
   bool hasActivityToday = false;
   Future<String?>? _onboardingNameFuture;
+
+  /// When [forAdminOversight] and [selectedManagerId] are set, use that uid for data; else current user.
+  String? get _effectiveUserId {
+    if (widget.forAdminOversight && widget.selectedManagerId != null) {
+      return widget.selectedManagerId;
+    }
+    return FirebaseAuth.instance.currentUser?.uid;
+  }
 
   // Hover states for the six KPI cards
   bool _isHoveringActiveGoals = false;
@@ -263,7 +287,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     if (!mounted || !_shouldShowTutorial) return;
 
     // Total steps = sidebar items + collapse toggle
-    final totalSteps = SidebarConfig.employeeItems.length + 1;
+    final totalSteps = (widget.forManagerGwMenu
+            ? SidebarConfig.managerItems.length
+            : SidebarConfig.employeeItems.length) +
+        1;
     if (_currentTutorialStep < totalSteps - 1) {
       final nextStep = _currentTutorialStep + 1;
 
@@ -468,10 +495,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   }
 
   Stream<UserProfile?> _getUserProfileStream() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return Stream.value(null);
+    final uid = _effectiveUserId;
+    if (uid == null) return Stream.value(null);
     return FirestoreSafe.stream(
-      FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+      FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
     ).map((doc) {
       if (!doc.exists) return null;
       return UserProfile.fromFirestore(doc);
@@ -479,12 +506,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   }
 
   Stream<List<Goal>> _getUserGoalsStream() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return Stream.value([]);
+    final uid = _effectiveUserId;
+    if (uid == null) return Stream.value([]);
     return FirestoreSafe.stream(
       FirebaseFirestore.instance
           .collection('goals')
-          .where('userId', isEqualTo: user.uid)
+          .where('userId', isEqualTo: uid)
           .orderBy('createdAt', descending: true)
           .snapshots(),
     ).map((snapshot) {
@@ -497,12 +524,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   }
 
   Stream<int> _getEarnedBadgesCountStream() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return Stream.value(0);
+    final uid = _effectiveUserId;
+    if (uid == null) return Stream.value(0);
     return FirestoreSafe.stream(
       FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(uid)
           .collection('badges')
           .where('isEarned', isEqualTo: true)
           .snapshots(),
@@ -614,11 +641,19 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         ? tutorialService.onTutorialSkip
         : (_shouldShowTutorial ? _skipTutorial : null);
 
+    final sidebarItems = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+        ? SidebarConfig.managerItems
+        : SidebarConfig.employeeItems;
+    final routeName =
+        widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+            ? widget.managerGwMenuRoute!
+            : '/employee_dashboard';
     return AppScaffold(
       title: 'Employee Dashboard',
       showAppBar: false,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/employee_dashboard',
+      embedded: widget.embedded,
+      items: sidebarItems,
+      currentRouteName: routeName,
       topRightAction: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

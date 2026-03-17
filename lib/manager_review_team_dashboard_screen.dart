@@ -14,7 +14,16 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/one_on_one_meeting.dart';
 
 class ManagerReviewTeamDashboardScreen extends StatefulWidget {
-  const ManagerReviewTeamDashboardScreen({super.key});
+  /// When true, admin is viewing; show managers only (no employees).
+  final bool forAdminOversight;
+  /// When set with [forAdminOversight], show data for this manager only.
+  final String? selectedManagerId;
+
+  const ManagerReviewTeamDashboardScreen({
+    super.key,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
+  });
 
   @override
   State<ManagerReviewTeamDashboardScreen> createState() =>
@@ -92,10 +101,17 @@ class _ManagerReviewTeamDashboardScreenState
     // IMPORTANT: keep the stream instance stable.
     // Creating new streams during build (especially inside nested StreamBuilders)
     // causes unsubscribe/resubscribe flicker where employees "show then disappear".
-    _employeesStream = ManagerRealtimeService.getTeamDataStream(
-      department: _selectedDepartment,
-      timeFilter: _selectedTimeFilter,
-    );
+    if (widget.forAdminOversight) {
+      _employeesStream = ManagerRealtimeService.getManagersDataStreamForAdmin(
+        timeFilter: _selectedTimeFilter,
+        selectedManagerId: widget.selectedManagerId,
+      );
+    } else {
+      _employeesStream = ManagerRealtimeService.getTeamDataStream(
+        department: _selectedDepartment,
+        timeFilter: _selectedTimeFilter,
+      );
+    }
   }
 
   @override
