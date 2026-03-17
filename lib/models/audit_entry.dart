@@ -9,7 +9,10 @@ class AuditEntry {
   final DateTime submittedDate;
   final DateTime? verifiedDate;
   final DateTime? rejectedDate;
-  final String status; // 'pending', 'verified', 'rejected'
+  final DateTime? approvedDate;
+  final DateTime? createdDate;
+  final String
+  status; // 'created', 'pending','approved',  'verified', 'rejected'
   final List<String> evidence;
   final String? acknowledgedBy;
   final String? acknowledgedById;
@@ -28,6 +31,8 @@ class AuditEntry {
     required this.submittedDate,
     this.verifiedDate,
     this.rejectedDate,
+    this.approvedDate,
+    this.createdDate,
     required this.status,
     required this.evidence,
     this.acknowledgedBy,
@@ -52,6 +57,8 @@ class AuditEntry {
           (data['submittedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       verifiedDate: (data['verifiedDate'] as Timestamp?)?.toDate(),
       rejectedDate: (data['rejectedDate'] as Timestamp?)?.toDate(),
+      approvedDate: (data['approvedDate'] as Timestamp?)?.toDate(),
+      createdDate: (data['createdDate'] as Timestamp?)?.toDate(),
       status: data['status'] ?? 'pending',
       evidence: List<String>.from(data['evidence'] ?? []),
       acknowledgedBy: data['acknowledgedBy'],
@@ -76,6 +83,12 @@ class AuditEntry {
           : null,
       'rejectedDate': rejectedDate != null
           ? Timestamp.fromDate(rejectedDate!)
+          : null,
+      'approvedDate': approvedDate != null
+          ? Timestamp.fromDate(approvedDate!)
+          : null,
+      'createdDate': createdDate != null
+          ? Timestamp.fromDate(createdDate!)
           : null,
       'status': status,
       'evidence': evidence,
