@@ -1,3 +1,5 @@
+// ignore_for_file: duplicate_ignore, unnecessary_underscores, sort_child_properties_last
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -762,7 +764,6 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
       return const SizedBox.shrink();
     }
 
-    const double fabSize = 56.0;
     const double miniFabSize = 48.0;
     const double spacing = 12.0;
 
@@ -791,7 +792,8 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
                     height: 28,
                     fit: BoxFit.contain,
                     filterQuality: FilterQuality.high,
-                    errorBuilder: (_, __, ___) =>
+                    // ignore: unnecessary_underscores
+                    errorBuilder: (_, _, _) =>
                         const Icon(Icons.chat, color: Colors.white, size: 24),
                   ),
                   backgroundColor: AppColors.activeColor,
