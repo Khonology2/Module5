@@ -1,16 +1,11 @@
 {
-  "version": "2026.03.DB5.SIT",
-  "generated_at": "2026-03-17T05:30:05Z",
+  "version": "2026.03.DB4.SIT",
+  "generated_at": "2026-03-17T07:48:39Z",
   "commits": [
     {
       "author": "GitHub Action",
       "message": "Update daily commits data []",
       "timestamp": "2026-02-24T06:19:19Z"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Fix manager milestone audit trail visibility",
-      "timestamp": "2026-03-10T12:43:56+02:00"
     },
     {
       "author": "Thembelihle",
@@ -19,8 +14,8 @@
     },
     {
       "author": "BhutSipho",
-      "message": "Fix real-time status counters and add clickable filters for employee/manager portals",
-      "timestamp": "2026-03-10T08:00:39+02:00"
+      "message": "🔧 Implement unified Firestore stream broker to fix INTERNAL ASSERTION FAILED errors",
+      "timestamp": "2026-03-17T07:53:27+02:00"
     },
     {
       "author": "Nathi2266",
@@ -28,6 +23,6 @@
       "timestamp": "2026-03-17T07:29:16+02:00"
     }
   ],
-  "total_commits": 5,
+  "total_commits": 4,
   "date_range": "2026-03-17"
 }
