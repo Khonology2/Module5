@@ -20,6 +20,8 @@ class EmployeeSeasonChallengesScreen extends StatefulWidget {
     this.forManagerGwMenu = false,
     this.managerGwMenuRoute,
     this.embedded = false,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
   });
 
   /// When true, use manager sidebar and [managerGwMenuRoute] (for manager Goal Workspace menu).
@@ -27,6 +29,8 @@ class EmployeeSeasonChallengesScreen extends StatefulWidget {
   final String? managerGwMenuRoute;
   /// When true, only build content (no AppScaffold/sidebar); for use inside ManagerPortalScreen.
   final bool embedded;
+  final bool forAdminOversight;
+  final String? selectedManagerId;
 
   @override
   State<EmployeeSeasonChallengesScreen> createState() =>

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:pdh/manager_dashboard_screen.dart';
+import 'package:pdh/manager_alerts_nudges_screen.dart';
 
-/// Admin-only dashboard screen. Uses the same UI as the manager dashboard
-/// with admin oversight (managers as "team"). Not shared with manager/employee.
-class AdminDashboardScreen extends StatelessWidget {
-  const AdminDashboardScreen({
+/// Admin-only Team Alerts & Nudges screen. Shows managers only (no employees).
+class AdminTeamAlertsNudgesScreen extends StatelessWidget {
+  const AdminTeamAlertsNudgesScreen({
     super.key,
     this.embedded = false,
     this.selectedManagerId,
@@ -15,7 +14,7 @@ class AdminDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ManagerDashboardScreen(
+    return ManagerAlertsNudgesScreen(
       embedded: true,
       forAdminOversight: true,
       selectedManagerId: selectedManagerId,

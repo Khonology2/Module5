@@ -18,7 +18,14 @@ import 'package:pdh/services/cloudinary_service.dart';
 // Drawer removed in favor of persistent sidebar
 
 class MyPdpScreen extends StatefulWidget {
-  const MyPdpScreen({super.key});
+  const MyPdpScreen({
+    super.key,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
+  });
+
+  final bool forAdminOversight;
+  final String? selectedManagerId;
 
   @override
   State<MyPdpScreen> createState() => _MyPdpScreenState();
