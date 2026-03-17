@@ -70,8 +70,14 @@ class _NudgeFeedback {
 
 class ManagerInboxScreen extends StatefulWidget {
   final bool embedded;
+  /// When true, admin is viewing; do not show employee names or employee list.
+  final bool forAdminOversight;
 
-  const ManagerInboxScreen({super.key, this.embedded = false});
+  const ManagerInboxScreen({
+    super.key,
+    this.embedded = false,
+    this.forAdminOversight = false,
+  });
 
   @override
   State<ManagerInboxScreen> createState() => _ManagerInboxScreenState();
@@ -250,6 +256,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   void _prefetchEmployeeNames(List<_NudgeFeedback> feedback) {
+    if (widget.forAdminOversight) {
+      for (final fb in feedback) {
+        _employeeNameCache[fb.employeeId] ??= 'User';
+      }
+      return;
+    }
     for (final fb in feedback) {
       final metaName = fb.employeeName?.trim() ?? '';
       if (metaName.isNotEmpty) {
@@ -797,6 +809,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   Future<void> _redirectIfManager() async {
     try {
+      if (widget.forAdminOversight) return; // Admin context: no redirect.
       final role = await RoleService.instance.getRole();
       if (!mounted) return;
       if (role == 'manager') {

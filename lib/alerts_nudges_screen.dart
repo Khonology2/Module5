@@ -30,7 +30,20 @@ import 'package:pdh/utils/firestore_safe.dart';
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
 
-  const AlertsNudgesScreen({super.key, this.embedded = false});
+  /// When true, use manager sidebar and [managerGwMenuRoute] (for manager Goal Workspace menu).
+  final bool forManagerGwMenu;
+  final String? managerGwMenuRoute;
+  final bool forAdminOversight;
+  final String? selectedManagerId;
+
+  const AlertsNudgesScreen({
+    super.key,
+    this.embedded = false,
+    this.forManagerGwMenu = false,
+    this.managerGwMenuRoute,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
+  });
 
   @override
   State<AlertsNudgesScreen> createState() => _AlertsNudgesScreenState();
@@ -194,12 +207,19 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     }
     final tutorialParams = tutorialService.getTutorialParams();
 
+    final sidebarItems = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+        ? SidebarConfig.managerItems
+        : SidebarConfig.employeeItems;
+    final routeName =
+        widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+            ? widget.managerGwMenuRoute!
+            : '/alerts_nudges';
     return AppScaffold(
       title: 'Alerts & Nudges',
       showAppBar: false,
       embedded: widget.embedded,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/alerts_nudges',
+      items: sidebarItems,
+      currentRouteName: routeName,
       tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
       sidebarTutorialKeys: null,
       onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,

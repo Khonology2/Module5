@@ -15,7 +15,22 @@ import 'package:pdh/widgets/season_milestone_progress_card.dart';
 import 'package:pdh/season_celebration_screen.dart';
 
 class EmployeeSeasonChallengesScreen extends StatefulWidget {
-  const EmployeeSeasonChallengesScreen({super.key});
+  const EmployeeSeasonChallengesScreen({
+    super.key,
+    this.forManagerGwMenu = false,
+    this.managerGwMenuRoute,
+    this.embedded = false,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
+  });
+
+  /// When true, use manager sidebar and [managerGwMenuRoute] (for manager Goal Workspace menu).
+  final bool forManagerGwMenu;
+  final String? managerGwMenuRoute;
+  /// When true, only build content (no AppScaffold/sidebar); for use inside ManagerPortalScreen.
+  final bool embedded;
+  final bool forAdminOversight;
+  final String? selectedManagerId;
 
   @override
   State<EmployeeSeasonChallengesScreen> createState() =>
@@ -70,11 +85,18 @@ class _EmployeeSeasonChallengesScreenState
 
   @override
   Widget build(BuildContext context) {
+    final sidebarItems = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+        ? SidebarConfig.managerItems
+        : SidebarConfig.employeeItems;
+    final routeName = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+        ? widget.managerGwMenuRoute!
+        : '/season_challenges';
     return AppScaffold(
       title: 'Season Challenges',
       showAppBar: false,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/season_challenges',
+      embedded: widget.embedded,
+      items: sidebarItems,
+      currentRouteName: routeName,
       onNavigate: (route) {
         final current = ModalRoute.of(context)?.settings.name;
         if (current != route) {

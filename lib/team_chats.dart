@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:async';
-import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -129,37 +127,6 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
   ChatMessage? _replyingTo;
   bool _showGoalOnly = false;
 
-  // #region agent log
-  void _agentLog({
-    required String location,
-    required String message,
-    required Map<String, dynamic> data,
-    String hypothesisId = 'H0',
-    String runId = 'pre-fix',
-  }) {
-    final log = <String, dynamic>{
-      'sessionId': '1ae3fc',
-      'id': 'log_${DateTime.now().millisecondsSinceEpoch}',
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-      'location': location,
-      'message': message,
-      'data': data,
-      'runId': runId,
-      'hypothesisId': hypothesisId,
-    };
-    try {
-      final file = File('debug-1ae3fc.log');
-      file.writeAsStringSync(
-        '${jsonEncode(log)}\n',
-        mode: FileMode.append,
-        flush: true,
-      );
-    } catch (_) {
-      // Avoid impacting UX if logging fails
-    }
-  }
-  // #endregion
-
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
       context: context,
@@ -282,12 +249,6 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         _pendingAttachmentType = _guessAttachmentType(file.name);
       });
     } catch (e) {
-      _agentLog(
-        location: 'team_chats.dart:_pickAttachment',
-        message: 'pick_attachment_error',
-        data: {'error': e.toString()},
-        hypothesisId: 'ATTACH_OPEN',
-      );
       // ignore: use_build_context_synchronously
       await _showCenterNotice(context, 'Failed to pick file: $e');
     }
@@ -306,16 +267,6 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     final text = _textController.text.trim();
     final hasAttachment = _pendingAttachmentBytes != null;
     if (text.isEmpty && !hasAttachment) return;
-    _agentLog(
-      location: 'team_chats.dart:_handleSend',
-      message: 'attempt_send',
-      data: {
-        'textLength': text.length,
-        'hasAttachment': hasAttachment,
-        'showGoalOnly': _showGoalOnly,
-      },
-      hypothesisId: 'SEND_UI_GLITCH',
-    );
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       _showCenterNotice(context, 'Sign in required to send messages.');
@@ -395,25 +346,9 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         });
       }
       _clearPendingAttachment();
-      _agentLog(
-        location: 'team_chats.dart:_handleSend',
-        message: 'send_success',
-        data: {
-          'textLength': text.length,
-          'hasAttachment': hasAttachment,
-          'visibleCount': _visibleMessages.length,
-        },
-        hypothesisId: 'SEND_UI_GLITCH',
-      );
       _scrollToBottom(animate: true);
     } catch (e) {
       if (!mounted) return;
-      _agentLog(
-        location: 'team_chats.dart:_handleSend',
-        message: 'send_error',
-        data: {'error': e.toString()},
-        hypothesisId: 'SEND_UI_GLITCH',
-      );
       await _showCenterNotice(context, 'Failed to send: $e');
     }
   }
@@ -430,16 +365,6 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     final url = msg.attachmentUrl;
     if (url == null || url.isEmpty) return;
     try {
-      _agentLog(
-        location: 'team_chats.dart:_openAttachment',
-        message: 'open_attachment_attempt',
-        data: {
-          'url': url,
-          'name': msg.attachmentName ?? '',
-          'type': msg.attachmentType ?? '',
-        },
-        hypothesisId: 'ATTACH_OPEN',
-      );
       final opened = await openAttachmentUrl(url);
       if (!opened) {
         await _showCenterNotice(
@@ -449,15 +374,6 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         );
       }
     } catch (e) {
-      _agentLog(
-        location: 'team_chats.dart:_openAttachment',
-        message: 'open_attachment_error',
-        data: {
-          'error': e.toString(),
-          'url': url,
-        },
-        hypothesisId: 'ATTACH_OPEN',
-      );
       // ignore: use_build_context_synchronously
       await _showCenterNotice(context, 'Failed to open attachment: $e');
     }
@@ -1003,16 +919,6 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      _agentLog(
-        location: 'team_chats.dart:_toggleReaction',
-        message: 'reaction_error',
-        data: {
-          'error': e.toString(),
-          'messageId': msg.id,
-          'emoji': emoji,
-        },
-        hypothesisId: 'REACT_RULES',
-      );
       await _showCenterNotice(context, 'Failed to react: $e');
     }
   }

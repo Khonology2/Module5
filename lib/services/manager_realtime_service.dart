@@ -1575,6 +1575,20 @@ class ManagerRealtimeService {
     }).asBroadcastStream();
   }
 
+  /// For admin oversight: stream of managers only. If [selectedManagerId] is
+  /// set, returns a stream of at most one manager (for drill-down). No employees.
+  static Stream<List<EmployeeData>> getManagersDataStreamForAdmin({
+    TimeFilter timeFilter = TimeFilter.month,
+    String? selectedManagerId,
+  }) {
+    final stream = getManagersDataStream(timeFilter: timeFilter);
+    if (selectedManagerId == null || selectedManagerId.isEmpty) {
+      return stream;
+    }
+    return stream.map((list) =>
+        list.where((e) => e.profile.uid == selectedManagerId).toList());
+  }
+
   // Get AI-generated insights for the team
   static Stream<List<TeamInsight>> getTeamInsightsStream({
     String? department,
