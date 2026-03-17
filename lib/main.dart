@@ -56,6 +56,7 @@ import 'package:pdh/season_goal_completion_screen.dart'; // Import Season Goal C
 import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScreen
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
+import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
@@ -541,6 +542,78 @@ class _MyAppState extends State<MyApp> {
                     ),
                   ),
                 ),
+                // Manager Goal Workspace dropdown – reuse employee UI with manager sidebar
+                '/manager_gw_menu_dashboard': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const EmployeeDashboardScreen(
+                    forManagerGwMenu: true,
+                    managerGwMenuRoute: '/manager_gw_menu_dashboard',
+                  ),
+                ),
+                '/manager_gw_menu_goal_workspace': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: MainLayout(
+                    title: 'Goal Workspace',
+                    currentRouteName: '/manager_gw_menu_goal_workspace',
+                    items: SidebarConfig.managerItems,
+                    body: const MyPdpScreen(),
+                  ),
+                ),
+                '/manager_gw_menu_alerts': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const AlertsNudgesScreen(
+                    forManagerGwMenu: true,
+                    managerGwMenuRoute: '/manager_gw_menu_alerts',
+                  ),
+                ),
+                '/manager_gw_menu_my_pdp': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const MyGoalWorkspaceScreen(
+                    forManagerGwMenu: true,
+                    managerGwMenuRoute: '/manager_gw_menu_my_pdp',
+                  ),
+                ),
+                '/manager_gw_menu_progress': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: MainLayout(
+                    title: 'Progress Visuals',
+                    currentRouteName: '/manager_gw_menu_progress',
+                    items: SidebarConfig.managerItems,
+                    body: const ProgressVisualsScreen(embedded: true),
+                  ),
+                ),
+                '/manager_gw_menu_leaderboard': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: MainLayout(
+                    title: 'Leaderboard',
+                    currentRouteName: '/manager_gw_menu_leaderboard',
+                    items: SidebarConfig.managerItems,
+                    body: const LeaderboardScreen(),
+                  ),
+                ),
+                '/manager_gw_menu_badges': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const BadgesPointsScreen(
+                    forManagerGwMenu: true,
+                    managerGwMenuRoute: '/manager_gw_menu_badges',
+                  ),
+                ),
+                '/manager_gw_menu_season_challenges': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const EmployeeSeasonChallengesScreen(
+                    forManagerGwMenu: true,
+                    managerGwMenuRoute: '/manager_gw_menu_season_challenges',
+                  ),
+                ),
+                '/manager_gw_menu_repository': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: MainLayout(
+                    title: 'Repository & Audit',
+                    currentRouteName: '/manager_gw_menu_repository',
+                    items: SidebarConfig.managerItems,
+                    body: const RepositoryAuditScreen(),
+                  ),
+                ),
               },
               debugShowCheckedModeBanner: false,
               navigatorObservers: [MyNavigatorObserver()],
@@ -645,6 +718,15 @@ class _ChatbotButtonState extends State<ChatbotButton> {
       '/employee_dashboard', // Employee dashboard route
       '/employee_portal', // Legacy mapping shows dashboard; keep chatbot visible
       '/manager_portal', // Manager portal route
+      '/manager_gw_menu_dashboard',
+      '/manager_gw_menu_goal_workspace',
+      '/manager_gw_menu_alerts',
+      '/manager_gw_menu_my_pdp',
+      '/manager_gw_menu_progress',
+      '/manager_gw_menu_leaderboard',
+      '/manager_gw_menu_badges',
+      '/manager_gw_menu_season_challenges',
+      '/manager_gw_menu_repository',
     ];
     if (widget.currentRoute == null ||
         !allowedRoutes.contains(widget.currentRoute) ||
@@ -701,6 +783,15 @@ class _TeamChatButtonState extends State<TeamChatButton> {
       '/employee_dashboard',
       '/employee_portal',
       '/manager_portal',
+      '/manager_gw_menu_dashboard',
+      '/manager_gw_menu_goal_workspace',
+      '/manager_gw_menu_alerts',
+      '/manager_gw_menu_my_pdp',
+      '/manager_gw_menu_progress',
+      '/manager_gw_menu_leaderboard',
+      '/manager_gw_menu_badges',
+      '/manager_gw_menu_season_challenges',
+      '/manager_gw_menu_repository',
     ];
 
     if (widget.currentRoute == null ||
@@ -780,7 +871,7 @@ class MyNavigatorObserver extends NavigatorObserver {
   @override
   void didRemove(Route route, Route? previousRoute) {
     currentRouteNotifier.value = previousRoute?.settings.name;
-    // Added extra logging for conflict testing - BRANCH Nathi-S11 VERSION
+    // Added extra logging for conflict testing
     debugPrint('Route removed: ${route.settings.name}');
     debugPrint('Previous route: ${previousRoute?.settings.name}');
     debugPrint('Current route after removal: ${currentRouteNotifier.value}');

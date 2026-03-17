@@ -23,7 +23,16 @@ import 'package:pdh/widgets/ai_generation_indicator.dart';
 class MyGoalWorkspaceScreen extends StatefulWidget {
   final bool embedded;
 
-  const MyGoalWorkspaceScreen({super.key, this.embedded = false});
+  /// When true, use manager sidebar and [managerGwMenuRoute] (for manager Goal Workspace menu).
+  final bool forManagerGwMenu;
+  final String? managerGwMenuRoute;
+
+  const MyGoalWorkspaceScreen({
+    super.key,
+    this.embedded = false,
+    this.forManagerGwMenu = false,
+    this.managerGwMenuRoute,
+  });
 
   @override
   State<MyGoalWorkspaceScreen> createState() => _MyGoalWorkspaceScreenState();
@@ -173,7 +182,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       builder: (context, roleSnapshot) {
         final role =
             roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
-        final items = SidebarConfig.getItemsForRole(role);
+        final items = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+            ? SidebarConfig.managerItems
+            : SidebarConfig.getItemsForRole(role);
         // Get tutorial state from global service (only for employees)
         final tutorialService = EmployeeTutorialService.instance;
         if (role == 'employee' && tutorialService.isTutorialActive) {
@@ -215,12 +226,15 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 'onTutorialSkip': null,
               };
 
+        final routeName = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+            ? widget.managerGwMenuRoute!
+            : '/my_goal_workspace';
         return AppScaffold(
           title: 'Goal Workspace',
           showAppBar: false,
           embedded: widget.embedded,
           items: items,
-          currentRouteName: '/my_goal_workspace',
+          currentRouteName: routeName,
           tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
           sidebarTutorialKeys: null,
           onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
@@ -1607,9 +1621,12 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       }
 
       if (mounted) {
-        // Navigate back to dashboard immediately to minimize waiting
+        // Navigate back to dashboard; managers go to manager portal to avoid "Access restricted"
+        final targetRoute = widget.forManagerGwMenu
+            ? '/manager_portal'
+            : '/employee_dashboard';
         navigator.pushNamedAndRemoveUntil(
-          '/employee_dashboard',
+          targetRoute,
           (route) => false,
         );
       }
