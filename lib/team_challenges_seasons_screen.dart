@@ -10,7 +10,13 @@ import 'package:pdh/season_management_screen.dart';
 import 'package:pdh/services/role_service.dart';
 
 class TeamChallengesSeasonsScreen extends StatefulWidget {
-  const TeamChallengesSeasonsScreen({super.key});
+  /// When true, admin is viewing; no employee-specific data.
+  final bool forAdminOversight;
+
+  const TeamChallengesSeasonsScreen({
+    super.key,
+    this.forAdminOversight = false,
+  });
 
   @override
   State<TeamChallengesSeasonsScreen> createState() =>
@@ -68,6 +74,7 @@ class _TeamChallengesSeasonsScreenState
 
   Future<void> _redirectIfManagerStandalone() async {
     try {
+      if (widget.forAdminOversight) return; // Admin context: no redirect.
       final role = await RoleService.instance.getRole();
       if (!mounted) return;
       final routeName = ModalRoute.of(context)?.settings.name;

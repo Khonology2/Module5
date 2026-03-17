@@ -219,7 +219,7 @@ class SidebarConfig {
   ]);
 
   // ===== ADMIN SIDEBAR ITEMS =====
-  // Icons/assets aligned with manager sidebar by item name (Dashboard, Progress Visuals, Goal Workspace, Team Challenges, Leaderboard, Repository & Audit, My Profile, Settings & Privacy).
+  // Labels and order mirror manager sidebar (excluding Manager Workspace). Admin oversees managers.
   static List<SidebarItem> get adminItems => List.unmodifiable([
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Dashboard_White.png',
@@ -227,33 +227,44 @@ class SidebarConfig {
       label: 'Dashboard',
       route: '/admin_dashboard',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
-      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
-      label: 'Progress & Visuals',
-      route: '/manager_oversight',
-    ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
-      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
-      label: 'System Analytics',
-      route: '/admin_analytics',
-    ),
     SidebarItem(
       icon: Icons.inbox_outlined,
       label: 'Inbox',
       route: '/admin_inbox',
     ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
+      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+      label: 'Team Alerts & Nudges',
+      route: '/admin_team_alerts_nudges',
+    ),
     SidebarItem(
       icon: Icons.emoji_events,
-      label: 'Team Challenge',
-      route: '/team_challenge_admin',
+      label: 'Team Challenges',
+      route: '/admin_team_challenges',
+    ),
+    SidebarItem(
+      icon: Icons.groups,
+      label: 'Team Review',
+      route: '/admin_team_review',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
+      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+      label: 'Progress Visuals',
+      route: '/admin_progress_visuals',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
       red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
       label: 'Leaderboard',
       route: '/org_leaderboard',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
+      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
+      label: 'Badges & Points',
+      route: '/admin_badges_points',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
@@ -263,7 +274,7 @@ class SidebarConfig {
     ),
     SidebarItem(
       icon: Icons.manage_accounts,
-      label: 'Profile',
+      label: 'My Profile',
       route: '/admin_profile',
     ),
     itemWithAssets(
@@ -291,11 +302,13 @@ class SidebarConfig {
   /// Admin route paths (used for getItemsForRoute; excludes /manager* used by manager).
   static const Set<String> _adminRoutes = {
     '/admin_dashboard',
-    '/manager_oversight',
-    '/admin_analytics',
     '/admin_inbox',
-    '/team_challenge_admin',
+    '/admin_team_alerts_nudges',
+    '/admin_team_challenges',
+    '/admin_team_review',
+    '/admin_progress_visuals',
     '/org_leaderboard',
+    '/admin_badges_points',
     '/admin_repository_audit',
     '/admin_profile',
     '/admin_settings',

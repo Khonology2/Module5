@@ -24,12 +24,7 @@ import 'package:pdh/manager_leaderboard_screen.dart';
 import 'package:pdh/employee_dashboard_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/admin_portal_screen.dart';
-import 'package:pdh/admin_dashboard_screen.dart';
 import 'package:pdh/admin_profile_screen.dart';
-import 'package:pdh/admin_manager_oversight_screen.dart';
-import 'package:pdh/admin_inbox_screen.dart';
-import 'package:pdh/admin_leaderboard_screen.dart';
-import 'package:pdh/admin_analytics_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/manager_alerts_nudges_screen.dart';
 import 'package:pdh/manager_inbox_screen.dart';
@@ -420,12 +415,7 @@ class _MyAppState extends State<MyApp> {
                 '/admin_dashboard': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
                   child: Builder(
-                    builder: (context) => AdminDashboardScreen(
-                      embedded: true,
-                      onNavigate: (route) {
-                        Navigator.pushReplacementNamed(context, route);
-                      },
-                    ),
+                    builder: (context) => AdminPortalScreen(),
                   ),
                 ),
                 '/admin_profile': (context) => RoleGate(
@@ -434,25 +424,20 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/manager_oversight': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: const AdminManagerOversightScreen(embedded: true),
+                  child: Builder(
+                    builder: (context) => AdminPortalScreen(),
+                  ),
                 ),
                 '/admin_inbox': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: const AdminInboxScreen(embedded: true),
+                  child: Builder(
+                    builder: (context) => AdminPortalScreen(),
+                  ),
                 ),
                 '/org_leaderboard': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: const AdminLeaderboardScreen(embedded: true),
-                ),
-                '/admin_analytics': (context) => RoleGate(
-                  requiredRole: RequiredRole.admin,
                   child: Builder(
-                    builder: (context) => AdminAnalyticsScreen(
-                      embedded: true,
-                      onNavigate: (route) {
-                        Navigator.pushReplacementNamed(context, route);
-                      },
-                    ),
+                    builder: (context) => AdminPortalScreen(),
                   ),
                 ),
                 '/admin_settings': (context) => RoleGate(

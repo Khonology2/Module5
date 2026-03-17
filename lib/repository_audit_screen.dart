@@ -30,7 +30,13 @@ import 'dart:html'
     as html; // Keep using dart:html for now until migration to package:web is complete
 
 class RepositoryAuditScreen extends StatefulWidget {
-  const RepositoryAuditScreen({super.key});
+  /// When true, admin is viewing; show only manager-scoped audit data (no employees).
+  final bool forAdminOversight;
+
+  const RepositoryAuditScreen({
+    super.key,
+    this.forAdminOversight = false,
+  });
 
   @override
   State<RepositoryAuditScreen> createState() => _RepositoryAuditScreenState();
@@ -51,6 +57,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.forAdminOversight) _isManager = true;
     _loadMilestoneAuditsOnce();
     // Initialize debouncer for search queries
     _searchDebouncer = ValueDebouncer<String>(
@@ -84,6 +91,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
   Future<void> _backfillVerifiedEntries() async {
     try {
+      if (widget.forAdminOversight) return; // Admin: no employee backfill.
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
@@ -196,17 +204,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       roleSnapshot.data ?? RoleService.instance.cachedRole;
                   final isManager = role == 'manager';
 
-                  // Update state variable to track current role
-                  if (_isManager != isManager) {
-                    setState(() {
-                      _isManager = isManager;
-                    });
+                  // Update state variable to track current role (admin uses manager scope)
+                  if (widget.forAdminOversight) {
+                    if (!_isManager) setState(() => _isManager = true);
+                  } else if (_isManager != isManager) {
+                    setState(() => _isManager = isManager);
                   }
 
+                  final effectiveIsManager =
+                      isManager || widget.forAdminOversight;
                   return Column(
                     children: [
-                      _buildRoleSummaryBar(isManager: isManager),
-                      _buildAuditEntriesList(isManager: isManager),
+                      _buildRoleSummaryBar(isManager: effectiveIsManager),
+                      _buildAuditEntriesList(isManager: effectiveIsManager),
                       const SizedBox(height: 24),
                       _buildRepositorySection(isManager: isManager),
                       const SizedBox(height: 24),
