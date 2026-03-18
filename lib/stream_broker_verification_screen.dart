@@ -46,25 +46,25 @@ class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
       final subscription = stream.listen(
         (snapshot) {
           _addLog('📦 Stream received ${snapshot.docs.length} documents');
-          
+
           var auditCount = 0;
           var statusCounts = <String, int>{};
-          
+
           for (final doc in snapshot.docs) {
             try {
               final entry = AuditEntry.fromFirestore(doc);
               auditCount++;
-              
+
               // Count by status
               final status = entry.status;
               statusCounts[status] = (statusCounts[status] ?? 0) + 1;
-              
+
               _addLog('📄 Entry: ${entry.goalTitle} - Status: ${entry.status}');
             } catch (e) {
               _addLog('❌ Error parsing entry: $e');
             }
           }
-          
+
           _addLog('📊 Summary: $auditCount total entries');
           statusCounts.forEach((status, count) {
             _addLog('  $status: $count');
@@ -79,7 +79,6 @@ class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
       await Future.delayed(const Duration(seconds: 10));
       await subscription.cancel();
       _addLog('⏹️ Test completed');
-
     } catch (e, stackTrace) {
       _addLog('❌ Test failed: $e');
       _addLog('📋 Stack: $stackTrace');
@@ -107,11 +106,10 @@ class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
               ),
-              child: _isLoading 
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Test Stream Broker'),
+              child: _isLoading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Test Stream Broker'),
             ),
-          ),
           ),
           Expanded(
             child: Container(
