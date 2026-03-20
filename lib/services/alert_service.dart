@@ -432,12 +432,28 @@ class AlertService {
       final employeeName = userDoc.data()?['displayName'] ?? 'An employee';
 
       final normalizedApproverRole = approverRole.trim().toLowerCase();
-      final recipients = await _firestore
+      final directRecipients = await _firestore
           .collection('users')
           .where('role', isEqualTo: normalizedApproverRole)
           .get();
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> recipientsDocs =
+          directRecipients.docs;
 
-      if (recipients.docs.isEmpty) {
+      // Fallback for legacy/inconsistent role casing in Firestore data
+      // (e.g. "Admin", "ADMIN ", " Manager").
+      if (recipientsDocs.isEmpty) {
+        final allUsers = await _firestore.collection('users').get();
+        final normalized = allUsers.docs.where((doc) {
+          final role = (doc.data()['role'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          return role == normalizedApproverRole;
+        }).toList();
+        recipientsDocs = normalized;
+      }
+
+      if (recipientsDocs.isEmpty) {
         developer.log(
           'WARNING: No $normalizedApproverRole users found to notify for goal approval',
         );
@@ -448,10 +464,10 @@ class AlertService {
       }
 
       developer.log(
-        'Found ${recipients.docs.length} $normalizedApproverRole(s) to notify for goal approval',
+        'Found ${recipientsDocs.length} $normalizedApproverRole(s) to notify for goal approval',
       );
 
-      for (final recipient in recipients.docs) {
+      for (final recipient in recipientsDocs) {
         final alert = Alert(
           id: '',
           userId: recipient.id,
@@ -475,13 +491,14 @@ class AlertService {
         await _createAlert(alert);
       }
       developer.log(
-        'Successfully created approval request alerts for ${recipients.docs.length} $normalizedApproverRole(s)',
+        'Successfully created approval request alerts for ${recipientsDocs.length} $normalizedApproverRole(s)',
       );
     } catch (e) {
       developer.log('Error creating approval request alerts: $e');
       rethrow; // Re-throw to help with debugging
     }
   }
+
 
   static Future<void> createGoalApprovalDecisionAlert({
     required String employeeId,
