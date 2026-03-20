@@ -80,7 +80,7 @@ app = FastAPI(
 # In production, you may want to restrict this to specific origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins (adjust for production)
+    allow_origins=["https://personal-development-hub.onrender.com"],  # Allow specific frontend origin
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers

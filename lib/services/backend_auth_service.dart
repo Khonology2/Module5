@@ -8,7 +8,7 @@ import 'dart:async';
 /// Service to handle backend API calls for token authentication
 /// This service calls a backend endpoint to create Firebase custom tokens
 ///
-/// Backend URL is hardcoded to: https://pdh-backend.onrender.com
+/// Backend URL is hardcoded to: https://personal-development-backend.onrender.com
 class BackendAuthService {
   BackendAuthService._internal();
   static final BackendAuthService instance = BackendAuthService._internal();
@@ -21,14 +21,13 @@ class BackendAuthService {
   ];
 
   /// Backend API base URL for token authentication
-  /// Hardcoded to use the production backend URL: https://pdh-backend.onrender.com
   static String get _backendBaseUrl {
     final envUrl = EnvConfig.backendUrl;
     if (envUrl != null && envUrl.isNotEmpty) {
       debugPrint('Using env backend URL: $envUrl');
       return envUrl;
     }
-    const String prodUrl = 'https://pdh-backend.onrender.com';
+    const String prodUrl = 'https://personal-development-backend.onrender.com';
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
       if (host == 'localhost' || host == '127.0.0.1') {
@@ -57,8 +56,12 @@ class BackendAuthService {
       final apiKey = data['apiKey']?.toString();
       final appId = data['appId']?.toString();
       final messagingSenderId = data['messagingSenderId']?.toString();
-      if (apiKey == null || apiKey.isEmpty || appId == null || appId.isEmpty ||
-          messagingSenderId == null || messagingSenderId.isEmpty) {
+      if (apiKey == null ||
+          apiKey.isEmpty ||
+          appId == null ||
+          appId.isEmpty ||
+          messagingSenderId == null ||
+          messagingSenderId.isEmpty) {
         return null;
       }
       return data;
@@ -67,19 +70,33 @@ class BackendAuthService {
     }
   }
 
-  Future<http.Response> _postWithRetry(String url, Map<String, dynamic> body) async {
+  Future<http.Response> _postWithRetry(
+    String url,
+    Map<String, dynamic> body,
+  ) async {
     http.Response? lastResponse;
     for (var i = 0; i <= _retryDelays.length; i++) {
       try {
         final attemptWatch = Stopwatch()..start();
-        debugPrint('HTTP POST attempt ${i + 1}/${_retryDelays.length + 1} to $url');
+        debugPrint(
+          'HTTP POST attempt ${i + 1}/${_retryDelays.length + 1} to $url',
+        );
         final res = await http
-            .post(Uri.parse(url), headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
-            .timeout(_httpTimeout, onTimeout: () {
-          throw TimeoutException('Request timeout');
-        });
+            .post(
+              Uri.parse(url),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(body),
+            )
+            .timeout(
+              _httpTimeout,
+              onTimeout: () {
+                throw TimeoutException('Request timeout');
+              },
+            );
         attemptWatch.stop();
-        debugPrint('HTTP POST attempt ${i + 1} completed with status ${res.statusCode} in ${attemptWatch.elapsedMilliseconds} ms');
+        debugPrint(
+          'HTTP POST attempt ${i + 1} completed with status ${res.statusCode} in ${attemptWatch.elapsedMilliseconds} ms',
+        );
         return res;
       } catch (e) {
         if (e is TimeoutException) {
@@ -125,12 +142,16 @@ class BackendAuthService {
             'Backend API returned 200 but firebase_token is missing or empty',
           );
           stopwatch.stop();
-          debugPrint('Custom token request completed in ${stopwatch.elapsedMilliseconds} ms');
+          debugPrint(
+            'Custom token request completed in ${stopwatch.elapsedMilliseconds} ms',
+          );
           return null;
         }
         debugPrint('Successfully received Firebase custom token from backend');
         stopwatch.stop();
-        debugPrint('Custom token request completed in ${stopwatch.elapsedMilliseconds} ms');
+        debugPrint(
+          'Custom token request completed in ${stopwatch.elapsedMilliseconds} ms',
+        );
         return firebaseToken;
       } else {
         // Parse error response if available
@@ -147,7 +168,9 @@ class BackendAuthService {
           );
         }
         stopwatch.stop();
-        debugPrint('Custom token request completed in ${stopwatch.elapsedMilliseconds} ms');
+        debugPrint(
+          'Custom token request completed in ${stopwatch.elapsedMilliseconds} ms',
+        );
         return null;
       }
     } on TimeoutException catch (e) {
@@ -194,7 +217,9 @@ class BackendAuthService {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         debugPrint('Token validated successfully by backend');
         stopwatch.stop();
-        debugPrint('Token validation completed in ${stopwatch.elapsedMilliseconds} ms');
+        debugPrint(
+          'Token validation completed in ${stopwatch.elapsedMilliseconds} ms',
+        );
         return data;
       } else {
         // Parse error response if available
@@ -211,7 +236,9 @@ class BackendAuthService {
           );
         }
         stopwatch.stop();
-        debugPrint('Token validation completed in ${stopwatch.elapsedMilliseconds} ms');
+        debugPrint(
+          'Token validation completed in ${stopwatch.elapsedMilliseconds} ms',
+        );
         return null;
       }
     } on TimeoutException catch (e) {
