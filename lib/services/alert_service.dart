@@ -421,6 +421,7 @@ class AlertService {
     required String employeeId,
     required String goalId,
     required String goalTitle,
+    String approverRole = 'manager',
   }) async {
     try {
       final userDoc = await _firestore
@@ -429,14 +430,16 @@ class AlertService {
           .get();
       final employeeName = userDoc.data()?['displayName'] ?? 'An employee';
 
-      // Notify all managers regardless of department (managers can see all employees)
-      final mgrs = await _firestore
+      final normalizedApproverRole = approverRole.trim().toLowerCase();
+      final recipients = await _firestore
           .collection('users')
-          .where('role', isEqualTo: 'manager')
+          .where('role', isEqualTo: normalizedApproverRole)
           .get();
 
-      if (mgrs.docs.isEmpty) {
-        developer.log('WARNING: No managers found to notify for goal approval');
+      if (recipients.docs.isEmpty) {
+        developer.log(
+          'WARNING: No $normalizedApproverRole users found to notify for goal approval',
+        );
         developer.log(
           'Employee ID: $employeeId, Goal ID: $goalId, Goal Title: $goalTitle',
         );
@@ -444,13 +447,13 @@ class AlertService {
       }
 
       developer.log(
-        'Found ${mgrs.docs.length} manager(s) to notify for goal approval',
+        'Found ${recipients.docs.length} $normalizedApproverRole(s) to notify for goal approval',
       );
 
-      for (final mgr in mgrs.docs) {
+      for (final recipient in recipients.docs) {
         final alert = Alert(
           id: '',
-          userId: mgr.id,
+          userId: recipient.id,
           type: AlertType.goalApprovalRequested,
           audience: _determineAudience(
             AlertType.goalApprovalRequested,
@@ -461,7 +464,9 @@ class AlertService {
           message:
               '$employeeName submitted a new goal: "$goalTitle". Approve or reject.',
           actionText: 'Review Goal',
-          actionRoute: '/manager_inbox',
+          actionRoute: normalizedApproverRole == 'admin'
+              ? '/admin_inbox'
+              : '/manager_inbox',
           createdAt: DateTime.now(),
           relatedGoalId: goalId,
           expiresAt: DateTime.now().add(const Duration(days: 14)),
@@ -469,7 +474,7 @@ class AlertService {
         await _createAlert(alert);
       }
       developer.log(
-        'Successfully created approval request alerts for ${mgrs.docs.length} manager(s)',
+        'Successfully created approval request alerts for ${recipients.docs.length} $normalizedApproverRole(s)',
       );
     } catch (e) {
       developer.log('Error creating approval request alerts: $e');

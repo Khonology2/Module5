@@ -355,6 +355,7 @@ class DatabaseService {
   }) async {
     final firestore = FirebaseFirestore.instance;
     final goalRef = firestore.collection('goals').doc(goalId);
+    final approverRole = (await _getUserRole(managerId)).trim().toLowerCase();
     Map<String, dynamic>? goalData;
     await firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(goalRef);
@@ -369,6 +370,29 @@ class DatabaseService {
           currentStatus == GoalApprovalStatus.rejected.name) {
         throw StateError('Goal has already been finalized');
       }
+      final goalOwnerId = (data?['userId'] ?? '').toString();
+      if (goalOwnerId.isEmpty) {
+        throw StateError('Goal has no owner');
+      }
+      final goalOwnerDoc = await transaction.get(
+        firestore.collection('users').doc(goalOwnerId),
+      );
+      final goalOwnerRole = (goalOwnerDoc.data()?['role'] ?? 'employee')
+          .toString()
+          .trim()
+          .toLowerCase();
+
+      // Manager-created goals must be approved by admins only.
+      if (goalOwnerRole == 'manager' && approverRole != 'admin') {
+        throw StateError('Manager-created goals must be approved by an admin');
+      }
+      // Employee goals can be approved by manager or admin.
+      if (goalOwnerRole != 'manager' &&
+          approverRole != 'manager' &&
+          approverRole != 'admin') {
+        throw StateError('You do not have permission to approve this goal');
+      }
+
       goalData = data;
       transaction.update(goalRef, {
         'approvalStatus': GoalApprovalStatus.approved.name,
@@ -444,6 +468,7 @@ class DatabaseService {
   }) async {
     final firestore = FirebaseFirestore.instance;
     final goalRef = firestore.collection('goals').doc(goalId);
+    final approverRole = (await _getUserRole(managerId)).trim().toLowerCase();
     Map<String, dynamic>? goalData;
     await firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(goalRef);
@@ -458,6 +483,29 @@ class DatabaseService {
           currentStatus == GoalApprovalStatus.rejected.name) {
         throw StateError('Goal has already been finalized');
       }
+      final goalOwnerId = (data?['userId'] ?? '').toString();
+      if (goalOwnerId.isEmpty) {
+        throw StateError('Goal has no owner');
+      }
+      final goalOwnerDoc = await transaction.get(
+        firestore.collection('users').doc(goalOwnerId),
+      );
+      final goalOwnerRole = (goalOwnerDoc.data()?['role'] ?? 'employee')
+          .toString()
+          .trim()
+          .toLowerCase();
+
+      // Manager-created goals must be reviewed by admins only.
+      if (goalOwnerRole == 'manager' && approverRole != 'admin') {
+        throw StateError('Manager-created goals must be rejected by an admin');
+      }
+      // Employee goals can be rejected by manager or admin.
+      if (goalOwnerRole != 'manager' &&
+          approverRole != 'manager' &&
+          approverRole != 'admin') {
+        throw StateError('You do not have permission to reject this goal');
+      }
+
       goalData = data;
       transaction.update(goalRef, {
         'approvalStatus': GoalApprovalStatus.rejected.name,
@@ -656,18 +704,23 @@ class DatabaseService {
     required String userId,
     required String goalTitle,
   }) async {
+    final ownerRole = (await _getUserRole(userId)).trim().toLowerCase();
+    final requiredApproverRole = ownerRole == 'manager' ? 'admin' : 'manager';
+
     Future<void> attempt(int attemptCount) async {
       final ref = FirebaseFirestore.instance.collection('goals').doc(goalId);
       try {
         await ref.set({
           'approvalStatus': GoalApprovalStatus.pending.name,
           'approvalRequestedAt': FieldValue.serverTimestamp(),
+          'requiredApproverRole': requiredApproverRole,
         }, SetOptions(merge: true));
 
         await AlertService.createGoalApprovalRequestedAlert(
           employeeId: userId,
           goalId: goalId,
           goalTitle: goalTitle,
+          approverRole: requiredApproverRole,
         );
       } catch (e) {
         if (_isFirestoreInternalAssertion(e) && attemptCount < 1) {
