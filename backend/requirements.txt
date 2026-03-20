@@ -31,9 +31,9 @@ protobuf==6.33.5
 pyasn1==0.6.2
 pyasn1_modules==0.4.2
 pycparser==3.0
-pydantic==2.9.0
-pydantic-settings==2.2.1
-pydantic_core==2.18.4
+pydantic==2.10.3
+pydantic-settings==2.7.0
+pydantic_core==2.27.1
 PyJWT==2.8.0
 pyparsing==3.3.2
 python-dotenv==1.0.0
