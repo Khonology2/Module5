@@ -2066,6 +2066,7 @@ class ManagerRealtimeService {
     required String goalId,
     required String message,
     NudgeType nudgeType = NudgeType.motivational,
+    String? recipientActionRoute,
   }) async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
@@ -2094,6 +2095,7 @@ class ManagerRealtimeService {
         managerName: managerName,
         goalTitle: goalTitle,
         nudgeMessage: message,
+        actionRouteOverride: recipientActionRoute,
       );
 
       // Record manager action
@@ -2221,6 +2223,7 @@ class ManagerRealtimeService {
     required String reason,
     required int points,
     String? badgeName,
+    String? recipientActionRoute,
   }) async {
     // Two-phase behavior:
     // - Phase 1 (must succeed): points increment + alert creation
@@ -2249,7 +2252,7 @@ class ManagerRealtimeService {
             '${badgeName != null && badgeName.trim().isNotEmpty ? ' (Badge: ${badgeName.trim()})' : ''}'
             ' (+$points pts)',
         'actionText': 'View Achievement',
-        'actionRoute': '/badges_points',
+        'actionRoute': recipientActionRoute ?? '/badges_points',
         'createdAt': FieldValue.serverTimestamp(),
         'isRead': false,
         'isDismissed': false,
@@ -2294,6 +2297,7 @@ class ManagerRealtimeService {
   static Future<void> requestOneOnOne({
     required String employeeId,
     String? agenda,
+    String? recipientActionRoute,
   }) async {
     try {
       final managerId = FirebaseAuth.instance.currentUser!.uid;
@@ -2324,6 +2328,7 @@ class ManagerRealtimeService {
         managerId: managerId,
         meetingId: meetingId,
         agenda: agenda,
+        actionRouteOverride: recipientActionRoute,
       );
     } catch (e) {
       developer.log('Error requesting 1:1 meeting: $e');
@@ -2338,6 +2343,7 @@ class ManagerRealtimeService {
     required DateTime scheduledEndTime,
     required String purpose,
     String? notes,
+    String? recipientActionRoute,
   }) async {
     try {
       final managerId = FirebaseAuth.instance.currentUser!.uid;
@@ -2379,6 +2385,7 @@ class ManagerRealtimeService {
         proposedStartDateTime: scheduledStartTime,
         proposedEndDateTime: scheduledEndTime,
         agenda: purpose,
+        actionRouteOverride: recipientActionRoute,
       );
 
       developer.log('1:1 proposed for employee $employeeId');
