@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.DE7.SIT",
-  "generated_at": "2026-03-20T08:22:19Z",
+  "version": "2026.03.DE8.SIT",
+  "generated_at": "2026-03-20T08:33:15Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -29,6 +29,11 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature - add role-based season visibility and caching for admin user IDs",
+      "timestamp": "2026-03-20T10:32:28+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature - enhance manager alerts filtering to exclude employee-specific alerts.",
       "timestamp": "2026-03-20T10:21:24+02:00"
     },
@@ -38,6 +43,6 @@
       "timestamp": "2026-03-20T10:11:03+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 8,
   "date_range": "2026-03-20"
 }
