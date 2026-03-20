@@ -91,7 +91,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           managerGwMenuRoute: '/manager_gw_menu_dashboard',
         );
       case '/manager_gw_menu_goal_workspace':
-        return const MyPdpScreen();
+        return const MyPdpScreen(managerOwnGoalsOnly: true);
       case '/manager_gw_menu_alerts':
         return const AlertsNudgesScreen(
           embedded: true,
