@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.DE16.SIT",
-  "generated_at": "2026-03-20T10:46:34Z",
+  "version": "2026.03.DE17.SIT",
+  "generated_at": "2026-03-20T10:59:57Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -26,6 +26,11 @@
       "author": "Nathi2266",
       "message": "feat: implement Manager Goal Workspace menu with updated routing and sidebar configuration",
       "timestamp": "2026-03-17T07:29:16+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - enhance goal approval notifications and submission process by introducing dynamic approver roles, updating UI messages for admin and manager approvals, and improving alert service to handle legacy role casing.",
+      "timestamp": "2026-03-20T12:59:11+02:00"
     },
     {
       "author": "Thembelihle",
@@ -83,6 +88,6 @@
       "timestamp": "2026-03-20T10:11:03+02:00"
     }
   ],
-  "total_commits": 16,
+  "total_commits": 17,
   "date_range": "2026-03-20"
 }
