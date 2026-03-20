@@ -647,13 +647,6 @@ class DatabaseService {
             developer.log('Error requesting goal approval: $e');
           }
         });
-        // ignore: unawaited_futures
-        Future(() async {
-          try {
-            await BadgeService.checkAndAwardBadgesV2(goal.userId);
-          } catch (_) {}
-        });
-
         // Log goal creation to audit trail
         // ignore: unawaited_futures
         Future(() async {
