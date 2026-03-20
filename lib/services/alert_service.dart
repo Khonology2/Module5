@@ -123,14 +123,32 @@ class AlertService {
     }
   }
 
+  static const String _managerWorkspaceAlertsRoute = '/manager_gw_menu_alerts';
+
+  static Future<String> _alertsRouteForRecipient(String userId) async {
+    try {
+      final snap = await FirestoreSafe.getDoc(
+        _firestore.collection('users').doc(userId),
+      );
+      final role = (snap.data()?['role'] ?? '').toString().trim().toLowerCase();
+      if (role == 'manager') return _managerWorkspaceAlertsRoute;
+    } catch (_) {
+      // Fall back to default route if role cannot be determined.
+    }
+    return '/alerts_nudges';
+  }
+
   /// Employee-facing: manager expressed intent (no time).
   static Future<void> createOneOnOneRequestedAlert({
     required String employeeId,
     required String managerId,
     required String meetingId,
     String? agenda,
+    String? actionRouteOverride,
   }) async {
     final managerName = await _displayNameForUser(managerId);
+    final actionRoute =
+        actionRouteOverride ?? await _alertsRouteForRecipient(employeeId);
     final alert = Alert(
       id: '',
       userId: employeeId,
@@ -140,7 +158,7 @@ class AlertService {
       title: '1:1 Requested',
       message: '$managerName would like to have a 1:1 with you.',
       actionText: 'View',
-      actionRoute: '/alerts_nudges',
+      actionRoute: actionRoute,
       actionData: {
         'meetingId': meetingId,
         if (agenda != null && agenda.trim().isNotEmpty) 'agenda': agenda.trim(),
@@ -161,8 +179,11 @@ class AlertService {
     required DateTime proposedStartDateTime,
     required DateTime proposedEndDateTime,
     String? agenda,
+    String? actionRouteOverride,
   }) async {
     final managerName = await _displayNameForUser(managerId);
+    final actionRoute =
+        actionRouteOverride ?? await _alertsRouteForRecipient(employeeId);
     final when = _formatMeetingRange(
       proposedStartDateTime,
       proposedEndDateTime,
@@ -176,7 +197,7 @@ class AlertService {
       title: '1:1 Proposed',
       message: '$managerName proposed a 1:1 from $when.',
       actionText: 'Respond',
-      actionRoute: '/alerts_nudges',
+      actionRoute: actionRoute,
       actionData: {
         'meetingId': meetingId,
         'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
@@ -933,8 +954,11 @@ class AlertService {
     required String managerName,
     required String goalTitle,
     required String nudgeMessage,
+    String? actionRouteOverride,
   }) async {
     try {
+      final actionRoute =
+          actionRouteOverride ?? await _alertsRouteForRecipient(userId);
       // Create alert using _createAlert to ensure email is sent
       final alert = Alert(
         id: '',
@@ -946,7 +970,7 @@ class AlertService {
         message:
             '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
         actionText: 'View Nudge',
-        actionRoute: '/employee_dashboard',
+        actionRoute: actionRoute,
         actionData: {'goalId': goalId},
         createdAt: DateTime.now(),
         fromUserId: managerId,
