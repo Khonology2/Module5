@@ -12,8 +12,10 @@ import 'package:pdh/leaderboard_screen.dart'; // Use employee leaderboard UI
 import 'package:pdh/repository_audit_screen.dart'; // Import RepositoryAuditScreen
 import 'package:pdh/settings_screen.dart'; // Import SettingsScreen
 import 'package:pdh/my_pdp_screen.dart'; // Import MyPdpScreen
-// Import MyGoalWorkspaceScreen
+import 'package:pdh/my_goal_workspace_screen.dart'; // Import MyGoalWorkspaceScreen
 import 'package:pdh/badges_points_screen.dart'; // Import BadgesPointsScreen
+import 'package:pdh/employee_dashboard_screen.dart'; // Manager GW menu dashboard (reuse employee UI)
+import 'package:pdh/employee_season_challenges_screen.dart'; // Manager GW menu season challenges
 import 'package:pdh/manager_badges_points_screen.dart'; // Import ManagerBadgesPointsScreen
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/auth_service.dart';
@@ -84,6 +86,45 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const SettingsScreen();
       case '/manager_review_team_dashboard':
         return const ManagerReviewTeamDashboardScreen();
+      // Manager Goal Workspace dropdown – same UI as employee, manager-scoped; body-only to avoid second sidebar
+      case '/manager_gw_menu_dashboard':
+        return const EmployeeDashboardScreen(
+          embedded: true,
+          forManagerGwMenu: true,
+          managerGwMenuRoute: '/manager_gw_menu_dashboard',
+        );
+      case '/manager_gw_menu_goal_workspace':
+        return const MyPdpScreen();
+      case '/manager_gw_menu_alerts':
+        return const AlertsNudgesScreen(
+          embedded: true,
+          forManagerGwMenu: true,
+          managerGwMenuRoute: '/manager_gw_menu_alerts',
+        );
+      case '/manager_gw_menu_my_pdp':
+        return const MyGoalWorkspaceScreen(
+          embedded: true,
+          forManagerGwMenu: true,
+          managerGwMenuRoute: '/manager_gw_menu_my_pdp',
+        );
+      case '/manager_gw_menu_progress':
+        return const ProgressVisualsScreen(embedded: true);
+      case '/manager_gw_menu_leaderboard':
+        return const LeaderboardScreen();
+      case '/manager_gw_menu_badges':
+        return const BadgesPointsScreen(
+          embedded: true,
+          forManagerGwMenu: true,
+          managerGwMenuRoute: '/manager_gw_menu_badges',
+        );
+      case '/manager_gw_menu_season_challenges':
+        return const EmployeeSeasonChallengesScreen(
+          embedded: true,
+          forManagerGwMenu: true,
+          managerGwMenuRoute: '/manager_gw_menu_season_challenges',
+        );
+      case '/manager_gw_menu_repository':
+        return const RepositoryAuditScreen();
       default:
         return const ManagerDashboardScreen();
     }

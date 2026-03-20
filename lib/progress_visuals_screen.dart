@@ -28,8 +28,17 @@ import 'package:pdh/utils/firestore_safe.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
+  /// When true, admin is viewing; show managers only (no employees).
+  final bool forAdminOversight;
+  /// When set with [forAdminOversight], show data for this manager only.
+  final String? selectedManagerId;
 
-  const ProgressVisualsScreen({super.key, this.embedded = false});
+  const ProgressVisualsScreen({
+    super.key,
+    this.embedded = false,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
+  });
 
   @override
   State<ProgressVisualsScreen> createState() => _ProgressVisualsScreenState();
@@ -89,6 +98,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
   Future<void> _redirectIfManagerStandalone() async {
     try {
+      if (widget.forAdminOversight) return; // Admin context: no redirect.
       final role = await RoleService.instance.getRole();
       if (!mounted) return;
       if (role == 'manager') {
@@ -233,7 +243,11 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
               setState(() {});
             },
             child: isManager
-                ? ManagerProgressVisualsContent(userProfile: userProfile!)
+                ? ManagerProgressVisualsContent(
+                    userProfile: userProfile!,
+                    forAdminOversight: widget.forAdminOversight,
+                    selectedManagerId: widget.selectedManagerId,
+                  )
                 : EmployeeProgressVisualsContent(userProfile: userProfile!),
           ),
         );
@@ -244,8 +258,15 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
 class ManagerProgressVisualsContent extends StatefulWidget {
   final UserProfile userProfile;
+  final bool forAdminOversight;
+  final String? selectedManagerId;
 
-  const ManagerProgressVisualsContent({super.key, required this.userProfile});
+  const ManagerProgressVisualsContent({
+    super.key,
+    required this.userProfile,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
+  });
 
   @override
   State<ManagerProgressVisualsContent> createState() =>
@@ -672,14 +693,21 @@ class _ManagerProgressVisualsContentState
 
   String _makeTeamStreamKey({TimeFilter? timeFilter}) {
     final tf = (timeFilter ?? currentTimeFilter).name;
-    return tf;
+    return '${widget.forAdminOversight}_${widget.selectedManagerId ?? ""}_$tf';
   }
 
   void _rebuildTeamStream() {
     _teamStreamKey = _makeTeamStreamKey(timeFilter: currentTimeFilter);
-    _teamStream = ManagerRealtimeService.getTeamDataStream(
-      timeFilter: currentTimeFilter,
-    );
+    if (widget.forAdminOversight) {
+      _teamStream = ManagerRealtimeService.getManagersDataStreamForAdmin(
+        timeFilter: currentTimeFilter,
+        selectedManagerId: widget.selectedManagerId,
+      );
+    } else {
+      _teamStream = ManagerRealtimeService.getTeamDataStream(
+        timeFilter: currentTimeFilter,
+      );
+    }
   }
 
   void _switchViewType(ProgressViewType next) {

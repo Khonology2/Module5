@@ -1,6 +1,9 @@
+// ignore_for_file: unused_element, duplicate_import
+
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/auth_service.dart';
@@ -22,6 +25,7 @@ class MainLayout extends StatelessWidget {
     required this.title,
     required this.currentRouteName,
     required this.body,
+    this.items,
   });
 
   /// Title shown when an AppBar is enabled (we keep it hidden by default)
@@ -32,6 +36,10 @@ class MainLayout extends StatelessWidget {
 
   /// The main page content
   final Widget body;
+
+  /// Sidebar items; when null, uses [SidebarConfig.employeeItems] (e.g. for manager GW menu use [SidebarConfig.managerItems]).
+  final List<SidebarItem>? items;
+
 
   @override
   Widget build(BuildContext context) {
@@ -69,10 +77,11 @@ class MainLayout extends StatelessWidget {
     }
     final tutorialParams = tutorialService.getTutorialParams();
 
+    final sidebarItems = items ?? SidebarConfig.employeeItems;
     return AppScaffold(
       title: title,
       showAppBar: false,
-      items: _getSidebarItems(),
+      items: sidebarItems,
       currentRouteName: currentRouteName,
       topRightAction: currentRouteName == '/my_profile'
           ? null

@@ -31,7 +31,10 @@ class _OnboardingUserDoc {
 }
 
 class LeaderboardScreen extends StatefulWidget {
-  const LeaderboardScreen({super.key});
+  /// When true, admin is viewing; show managers only (no employees).
+  final bool forAdminOversight;
+
+  const LeaderboardScreen({super.key, this.forAdminOversight = false});
 
   @override
   State<LeaderboardScreen> createState() => _LeaderboardScreenState();
@@ -68,6 +71,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     // Always float; we'll only boost amplitude on hover
     _topHoverController.repeat(reverse: true);
     _loadCurrentUser();
+  }
+
+  @override
+  void didUpdateWidget(covariant LeaderboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.forAdminOversight != widget.forAdminOversight) {
+      _hasFetchedUsers = false;
+      _fetchUsersFuture = null;
+    }
   }
 
   @override
@@ -136,6 +148,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       'users',
     );
 
+    if (widget.forAdminOversight) {
+      query = query.where('role', isEqualTo: 'manager').limit(500);
+      return query;
+    }
+
     // NOTE: We intentionally do NOT filter by `role` at the query level.
     // Some user docs may be missing the `role` field; we treat missing role as "employee"
     // and filter to employees in-memory during processing.
@@ -197,6 +214,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   }
 
   Future<List<Map<String, dynamic>>> _computeLeaderboardFromCache() async {
+    if (widget.forAdminOversight) {
+      return _processLeaderboardData(_cachedUserDocs, forAdminOversight: true);
+    }
     await _ensureOnboardingFetched();
     final onboardingDocs = _cachedOnboardingUsers.map((userData) {
       return _OnboardingUserDoc(userData);
@@ -301,6 +321,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   Future<List<Map<String, dynamic>>> _processLeaderboardData(
     List<dynamic> docs, {
     String? userRole,
+    bool forAdminOversight = false,
   }) async {
     try {
       developer.log('Processing ${docs.length} documents for leaderboard');
@@ -331,10 +352,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       final isManager = userRole == 'manager';
       List<dynamic> filteredDocs;
 
-      // ALWAYS filter to exclude managers - leaderboard is for employees only
-      // Filter to ensure we only have employees (role check is already in query, but double-check here)
-      // For managers viewing, show all opted-in employees
-      // For employees viewing, show only opted-in employees
+      // For admin: show only managers. For others: show only employees (exclude managers).
       filteredDocs = docs.where((doc) {
         try {
           Map<String, dynamic>? data;
@@ -347,18 +365,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           }
 
           if (data != null) {
-            // ALWAYS exclude managers from leaderboard
             var role = (data['role'] ?? 'employee').toString().trim();
             role = role.isEmpty ? 'employee' : role.toLowerCase();
+            if (forAdminOversight) {
+              return role == 'manager';
+            }
             if (role != 'employee') {
               return false; // Exclude managers and any other non-employee roles
             }
-
-            // Show all employees EXCEPT those who did not opt in
-            // (support both new + legacy fields)
             final optIn = data['leaderboardOptin'];
             final legacyOptIn = data['leaderboardParticipation'];
-            // Only show users who opted in to the leaderboard (for both employees and managers)
             return optIn == true || legacyOptIn == true;
           }
           return false;
@@ -516,9 +532,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               userData['name'] = profile.displayName.isNotEmpty
                   ? profile.displayName
                   : (userData['email']?.toString().split('@').first ??
-                      userData['userId']);
+                        userData['userId']);
             } catch (_) {
-              userData['name'] = userData['email']?.toString().split('@').first ??
+              userData['name'] =
+                  userData['email']?.toString().split('@').first ??
                   userData['userId'];
             }
           }
@@ -1205,7 +1222,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         'userId': currentUserId,
         'name': _currentUser!.displayName,
         'points': _currentUser!.totalPoints,
-          'badges': _currentUser!.badgesV2.length,
+        'badges': _currentUser!.badgesV2.length,
         'department': _currentUser!.department,
       },
     );
@@ -1374,10 +1391,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                           width: 12,
                           height: 12,
                           child: Image.asset(
-                          'assets/Office_Workplace/Offices.png',
+                            'assets/Office_Workplace/Offices.png',
                             fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const SizedBox.shrink(),
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox.shrink(),
                           ),
                         ),
                       ),
@@ -1628,15 +1645,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           '$comparisonData\n\n'
           'What specific actions or achievements do the competitors have that the current user doesn\'t? '
           'What should the current user focus on to move up in the rankings?';
-      final raw =
-          await AiFallbackService.generateTextWithFallback(
-            userPrompt: userPrompt,
-            systemInstruction: sysInstr,
-          );
-      final analysis =
-          raw.replaceAll('*', '').trim().isEmpty
-              ? 'Unable to generate analysis. Please try again.'
-              : raw.replaceAll('*', '').trim();
+      final raw = await AiFallbackService.generateTextWithFallback(
+        userPrompt: userPrompt,
+        systemInstruction: sysInstr,
+      );
+      final analysis = raw.replaceAll('*', '').trim().isEmpty
+          ? 'Unable to generate analysis. Please try again.'
+          : raw.replaceAll('*', '').trim();
 
       // Close loading dialog
       if (context.mounted) {

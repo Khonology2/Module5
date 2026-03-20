@@ -24,8 +24,17 @@ import 'package:pdh/manager_employee_detail_screen.dart';
 
 class ManagerAlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
+  /// When true, admin is viewing; show managers only (no employees).
+  final bool forAdminOversight;
+  /// When set with [forAdminOversight], show data for this manager only.
+  final String? selectedManagerId;
 
-  const ManagerAlertsNudgesScreen({super.key, this.embedded = false});
+  const ManagerAlertsNudgesScreen({
+    super.key,
+    this.embedded = false,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
+  });
 
   @override
   State<ManagerAlertsNudgesScreen> createState() =>
@@ -73,6 +82,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
   Future<void> _redirectIfManager() async {
     try {
+      if (widget.forAdminOversight) return; // Admin context: no redirect.
       final role = await RoleService.instance.getRole();
       if (!mounted) return;
       if (role == 'manager') {
@@ -419,8 +429,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         }
       },
       content: StreamBuilder<List<EmployeeData>>(
-        key: const ValueKey('team_data_stream'),
-        stream: ManagerRealtimeService.getTeamDataStream(),
+        key: ValueKey('team_data_stream_${widget.forAdminOversight}_${widget.selectedManagerId}'),
+        stream: widget.forAdminOversight
+            ? ManagerRealtimeService.getManagersDataStreamForAdmin(
+                selectedManagerId: widget.selectedManagerId,
+              )
+            : ManagerRealtimeService.getTeamDataStream(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
