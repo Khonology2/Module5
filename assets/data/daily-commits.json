@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.DE11.SIT",
-  "generated_at": "2026-03-20T09:08:27Z",
+  "version": "2026.03.DE12.SIT",
+  "generated_at": "2026-03-20T09:19:48Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -26,6 +26,11 @@
       "author": "Nathi2266",
       "message": "feat: implement Manager Goal Workspace menu with updated routing and sidebar configuration",
       "timestamp": "2026-03-17T07:29:16+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature -  implement loading and filtering of admin user IDs for manager-specific season challenges.",
+      "timestamp": "2026-03-20T11:19:03+02:00"
     },
     {
       "author": "Thembelihle",
@@ -58,6 +63,6 @@
       "timestamp": "2026-03-20T10:11:03+02:00"
     }
   ],
-  "total_commits": 11,
+  "total_commits": 12,
   "date_range": "2026-03-20"
 }
