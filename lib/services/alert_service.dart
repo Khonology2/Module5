@@ -304,6 +304,7 @@ class AlertService {
     String? fromUserName,
     Duration ttl = const Duration(days: 14),
   }) async {
+    final resolvedActionRoute = actionRoute ?? await _alertsRouteForRecipient(userId);
     final alert = Alert(
       id: '',
       userId: userId,
@@ -313,7 +314,7 @@ class AlertService {
       title: title,
       message: message,
       actionText: actionText,
-      actionRoute: actionRoute,
+      actionRoute: resolvedActionRoute,
       actionData: actionData,
       createdAt: DateTime.now(),
       fromUserId: fromUserId,
@@ -342,7 +343,7 @@ class AlertService {
         message =
             'You have created a goal: "${goal.title}". Time to work on it! 🎯';
         actionText = 'View Goal';
-        actionRoute = '/employee_dashboard';
+        actionRoute = await _alertsRouteForRecipient(userId);
         actionData = {'goalId': goal.id};
         priority = AlertPriority.medium;
         break;
@@ -494,6 +495,7 @@ class AlertService {
         ? 'Your goal "$goalTitle" has been approved. You can start working on your goal.'
         : 'Your goal "$goalTitle" was rejected${reason != null && reason.isNotEmpty ? ': $reason' : '.'}';
 
+    final actionRoute = await _alertsRouteForRecipient(employeeId);
     final alert = Alert(
       id: '',
       userId: employeeId,
@@ -509,7 +511,7 @@ class AlertService {
       title: title,
       message: msg,
       actionText: 'View Goal',
-      actionRoute: '/employee_dashboard',
+      actionRoute: actionRoute,
       actionData: {'goalId': goalId},
       createdAt: DateTime.now(),
       relatedGoalId: goalId,
@@ -1189,6 +1191,12 @@ class AlertService {
             // (getUserAlertsStream already scopes by userId, this is defensive.)
             items = items.where((a) => a.userId == managerId).toList();
 
+            // Personal communications/routine alerts belong in Manager Workspace
+            // Alerts & Nudges, not in Manager Inbox.
+            items = items
+                .where((a) => a.actionRoute != _managerWorkspaceAlertsRoute)
+                .toList();
+
             // Apply type filter if specified
             if (typeFilter != null) {
               items = items.where((a) {
@@ -1221,6 +1229,12 @@ class AlertService {
       final baseStream = getUserAlertsStream(managerId);
       return baseStream.map((alerts) {
         var items = alerts.where((a) => a.userId == managerId).toList();
+
+        // Personal communications/routine alerts belong in Manager Workspace
+        // Alerts & Nudges, not in Manager Inbox.
+        items = items
+            .where((a) => a.actionRoute != _managerWorkspaceAlertsRoute)
+            .toList();
 
         if (typeFilter != null) {
           items = items.where((a) {
