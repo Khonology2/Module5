@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.DE12.SIT",
-  "generated_at": "2026-03-20T09:19:48Z",
+  "version": "2026.03.DE13.SIT",
+  "generated_at": "2026-03-20T09:37:05Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -26,6 +26,11 @@
       "author": "Nathi2266",
       "message": "feat: implement Manager Goal Workspace menu with updated routing and sidebar configuration",
       "timestamp": "2026-03-17T07:29:16+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - enhance MyPdpScreen to support filtering goals for managers with a new parameter, managerOwnGoalsOnly, and update related UI elements accordingly.",
+      "timestamp": "2026-03-20T11:36:17+02:00"
     },
     {
       "author": "Thembelihle",
@@ -63,6 +68,6 @@
       "timestamp": "2026-03-20T10:11:03+02:00"
     }
   ],
-  "total_commits": 12,
+  "total_commits": 13,
   "date_range": "2026-03-20"
 }
