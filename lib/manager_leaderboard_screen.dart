@@ -446,10 +446,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             if (e != null)
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(16),
@@ -468,7 +468,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CircleAvatar(
-                      radius: 18,
+                      radius: 16,
                       backgroundColor: color,
                       child: Text(
                         e.profile.displayName.isNotEmpty
@@ -480,28 +480,28 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       e.profile.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.stars, color: Colors.amber, size: 14),
+                        const Icon(Icons.stars, color: Colors.amber, size: 12),
                         const SizedBox(width: 4),
                         Text(
                           '${e.totalPoints} pts',
                           style: const TextStyle(
                             color: Colors.white70,
-                            fontSize: 11,
+                            fontSize: 10,
                           ),
                         ),
                       ],
@@ -515,15 +515,15 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     }
 
     return SizedBox(
-      height: 188,
+      height: 172,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          tile(slots[0], 2, 64, const Color(0xFFC0C0C0)),
+          tile(slots[0], 2, 52, const Color(0xFFC0C0C0)),
           const SizedBox(width: 8),
-          tile(slots[1], 1, 82, const Color(0xFFFFD700)),
+          tile(slots[1], 1, 68, const Color(0xFFFFD700)),
           const SizedBox(width: 8),
-          tile(slots[2], 3, 46, const Color(0xFFCD7F32)),
+          tile(slots[2], 3, 40, const Color(0xFFCD7F32)),
         ],
       ),
     );
