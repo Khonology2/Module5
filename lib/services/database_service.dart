@@ -601,8 +601,8 @@ class DatabaseService {
   }
 
   static Future<String> createGoal(Goal goal) async {
-    const int maxAttempts = 6;
-    const List<int> retryDelaysMs = [500, 1000, 2000, 3000, 4000];
+    const int maxAttempts = 3;
+    const List<int> retryDelaysMs = [250, 500];
 
     final Map<String, dynamic> goalData = {
       'userId': goal.userId,
@@ -628,10 +628,9 @@ class DatabaseService {
 
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        if (attempt == 0) {
-          await Future.delayed(const Duration(milliseconds: 600));
-        }
-        final docRef = await col.add(goalData);
+        final docRef = await col
+            .add(goalData)
+            .timeout(const Duration(seconds: 8));
         developer.log('Goal created successfully: ${docRef.id}');
         lastError = null;
 
