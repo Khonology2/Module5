@@ -24,10 +24,12 @@ class MyPdpScreen extends StatefulWidget {
     super.key,
     this.forAdminOversight = false,
     this.selectedManagerId,
+    this.managerOwnGoalsOnly = false,
   });
 
   final bool forAdminOversight;
   final String? selectedManagerId;
+  final bool managerOwnGoalsOnly;
 
   @override
   State<MyPdpScreen> createState() => _MyPdpScreenState();
@@ -1091,6 +1093,47 @@ class _MyPdpScreenState extends State<MyPdpScreen>
           builder: (context, roleSnap) {
             final role = roleSnap.data ?? RoleService.instance.cachedRole;
             final isManager = role == 'manager';
+            if (isManager && widget.managerOwnGoalsOnly) {
+              return StreamBuilder<List<Goal>>(
+                stream: DatabaseService.getUserGoalsStream(user.uid).handleError((
+                  error,
+                ) {
+                  return;
+                }),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'Error loading goals',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    );
+                  }
+                  final goals = (snapshot.data ?? [])
+                      .where((g) => _mapGoalToExcellence(g) == excellence)
+                      .toList();
+                  if (goals.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Text(
+                        'No goals yet',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    );
+                  }
+                  return Column(
+                    children: goals.map((goal) => _buildGoalCard(goal)).toList(),
+                  );
+                },
+              );
+            }
             if (isManager) {
               return StreamBuilder<List<EmployeeData>>(
                 stream: ManagerRealtimeService.getTeamDataStream(),
@@ -1546,6 +1589,8 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                     ? 'Acknowledgement requested'
                                     : (isApproved
                                           ? 'Request acknowledgement'
+                                          : widget.managerOwnGoalsOnly
+                                          ? 'Waiting for admin approval'
                                           : 'Waiting for manager approval');
                                 final icon = isVerified
                                     ? Icons.verified
@@ -1615,9 +1660,11 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                     if (!hasAuditEntry && !isApproved)
                                       const SizedBox(height: 4),
                                     if (!hasAuditEntry && !isApproved)
-                                      const Text(
-                                        'You can request acknowledgement once your manager approves this goal.',
-                                        style: TextStyle(
+                                      Text(
+                                        widget.managerOwnGoalsOnly
+                                            ? 'You can request acknowledgement once admin approves this goal.'
+                                            : 'You can request acknowledgement once your manager approves this goal.',
+                                        style: const TextStyle(
                                           color: Colors.white70,
                                           fontSize: 11,
                                         ),

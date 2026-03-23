@@ -6,9 +6,7 @@ import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScre
 import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
 import 'package:pdh/manager_inbox_screen.dart'; // Manager Inbox
 import 'package:pdh/alerts_nudges_screen.dart'; // Personal Alerts
-// Removed: employee leaderboard import; manager uses ManagerLeaderboardScreen
-// Removed in favor of employee leaderboard UI for uniformity
-import 'package:pdh/leaderboard_screen.dart'; // Use employee leaderboard UI
+import 'package:pdh/manager_leaderboard_screen.dart';
 import 'package:pdh/repository_audit_screen.dart'; // Import RepositoryAuditScreen
 import 'package:pdh/settings_screen.dart'; // Import SettingsScreen
 import 'package:pdh/my_pdp_screen.dart'; // Import MyPdpScreen
@@ -79,7 +77,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/badges_points':
         return const BadgesPointsScreen(embedded: true);
       case '/manager_leaderboard':
-        return const LeaderboardScreen();
+        return const ManagerLeaderboardScreen(embedded: true);
       case '/repository_audit':
         return const RepositoryAuditScreen();
       case '/settings':
@@ -94,7 +92,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           managerGwMenuRoute: '/manager_gw_menu_dashboard',
         );
       case '/manager_gw_menu_goal_workspace':
-        return const MyPdpScreen();
+        return const MyPdpScreen(managerOwnGoalsOnly: true);
       case '/manager_gw_menu_alerts':
         return const AlertsNudgesScreen(
           embedded: true,
@@ -110,7 +108,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_gw_menu_progress':
         return const ProgressVisualsScreen(embedded: true);
       case '/manager_gw_menu_leaderboard':
-        return const LeaderboardScreen();
+        return const ManagerLeaderboardScreen(embedded: true);
       case '/manager_gw_menu_badges':
         return const BadgesPointsScreen(
           embedded: true,

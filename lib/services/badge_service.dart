@@ -31,6 +31,11 @@ class BadgeService {
     return !(isSeasonGoal is bool && isSeasonGoal);
   }
 
+  static bool _isApprovedManualGoal(Goal goal) {
+    return !goal.isSeasonGoal &&
+        goal.approvalStatus == GoalApprovalStatus.approved;
+  }
+
   /// Detect manager-only badges so employee views can hide them.
   static bool isManagerBadge(Badge badge) {
     final id = badge.id.toLowerCase();
@@ -470,7 +475,7 @@ class BadgeService {
         goals.addAll(subGoals.where((g) => !seen.contains(g.id)));
       } catch (_) {}
 
-      final manualGoals = goals.where((g) => !g.isSeasonGoal).toList();
+      final manualGoals = goals.where(_isApprovedManualGoal).toList();
       final goalsCreated = manualGoals.length;
       final goalsCompleted = manualGoals
           .where((g) => g.status == GoalStatus.completed)
@@ -1215,7 +1220,8 @@ class BadgeService {
         goals.addAll(subGoals.where((g) => !seen.contains(g.id)));
       } catch (_) {}
 
-      final hasUserCreatedGoals = goals.any((g) => !g.isSeasonGoal);
+      final approvedManualGoals = goals.where(_isApprovedManualGoal).toList();
+      final hasUserCreatedGoals = approvedManualGoals.isNotEmpty;
 
       // Ensure defaults exist so newly added badges appear for legacy users
       await _ensureDefaultBadgesExist(userId);
@@ -1305,7 +1311,7 @@ class BadgeService {
           final updatedBadge = await _checkBadgeCriteria(
             badge,
             userProfile,
-            goals,
+            approvedManualGoals,
             userId,
           );
           if (updatedBadge.progress != badge.progress ||

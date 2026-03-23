@@ -147,6 +147,51 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return s;
   }
 
+  bool _isEmployeePersonaAlertType(AlertType type) {
+    switch (type) {
+      case AlertType.goalCreated:
+      case AlertType.goalCompleted:
+      case AlertType.goalDueSoon:
+      case AlertType.goalApprovalApproved:
+      case AlertType.goalApprovalRejected:
+      case AlertType.pointsEarned:
+      case AlertType.levelUp:
+      case AlertType.badgeEarned:
+      case AlertType.teamAssigned:
+      case AlertType.achievementUnlocked:
+      case AlertType.streakMilestone:
+      case AlertType.deadlineReminder:
+      case AlertType.teamGoalAvailable:
+      case AlertType.recognition:
+      case AlertType.oneOnOneRequested:
+      case AlertType.oneOnOneProposed:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /// Keep manager workspace focused on manager-role alerts.
+  /// This removes alerts that are meant for the same user as an employee.
+  bool _shouldShowInManagerWorkspace(Alert alert, String managerId) {
+    if (alert.userId != managerId) return true;
+
+    if (_isEmployeePersonaAlertType(alert.type)) return false;
+
+    // Goal overdue can be employee-persona or manager-supervision.
+    if (alert.type == AlertType.goalOverdue) {
+      final title = alert.title.toLowerCase();
+      final msg = alert.message.toLowerCase();
+      final isManagerScoped =
+          alert.audience == AlertAudience.team ||
+          title.contains('employee') ||
+          msg.contains('review and decide next step');
+      return isManagerScoped;
+    }
+
+    return true;
+  }
+
   Future<void> _rescheduleGoal(
     BuildContext context,
     String goalId,
@@ -670,6 +715,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         }
 
         final allAlerts = snapshot.data ?? [];
+        final managerScopedAlerts = allAlerts
+            .where((a) => _shouldShowInManagerWorkspace(a, manager.uid))
+            .toList();
         developer.log('Loaded ${allAlerts.length} alerts', name: 'TeamAlerts');
 
         try {
@@ -680,7 +728,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           // Build combined list: manager-addressed alerts + alerts that were already in the system
           // (employee alerts) + synthetic inactivity + synthetic overdue so filters show everything.
           final combinedAlerts = <Alert>[];
-          combinedAlerts.addAll(allAlerts);
+          combinedAlerts.addAll(managerScopedAlerts);
 
           // Add each employee's existing alerts (so "All Issues" and type filters show them)
           final seenAlertIds = <String>{};

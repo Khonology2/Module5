@@ -43,6 +43,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   StreamSubscription<DocumentSnapshot>? _goalSub;
   bool _submittingApproval = false;
   bool _isSeasonGoal = false;
+  String _requiredApproverRole = 'manager';
 
   @override
   void initState() {
@@ -66,6 +67,21 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 currentGoal = updated;
                 final data = doc.data();
                 _isSeasonGoal = (data?['isSeasonGoal'] == true);
+                final requiredApprover = (data?['requiredApproverRole'] ?? '')
+                    .toString()
+                    .trim()
+                    .toLowerCase();
+                if (requiredApprover == 'admin' || requiredApprover == 'manager') {
+                  _requiredApproverRole = requiredApprover;
+                } else {
+                  final viewerRole =
+                      (RoleService.instance.cachedRole ?? 'employee')
+                          .trim()
+                          .toLowerCase();
+                  _requiredApproverRole = viewerRole == 'manager'
+                      ? 'admin'
+                      : 'manager';
+                }
               });
             } catch (_) {}
           },
@@ -96,7 +112,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           );
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Submitted for manager approval')),
+          SnackBar(
+            content: Text(
+              _requiredApproverRole == 'admin'
+                  ? 'Submitted for admin approval'
+                  : 'Submitted for manager approval',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -498,8 +520,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     final color = isPending ? AppColors.warningColor : AppColors.dangerColor;
     final icon = isPending ? Icons.hourglass_empty : Icons.cancel_outlined;
     final text = isPending
-        ? 'This goal is awaiting manager approval.'
-        : 'This goal was rejected by your manager.';
+        ? (_requiredApproverRole == 'admin'
+              ? 'This goal is awaiting admin approval.'
+              : 'This goal is awaiting manager approval.')
+        : (_requiredApproverRole == 'admin'
+              ? 'This goal was rejected by an admin.'
+              : 'This goal was rejected by your manager.');
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -835,9 +861,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       final isPending =
           currentGoal.approvalStatus == GoalApprovalStatus.pending;
       final hasRequested = currentGoal.approvalRequestedAt != null;
-      // Permanently hide the submit-for-approval UI (auto-request happens on create)
-      final bool showSubmitForApproval = UniqueKey() == UniqueKey();
-      if (showSubmitForApproval && isPending && !hasRequested) {
+      final approverLabel = _requiredApproverRole == 'admin'
+          ? 'admin'
+          : 'manager';
+      // Keep manual submit available for retries/resends in case the original
+      // request alert was missed or failed due to transient issues.
+      final bool showSubmitForApproval = isPending;
+      if (showSubmitForApproval) {
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -857,7 +887,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Your goal needs manager approval before you can start updating progress.',
+                'Your goal needs $approverLabel approval before you can start updating progress.',
                 style: AppTypography.bodySmall.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -882,7 +912,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   label: Text(
                     _submittingApproval
                         ? 'Submitting...'
-                        : 'Submit for Approval',
+                        : (hasRequested
+                              ? 'Resend Approval Request'
+                              : 'Submit for Approval'),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.activeColor,
@@ -919,8 +951,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             Expanded(
               child: Text(
                 isPending
-                    ? 'Awaiting manager approval. You will be notified once approved.'
-                    : 'This goal was rejected by your manager.${currentGoal.rejectionReason != null && currentGoal.rejectionReason!.isNotEmpty ? ' Reason: ${currentGoal.rejectionReason}' : ''}',
+                    ? (_requiredApproverRole == 'admin'
+                          ? 'Awaiting admin approval. You will be notified once approved.'
+                          : 'Awaiting manager approval. You will be notified once approved.')
+                    : (_requiredApproverRole == 'admin'
+                          ? 'This goal was rejected by an admin.${currentGoal.rejectionReason != null && currentGoal.rejectionReason!.isNotEmpty ? ' Reason: ${currentGoal.rejectionReason}' : ''}'
+                          : 'This goal was rejected by your manager.${currentGoal.rejectionReason != null && currentGoal.rejectionReason!.isNotEmpty ? ' Reason: ${currentGoal.rejectionReason}' : ''}'),
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,

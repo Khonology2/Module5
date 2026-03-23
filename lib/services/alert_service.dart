@@ -123,14 +123,32 @@ class AlertService {
     }
   }
 
+  static const String _managerWorkspaceAlertsRoute = '/manager_gw_menu_alerts';
+
+  static Future<String> _alertsRouteForRecipient(String userId) async {
+    try {
+      final snap = await FirestoreSafe.getDoc(
+        _firestore.collection('users').doc(userId),
+      );
+      final role = (snap.data()?['role'] ?? '').toString().trim().toLowerCase();
+      if (role == 'manager') return _managerWorkspaceAlertsRoute;
+    } catch (_) {
+      // Fall back to default route if role cannot be determined.
+    }
+    return '/alerts_nudges';
+  }
+
   /// Employee-facing: manager expressed intent (no time).
   static Future<void> createOneOnOneRequestedAlert({
     required String employeeId,
     required String managerId,
     required String meetingId,
     String? agenda,
+    String? actionRouteOverride,
   }) async {
     final managerName = await _displayNameForUser(managerId);
+    final actionRoute =
+        actionRouteOverride ?? await _alertsRouteForRecipient(employeeId);
     final alert = Alert(
       id: '',
       userId: employeeId,
@@ -140,7 +158,7 @@ class AlertService {
       title: '1:1 Requested',
       message: '$managerName would like to have a 1:1 with you.',
       actionText: 'View',
-      actionRoute: '/alerts_nudges',
+      actionRoute: actionRoute,
       actionData: {
         'meetingId': meetingId,
         if (agenda != null && agenda.trim().isNotEmpty) 'agenda': agenda.trim(),
@@ -161,8 +179,11 @@ class AlertService {
     required DateTime proposedStartDateTime,
     required DateTime proposedEndDateTime,
     String? agenda,
+    String? actionRouteOverride,
   }) async {
     final managerName = await _displayNameForUser(managerId);
+    final actionRoute =
+        actionRouteOverride ?? await _alertsRouteForRecipient(employeeId);
     final when = _formatMeetingRange(
       proposedStartDateTime,
       proposedEndDateTime,
@@ -176,7 +197,7 @@ class AlertService {
       title: '1:1 Proposed',
       message: '$managerName proposed a 1:1 from $when.',
       actionText: 'Respond',
-      actionRoute: '/alerts_nudges',
+      actionRoute: actionRoute,
       actionData: {
         'meetingId': meetingId,
         'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
@@ -283,6 +304,7 @@ class AlertService {
     String? fromUserName,
     Duration ttl = const Duration(days: 14),
   }) async {
+    final resolvedActionRoute = actionRoute ?? await _alertsRouteForRecipient(userId);
     final alert = Alert(
       id: '',
       userId: userId,
@@ -292,7 +314,7 @@ class AlertService {
       title: title,
       message: message,
       actionText: actionText,
-      actionRoute: actionRoute,
+      actionRoute: resolvedActionRoute,
       actionData: actionData,
       createdAt: DateTime.now(),
       fromUserId: fromUserId,
@@ -321,7 +343,7 @@ class AlertService {
         message =
             'You have created a goal: "${goal.title}". Time to work on it! 🎯';
         actionText = 'View Goal';
-        actionRoute = '/employee_dashboard';
+        actionRoute = await _alertsRouteForRecipient(userId);
         actionData = {'goalId': goal.id};
         priority = AlertPriority.medium;
         break;
@@ -400,6 +422,7 @@ class AlertService {
     required String employeeId,
     required String goalId,
     required String goalTitle,
+    String approverRole = 'manager',
   }) async {
     try {
       final userDoc = await _firestore
@@ -408,14 +431,32 @@ class AlertService {
           .get();
       final employeeName = userDoc.data()?['displayName'] ?? 'An employee';
 
-      // Notify all managers regardless of department (managers can see all employees)
-      final mgrs = await _firestore
+      final normalizedApproverRole = approverRole.trim().toLowerCase();
+      final directRecipients = await _firestore
           .collection('users')
-          .where('role', isEqualTo: 'manager')
+          .where('role', isEqualTo: normalizedApproverRole)
           .get();
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> recipientsDocs =
+          directRecipients.docs;
 
-      if (mgrs.docs.isEmpty) {
-        developer.log('WARNING: No managers found to notify for goal approval');
+      // Fallback for legacy/inconsistent role casing in Firestore data
+      // (e.g. "Admin", "ADMIN ", " Manager").
+      if (recipientsDocs.isEmpty) {
+        final allUsers = await _firestore.collection('users').get();
+        final normalized = allUsers.docs.where((doc) {
+          final role = (doc.data()['role'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          return role == normalizedApproverRole;
+        }).toList();
+        recipientsDocs = normalized;
+      }
+
+      if (recipientsDocs.isEmpty) {
+        developer.log(
+          'WARNING: No $normalizedApproverRole users found to notify for goal approval',
+        );
         developer.log(
           'Employee ID: $employeeId, Goal ID: $goalId, Goal Title: $goalTitle',
         );
@@ -423,13 +464,13 @@ class AlertService {
       }
 
       developer.log(
-        'Found ${mgrs.docs.length} manager(s) to notify for goal approval',
+        'Found ${recipientsDocs.length} $normalizedApproverRole(s) to notify for goal approval',
       );
 
-      for (final mgr in mgrs.docs) {
+      for (final recipient in recipientsDocs) {
         final alert = Alert(
           id: '',
-          userId: mgr.id,
+          userId: recipient.id,
           type: AlertType.goalApprovalRequested,
           audience: _determineAudience(
             AlertType.goalApprovalRequested,
@@ -440,7 +481,9 @@ class AlertService {
           message:
               '$employeeName submitted a new goal: "$goalTitle". Approve or reject.',
           actionText: 'Review Goal',
-          actionRoute: '/manager_inbox',
+          actionRoute: normalizedApproverRole == 'admin'
+              ? '/admin_inbox'
+              : '/manager_inbox',
           createdAt: DateTime.now(),
           relatedGoalId: goalId,
           expiresAt: DateTime.now().add(const Duration(days: 14)),
@@ -448,13 +491,14 @@ class AlertService {
         await _createAlert(alert);
       }
       developer.log(
-        'Successfully created approval request alerts for ${mgrs.docs.length} manager(s)',
+        'Successfully created approval request alerts for ${recipientsDocs.length} $normalizedApproverRole(s)',
       );
     } catch (e) {
       developer.log('Error creating approval request alerts: $e');
       rethrow; // Re-throw to help with debugging
     }
   }
+
 
   static Future<void> createGoalApprovalDecisionAlert({
     required String employeeId,
@@ -468,6 +512,7 @@ class AlertService {
         ? 'Your goal "$goalTitle" has been approved. You can start working on your goal.'
         : 'Your goal "$goalTitle" was rejected${reason != null && reason.isNotEmpty ? ': $reason' : '.'}';
 
+    final actionRoute = await _alertsRouteForRecipient(employeeId);
     final alert = Alert(
       id: '',
       userId: employeeId,
@@ -483,7 +528,7 @@ class AlertService {
       title: title,
       message: msg,
       actionText: 'View Goal',
-      actionRoute: '/employee_dashboard',
+      actionRoute: actionRoute,
       actionData: {'goalId': goalId},
       createdAt: DateTime.now(),
       relatedGoalId: goalId,
@@ -937,8 +982,11 @@ class AlertService {
     required String managerName,
     required String goalTitle,
     required String nudgeMessage,
+    String? actionRouteOverride,
   }) async {
     try {
+      final actionRoute =
+          actionRouteOverride ?? await _alertsRouteForRecipient(userId);
       // Create alert using _createAlert to ensure email is sent
       final alert = Alert(
         id: '',
@@ -950,7 +998,7 @@ class AlertService {
         message:
             '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
         actionText: 'View Nudge',
-        actionRoute: '/employee_dashboard',
+        actionRoute: actionRoute,
         actionData: {'goalId': goalId},
         createdAt: DateTime.now(),
         fromUserId: managerId,
@@ -1164,6 +1212,12 @@ class AlertService {
             // (getUserAlertsStream already scopes by userId, this is defensive.)
             items = items.where((a) => a.userId == managerId).toList();
 
+            // Personal communications/routine alerts belong in Manager Workspace
+            // Alerts & Nudges, not in Manager Inbox.
+            items = items
+                .where((a) => a.actionRoute != _managerWorkspaceAlertsRoute)
+                .toList();
+
             // Apply type filter if specified
             if (typeFilter != null) {
               items = items.where((a) {
@@ -1196,6 +1250,12 @@ class AlertService {
       final baseStream = getUserAlertsStream(managerId);
       return baseStream.map((alerts) {
         var items = alerts.where((a) => a.userId == managerId).toList();
+
+        // Personal communications/routine alerts belong in Manager Workspace
+        // Alerts & Nudges, not in Manager Inbox.
+        items = items
+            .where((a) => a.actionRoute != _managerWorkspaceAlertsRoute)
+            .toList();
 
         if (typeFilter != null) {
           items = items.where((a) {
