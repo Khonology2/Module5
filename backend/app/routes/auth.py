@@ -93,7 +93,8 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         
         logger.info(f"Querying Firestore for user_id: {user_id}")
         t = time.perf_counter()
-        user_data = validate_user_and_get_roles(user_id, email)
+        # Login flow should always use fresh role data so role changes apply immediately.
+        user_data = validate_user_and_get_roles(user_id, email, use_cache=False)
         logger.info(f"Firestore query completed in {int((time.perf_counter() - t) * 1000)} ms")
         
         logger.info(f"Generating Firebase custom token for user_id: {user_id}")

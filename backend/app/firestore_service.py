@@ -216,7 +216,8 @@ def get_user_roles_from_onboarding(onboarding_data: Dict[str, Any]) -> List[str]
 
 def validate_user_and_get_roles(
     user_id: str,
-    email: str
+    email: str,
+    use_cache: bool = True,
 ) -> Dict[str, Any]:
     """
     Validate user against Firestore and extract role information
@@ -239,7 +240,7 @@ def validate_user_and_get_roles(
     """
     cache_key = f"{user_id}|{email or ''}"
     now = time.time()
-    if cache_key in _roles_cache:
+    if use_cache and cache_key in _roles_cache:
         entry = _roles_cache[cache_key]
         if now - entry["ts"] < _CACHE_TTL_SECONDS:
             logger.info(f"Serving Firestore validation from cache for user_id: {user_id}")
@@ -292,7 +293,8 @@ def validate_user_and_get_roles(
         'module_access_role': module_access_role,
         'status': onboarding_data.get('status', 'Active'),
     }
-    _roles_cache[cache_key] = {"data": result, "ts": now}
-    logger.info(f"Cached Firestore validation result for user_id: {user_id} with TTL { _CACHE_TTL_SECONDS }s")
+    if use_cache:
+        _roles_cache[cache_key] = {"data": result, "ts": now}
+        logger.info(f"Cached Firestore validation result for user_id: {user_id} with TTL { _CACHE_TTL_SECONDS }s")
     return result
 

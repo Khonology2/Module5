@@ -222,6 +222,7 @@ class RoleService {
   // Method to clear cache (useful for sign out)
   void clearCache() {
     _cachedRole = null;
+    _roleOverride = null;
     _clearStream();
   }
 

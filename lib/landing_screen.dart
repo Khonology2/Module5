@@ -135,6 +135,8 @@ class _PersonalDevelopmentHubScreenState
   /// This method uses the backend API for all token validation
   Future<void> _checkTokenAndAutoLogin({String? manualToken}) async {
     try {
+      // Prevent stale role routing from a previous session/login attempt.
+      RoleService.instance.clearRoleOverride();
       setState(() {
         _isCheckingToken = true;
         _isSlowNetwork = false;
@@ -196,6 +198,8 @@ class _PersonalDevelopmentHubScreenState
       }
 
       debugPrint('Landing screen: Token found in URL, starting validation...');
+      // Fresh token login should not inherit cached role from a prior session.
+      RoleService.instance.clearCache();
 
       // If button was clicked and token found, switch to full-screen loading
       if (_isProcessingButton) {
@@ -284,28 +288,20 @@ class _PersonalDevelopmentHubScreenState
       // Extract PDH role from roles list (backend returns e.g. PDH - Employee, PDH - Manager, PDH - Admin)
       String? pdhRole;
       if (roles != null && roles.isNotEmpty) {
-        bool hasEmployeeOrStaff = false;
-        bool hasAdmin = false;
-        bool hasManager = false;
         for (final role in roles) {
           final s = role.toString().toLowerCase();
-          if (s.contains('employee') || s.contains('staff')) {
-            hasEmployeeOrStaff = true;
-          }
           if (s.contains('admin')) {
-            hasAdmin = true;
+            pdhRole = 'PDH - Admin';
+            break;
           }
           if (s.contains('manager')) {
-            hasManager = true;
+            pdhRole = 'PDH - Manager';
+            break;
           }
-        }
-        // Prioritize: Employee/Staff > Admin > Manager
-        if (hasEmployeeOrStaff) {
-          pdhRole = 'PDH - Employee';
-        } else if (hasAdmin) {
-          pdhRole = 'PDH - Admin';
-        } else if (hasManager) {
-          pdhRole = 'PDH - Manager';
+          if (s.contains('employee') || s.contains('staff')) {
+            pdhRole = 'PDH - Employee';
+            break;
+          }
         }
       }
 
