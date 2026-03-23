@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.EA6.SIT",
-  "generated_at": "2026-03-23T12:04:15Z",
+  "version": "2026.03.EA7.SIT",
+  "generated_at": "2026-03-23T12:17:19Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -29,10 +29,15 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature - update ProgressVisualsScreen to support manager-specific rendering by adding forManagerGwMenu parameter, ensuring appropriate visuals for manager workspace routes.",
+      "timestamp": "2026-03-23T14:16:34+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature - Enhance alerts and nudges handling by adding sender metadata for improved context, updating error logging for nudge responses, and refining user feedback messages in the UI.",
       "timestamp": "2026-03-23T14:03:29+02:00"
     }
   ],
-  "total_commits": 6,
+  "total_commits": 7,
   "date_range": "2026-03-23"
 }
