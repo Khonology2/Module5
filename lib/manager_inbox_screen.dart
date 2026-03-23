@@ -84,6 +84,7 @@ class ManagerInboxScreen extends StatefulWidget {
 }
 
 class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
+  static const String _managerWorkspaceAlertsRoute = '/manager_gw_menu_alerts';
   String? _typeFilter; // null=All, 'nudge', 'approval_request'
   bool _unreadOnly = false;
   String _search = '';
@@ -106,6 +107,56 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   final Map<String, int> _relevance = {};
   final Map<String, int> _timeline = {};
   final Map<String, TextEditingController> _reviewNotes = {};
+
+  bool _isEmployeePersonaAlertType(AlertType type) {
+    switch (type) {
+      case AlertType.goalCreated:
+      case AlertType.goalCompleted:
+      case AlertType.goalDueSoon:
+      case AlertType.goalApprovalApproved:
+      case AlertType.goalApprovalRejected:
+      case AlertType.pointsEarned:
+      case AlertType.levelUp:
+      case AlertType.badgeEarned:
+      case AlertType.teamAssigned:
+      case AlertType.achievementUnlocked:
+      case AlertType.streakMilestone:
+      case AlertType.deadlineReminder:
+      case AlertType.teamGoalAvailable:
+      case AlertType.recognition:
+      case AlertType.oneOnOneRequested:
+      case AlertType.oneOnOneProposed:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  bool _isManagerScopedGoalOverdue(Alert alert) {
+    final title = alert.title.toLowerCase();
+    final msg = alert.message.toLowerCase();
+    return alert.audience == AlertAudience.team ||
+        title.contains('employee') ||
+        msg.contains('review and decide next step');
+  }
+
+  bool _isManagerInboxRelevantAlert(Alert alert, String managerId) {
+    // Defensive scope: manager inbox should only show alerts addressed to manager.
+    if (alert.userId != managerId) return false;
+
+    // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
+    if (alert.actionRoute == _managerWorkspaceAlertsRoute) return false;
+
+    // Suppress employee-persona cards in manager inbox.
+    if (_isEmployeePersonaAlertType(alert.type)) return false;
+
+    // Keep only manager-scoped overdue alerts.
+    if (alert.type == AlertType.goalOverdue && !_isManagerScopedGoalOverdue(alert)) {
+      return false;
+    }
+
+    return true;
+  }
 
   String? _normalizeGoalId(dynamic raw) {
     final s = raw?.toString().trim();
@@ -979,6 +1030,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 );
               }
               var items = snapshot.data ?? const <Alert>[];
+              items = items
+                  .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
+                  .toList();
 
               if (_unreadOnly) {
                 items = items.where((a) => !a.isRead).toList();
