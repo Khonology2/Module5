@@ -1069,9 +1069,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                         .trim();
                     final feedback = rawFeedback.where((f) {
                       final meta = f.metadata;
-                      final mid = meta['managerId']?.toString();
+                      final mid =
+                          (meta['managerId'] ?? meta['senderId'])?.toString();
                       final mname =
-                          (meta['managerNameLower'] ?? meta['managerName'])
+                          (meta['managerNameLower'] ??
+                                  meta['managerName'] ??
+                                  meta['senderNameLower'] ??
+                                  meta['senderName'])
                               ?.toString()
                               .toLowerCase()
                               .trim();
