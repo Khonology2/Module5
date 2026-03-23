@@ -1,7 +1,7 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-03-10T14:24:58.030975Z",
-  "source_branch": "pdh-deployed-backup-v2",
+  "generated_at": "2026-03-23T11:37:57.254504Z",
+  "source_branch": "pdh-deployed-backup-v3",
   "target_branch": "pdh-deployed-backup",
   "status": "conflicts_detected",
   "total_conflicts": 3,
@@ -13,8 +13,8 @@
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
       "your_code": [
-        "  \"version\": \"2026.03.CB5.SIT\",",
-        "  \"generated_at\": \"2026-03-10T09:53:17Z\","
+        "  \"version\": \"2026.03.DE17.SIT\",",
+        "  \"generated_at\": \"2026-03-20T10:59:57Z\","
       ],
       "target_code": [
         "  \"version\": \"2026.02.ED6.SIT\",",
@@ -23,8 +23,8 @@
       "context_lines": [
         "{",
         "<<<<<<< HEAD",
-        "  \"version\": \"2026.03.CB5.SIT\",",
-        "  \"generated_at\": \"2026-03-10T09:53:17Z\",",
+        "  \"version\": \"2026.03.DE17.SIT\",",
+        "  \"generated_at\": \"2026-03-20T10:59:57Z\",",
         "=======",
         "  \"version\": \"2026.02.ED6.SIT\",",
         "  \"generated_at\": \"2026-02-26T23:39:56Z\",",
@@ -72,12 +72,22 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 27,
+      "line": 22,
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
       "your_code": [
-        "      \"message\": \"chore: update Firebase project references to pdh-v2 and upgrade dependencies in pubspec.lock\",",
-        "      \"timestamp\": \"2026-03-04T10:05:44+02:00\""
+        "      \"message\": \"refactor: replace Admin screens with shared components for improved consistency and maintainability\",",
+        "      \"timestamp\": \"2026-03-17T09:44:24+02:00\"",
+        "    },",
+        "    {",
+        "      \"author\": \"BhutSipho\",",
+        "      \"message\": \"🔧 Implement unified Firestore stream broker to fix INTERNAL ASSERTION FAILED errors\",",
+        "      \"timestamp\": \"2026-03-17T07:53:27+02:00\"",
+        "    },",
+        "    {",
+        "      \"author\": \"Nathi2266\",",
+        "      \"message\": \"feat: implement Manager Goal Workspace menu with updated routing and sidebar configuration\",",
+        "      \"timestamp\": \"2026-03-17T07:29:16+02:00\""
       ],
       "target_code": [
         "      \"message\": \"updated the manager dashboard\",",
@@ -92,8 +102,18 @@
         "    {",
         "      \"author\": \"Nathi2266\",",
         "<<<<<<< HEAD",
-        "      \"message\": \"chore: update Firebase project references to pdh-v2 and upgrade dependencies in pubspec.lock\",",
-        "      \"timestamp\": \"2026-03-04T10:05:44+02:00\"",
+        "      \"message\": \"refactor: replace Admin screens with shared components for improved consistency and maintainability\",",
+        "      \"timestamp\": \"2026-03-17T09:44:24+02:00\"",
+        "    },",
+        "    {",
+        "      \"author\": \"BhutSipho\",",
+        "      \"message\": \"🔧 Implement unified Firestore stream broker to fix INTERNAL ASSERTION FAILED errors\",",
+        "      \"timestamp\": \"2026-03-17T07:53:27+02:00\"",
+        "    },",
+        "    {",
+        "      \"author\": \"Nathi2266\",",
+        "      \"message\": \"feat: implement Manager Goal Workspace menu with updated routing and sidebar configuration\",",
+        "      \"timestamp\": \"2026-03-17T07:29:16+02:00\"",
         "=======",
         "      \"message\": \"updated the manager dashboard\",",
         "      \"timestamp\": \"2026-02-27T01:37:26+02:00\"",
@@ -118,7 +138,7 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 29,
+      "line": 34,
       "marker": "=======",
       "message": "Conflict separator",
       "your_code": [],
@@ -132,7 +152,7 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 37,
+      "line": 42,
       "marker": ">>>>>>>",
       "message": "Current branch marker",
       "your_code": [],
@@ -146,12 +166,12 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 46,
+      "line": 106,
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
       "your_code": [
-        "  \"total_commits\": 5,",
-        "  \"date_range\": \"2026-03-10\""
+        "  \"total_commits\": 17,",
+        "  \"date_range\": \"2026-03-20\""
       ],
       "target_code": [
         "  \"total_commits\": 6,",
@@ -161,8 +181,8 @@
         "    }",
         "  ],",
         "<<<<<<< HEAD",
-        "  \"total_commits\": 5,",
-        "  \"date_range\": \"2026-03-10\"",
+        "  \"total_commits\": 17,",
+        "  \"date_range\": \"2026-03-20\"",
         "=======",
         "  \"total_commits\": 6,",
         "  \"date_range\": \"2026-02-26\"",
@@ -180,7 +200,7 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 48,
+      "line": 108,
       "marker": "=======",
       "message": "Conflict separator",
       "your_code": [],
@@ -194,7 +214,7 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 51,
+      "line": 111,
       "marker": ">>>>>>>",
       "message": "Current branch marker",
       "your_code": [],
@@ -209,17 +229,17 @@
   ],
   "codebase_issues": [],
   "summary": {
-    "message": "Found 3 merge conflict(s) and 0 codebase issue(s) when merging pdh-deployed-backup-v2 into pdh-deployed-backup",
+    "message": "Found 3 merge conflict(s) and 0 codebase issue(s) when merging pdh-deployed-backup-v3 into pdh-deployed-backup",
     "action_required": "Please resolve conflicts and fix codebase issues listed below",
     "resolution_steps": [
-      "1. Check out your branch: git checkout pdh-deployed-backup-v2",
+      "1. Check out your branch: git checkout pdh-deployed-backup-v3",
       "2. Pull latest changes: git pull origin pdh-deployed-backup",
       "3. Resolve conflicts in files listed above",
       "4. Fix codebase issues highlighted below",
       "5. Stage resolved files: git add <resolved-files>",
       "6. Commit the merge: git commit",
-      "7. Push your changes: git push origin pdh-deployed-backup-v2"
+      "7. Push your changes: git push origin pdh-deployed-backup-v3"
     ],
-    "ai_system_prompt": "I have merge conflicts when merging branch 'pdh-deployed-backup-v2' into 'pdh-deployed-backup'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.\n\nCONFLICTS TO RESOLVE:\n\nFILE: assets/data/daily-commits.json\n============================================================\n\nConflict 1 (Line 2):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"version\": \"2026.03.CB5.SIT\",\n  \"generated_at\": \"2026-03-10T09:53:17Z\",\n=======\n  \"version\": \"2026.02.ED6.SIT\",\n  \"generated_at\": \"2026-02-26T23:39:56Z\",\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n  {\n    \"version\": \"2026.03.CB5.SIT\",\n    \"generated_at\": \"2026-03-10T09:53:17Z\",\n    \"version\": \"2026.02.ED6.SIT\",\n    \"generated_at\": \"2026-02-26T23:39:56Z\",\n    \"commits\": [\n      {\n        \"author\": \"GitHub Action\",\n\n\nConflict 2 (Line 27):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n      \"message\": \"chore: update Firebase project references to pdh-v2 and upgrade dependencies in pubspec.lock\",\n      \"timestamp\": \"2026-03-04T10:05:44+02:00\"\n=======\n      \"message\": \"updated the manager dashboard\",\n      \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"updates from S11\",\n      \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"chore: update Firebase project references to pdh-v2 and upgrade dependencies in pubspec.lock\",\n        \"timestamp\": \"2026-03-04T10:05:44+02:00\"\n        \"message\": \"updated the manager dashboard\",\n        \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updates from S11\",\n        \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n      },\n      {\n        \"author\": \"Thembelihle\",\n\n\nConflict 3 (Line 46):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"total_commits\": 5,\n  \"date_range\": \"2026-03-10\"\n=======\n  \"total_commits\": 6,\n  \"date_range\": \"2026-02-26\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      }\n    ],\n    \"total_commits\": 5,\n    \"date_range\": \"2026-03-10\"\n    \"total_commits\": 6,\n    \"date_range\": \"2026-02-26\"\n  }\n\nRESOLUTION REQUIREMENTS:\n1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n2. Consider the risk level and suggested action for each conflict\n3. Ensure the merged code maintains functionality from both branches\n4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n5. Provide the complete resolved code for each file\n\nOUTPUT FORMAT:\nFor each file, provide:\n1. Brief explanation of the resolution approach\n2. The complete resolved code block to replace the conflict\n3. Any notes about potential issues or testing needed\n\nPlease provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
+    "ai_system_prompt": "I have merge conflicts when merging branch 'pdh-deployed-backup-v3' into 'pdh-deployed-backup'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.\n\nCONFLICTS TO RESOLVE:\n\nFILE: assets/data/daily-commits.json\n============================================================\n\nConflict 1 (Line 2):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"version\": \"2026.03.DE17.SIT\",\n  \"generated_at\": \"2026-03-20T10:59:57Z\",\n=======\n  \"version\": \"2026.02.ED6.SIT\",\n  \"generated_at\": \"2026-02-26T23:39:56Z\",\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n  {\n    \"version\": \"2026.03.DE17.SIT\",\n    \"generated_at\": \"2026-03-20T10:59:57Z\",\n    \"version\": \"2026.02.ED6.SIT\",\n    \"generated_at\": \"2026-02-26T23:39:56Z\",\n    \"commits\": [\n      {\n        \"author\": \"GitHub Action\",\n\n\nConflict 2 (Line 22):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n      \"message\": \"refactor: replace Admin screens with shared components for improved consistency and maintainability\",\n      \"timestamp\": \"2026-03-17T09:44:24+02:00\"\n    },\n    {\n      \"author\": \"BhutSipho\",\n      \"message\": \"🔧 Implement unified Firestore stream broker to fix INTERNAL ASSERTION FAILED errors\",\n      \"timestamp\": \"2026-03-17T07:53:27+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"feat: implement Manager Goal Workspace menu with updated routing and sidebar configuration\",\n      \"timestamp\": \"2026-03-17T07:29:16+02:00\"\n=======\n      \"message\": \"updated the manager dashboard\",\n      \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"updates from S11\",\n      \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"refactor: replace Admin screens with shared components for improved consistency and maintainability\",\n        \"timestamp\": \"2026-03-17T09:44:24+02:00\"\n      },\n      {\n        \"author\": \"BhutSipho\",\n        \"message\": \"🔧 Implement unified Firestore stream broker to fix INTERNAL ASSERTION FAILED errors\",\n        \"timestamp\": \"2026-03-17T07:53:27+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"feat: implement Manager Goal Workspace menu with updated routing and sidebar configuration\",\n        \"timestamp\": \"2026-03-17T07:29:16+02:00\"\n        \"message\": \"updated the manager dashboard\",\n        \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updates from S11\",\n        \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n      },\n      {\n        \"author\": \"Thembelihle\",\n\n\nConflict 3 (Line 106):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"total_commits\": 17,\n  \"date_range\": \"2026-03-20\"\n=======\n  \"total_commits\": 6,\n  \"date_range\": \"2026-02-26\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      }\n    ],\n    \"total_commits\": 17,\n    \"date_range\": \"2026-03-20\"\n    \"total_commits\": 6,\n    \"date_range\": \"2026-02-26\"\n  }\n\nRESOLUTION REQUIREMENTS:\n1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n2. Consider the risk level and suggested action for each conflict\n3. Ensure the merged code maintains functionality from both branches\n4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n5. Provide the complete resolved code for each file\n\nOUTPUT FORMAT:\nFor each file, provide:\n1. Brief explanation of the resolution approach\n2. The complete resolved code block to replace the conflict\n3. Any notes about potential issues or testing needed\n\nPlease provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
   }
 }
