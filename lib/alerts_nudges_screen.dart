@@ -1746,6 +1746,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           description: 'Reacted "$reaction" to manager nudge',
           metadata: {
             'alertId': alert.id,
+            // Sender-first metadata works for admin->manager workspace and
+            // manager->employee flows alike.
+            'senderId': alert.fromUserId,
+            'senderName': alert.fromUserName,
+            'senderNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
+            // Backward compatibility for existing inbox filters/analytics.
             'managerId': alert.fromUserId,
             'managerName': alert.fromUserName,
             'managerNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
@@ -1762,7 +1768,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             ),
           );
         }
-      } catch (_) {
+      } catch (e, st) {
+        developer.log(
+          'Failed to send nudge reaction for alert ${alert.id}: $e',
+          stackTrace: st,
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1803,6 +1813,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           description: 'Responded to manager nudge',
           metadata: {
             'alertId': alert.id,
+            // Sender-first metadata works for admin->manager workspace and
+            // manager->employee flows alike.
+            'senderId': alert.fromUserId,
+            'senderName': alert.fromUserName,
+            'senderNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
+            // Backward compatibility for existing inbox filters/analytics.
             'managerId': alert.fromUserId,
             'managerName': alert.fromUserName,
             'managerNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
@@ -1814,7 +1830,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Response sent to your manager'),
+              content: const Text('Response sent'),
               backgroundColor: AppColors.activeColor,
             ),
           );
@@ -1822,7 +1838,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
           Navigator.of(dialogContext).pop();
         }
-      } catch (_) {
+      } catch (e, st) {
+        developer.log(
+          'Failed to send nudge response for alert ${alert.id}: $e',
+          stackTrace: st,
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1844,7 +1864,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         context: context,
         barrierColor: Colors.black.withValues(alpha: 0.6),
         builder: (dialogContext) {
-          final managerName = alert.fromUserName ?? 'Manager';
+          final senderName = alert.fromUserName ?? 'Admin / Manager';
           final reactions = <String>[
             '👍 On it',
             '🙏 Thanks',
@@ -1868,8 +1888,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         alpha: 0.15,
                       ),
                       child: Text(
-                        managerName.isNotEmpty
-                            ? managerName[0].toUpperCase()
+                        senderName.isNotEmpty
+                            ? senderName[0].toUpperCase()
                             : 'M',
                         style: AppTypography.bodyMedium.copyWith(
                           color: AppColors.activeColor,
@@ -1883,7 +1903,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Nudge from $managerName',
+                            'Nudge from $senderName',
                             style: AppTypography.bodyMedium.copyWith(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.w700,
