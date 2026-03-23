@@ -564,7 +564,10 @@ class _MyAppState extends State<MyApp> {
                     title: 'Progress Visuals',
                     currentRouteName: '/manager_gw_menu_progress',
                     items: SidebarConfig.managerItems,
-                    body: const ProgressVisualsScreen(embedded: true),
+                    body: const ProgressVisualsScreen(
+                      embedded: true,
+                      forManagerGwMenu: true,
+                    ),
                   ),
                 ),
                 '/manager_gw_menu_leaderboard': (context) => RoleGate(
