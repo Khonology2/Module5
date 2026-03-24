@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.EA9.SIT",
-  "generated_at": "2026-03-23T13:13:16Z",
+  "version": "2026.03.EB6.SIT",
+  "generated_at": "2026-03-24T10:30:02Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -29,25 +29,10 @@
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - enhance Alerts and Nudges screen by adding dynamic route resolution for workspace navigation and improving manager-specific alert handling in the Manager Inbox, ensuring appropriate routing based on user roles.",
-      "timestamp": "2026-03-23T15:12:33+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - add animated podium effect in ManagerLeaderboardScreen with hover interaction, enhancing visual feedback for top managers.",
-      "timestamp": "2026-03-23T14:25:37+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - update ProgressVisualsScreen to support manager-specific rendering by adding forManagerGwMenu parameter, ensuring appropriate visuals for manager workspace routes.",
-      "timestamp": "2026-03-23T14:16:34+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - Enhance alerts and nudges handling by adding sender metadata for improved context, updating error logging for nudge responses, and refining user feedback messages in the UI.",
-      "timestamp": "2026-03-23T14:03:29+02:00"
+      "message": "Feature - Refactor badge retrieval and display logic in BadgesPointsScreen to filter out manager-only badges and normalize badge categories for employee UI.",
+      "timestamp": "2026-03-24T12:29:01+02:00"
     }
   ],
-  "total_commits": 9,
-  "date_range": "2026-03-23"
+  "total_commits": 6,
+  "date_range": "2026-03-24"
 }
