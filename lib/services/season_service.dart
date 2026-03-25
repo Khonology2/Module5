@@ -154,7 +154,15 @@ class SeasonService {
       }
 
       // Notify all employees about the new season
-      await _notifyEmployeesAboutNewSeason(seasonId, title, theme, department);
+      await _notifyEmployeesAboutNewSeason(
+        seasonId,
+        title,
+        theme,
+        department,
+        creatorRole: creatorRole,
+        creatorId: currentUser.uid,
+        creatorName: createdByName,
+      );
 
       developer.log('Season created: $seasonId');
       return seasonId;
@@ -2042,6 +2050,11 @@ class SeasonService {
     String title,
     String theme,
     String? department,
+    {
+    required String creatorRole,
+    required String creatorId,
+    required String creatorName,
+  }
   ) async {
     try {
       Query usersQuery = _firestore.collection('users');
@@ -2051,10 +2064,82 @@ class SeasonService {
       final usersSnapshot = await usersQuery.get();
       for (final userDoc in usersSnapshot.docs) {
         final userId = userDoc.id;
+        final userData = userDoc.data() as Map<String, dynamic>? ?? const {};
+        final role = (userData['role'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+
+        // Managers should receive team-facing alerts for admin-created seasons.
+        if (role == 'manager' && creatorRole == 'admin') {
+          await _firestore.collection('alerts').add({
+            'userId': userId,
+            'type': AlertType.seasonProgressUpdate.name,
+            'audience': AlertAudience.team.name,
+            'priority': AlertPriority.high.name,
+            'title': 'New Season Started! 🎉',
+            'message':
+                'Admin launched "$title" on theme "$theme". Join from Manager Workspace Team Challenges.',
+            'actionText': 'View Seasons',
+            'actionRoute': '/manager_gw_menu_season_challenges',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'isDismissed': false,
+            'expiresAt': Timestamp.fromDate(
+              DateTime.now().add(const Duration(days: 14)),
+            ),
+            'fromUserId': creatorId,
+            'fromUserName': creatorName,
+            'metadata': {
+              'seasonId': seasonId,
+              'seasonTitle': title,
+              'theme': theme,
+              'createdByRole': creatorRole,
+              if (department != null) ...{'department': department},
+            },
+          });
+          continue;
+        }
+
+        // Admin inbox should also reflect season publication actions.
+        if (role == 'admin' && creatorRole == 'admin') {
+          final isCreator = userId == creatorId;
+          await _firestore.collection('alerts').add({
+            'userId': userId,
+            'type': AlertType.managerGeneral.name,
+            'audience': AlertAudience.personal.name,
+            'priority': AlertPriority.medium.name,
+            'title': 'Season Published',
+            'message': isCreator
+                ? 'You published "$title" ($theme). Managers and employees were notified.'
+                : '$creatorName published "$title" ($theme).',
+            'actionText': 'View Inbox',
+            'actionRoute': '/admin_inbox',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'isDismissed': false,
+            'expiresAt': Timestamp.fromDate(
+              DateTime.now().add(const Duration(days: 14)),
+            ),
+            'fromUserId': creatorId,
+            'fromUserName': creatorName,
+            'metadata': {
+              'seasonId': seasonId,
+              'seasonTitle': title,
+              'theme': theme,
+              'createdByRole': creatorRole,
+              if (department != null) ...{'department': department},
+            },
+          });
+          continue;
+        }
+
+        // Employees (and any legacy/no-role user docs) receive season availability.
         await _firestore.collection('alerts').add({
           'userId': userId,
-          'type': 'season_available',
-          'priority': 'high',
+          'type': AlertType.teamGoalAvailable.name,
+          'audience': AlertAudience.personal.name,
+          'priority': AlertPriority.high.name,
           'title': 'New Season Started! 🎉',
           'message':
               'A new "$title" season on theme "$theme" has started. Join and earn points!',
@@ -2066,10 +2151,13 @@ class SeasonService {
           'expiresAt': Timestamp.fromDate(
             DateTime.now().add(const Duration(days: 14)),
           ),
+          'fromUserId': creatorId,
+          'fromUserName': creatorName,
           'metadata': {
             'seasonId': seasonId,
             'seasonTitle': title,
             'theme': theme,
+            'createdByRole': creatorRole,
             if (department != null) ...{'department': department},
           },
         });
