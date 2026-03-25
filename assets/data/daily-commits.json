@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.EC6.SIT",
-  "generated_at": "2026-03-25T08:20:22Z",
+  "version": "2026.03.EC7.SIT",
+  "generated_at": "2026-03-25T08:46:49Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,6 +24,11 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature - Enhance alert display for managers by adding a new manager-scoped alert card and update season creation logic to include creator details for notifications.",
+      "timestamp": "2026-03-25T10:45:58+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature - Implement filtering of seasons based on user roles in TeamChallengesSeasonsScreen and update season creation logic in SeasonService to differentiate between admin and manager-created seasons.",
       "timestamp": "2026-03-25T10:18:48+02:00"
     },
@@ -33,6 +38,6 @@
       "timestamp": "2026-03-25T09:23:55+02:00"
     }
   ],
-  "total_commits": 6,
+  "total_commits": 7,
   "date_range": "2026-03-25"
 }
