@@ -188,6 +188,8 @@ class AuditService {
     if (user == null) {
       return Stream.value(<String, dynamic>{
         'total': 0,
+        'created': 0,
+        'approved': 0,
         'pending': 0,
         'verified': 0,
         'rejected': 0,
@@ -201,6 +203,8 @@ class AuditService {
     // Emit initial empty stats immediately, then switch to realtime stream
     final emptyStats = <String, dynamic>{
       'total': 0,
+      'created': 0,
+      'approved': 0,
       'pending': 0,
       'verified': 0,
       'rejected': 0,
@@ -255,6 +259,10 @@ class AuditService {
 
                 final stats = <String, dynamic>{
                   'total': entries.length,
+                  'created': entries.where((e) => e.status == 'created').length,
+                  'approved': entries
+                      .where((e) => e.status == 'approved')
+                      .length,
                   'pending': entries.where((e) => e.status == 'pending').length,
                   'verified': entries
                       .where((e) => e.status == 'verified')
@@ -280,6 +288,12 @@ class AuditService {
                   final deptEntries = departmentGroups[dept]!;
                   stats['byDepartment'][dept] = {
                     'total': deptEntries.length,
+                    'created': deptEntries
+                        .where((e) => e.status == 'created')
+                        .length,
+                    'approved': deptEntries
+                        .where((e) => e.status == 'approved')
+                        .length,
                     'pending': deptEntries
                         .where((e) => e.status == 'pending')
                         .length,
@@ -314,6 +328,12 @@ class AuditService {
 
                   stats['byEmployee'][empName] = {
                     'total': empEntries.length,
+                    'created': empEntries
+                        .where((e) => e.status == 'created')
+                        .length,
+                    'approved': empEntries
+                        .where((e) => e.status == 'approved')
+                        .length,
                     'pending': empEntries
                         .where((e) => e.status == 'pending')
                         .length,
