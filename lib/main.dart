@@ -288,8 +288,9 @@ class _MyAppState extends State<MyApp> {
               navigatorKey: navigatorKey,
               title: 'Personal Development Hub',
               theme: AppTheme.darkTheme,
-              initialRoute: '/landing',
+              initialRoute: '/', // Let AuthWrapper handle authentication flow
               locale: locale,
+              debugShowCheckedModeBanner: false, // Disable debug banner
               localizationsDelegates: const [
                 AppLocalizations.delegate,
                 GlobalMaterialLocalizations.delegate,
@@ -605,7 +606,6 @@ class _MyAppState extends State<MyApp> {
                   ),
                 ),
               },
-              debugShowCheckedModeBanner: false,
               navigatorObservers: [MyNavigatorObserver()],
             );
           },
