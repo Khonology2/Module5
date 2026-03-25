@@ -26,12 +26,16 @@ class MyGoalWorkspaceScreen extends StatefulWidget {
   /// When true, use manager sidebar and [managerGwMenuRoute] (for manager Goal Workspace menu).
   final bool forManagerGwMenu;
   final String? managerGwMenuRoute;
+  final bool forAdminOversight;
+  final String? selectedManagerId;
 
   const MyGoalWorkspaceScreen({
     super.key,
     this.embedded = false,
     this.forManagerGwMenu = false,
     this.managerGwMenuRoute,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
   });
 
   @override

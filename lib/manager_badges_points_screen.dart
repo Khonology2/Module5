@@ -23,8 +23,14 @@ import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart'
 
 class ManagerBadgesPointsScreen extends StatefulWidget {
   final bool embedded;
+  /// When true, admin is viewing; show managers only (no employees).
+  final bool forAdminOversight;
 
-  const ManagerBadgesPointsScreen({super.key, this.embedded = false});
+  const ManagerBadgesPointsScreen({
+    super.key,
+    this.embedded = false,
+    this.forAdminOversight = false,
+  });
 
   @override
   State<ManagerBadgesPointsScreen> createState() =>
@@ -428,7 +434,96 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     );
   }
 
+  Widget _buildManagersBadgesOverview() {
+    return StreamBuilder<List<EmployeeData>>(
+      stream: ManagerRealtimeService.getManagersDataStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error loading managers: ${snapshot.error}',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.dangerColor,
+              ),
+            ),
+          );
+        }
+        final managers = snapshot.data ?? [];
+        return SingleChildScrollView(
+          padding: AppSpacing.screenPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Managers – Badges & Points',
+                style: AppTypography.heading2.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (managers.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'No managers found.',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                )
+              else
+                ...managers.map((e) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            e.profile.displayName.isNotEmpty
+                                ? e.profile.displayName
+                                : e.profile.email,
+                            style: AppTypography.bodyLarge.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${e.totalPoints} pts',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.activeColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildContent() {
+    if (widget.forAdminOversight) {
+      return _buildManagersBadgesOverview();
+    }
     final manager = _auth.currentUser;
     if (manager == null) {
       return Center(

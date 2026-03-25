@@ -11,7 +11,7 @@ class StreamBrokerTestScreen extends StatefulWidget {
 }
 
 class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
-  List<String> _logs = [];
+  final List<String> _logs = [];
   bool _isLoading = false;
 
   void _addLog(String message) {

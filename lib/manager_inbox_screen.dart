@@ -70,8 +70,14 @@ class _NudgeFeedback {
 
 class ManagerInboxScreen extends StatefulWidget {
   final bool embedded;
+  /// When true, admin is viewing; do not show employee names or employee list.
+  final bool forAdminOversight;
 
-  const ManagerInboxScreen({super.key, this.embedded = false});
+  const ManagerInboxScreen({
+    super.key,
+    this.embedded = false,
+    this.forAdminOversight = false,
+  });
 
   @override
   State<ManagerInboxScreen> createState() => _ManagerInboxScreenState();
@@ -250,6 +256,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   void _prefetchEmployeeNames(List<_NudgeFeedback> feedback) {
+    if (widget.forAdminOversight) {
+      for (final fb in feedback) {
+        _employeeNameCache[fb.employeeId] ??= 'User';
+      }
+      return;
+    }
     for (final fb in feedback) {
       final metaName = fb.employeeName?.trim() ?? '';
       if (metaName.isNotEmpty) {
@@ -797,6 +809,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   Future<void> _redirectIfManager() async {
     try {
+      if (widget.forAdminOversight) return; // Admin context: no redirect.
       final role = await RoleService.instance.getRole();
       if (!mounted) return;
       if (role == 'manager') {
@@ -1305,6 +1318,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   Widget _buildInboxCard(Alert alert) {
+    if (alert.type == AlertType.goalApprovalRequested && _hasValidGoalId(alert)) {
+      return _buildApprovalInboxCard(alert);
+    }
+
     final color = _getAlertColor(alert.priority);
 
     return Container(
@@ -1505,6 +1522,253 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildApprovalInboxCard(Alert alert) {
+    final goalId = _goalIdFromAlert(alert);
+    if (goalId == null || goalId.isEmpty) {
+      return _buildApprovalFallbackCard(alert);
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirestoreSafe.stream<DocumentSnapshot<Map<String, dynamic>>>(
+        FirebaseFirestore.instance.collection('goals').doc(goalId).snapshots(),
+      ),
+      builder: (context, snapshot) {
+        Goal? goal;
+        Map<String, dynamic>? goalMap;
+        if (snapshot.hasData && (snapshot.data?.exists ?? false)) {
+          goalMap = snapshot.data?.data();
+          try {
+            goal = Goal.fromFirestore(snapshot.data!);
+          } catch (_) {}
+        }
+
+        final status = goal?.approvalStatus ?? GoalApprovalStatus.pending;
+        final statusColor = _approvalStatusColor(status);
+        final statusLabel = _approvalStatusLabel(status);
+        final statusIcon = _approvalStatusIcon(status);
+        final notePreview =
+            status == GoalApprovalStatus.rejected
+            ? _extractRejectedNotePreview(goal: goal, goalMap: goalMap)
+            : null;
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: _glassCardDecoration(
+            borderColor: alert.isRead
+                ? Colors.white.withValues(alpha: 0.15)
+                : statusColor.withValues(alpha: 0.45),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(statusIcon, color: statusColor, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      goal?.title.isNotEmpty == true ? goal!.title : alert.title,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: statusColor.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (!alert.isRead) ...[
+                    const SizedBox(width: 8),
+                    Image.asset(
+                      'assets/Email_Notification/Notification_Red_White.png',
+                      width: 16,
+                      height: 16,
+                      fit: BoxFit.contain,
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                goal?.description.isNotEmpty == true
+                    ? goal!.description
+                    : alert.message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    _getTimeAgo(alert.createdAt),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: Colors.white54,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  TextButton.icon(
+                    onPressed: () => _showGoalReviewSheet(alert),
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('View Goal'),
+                  ),
+                ],
+              ),
+              if (notePreview != null && notePreview.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.dangerColor.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Text(
+                    'Review note: $notePreview',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  status == GoalApprovalStatus.pending
+                      ? 'Pending review. Open View Goal to approve, reject, or request changes.'
+                      : status == GoalApprovalStatus.approved
+                      ? 'Approved goal. Open View Goal for full details.'
+                      : 'Rejected goal. Open View Goal for full details.',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildApprovalFallbackCard(Alert alert) {
+    final color = AppColors.warningColor;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _glassCardDecoration(
+        borderColor: alert.isRead
+            ? Colors.white.withValues(alpha: 0.15)
+            : color.withValues(alpha: 0.45),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.pending_actions, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              alert.title,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            'Pending',
+            style: AppTypography.bodySmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _approvalStatusColor(GoalApprovalStatus status) {
+    switch (status) {
+      case GoalApprovalStatus.approved:
+        return AppColors.successColor;
+      case GoalApprovalStatus.rejected:
+        return AppColors.dangerColor;
+      case GoalApprovalStatus.pending:
+        return AppColors.warningColor;
+    }
+  }
+
+  IconData _approvalStatusIcon(GoalApprovalStatus status) {
+    switch (status) {
+      case GoalApprovalStatus.approved:
+        return Icons.check_circle_outline;
+      case GoalApprovalStatus.rejected:
+        return Icons.cancel_outlined;
+      case GoalApprovalStatus.pending:
+        return Icons.pending_actions;
+    }
+  }
+
+  String _approvalStatusLabel(GoalApprovalStatus status) {
+    switch (status) {
+      case GoalApprovalStatus.approved:
+        return 'Approved';
+      case GoalApprovalStatus.rejected:
+        return 'Rejected';
+      case GoalApprovalStatus.pending:
+        return 'Pending';
+    }
+  }
+
+  String? _extractRejectedNotePreview({
+    required Goal? goal,
+    required Map<String, dynamic>? goalMap,
+  }) {
+    final fromGoal = goal?.rejectionReason?.trim();
+    if (fromGoal != null && fromGoal.isNotEmpty) return fromGoal;
+
+    final review = goalMap?['review'];
+    if (review is Map<String, dynamic>) {
+      final note = review['note']?.toString().trim();
+      if (note != null && note.isNotEmpty) return note;
+    }
+    return null;
   }
 
   Widget _buildNudgeFeedbackCard(_NudgeFeedback fb) {

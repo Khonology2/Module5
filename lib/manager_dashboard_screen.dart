@@ -24,7 +24,17 @@ import 'dart:developer' as developer;
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
 
-  const ManagerDashboardScreen({super.key, this.embedded = false});
+  /// When true, admin is viewing this screen; data shows managers (not employees).
+  final bool forAdminOversight;
+  /// When set with [forAdminOversight], show data for this manager only (future use).
+  final String? selectedManagerId;
+
+  const ManagerDashboardScreen({
+    super.key,
+    this.embedded = false,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
+  });
 
   @override
   State<ManagerDashboardScreen> createState() => _ManagerDashboardScreenState();
@@ -48,9 +58,15 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _redirectIfManagerStandalone();
+    if (!widget.forAdminOversight) {
+      _redirectIfManagerStandalone();
+    }
     _loadManagerName();
-    _employeesStream = _realtime.employeesStream();
+    if (widget.forAdminOversight) {
+      _employeesStream = ManagerRealtimeService.getManagersDataStream();
+    } else {
+      _employeesStream = _realtime.employeesStream();
+    }
     _employeesLoadWatch
       ..reset()
       ..start();

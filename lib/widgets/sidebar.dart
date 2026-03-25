@@ -566,7 +566,10 @@ class _NavTileState extends State<_NavTile> {
         label = localizations.nav_dashboard;
         break;
       case '/my_pdp':
-        label = localizations.nav_goal_workspace;
+        // Manager sidebar dropdown parent uses "Manager Workspace"; employee uses Goal Workspace.
+        if (widget.label != 'Manager Workspace') {
+          label = localizations.nav_goal_workspace;
+        }
         break;
       case '/my_profile':
         label = localizations.nav_my_profile;
