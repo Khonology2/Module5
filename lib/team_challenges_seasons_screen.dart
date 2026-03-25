@@ -8,6 +8,7 @@ import 'package:pdh/season_details_screen.dart';
 import 'package:pdh/season_celebration_screen.dart';
 import 'package:pdh/season_management_screen.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class TeamChallengesSeasonsScreen extends StatefulWidget {
   /// When true, admin is viewing; no employee-specific data.
@@ -239,7 +240,7 @@ class _TeamChallengesSeasonsScreenState
                       );
                     }
 
-                    final seasons = snapshot.data ?? [];
+                    final seasons = _filterSeasonsForScreen(snapshot.data ?? []);
                     final activeSeasons = seasons
                         .where((s) => s.status == SeasonStatus.active)
                         .toList();
@@ -401,7 +402,7 @@ class _TeamChallengesSeasonsScreenState
                   );
                 }
 
-                final seasons = snapshot.data ?? [];
+                final seasons = _filterSeasonsForScreen(snapshot.data ?? []);
                 final completedSeasons = seasons
                     .where((s) => s.status == SeasonStatus.completed)
                     .toList();
@@ -756,21 +757,25 @@ class _TeamChallengesSeasonsScreenState
                   ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => _manageSeason(season),
-                  icon: const ImageIcon(
-                    AssetImage('assets/gear.png'),
-                    size: 24,
-                  ),
-                  label: const Text('Manage'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.activeColor,
-                    foregroundColor: Colors.white,
+              if (widget.forAdminOversight ||
+                  season.createdBy ==
+                      FirebaseAuth.instance.currentUser?.uid) ...[
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _manageSeason(season),
+                    icon: const ImageIcon(
+                      AssetImage('assets/gear.png'),
+                      size: 24,
+                    ),
+                    label: const Text('Manage'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.activeColor,
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
@@ -1065,6 +1070,14 @@ class _TeamChallengesSeasonsScreenState
       return false;
     }
     return true;
+  }
+
+  List<Season> _filterSeasonsForScreen(List<Season> seasons) {
+    if (widget.forAdminOversight) return seasons;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return const <Season>[];
+    // Supervisor Team Challenges should only show seasons owned by this manager.
+    return seasons.where((season) => season.createdBy == currentUserId).toList();
   }
 
   Widget _buildManagerStatsRow({
