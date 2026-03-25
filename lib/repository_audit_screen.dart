@@ -1,4 +1,4 @@
-// ignore_for_file: unused_import, unused_element
+// ignore_for_file: duplicate_ignore, deprecated_member_use, unnecessary_null_comparison, unused_import, unused_element
 
 import 'dart:developer' as developer;
 import 'dart:convert' as convert;
@@ -30,7 +30,13 @@ import 'dart:html'
     as html; // Keep using dart:html for now until migration to package:web is complete
 
 class RepositoryAuditScreen extends StatefulWidget {
-  const RepositoryAuditScreen({super.key});
+  /// When true, admin is viewing; show only manager-scoped audit data (no employees).
+  final bool forAdminOversight;
+
+  const RepositoryAuditScreen({
+    super.key,
+    this.forAdminOversight = false,
+  });
 
   @override
   State<RepositoryAuditScreen> createState() => _RepositoryAuditScreenState();
@@ -84,6 +90,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
   Future<void> _backfillVerifiedEntries() async {
     try {
+      if (widget.forAdminOversight) return; // Admin: no employee backfill.
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 

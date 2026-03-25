@@ -30,12 +30,16 @@ class BadgesPointsScreen extends StatefulWidget {
   /// When true, use manager sidebar and [managerGwMenuRoute] (for manager Goal Workspace menu); skip redirect to manager portal.
   final bool forManagerGwMenu;
   final String? managerGwMenuRoute;
+  final bool forAdminOversight;
+  final String? selectedManagerId;
 
   const BadgesPointsScreen({
     super.key,
     this.embedded = false,
     this.forManagerGwMenu = false,
     this.managerGwMenuRoute,
+    this.forAdminOversight = false,
+    this.selectedManagerId,
   });
 
   @override

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:pdh/settings_screen.dart';
 import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -9,11 +8,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/sign_in_screen.dart';
 import 'package:pdh/admin_profile_screen.dart';
 import 'package:pdh/admin_dashboard_screen.dart';
-import 'package:pdh/admin_manager_oversight_screen.dart';
 import 'package:pdh/admin_inbox_screen.dart';
+import 'package:pdh/admin_team_alerts_nudges_screen.dart';
+import 'package:pdh/admin_team_challenges_screen.dart';
+import 'package:pdh/admin_team_review_screen.dart';
+import 'package:pdh/admin_progress_visuals_screen.dart';
 import 'package:pdh/admin_leaderboard_screen.dart';
+import 'package:pdh/admin_badges_points_screen.dart';
 import 'package:pdh/admin_repository_audit_screen.dart';
-import 'package:pdh/admin_analytics_screen.dart';
+import 'package:pdh/admin_settings_screen.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -25,33 +28,54 @@ class AdminPortalScreen extends StatefulWidget {
 class _AdminPortalScreenState extends State<AdminPortalScreen> {
   String _currentRoute = '/admin_dashboard';
   bool _didInitFromArgs = false;
+  /// When set, admin oversight screens show data for this manager (Manager Workspace Oversight).
+  String? _selectedManagerId;
 
   Widget _getBodyWidget() {
     if (_currentRoute == '/admin_dashboard') {
-      return AdminDashboardScreen(embedded: true, onNavigate: _onNavigate);
+      return AdminDashboardScreen(
+        embedded: true,
+        selectedManagerId: _selectedManagerId,
+      );
     }
     if (_currentRoute == '/admin_profile') {
       return const AdminProfileScreen(embedded: true);
     }
-    if (_currentRoute == '/manager_oversight') {
-      return const AdminManagerOversightScreen(embedded: true);
-    }
     if (_currentRoute == '/admin_inbox') {
       return const AdminInboxScreen(embedded: true);
     }
+    if (_currentRoute == '/admin_team_alerts_nudges') {
+      return AdminTeamAlertsNudgesScreen(
+        embedded: true,
+        selectedManagerId: _selectedManagerId,
+      );
+    }
+    if (_currentRoute == '/admin_team_challenges') {
+      return const AdminTeamChallengesScreen();
+    }
+    if (_currentRoute == '/admin_team_review') {
+      return AdminTeamReviewScreen(
+        selectedManagerId: _selectedManagerId,
+      );
+    }
+    if (_currentRoute == '/admin_progress_visuals') {
+      return AdminProgressVisualsScreen(
+        embedded: true,
+        selectedManagerId: _selectedManagerId,
+      );
+    }
     if (_currentRoute == '/org_leaderboard') {
-      return const AdminLeaderboardScreen(embedded: true);
+      return const AdminLeaderboardScreen();
+    }
+    if (_currentRoute == '/admin_badges_points') {
+      return const AdminBadgesPointsScreen(embedded: true);
     }
     if (_currentRoute == '/admin_repository_audit') {
-      return const AdminRepositoryAuditScreen(embedded: true);
-    }
-    if (_currentRoute == '/admin_analytics') {
-      return AdminAnalyticsScreen(embedded: true, onNavigate: _onNavigate);
+      return const AdminRepositoryAuditScreen();
     }
     if (_currentRoute == '/admin_settings') {
-      return const SettingsScreen();
+      return const AdminSettingsScreen();
     }
-    // Analytics, Team Challenge, etc. show placeholder until built
     final matching = SidebarConfig.adminItems.where(
       (e) => e.route == _currentRoute,
     );
@@ -83,6 +107,15 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
         final initial = args['initialRoute'] as String?;
         if (initial != null && initial.isNotEmpty) {
           _currentRoute = initial;
+        }
+      }
+      if (_currentRoute == '/admin_dashboard') {
+        final routeName = ModalRoute.of(context)?.settings.name;
+        if (routeName != null &&
+            (routeName == '/admin_inbox' ||
+                routeName == '/org_leaderboard' ||
+                routeName == '/manager_oversight')) {
+          _currentRoute = routeName;
         }
       }
       _didInitFromArgs = true;
