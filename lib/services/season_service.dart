@@ -100,6 +100,9 @@ class SeasonService {
       final creatorRole = await _resolveUserRole(currentUser.uid);
 
       final seasonId = _firestore.collection('seasons').doc().id;
+      final createdByName = creatorRole == 'admin'
+          ? 'Admin'
+          : (currentUser.displayName ?? 'Manager');
       final season = Season(
         id: seasonId,
         title: title,
@@ -110,7 +113,7 @@ class SeasonService {
         endDate: endDate,
         createdAt: DateTime.now(),
         createdBy: currentUser.uid,
-        createdByName: currentUser.displayName ?? 'Manager',
+        createdByName: createdByName,
         department: department,
         challenges: challenges,
         participantIds: [],
@@ -132,20 +135,23 @@ class SeasonService {
       payload['createdByRole'] = creatorRole;
       await _firestore.collection('seasons').doc(seasonId).set(payload);
 
-      await _awardManagerActionBadge(season, 'season_architect');
-      await _awardManagerSeasonPoints(
-        season: season,
-        points: _managerSeasonCreationBonus,
-        reason: 'Season created',
-      );
+      // Manager-specific rewards/telemetry should only apply to manager-created seasons.
+      if (creatorRole != 'admin') {
+        await _awardManagerActionBadge(season, 'season_architect');
+        await _awardManagerSeasonPoints(
+          season: season,
+          points: _managerSeasonCreationBonus,
+          reason: 'Season created',
+        );
 
-      // Record activity
-      await ManagerRealtimeService.recordEmployeeActivity(
-        employeeId: currentUser.uid,
-        activityType: 'season_created',
-        description: 'Created season: $title',
-        metadata: {'seasonId': seasonId, 'theme': theme},
-      );
+        // Record activity
+        await ManagerRealtimeService.recordEmployeeActivity(
+          employeeId: currentUser.uid,
+          activityType: 'season_created',
+          description: 'Created season: $title',
+          metadata: {'seasonId': seasonId, 'theme': theme},
+        );
+      }
 
       // Notify all employees about the new season
       await _notifyEmployeesAboutNewSeason(seasonId, title, theme, department);
