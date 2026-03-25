@@ -198,6 +198,42 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return user.email ?? user.uid;
   }
 
+  String _workspaceDashboardRoute() {
+    return widget.forManagerGwMenu ? '/manager_gw_menu_dashboard' : '/employee_dashboard';
+  }
+
+  String _resolveActionRouteForWorkspace(String route) {
+    var resolved = route;
+    if (resolved == '/team_challenges_seasons') {
+      resolved = '/season_challenges';
+    }
+
+    if (!widget.forManagerGwMenu) return resolved;
+
+    switch (resolved) {
+      case '/alerts_nudges':
+        return '/manager_gw_menu_alerts';
+      case '/employee_dashboard':
+        return '/manager_gw_menu_dashboard';
+      case '/my_goal_workspace':
+        return '/manager_gw_menu_goal_workspace';
+      case '/my_pdp':
+        return '/manager_gw_menu_my_pdp';
+      case '/progress_visuals':
+        return '/manager_gw_menu_progress';
+      case '/leaderboard':
+        return '/manager_gw_menu_leaderboard';
+      case '/badges_points':
+        return '/manager_gw_menu_badges';
+      case '/season_challenges':
+        return '/manager_gw_menu_season_challenges';
+      case '/repository_audit':
+        return '/manager_gw_menu_repository';
+      default:
+        return resolved;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get tutorial state from global service and update context
@@ -1454,17 +1490,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
     Future<void> openRouteIfAny() async {
       if (actionRoute != null) {
-        var route = actionRoute;
-        if (route == '/team_challenges_seasons') {
-          route = '/season_challenges';
-        }
+        var route = _resolveActionRouteForWorkspace(actionRoute);
         // Never send users to the goal creation workspace as a fallback for
         // goal-related alerts. If we couldn't open the goal detail, take them
         // to the employee dashboard where goals are listed.
-        if (route == '/my_goal_workspace' &&
+        if ((actionRoute == '/my_goal_workspace' ||
+                route == '/manager_gw_menu_goal_workspace') &&
             targetGoalId != null &&
             targetGoalId.isNotEmpty) {
-          route = '/employee_dashboard';
+          route = _workspaceDashboardRoute();
         }
         navigator.pushNamed(route);
       }
@@ -1599,7 +1633,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         );
       }
       if (mounted) {
-        navigator.pushNamed('/employee_dashboard');
+        navigator.pushNamed(_workspaceDashboardRoute());
       }
       return;
     }
@@ -1746,6 +1780,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           description: 'Reacted "$reaction" to manager nudge',
           metadata: {
             'alertId': alert.id,
+            // Sender-first metadata works for admin->manager workspace and
+            // manager->employee flows alike.
+            'senderId': alert.fromUserId,
+            'senderName': alert.fromUserName,
+            'senderNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
+            // Backward compatibility for existing inbox filters/analytics.
             'managerId': alert.fromUserId,
             'managerName': alert.fromUserName,
             'managerNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
@@ -1762,7 +1802,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             ),
           );
         }
-      } catch (_) {
+      } catch (e, st) {
+        developer.log(
+          'Failed to send nudge reaction for alert ${alert.id}: $e',
+          stackTrace: st,
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1803,6 +1847,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           description: 'Responded to manager nudge',
           metadata: {
             'alertId': alert.id,
+            // Sender-first metadata works for admin->manager workspace and
+            // manager->employee flows alike.
+            'senderId': alert.fromUserId,
+            'senderName': alert.fromUserName,
+            'senderNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
+            // Backward compatibility for existing inbox filters/analytics.
             'managerId': alert.fromUserId,
             'managerName': alert.fromUserName,
             'managerNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
@@ -1814,7 +1864,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Response sent to your manager'),
+              content: const Text('Response sent'),
               backgroundColor: AppColors.activeColor,
             ),
           );
@@ -1822,7 +1872,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
           Navigator.of(dialogContext).pop();
         }
-      } catch (_) {
+      } catch (e, st) {
+        developer.log(
+          'Failed to send nudge response for alert ${alert.id}: $e',
+          stackTrace: st,
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1844,7 +1898,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         context: context,
         barrierColor: Colors.black.withValues(alpha: 0.6),
         builder: (dialogContext) {
-          final managerName = alert.fromUserName ?? 'Manager';
+          final senderName = alert.fromUserName ?? 'Admin / Manager';
           final reactions = <String>[
             '👍 On it',
             '🙏 Thanks',
@@ -1868,8 +1922,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         alpha: 0.15,
                       ),
                       child: Text(
-                        managerName.isNotEmpty
-                            ? managerName[0].toUpperCase()
+                        senderName.isNotEmpty
+                            ? senderName[0].toUpperCase()
                             : 'M',
                         style: AppTypography.bodyMedium.copyWith(
                           color: AppColors.activeColor,
@@ -1883,7 +1937,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Nudge from $managerName',
+                            'Nudge from $senderName',
                             style: AppTypography.bodyMedium.copyWith(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.w700,

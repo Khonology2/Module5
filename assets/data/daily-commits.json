@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.DC4.SIT",
-  "generated_at": "2026-03-18T07:13:09Z",
+  "version": "2026.03.EC6.SIT",
+  "generated_at": "2026-03-25T08:20:22Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -13,14 +13,19 @@
       "timestamp": "2026-03-17T15:44:38+02:00"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature - implement goal approval inbox card with fallback handling",
-      "timestamp": "2026-03-17T14:34:32+02:00"
+      "author": "Nathi2266",
+      "message": "refactor: replace Admin screens with shared components for improved consistency and maintainability",
+      "timestamp": "2026-03-17T09:44:24+02:00"
     },
     {
       "author": "Nathi2266",
       "message": "feat: implement Manager Goal Workspace menu with updated routing and sidebar configuration",
       "timestamp": "2026-03-17T07:29:16+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Implement filtering of seasons based on user roles in TeamChallengesSeasonsScreen and update season creation logic in SeasonService to differentiate between admin and manager-created seasons.",
+      "timestamp": "2026-03-25T10:18:48+02:00"
     },
     {
       "author": "BhutSipho",

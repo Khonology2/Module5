@@ -68,6 +68,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   String? _kpa; // 'operational' | 'customer' | 'financial' | 'organisational' | 'people'
   String? _customCategory; // For "Other" category custom input
   bool _isOtherCategorySelected = false;
+  bool _isSavingGoal = false;
 
   // Lists for dropdowns
   final List<String> _goalCategories = [
@@ -1497,6 +1498,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }
 
   Future<void> _saveGoal() async {
+    if (_isSavingGoal) return;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
@@ -1524,6 +1526,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     // SMART criteria are advisory; goal approval will be handled by managers
 
     try {
+      setState(() {
+        _isSavingGoal = true;
+      });
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
@@ -1673,6 +1678,12 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           );
         });
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingGoal = false;
+        });
+      }
     }
   }
 
@@ -1709,7 +1720,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: ElevatedButton(
-            onPressed: _saveGoal,
+            onPressed: _isSavingGoal ? null : _saveGoal,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
               foregroundColor: Colors.white,
@@ -1718,7 +1729,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 borderRadius: BorderRadius.circular(28),
               ),
             ),
-            child: const Text('Create Goal'),
+            child: Text(_isSavingGoal ? 'Creating...' : 'Create Goal'),
           ),
         ),
       ],
