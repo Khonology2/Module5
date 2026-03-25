@@ -28,6 +28,9 @@ import 'package:pdh/utils/firestore_safe.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
+  /// When true, render employee-style progress visuals even for manager users.
+  /// Used by Manager Workspace routes.
+  final bool forManagerGwMenu;
   /// When true, admin is viewing; show managers only (no employees).
   final bool forAdminOversight;
   /// When set with [forAdminOversight], show data for this manager only.
@@ -36,6 +39,7 @@ class ProgressVisualsScreen extends StatefulWidget {
   const ProgressVisualsScreen({
     super.key,
     this.embedded = false,
+    this.forManagerGwMenu = false,
     this.forAdminOversight = false,
     this.selectedManagerId,
   });
@@ -243,11 +247,13 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
               setState(() {});
             },
             child: isManager
-                ? ManagerProgressVisualsContent(
-                    userProfile: userProfile!,
-                    forAdminOversight: widget.forAdminOversight,
-                    selectedManagerId: widget.selectedManagerId,
-                  )
+                ? (widget.forManagerGwMenu
+                      ? EmployeeProgressVisualsContent(userProfile: userProfile!)
+                      : ManagerProgressVisualsContent(
+                          userProfile: userProfile!,
+                          forAdminOversight: widget.forAdminOversight,
+                          selectedManagerId: widget.selectedManagerId,
+                        ))
                 : EmployeeProgressVisualsContent(userProfile: userProfile!),
           ),
         );

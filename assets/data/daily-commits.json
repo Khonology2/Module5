@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.DE17.SIT",
-  "generated_at": "2026-03-20T10:59:57Z",
+  "version": "2026.03.EB6.SIT",
+  "generated_at": "2026-03-24T10:30:02Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -29,65 +29,10 @@
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - enhance goal approval notifications and submission process by introducing dynamic approver roles, updating UI messages for admin and manager approvals, and improving alert service to handle legacy role casing.",
-      "timestamp": "2026-03-20T12:59:11+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - refactor alert service to resolve action routes dynamically and improve badge service goal filtering by introducing a helper method for approved manual goals.",
-      "timestamp": "2026-03-20T12:45:47+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - implement goal saving state management in MyGoalWorkspaceScreen to prevent multiple submissions and enhance user feedback during goal creation.",
-      "timestamp": "2026-03-20T12:33:18+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - enhance goal approval process by introducing dynamic approver roles based on goal owner, ensuring proper permissions for managers and admins during approval and rejection workflows.",
-      "timestamp": "2026-03-20T12:15:58+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - enhance MyPdpScreen to support filtering goals for managers with a new parameter, managerOwnGoalsOnly, and update related UI elements accordingly.",
-      "timestamp": "2026-03-20T11:36:17+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  implement loading and filtering of admin user IDs for manager-specific season challenges.",
-      "timestamp": "2026-03-20T11:19:03+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - adjust UI spacing and element sizes in manager leaderboard screen.",
-      "timestamp": "2026-03-20T11:05:53+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - update manager leaderboard implementation to use manager-specific data streams and UI components.",
-      "timestamp": "2026-03-20T10:57:05+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature: add role-based season visibility and caching for admin user IDs",
-      "timestamp": "2026-03-20T10:36:21+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - add role-based season visibility and caching for admin user IDs",
-      "timestamp": "2026-03-20T10:32:28+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - enhance manager alerts filtering to exclude employee-specific alerts.",
-      "timestamp": "2026-03-20T10:21:24+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - enhance alert routing for managers with dynamic action routes",
-      "timestamp": "2026-03-20T10:11:03+02:00"
+      "message": "Feature - Refactor badge retrieval and display logic in BadgesPointsScreen to filter out manager-only badges and normalize badge categories for employee UI.",
+      "timestamp": "2026-03-24T12:29:01+02:00"
     }
   ],
-  "total_commits": 17,
-  "date_range": "2026-03-20"
+  "total_commits": 6,
+  "date_range": "2026-03-24"
 }

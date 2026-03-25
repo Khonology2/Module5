@@ -106,7 +106,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           managerGwMenuRoute: '/manager_gw_menu_my_pdp',
         );
       case '/manager_gw_menu_progress':
-        return const ProgressVisualsScreen(embedded: true);
+        return const ProgressVisualsScreen(
+          embedded: true,
+          forManagerGwMenu: true,
+        );
       case '/manager_gw_menu_leaderboard':
         return const ManagerLeaderboardScreen(embedded: true);
       case '/manager_gw_menu_badges':

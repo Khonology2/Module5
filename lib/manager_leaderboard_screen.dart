@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -16,16 +17,24 @@ class ManagerLeaderboardScreen extends StatefulWidget {
       _ManagerLeaderboardScreenState();
 }
 
-class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
+class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
+    with SingleTickerProviderStateMixin {
   LeaderboardMetric _metric = LeaderboardMetric.points;
   List<EmployeeData> _lastManagers = const [];
   late final Stream<List<EmployeeData>> _managerStream;
   Future<List<EmployeeData>>? _managerFuture;
+  late final AnimationController _topHoverController;
+  bool _isTopHovered = false;
 
   @override
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
+    _topHoverController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _topHoverController.repeat(reverse: true);
     // IMPORTANT: Cache the stream instance so StreamBuilder doesn't resubscribe
     // on every rebuild (which can destabilize Firestore listeners on web).
     _managerStream = ManagerRealtimeService.getManagersDataStream(
@@ -37,6 +46,12 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
         timeFilter: TimeFilter.month,
       ).first;
     }
+  }
+
+  @override
+  void dispose() {
+    _topHoverController.dispose();
+    super.dispose();
   }
 
   Widget _buildEmptyState() {
@@ -407,124 +422,199 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     );
   }
 
+  String _podiumMetricText(EmployeeData e) {
+    switch (_metric) {
+      case LeaderboardMetric.points:
+        return '${e.totalPoints} pts';
+      case LeaderboardMetric.streaks:
+        return '${e.streakDays} day streak';
+      case LeaderboardMetric.progress:
+        return '${e.avgProgress.toStringAsFixed(1)}%';
+    }
+  }
+
   Widget _buildPodium(List<EmployeeData> top) {
-    // Pad to 3 slots
-    final List<EmployeeData?> slots = [
-      top.length > 1 ? top[1] : null, // 2nd place left
-      top.isNotEmpty ? top[0] : null, // 1st center
-      top.length > 2 ? top[2] : null, // 3rd right
+    final topThree = top.take(3).toList();
+    if (topThree.isEmpty) return const SizedBox.shrink();
+
+    final colors = [
+      const Color(0xFFFFD700), // Gold
+      const Color(0xFFC0C0C0), // Silver
+      const Color(0xFFCD7F32), // Bronze
     ];
 
-    Widget tile(EmployeeData? e, int rank, double height, Color color) {
-      return Expanded(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Container(
-              height: height,
+    return SizedBox(
+      height: 300,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            bottom: 0,
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              height: 200,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    color.withValues(alpha: 0.8),
-                    color.withValues(alpha: 0.4),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(10),
-                ),
+                color: Colors.black.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
               ),
-              child: Center(
-                child: Text(
-                  '$rank',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+            ),
+          ),
+          if (topThree.length > 1)
+            Positioned(
+              bottom: 20,
+              left: MediaQuery.of(context).size.width * 0.2,
+              child: _buildPodiumCardWithNumber(
+                employee: topThree[1],
+                color: colors[1],
+                width: 120,
+                numberText: '2',
+              ),
+            ),
+          if (topThree.length > 2)
+            Positioned(
+              bottom: 20,
+              right: MediaQuery.of(context).size.width * 0.2,
+              child: _buildPodiumCardWithNumber(
+                employee: topThree[2],
+                color: colors[2],
+                width: 120,
+                numberText: '3',
+              ),
+            ),
+          if (topThree.isNotEmpty)
+            Positioned(
+              top: 0,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isTopHovered = true),
+                onExit: (_) => setState(() => _isTopHovered = false),
+                child: AnimatedBuilder(
+                  animation: _topHoverController,
+                  builder: (context, child) {
+                    final amplitude = _isTopHovered ? 10.0 : 4.0;
+                    final dy =
+                        math.sin(_topHoverController.value * math.pi) * amplitude;
+                    return Transform.translate(
+                      offset: Offset(0, dy),
+                      child: child,
+                    );
+                  },
+                  child: _buildPodiumCardWithNumber(
+                    employee: topThree[0],
+                    color: colors[0],
+                    width: 120,
+                    numberText: '1',
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 6),
-            if (e != null)
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.15),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: color,
-                      child: Text(
-                        e.profile.displayName.isNotEmpty
-                            ? e.profile.displayName[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      e.profile.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.stars, color: Colors.amber, size: 12),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${e.totalPoints} pts',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 172,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          tile(slots[0], 2, 52, const Color(0xFFC0C0C0)),
-          const SizedBox(width: 8),
-          tile(slots[1], 1, 68, const Color(0xFFFFD700)),
-          const SizedBox(width: 8),
-          tile(slots[2], 3, 40, const Color(0xFFCD7F32)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPodiumCardWithNumber({
+    required EmployeeData employee,
+    required Color color,
+    required double width,
+    required String numberText,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildPodiumCard(
+          employee: employee,
+          color: color,
+          width: width,
+        ),
+        const SizedBox(height: 8),
+        _buildPositionBadge(color: color, text: numberText),
+      ],
+    );
+  }
+
+  Widget _buildPodiumCard({
+    required EmployeeData employee,
+    required Color color,
+    required double width,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.3),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 25,
+            backgroundColor: color,
+            child: Text(
+              employee.profile.displayName.isNotEmpty
+                  ? employee.profile.displayName[0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            employee.profile.displayName,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            _podiumMetricText(employee),
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPositionBadge({required Color color, required String text}) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.4),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
