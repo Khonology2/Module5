@@ -776,11 +776,72 @@ class _TeamChallengesSeasonsScreenState
                   ),
                 ),
               ],
+              if (widget.forAdminOversight) ...[
+                const SizedBox(width: AppSpacing.md),
+                IconButton(
+                  onPressed: () => _confirmDeleteSeason(season),
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete season',
+                  color: AppColors.dangerColor,
+                ),
+              ],
             ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDeleteSeason(Season season) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          title: Text(
+            'Delete season?',
+            style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+          ),
+          content: Text(
+            'This will permanently delete "${season.title}" and notify participants.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                'Cancel',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dangerColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      await SeasonService.deleteSeasonAndNotify(season.id);
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Season deleted successfully.');
+    } catch (e) {
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Failed to delete season: $e');
+    }
   }
 
   Widget _buildSeasonHistoryCard(Season season) {
