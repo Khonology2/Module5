@@ -192,6 +192,24 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return true;
   }
 
+  bool _isAdminOversightTeamAlert(Alert alert) {
+    // In admin oversight, only show team/supervision signals.
+    if (alert.audience == AlertAudience.team) return true;
+    switch (alert.type) {
+      case AlertType.inactivity:
+      case AlertType.goalOverdue:
+      case AlertType.milestoneRisk:
+      case AlertType.seasonJoined:
+      case AlertType.seasonProgressUpdate:
+      case AlertType.seasonCompleted:
+      case AlertType.goalMilestoneCompleted:
+      case AlertType.milestoneDeletionRequest:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   Future<void> _rescheduleGoal(
     BuildContext context,
     String goalId,
@@ -715,9 +733,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         }
 
         final allAlerts = snapshot.data ?? [];
-        final managerScopedAlerts = allAlerts
-            .where((a) => _shouldShowInManagerWorkspace(a, manager.uid))
-            .toList();
+        final managerScopedAlerts = widget.forAdminOversight
+            ? <Alert>[]
+            : allAlerts
+                .where((a) => _shouldShowInManagerWorkspace(a, manager.uid))
+                .toList();
         developer.log('Loaded ${allAlerts.length} alerts', name: 'TeamAlerts');
 
         try {
@@ -739,6 +759,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             final alerts = e.recentAlerts;
             if (alerts.isEmpty) continue;
             for (final a in alerts) {
+              if (widget.forAdminOversight &&
+                  !_isAdminOversightTeamAlert(a)) {
+                continue;
+              }
               if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
               if (a.id.isNotEmpty) seenAlertIds.add(a.id);
               combinedAlerts.add(a);
@@ -1500,6 +1524,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         }
         for (final e in employees) {
           for (final a in e.recentAlerts) {
+            if (widget.forAdminOversight && !_isAdminOversightTeamAlert(a)) {
+              continue;
+            }
             if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
             if (a.id.isNotEmpty) seenAlertIds.add(a.id);
             allAlerts.add(a);
