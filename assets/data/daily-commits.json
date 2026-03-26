@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.ED6.SIT",
-  "generated_at": "2026-03-26T08:52:35Z",
+  "version": "2026.03.ED7.SIT",
+  "generated_at": "2026-03-26T09:00:26Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,6 +24,11 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature - add the same delete control for manager Team Challenges, scoped safely so managers can delete only seasons they own.",
+      "timestamp": "2026-03-26T10:59:43+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature -  Add delete season functionality for admin oversight with confirmation dialog and notification handling.",
       "timestamp": "2026-03-26T10:51:57+02:00"
     },
@@ -33,6 +38,6 @@
       "timestamp": "2026-03-26T10:41:37+02:00"
     }
   ],
-  "total_commits": 6,
+  "total_commits": 7,
   "date_range": "2026-03-26"
 }
