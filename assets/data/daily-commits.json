@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.ED7.SIT",
-  "generated_at": "2026-03-26T09:00:26Z",
+  "version": "2026.03.ED8.SIT",
+  "generated_at": "2026-03-26T09:09:14Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,6 +24,11 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature - Refactor season filtering logic to differentiate between employee and manager contexts, ensuring admin-created seasons are excluded for employees and included for managers.",
+      "timestamp": "2026-03-26T11:08:32+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature - add the same delete control for manager Team Challenges, scoped safely so managers can delete only seasons they own.",
       "timestamp": "2026-03-26T10:59:43+02:00"
     },
@@ -38,6 +43,6 @@
       "timestamp": "2026-03-26T10:41:37+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 8,
   "date_range": "2026-03-26"
 }
