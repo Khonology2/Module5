@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.ED5.SIT",
-  "generated_at": "2026-03-26T08:42:17Z",
+  "version": "2026.03.ED6.SIT",
+  "generated_at": "2026-03-26T08:52:35Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,10 +24,15 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature -  Add delete season functionality for admin oversight with confirmation dialog and notification handling.",
+      "timestamp": "2026-03-26T10:51:57+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature - update pubspec.lock with new package versions and enhance manager inbox display for admin oversight.",
       "timestamp": "2026-03-26T10:41:37+02:00"
     }
   ],
-  "total_commits": 5,
+  "total_commits": 6,
   "date_range": "2026-03-26"
 }
