@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.ED8.SIT",
-  "generated_at": "2026-03-26T09:09:14Z",
+  "version": "2026.03.ED10.SIT",
+  "generated_at": "2026-03-26T12:11:56Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -29,6 +29,16 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature - Implement admin oversight alert filtering logic to display only relevant team and supervision signals, enhancing the alert management experience for admin users.",
+      "timestamp": "2026-03-26T14:11:14+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Implement logic to filter alerts for manager workspace, hiding specific team-context alerts and overdue goal alerts based on user context.",
+      "timestamp": "2026-03-26T13:12:02+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature - Refactor season filtering logic to differentiate between employee and manager contexts, ensuring admin-created seasons are excluded for employees and included for managers.",
       "timestamp": "2026-03-26T11:08:32+02:00"
     },
@@ -48,6 +58,6 @@
       "timestamp": "2026-03-26T10:41:37+02:00"
     }
   ],
-  "total_commits": 8,
+  "total_commits": 10,
   "date_range": "2026-03-26"
 }
