@@ -776,7 +776,9 @@ class _TeamChallengesSeasonsScreenState
                   ),
                 ),
               ],
-              if (widget.forAdminOversight) ...[
+              if (widget.forAdminOversight ||
+                  season.createdBy ==
+                      FirebaseAuth.instance.currentUser?.uid) ...[
                 const SizedBox(width: AppSpacing.md),
                 IconButton(
                   onPressed: () => _confirmDeleteSeason(season),
