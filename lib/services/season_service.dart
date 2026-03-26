@@ -583,16 +583,33 @@ class SeasonService {
     }
   }
 
-  // Get all seasons visible to employees (manager-created + admin-created)
-  static Stream<List<Season>> getActiveSeasonsStream({String? department}) {
+  // Get active seasons.
+  // Set [includeAdminCreated] to false for employee context.
+  static Stream<List<Season>> getActiveSeasonsStream({
+    String? department,
+    bool includeAdminCreated = true,
+  }) {
     try {
       return FirestoreSafe.stream(
         _firestore
             .collection('seasons')
             .where('status', isEqualTo: SeasonStatus.active.name)
             .snapshots(),
-      ).map((snapshot) {
+      ).asyncMap((snapshot) async {
+        final adminIds = includeAdminCreated
+            ? const <String>{}
+            : await _getAdminUserIds();
         final seasons = snapshot.docs
+            .where((doc) {
+              if (includeAdminCreated) return true;
+              final data = doc.data();
+              final createdBy = (data['createdBy'] ?? '').toString();
+              final createdByRole =
+                  (data['createdByRole'] ?? '').toString().trim().toLowerCase();
+              if (createdByRole == 'admin') return false;
+              // Backwards compatibility for older seasons without createdByRole.
+              return !adminIds.contains(createdBy);
+            })
             .map((doc) => Season.fromFirestore(doc))
             .toList();
         // Sort in memory to avoid composite index requirement
@@ -2069,6 +2086,11 @@ class SeasonService {
             .toString()
             .trim()
             .toLowerCase();
+
+        // Admin-created seasons should never be sent to employees.
+        if (creatorRole == 'admin' && role != 'manager' && role != 'admin') {
+          continue;
+        }
 
         // Managers should receive team-facing alerts for admin-created seasons.
         if (role == 'manager' && creatorRole == 'admin') {
