@@ -17,14 +17,96 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/upcoming_goals_list_screen.dart';
-import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
-import 'package:pdh/widgets/profile_completion_banner.dart';
+import 'package:pdh/models/season.dart';
+import 'package:pdh/services/season_service.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/widgets/version_control_widget.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
+
+/// Employee dashboard card surface (requested #3D3D40; user note had a typo).
+const Color _kDashboardCardBg = Color(0xFF3D3D40);
+const Color _kPointsAccent = Color(0xFF6CA510);
+/// All dashboard copy uses solid white for clarity on dark cards.
+const Color _kDashboardText = Color(0xFFFFFFFF);
+/// Quick Actions tile hover fill (mockup solid red).
+const Color _kQuickActionHoverRed = Color(0xFFC10D00);
+
+/// Light mode for dashboard chrome. Uses [employeeDashboardLightModeNotifier] — **not**
+/// [EmployeeDashboardThemeScope.lightOf] with [State.context], because the scope sits
+/// *below* [EmployeeDashboardScreen] in the tree, so inherited lookup from the state
+/// context always misses the scope (only inner [BuildContext]s under the scope resolve).
+bool _dashIsLight() => employeeDashboardLightModeNotifier.value;
+
+Color _dashFg(BuildContext context) {
+  return _dashIsLight() ? const Color(0xFF000000) : _kDashboardText;
+}
+
+Color _dashCard(BuildContext context) {
+  return _dashIsLight() ? const Color(0xFFFFFFFF) : _kDashboardCardBg;
+}
+
+Color _dashBorder(BuildContext context) {
+  return _dashIsLight()
+      ? const Color(0x33000000)
+      : Colors.white.withValues(alpha: 0.2);
+}
+
+Color _dashDivider(BuildContext context) {
+  return _dashIsLight()
+      ? const Color(0x33000000)
+      : Colors.white.withValues(alpha: 0.22);
+}
+
+Color _dashTopPerfRowBg(BuildContext context) {
+  return _dashIsLight()
+      ? Colors.black.withValues(alpha: 0.04)
+      : Colors.white.withValues(alpha: 0.06);
+}
+
+Color _dashTopPerfRowBorder(BuildContext context) {
+  return _dashIsLight()
+      ? const Color(0x14000000)
+      : Colors.white.withValues(alpha: 0.08);
+}
+
+/// Bell icon in section headers: dark-on-light vs light-on-dark.
+String _dashBellAssetPath(BuildContext context) {
+  return _dashIsLight() ? 'assets/red_bell.png' : 'assets/white_bell.png';
+}
+
+/// KPI / row badge images: show assets as-is (no tint) so red badge art stays visible in light mode.
+Widget _dashDashboardAsset(
+  String assetPath, {
+  double size = 48,
+}) {
+  return Image.asset(
+    assetPath,
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+  );
+}
+
+Widget _quickActionLeadingIcon(
+  BuildContext context, {
+  required bool hover,
+  required String assetPath,
+}) {
+  return Image.asset(
+    assetPath,
+    fit: BoxFit.contain,
+    errorBuilder: (context, error, stackTrace) => Icon(
+      Icons.touch_app_outlined,
+      color: hover ? Colors.white : _dashFg(context),
+      size: 28,
+    ),
+  );
+}
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({
@@ -58,6 +140,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   int currentStreak = 0;
   bool hasActivityToday = false;
   Future<String?>? _onboardingNameFuture;
+  Stream<UserProfile?>? _userProfileStream;
+  Stream<List<Goal>>? _userGoalsStream;
 
   /// When [forAdminOversight] and [selectedManagerId] are set, use that uid for data; else current user.
   String? get _effectiveUserId {
@@ -66,14 +150,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     }
     return FirebaseAuth.instance.currentUser?.uid;
   }
-
-  // Hover states for the six KPI cards
-  bool _isHoveringActiveGoals = false;
-  bool _isHoveringCompleted = false;
-  bool _isHoveringPoints = false;
-  bool _isHoveringCurrentStreak = false;
-  bool _isHoveringTodaysActivity = false;
-  bool _isHoveringBadges = false;
 
   // Tutorial state
   bool _shouldShowTutorial = false;
@@ -89,6 +165,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _configureDashboardStreams();
     _loadAllData();
 
     // Start real-time badge tracking and streak tracking for this user
@@ -108,6 +185,15 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         userId: authUser.uid,
         email: authUser.email,
       );
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant EmployeeDashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedManagerId != widget.selectedManagerId ||
+        oldWidget.forAdminOversight != widget.forAdminOversight) {
+      _configureDashboardStreams();
     }
   }
 
@@ -484,6 +570,11 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     }
   }
 
+  void _configureDashboardStreams() {
+    _userProfileStream = _getUserProfileStream();
+    _userGoalsStream = _getUserGoalsStream();
+  }
+
   @override
   void dispose() {
     final user = FirebaseAuth.instance.currentUser;
@@ -654,12 +745,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       embedded: widget.embedded,
       items: sidebarItems,
       currentRouteName: routeName,
-      topRightAction: Row(
+      topRightAction: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const NotificationsBell(),
-          const SizedBox(width: 8),
-          _profileButton(context),
+          NotificationsBell(),
         ],
       ),
       tutorialStepIndex: tutorialStep,
@@ -679,20 +768,34 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
-      content: FocusTraversalGroup(
-        policy: WidgetOrderTraversalPolicy(),
-        child: AppComponents.backgroundWithImage(
-          imagePath: 'assets/khono_bg.png',
-          child: StreamBuilder<UserProfile?>(
-            stream: _getUserProfileStream(),
-            builder: (context, profileSnapshot) {
-              return StreamBuilder<List<Goal>>(
-                stream: _getUserGoalsStream(),
-                builder: (context, goalsSnapshot) {
+      content: ValueListenableBuilder<bool>(
+        valueListenable: employeeDashboardLightModeNotifier,
+        builder: (context, light, _) {
+          return AppComponents.backgroundWithImage(
+            blurSigma: 0,
+            imagePath: light
+                ? 'assets/light_mode_bg.png'
+                : 'assets/khono_bg.png',
+            gradientColors: light
+                ? [
+                    Colors.white.withValues(alpha: 0.2),
+                    Colors.white.withValues(alpha: 0.08),
+                  ]
+                : null,
+            child: EmployeeDashboardThemeScope(
+              light: light,
+              child: StreamBuilder<UserProfile?>(
+                stream: _userProfileStream,
+                builder: (context, profileSnapshot) {
+                  return StreamBuilder<List<Goal>>(
+                    stream: _userGoalsStream,
+                    builder: (context, goalsSnapshot) {
                   // Use any available data while streams connect to avoid showing a spinner
                   // Always prefer stream data, but fall back to cached data if streams fail
                   // This prevents flashing of error messages when streams temporarily fail
-                  final effectiveProfile = profileSnapshot.data ?? userProfile;
+                  final effectiveProfile = profileSnapshot.data ??
+                      userProfile ??
+                      _fallbackUserProfileFromAuth();
                   final effectiveGoals = goalsSnapshot.data ?? userGoals;
 
                   // Log errors but don't block the dashboard from showing
@@ -706,7 +809,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   }
 
                   // If we have no profile data at all, show loading spinner
-                  if (effectiveProfile == null) {
+                  if (effectiveProfile == null && _effectiveUserId != null) {
                     final timedOut =
                         _initialProfileLoadWatch.elapsed >
                         const Duration(seconds: 12);
@@ -737,37 +840,58 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                     onRefresh: () async {
                       setState(() {}); // Trigger rebuild to restart streams
                     },
-                    child: SingleChildScrollView(
-                      padding: AppSpacing.screenPadding,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const ProfileCompletionBanner(),
-                          _buildWelcomeCard(),
-                          const SizedBox(height: AppSpacing.xl),
-                          _buildDailyMotivationCard(),
-                          const SizedBox(height: AppSpacing.xl),
-                          _buildQuickStats(),
-                          const SizedBox(height: AppSpacing.xl),
-                          _buildRecentActivity(),
-                          const SizedBox(height: AppSpacing.xl),
-                          _buildQuickActions(),
-                          const SizedBox(height: AppSpacing.xl),
-                          _buildUpcomingGoals(),
-                        ],
-                      ),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: AppSpacing.screenPadding,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildDashboardHeader(),
+                                const SizedBox(height: AppSpacing.lg),
+                                _buildQuickStats(),
+                                const SizedBox(height: AppSpacing.lg),
+                                _buildMotivationRecentAndQuickActionsRow(),
+                                const SizedBox(height: AppSpacing.lg),
+                                _buildSeasonAndTopPerformersRow(),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SafeArea(
+                          top: false,
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              left: AppSpacing.xxl,
+                              right: AppSpacing.xxl,
+                              bottom: AppSpacing.md,
+                            ),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: VersionControlWidget(
+                                textColor: _dashFg(context),
+                                hoverColor: _dashFg(context),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   );
+                    },
+                  );
                 },
-              );
-            },
-          ),
-        ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
+  // ignore: unused_element
   Widget _buildWelcomeCard() {
     final user = FirebaseAuth.instance.currentUser;
     String userName = 'User';
@@ -837,7 +961,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.9),
+                color: _dashIsLight()
+                    ? const Color(0x33000000)
+                    : Colors.white.withValues(alpha: 0.9),
                 width: 2,
               ),
               color: Colors.black.withValues(alpha: 0.15),
@@ -847,13 +973,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   ? Image.network(
                       photoUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Icon(
+                      errorBuilder: (context, error, stackTrace) => Icon(
                         Icons.person,
-                        color: Colors.white,
+                        color: _dashFg(context),
                         size: 36,
                       ),
                     )
-                  : const Icon(Icons.person, color: Colors.white, size: 36),
+                  : Icon(Icons.person, color: _dashFg(context), size: 36),
             ),
           ),
           const SizedBox(width: 15),
@@ -861,13 +987,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$greeting, $userName!', style: AppTypography.heading4),
+                Text(
+                  '$greeting, $userName!',
+                  style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+                ),
                 const SizedBox(height: 5),
                 Text(
                   motivationalMessage,
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
                 ),
                 if (userProfile?.badgesV2.isNotEmpty == true) ...[
                   const SizedBox(height: 8),
@@ -876,13 +1003,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                       Icon(
                         Icons.workspace_premium,
                         size: 16,
-                        color: AppColors.successColor,
+                        color: _dashFg(context),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         '${userProfile!.badgesV2.length} Badge${userProfile!.badgesV2.length == 1 ? '' : 's'}',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.successColor,
+                          color: _dashFg(context),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -897,6 +1024,39 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     );
   }
 
+  Widget _buildDashboardHeader() {
+    final user = FirebaseAuth.instance.currentUser;
+    String userName = 'Name Surname';
+    if ((userProfile?.displayName ?? '').trim().isNotEmpty) {
+      userName = userProfile!.displayName.trim();
+    } else if ((user?.displayName ?? '').trim().isNotEmpty) {
+      userName = user!.displayName!.trim();
+    } else if ((user?.email ?? '').trim().isNotEmpty) {
+      userName = user!.email!.split('@').first;
+    }
+
+    return Row(
+      children: [
+        Flexible(
+          child: Text(
+            'Employee Dashboard',
+            style: AppTypography.heading3.copyWith(color: _dashFg(context)),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Flexible(
+          child: Text(
+            'Hello, $userName',
+            style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ignore: unused_element
   Widget _buildDailyMotivationCard() {
     return AppComponents.card(
       child: Container(
@@ -937,14 +1097,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                     'Daily Motivation',
                     style: AppTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: AppColors.activeColor,
+                      color: _dashFg(context),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _getDailyMotivation(),
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
+                      color: _dashFg(context),
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -953,6 +1113,42 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDailyMotivationCompactCard() {
+    return AppComponents.card(
+      backgroundColor: _dashCard(context),
+      borderColor: _dashBorder(context),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: Image.asset(
+              'assets/Innovation_Brainstorm.png',
+              fit: BoxFit.contain,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Daily Motivation',
+                  style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _getDailyMotivation(),
+                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -980,77 +1176,60 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         Row(
           children: [
             Expanded(
-              child: MouseRegion(
-                onEnter: (_) => setState(() => _isHoveringActiveGoals = true),
-                onExit: (_) => setState(() => _isHoveringActiveGoals = false),
-                child: AnimatedScale(
-                  scale: _isHoveringActiveGoals ? 1.05 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: AppComponents.kpiCard(
-                    label: 'Active Goals',
-                    value: activeGoals.toString(),
-                    iconWidget: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Image.asset(
-                        'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    iconColor: AppColors.activeColor,
+              child: AppComponents.kpiCard(
+                label: 'Active Goals',
+                value: activeGoals.toString(),
+                backgroundColor: _dashCard(context),
+                borderColor: _dashBorder(context),
+                valueColor: _dashFg(context),
+                labelColor: _dashFg(context),
+                iconWidget: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: _dashDashboardAsset(
+                    'assets/Goal_Target/Goal_Target_White_Badge_Red.png',
                   ),
                 ),
+                iconColor: AppColors.activeColor,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: MouseRegion(
-                onEnter: (_) => setState(() => _isHoveringCompleted = true),
-                onExit: (_) => setState(() => _isHoveringCompleted = false),
-                child: AnimatedScale(
-                  scale: _isHoveringCompleted ? 1.05 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: AppComponents.kpiCard(
-                    label: 'Completed',
-                    value: completedGoals.toString(),
-                    iconWidget: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Image.asset(
-                        'Approved_Tick/Approved_White_Badge_Red.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    iconColor: AppColors.successColor,
+              child: AppComponents.kpiCard(
+                label: 'Completed',
+                value: completedGoals.toString(),
+                backgroundColor: _dashCard(context),
+                borderColor: _dashBorder(context),
+                valueColor: _dashFg(context),
+                labelColor: _dashFg(context),
+                iconWidget: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: _dashDashboardAsset(
+                    'assets/Approved_Tick/Approved_White_Badge_Red.png',
                   ),
                 ),
+                iconColor: AppColors.successColor,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: MouseRegion(
-                onEnter: (_) => setState(() => _isHoveringPoints = true),
-                onExit: (_) => setState(() => _isHoveringPoints = false),
-                child: AnimatedScale(
-                  scale: _isHoveringPoints ? 1.05 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: AppComponents.kpiCard(
-                    label: 'Points',
-                    value: _formatNumber(totalPoints),
-                    iconWidget: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Image.asset(
-                        'process_flows_automation/Process_Flows_Automation_White_Badge_Red.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    iconColor: AppColors.warningColor,
+              child: AppComponents.kpiCard(
+                label: 'Points Achieved',
+                value: _formatNumber(totalPoints),
+                backgroundColor: _dashCard(context),
+                borderColor: _dashBorder(context),
+                valueColor: _dashFg(context),
+                labelColor: _dashFg(context),
+                iconWidget: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Image.asset(
+                    'assets/Team_Meeting/Team.png',
+                    fit: BoxFit.contain,
                   ),
                 ),
+                iconColor: AppColors.warningColor,
               ),
             ),
           ],
@@ -1059,60 +1238,43 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         Row(
           children: [
             Expanded(
-              child: MouseRegion(
-                onEnter: (_) => setState(() => _isHoveringCurrentStreak = true),
-                onExit: (_) => setState(() => _isHoveringCurrentStreak = false),
-                child: AnimatedScale(
-                  scale: _isHoveringCurrentStreak ? 1.05 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: AppComponents.kpiCard(
-                    label: 'Current Streak',
-                    value: '${currentStreak.toString()} days',
-                    iconWidget: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Icon(
-                        hasActivityToday
-                            ? Icons.local_fire_department
-                            : Icons.local_fire_department_outlined,
-                        color: hasActivityToday
-                            ? AppColors.warningColor
-                            : AppColors.textSecondary,
-                        size: 48,
-                      ),
-                    ),
+              child: AppComponents.kpiCard(
+                label: 'Current Streak',
+                value: '${currentStreak.toString()} days',
+                backgroundColor: _dashCard(context),
+                borderColor: _dashBorder(context),
+                valueColor: _dashFg(context),
+                labelColor: _dashFg(context),
+                iconWidget: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: _dashDashboardAsset(
+                    'assets/Goal_Target/Goal_Target_White_Badge_Red.png',
                   ),
                 ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: MouseRegion(
-                onEnter: (_) =>
-                    setState(() => _isHoveringTodaysActivity = true),
-                onExit: (_) =>
-                    setState(() => _isHoveringTodaysActivity = false),
-                child: AnimatedScale(
-                  scale: _isHoveringTodaysActivity ? 1.05 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: AppComponents.kpiCard(
-                    label: 'Today\'s Activity',
-                    value: hasActivityToday ? 'Active' : 'None',
-                    iconWidget: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Image.asset(
-                        'Approved_Tick/Approved_White_Badge_Red.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    iconColor: hasActivityToday
-                        ? AppColors.successColor
-                        : AppColors.textSecondary,
+              child: AppComponents.kpiCard(
+                label: 'Daily Activity',
+                value: hasActivityToday ? '1' : '0',
+                backgroundColor: _dashCard(context),
+                borderColor: _dashBorder(context),
+                valueColor: _dashFg(context),
+                labelColor: _dashFg(context),
+                iconWidget: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: _dashDashboardAsset(
+                    'assets/Task_Management/Task_Management_White_Badge_Red.png',
                   ),
                 ),
+                iconColor: hasActivityToday
+                    ? AppColors.successColor
+                    : (_dashIsLight()
+                          ? _dashFg(context)
+                          : AppColors.textSecondary),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -1121,42 +1283,77 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 stream: _getEarnedBadgesCountStream(),
                 builder: (context, snapshot) {
                   final count = snapshot.data ?? 0;
-                  return MouseRegion(
-                    onEnter: (_) => setState(() => _isHoveringBadges = true),
-                    onExit: (_) => setState(() => _isHoveringBadges = false),
-                    child: AnimatedScale(
-                      scale: _isHoveringBadges ? 1.05 : 1.0,
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      child: AppComponents.kpiCard(
-                        label: 'Badges',
-                        value: count.toString(),
-                        iconWidget: SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: Icon(
-                            Icons.workspace_premium,
-                            color: AppColors.successColor,
-                            size: 48,
-                          ),
-                        ),
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'You have $count badge${count == 1 ? '' : 's'}',
-                              ),
-                            ),
-                          );
-                        },
+                  return AppComponents.kpiCard(
+                    label: 'Badges Achieved',
+                    value: count.toString(),
+                    backgroundColor: _dashCard(context),
+                    borderColor: _dashBorder(context),
+                    valueColor: _dashFg(context),
+                    labelColor: _dashFg(context),
+                    iconWidget: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Image.asset(
+                        'assets/Badge.png',
+                        fit: BoxFit.contain,
                       ),
                     ),
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: const Color(0xFF2C2C2C),
+                          content: Text(
+                            'You have $count badge${count == 1 ? '' : 's'}',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  /// Left: Daily Motivation stacked above Recent Activities. Right: Quick Actions
+  /// full height (matches mockup).
+  Widget _buildMotivationRecentAndQuickActionsRow() {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 5,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildDailyMotivationCompactCard(),
+                const SizedBox(height: AppSpacing.lg),
+                _buildRecentActivity(),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            flex: 5,
+            child: _buildCombinedQuickActionsCard(fillHeight: true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeasonAndTopPerformersRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 7, child: _buildSeasonProgressAlertsCard()),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(flex: 3, child: _buildTopPerformersCard()),
       ],
     );
   }
@@ -1177,10 +1374,33 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final recentGoals = List<Goal>.from(userGoals)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return AppComponents.card(
+      backgroundColor: _dashCard(context),
+      borderColor: _dashBorder(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Recent Activity', style: AppTypography.heading4),
+          Row(
+            children: [
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: Image.asset(
+                  _dashBellAssetPath(context),
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Recent Activities',
+                style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+              ),
+            ],
+          ),
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: _dashDivider(context),
+          ),
           const SizedBox(height: AppSpacing.md),
           if (recentGoals.isEmpty)
             Center(
@@ -1188,9 +1408,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Text(
                   'No recent activity',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
                 ),
               ),
             )
@@ -1227,16 +1445,19 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: AppComponents.activityItem(
-                  iconWidget: Image.asset(
-                    'Approved_Tick/approved_red_badge_white.png',
-                    width: 60, // Match the size defined in activityItem
-                    height: 60, // Match the size defined in activityItem
-                    fit: BoxFit.contain,
+                  iconWidget: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: _dashDashboardAsset(
+                      'assets/Goal_Target/Goal_Target_White_Badge_Red.png',
+                      size: 28,
+                    ),
                   ),
                   title: '$actionText "${goal.title}"',
                   subtitle: _getTimeAgo(goal.createdAt),
-                  iconColor:
-                      iconColor, // iconColor is still used for text if not replaced
+                  iconColor: iconColor,
+                  titleColor: _dashFg(context),
+                  subtitleColor: _dashFg(context),
                 ),
               );
             }),
@@ -1261,12 +1482,16 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
   // This method is no longer needed as we're using AppComponents.activityItem
 
+  // ignore: unused_element
   Widget _buildQuickActions() {
     return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Quick Actions', style: AppTypography.heading4),
+          Text(
+            'Quick Actions',
+            style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+          ),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
@@ -1316,8 +1541,390 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     );
   }
 
+  Widget _buildCombinedQuickActionsCard({bool fillHeight = false}) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: Image.asset(
+                'assets/Innovation_Brainstorm.png',
+                fit: BoxFit.contain,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick Actions',
+                    style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Additional description can be included if required.',
+                    style: AppTypography.bodySmall.copyWith(color: _dashFg(context)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (fillHeight)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QuickActionTile(
+                        label: 'Goal Workspace',
+                        assetPath:
+                            'assets/Project_Management/Management_White_Badge_Red.png',
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/my_goal_workspace'),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _QuickActionTile(
+                        label: 'Progress Visuals',
+                        assetPath:
+                            'assets/Process_Flows_Automation/Process_Flows_Automation_White_Badge_Red.png',
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/progress_visuals'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QuickActionTile(
+                        label: 'Leaderboard',
+                        assetPath:
+                            'assets/Project_Direction_Acceleration/Project_Direction_Acceleration_White_Badge_Red.png',
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/leaderboard'),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _QuickActionTile(
+                        label: 'Badges & Points',
+                        assetPath:
+                            'assets/Business_Growth_Development/Business_Growth_Development_White_Badge_Red.png',
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/badges_points'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          )
+        else ...[
+          Row(
+            children: [
+              Expanded(
+                child: _QuickActionTile(
+                  label: 'Goal Workspace',
+                  assetPath:
+                      'assets/Project_Management/Management_White_Badge_Red.png',
+                  onTap: () =>
+                      Navigator.pushNamed(context, '/my_goal_workspace'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _QuickActionTile(
+                  label: 'Progress Visuals',
+                  assetPath:
+                      'assets/Process_Flows_Automation/Process_Flows_Automation_White_Badge_Red.png',
+                  onTap: () =>
+                      Navigator.pushNamed(context, '/progress_visuals'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: _QuickActionTile(
+                  label: 'Leaderboard',
+                  assetPath:
+                      'assets/Project_Direction_Acceleration/Project_Direction_Acceleration_White_Badge_Red.png',
+                  onTap: () => Navigator.pushNamed(context, '/leaderboard'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _QuickActionTile(
+                  label: 'Badges & Points',
+                  assetPath:
+                      'assets/Business_Growth_Development/Business_Growth_Development_White_Badge_Red.png',
+                  onTap: () => Navigator.pushNamed(context, '/badges_points'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+
+    final card = AppComponents.card(
+      backgroundColor: _dashCard(context),
+      borderColor: _dashBorder(context),
+      child: content,
+    );
+
+    if (!fillHeight) return card;
+    return SizedBox.expand(child: card);
+  }
+
+  Widget _buildSeasonProgressAlertsCard() {
+    final uid = _effectiveUserId;
+    if (uid == null) {
+      return AppComponents.card(
+        backgroundColor: _dashCard(context),
+        borderColor: _dashBorder(context),
+        child: Text(
+          'Season Progress Alerts',
+          style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+        ),
+      );
+    }
+    return AppComponents.card(
+      backgroundColor: _dashCard(context),
+      borderColor: _dashBorder(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: Image.asset(
+                  _dashBellAssetPath(context),
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Season Progress Alerts',
+                style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          StreamBuilder<List<Season>>(
+            stream: SeasonService.getParticipantSeasonsStream(uid),
+            builder: (context, snapshot) {
+              final seasons = (snapshot.data ?? [])
+                  .where((s) => s.status == SeasonStatus.active)
+                  .take(3)
+                  .toList();
+              if (seasons.isEmpty) {
+                return Text(
+                  'No active season progress yet.',
+                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                );
+              }
+              return Column(
+                children: seasons.map((season) {
+                  final total = season.participantIds.length;
+                  final completed = season.participantIds
+                      .where((id) => _isSeasonParticipantComplete(season, id))
+                      .length;
+                  final progress = total == 0 ? 0.0 : completed / total;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          season.title,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: _dashFg(context),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Progress: $completed/$total Employees Completed',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: _dashFg(context),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(8),
+                          backgroundColor: _dashIsLight()
+                              ? const Color(0x33000000)
+                              : AppColors.borderColor,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.activeColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _isSeasonParticipantComplete(Season season, String participantId) {
+    final participation = season.participations[participantId];
+    if (participation == null) return false;
+    int totalMilestones = 0;
+    int completed = 0;
+    for (final challenge in season.challenges) {
+      totalMilestones += challenge.milestones.length;
+      for (final milestone in challenge.milestones) {
+        final key = '${challenge.id}.${milestone.id}';
+        final status = participation.milestoneProgress[key] ??
+            participation.milestoneProgress[milestone.id];
+        if (status == MilestoneStatus.completed) {
+          completed++;
+        }
+      }
+    }
+    return totalMilestones > 0 && completed == totalMilestones;
+  }
+
+  Widget _buildTopPerformersCard() {
+    return AppComponents.card(
+      backgroundColor: _dashCard(context),
+      borderColor: _dashBorder(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: Image.asset(
+                  _dashBellAssetPath(context),
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Top Performers',
+                style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirestoreSafe.stream(
+              FirebaseFirestore.instance.collection('users').limit(250).snapshots(),
+            ),
+            builder: (context, snapshot) {
+              final docs = snapshot.data?.docs ?? const [];
+              final rows = docs
+                  .map((d) => d.data())
+                  .where((u) {
+                    final role = (u['role'] ?? 'employee').toString().toLowerCase();
+                    final optIn = u['leaderboardOptin'] == true ||
+                        u['leaderboardParticipation'] == true;
+                    return role == 'employee' && optIn;
+                  })
+                  .map((u) => {
+                        'name': (u['displayName'] ?? 'Employee').toString(),
+                        'points': (u['totalPoints'] is num)
+                            ? (u['totalPoints'] as num).toInt()
+                            : int.tryParse('${u['totalPoints'] ?? 0}') ?? 0,
+                      })
+                  .toList()
+                ..sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
+              final top = rows.take(3).toList();
+              if (top.isEmpty) {
+                return Text(
+                  'No top performers yet.',
+                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                );
+              }
+              return Column(
+                children: top.map((u) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _dashTopPerfRowBg(context),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _dashTopPerfRowBorder(context),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: Image.asset(
+                              'assets/Star.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              u['name'] as String,
+                              style: AppTypography.bodySmall.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: _dashFg(context),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _kPointsAccent.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${u['points']} Points',
+                              style: AppTypography.caption.copyWith(
+                                color: _dashFg(context),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   // This method is no longer needed as we're using AppComponents.primaryButton
 
+  // ignore: unused_element
   Widget _buildUpcomingGoals() {
     // Get active goals sorted by target date
     final upcomingGoals =
@@ -1338,7 +1945,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Upcoming Goals', style: AppTypography.heading4),
+              Text(
+                'Upcoming Goals',
+                style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+              ),
               if (upcomingGoals.isNotEmpty)
                 TextButton(
                   onPressed: () {
@@ -1352,7 +1962,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   child: Text(
                     'View All',
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.activeColor,
+                      color: _dashFg(context),
                     ),
                   ),
                 ),
@@ -1365,9 +1975,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Text(
                   'No active goals',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
                 ),
               ),
             )
@@ -1390,21 +1998,21 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final progress = goal.progress / 100.0; // Convert to 0-1 range
 
     String deadlineText;
-    Color deadlineColor = AppColors.textSecondary;
+    Color deadlineColor = _dashFg(context);
 
     if (isOverdue) {
       deadlineText =
           'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
-      deadlineColor = AppColors.dangerColor;
+      deadlineColor = _dashFg(context);
     } else if (daysUntilDeadline == 0) {
       deadlineText = 'Due today';
-      deadlineColor = AppColors.warningColor;
+      deadlineColor = _dashFg(context);
     } else if (daysUntilDeadline == 1) {
       deadlineText = 'Due tomorrow';
-      deadlineColor = AppColors.warningColor;
+      deadlineColor = _dashFg(context);
     } else if (daysUntilDeadline <= 7) {
       deadlineText = 'Due in $daysUntilDeadline days';
-      deadlineColor = AppColors.warningColor;
+      deadlineColor = _dashFg(context);
     } else {
       deadlineText = 'Due in $daysUntilDeadline days';
     }
@@ -1425,7 +2033,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       borderRadius: BorderRadius.circular(8),
       child: AppComponents.card(
         padding: const EdgeInsets.all(12),
-        backgroundColor: AppColors.elevatedBackground,
+        backgroundColor: _dashCard(context),
+        borderColor: _dashBorder(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1436,6 +2045,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                     goal.title,
                     style: AppTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.w500,
+                      color: _dashFg(context),
                     ),
                   ),
                 ),
@@ -1458,7 +2068,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   child: Text(
                     goal.priority.name.toUpperCase(),
                     style: AppTypography.bodySmall.copyWith(
-                      color: _getPriorityColor(goal.priority),
+                      color: _dashFg(context),
                       fontWeight: FontWeight.w600,
                       fontSize: 10,
                     ),
@@ -1475,6 +2085,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             AppComponents.progressBar(
               value: progress,
               label: '${goal.progress}% Complete',
+              labelColor: _dashFg(context),
+              backgroundColor:
+                  _dashIsLight() ? const Color(0x33000000) : null,
             ),
           ],
         ),
@@ -1493,62 +2106,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     }
   }
 
-  Widget _profileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    return FutureBuilder<String?>(
-      future: user != null
-          ? (_onboardingNameFuture ??
-                DatabaseService.getUserNameFromOnboarding(
-                  userId: user.uid,
-                  email: user.email,
-                ))
-          : Future.value(null),
-      builder: (context, nameSnapshot) {
-        String userName = 'User';
-        if (nameSnapshot.hasData &&
-            nameSnapshot.data != null &&
-            nameSnapshot.data!.isNotEmpty) {
-          userName = nameSnapshot.data!;
-        } else if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-          userName = user.displayName!;
-        } else if (user?.email != null && user!.email!.isNotEmpty) {
-          userName = user.email!.split('@').first;
-        }
-
-        return InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const EmployeeProfileScreen(),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2A3652),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0x1FFFFFFF)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.person, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  userName,
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildLoadTimeout({required String message}) {
     return Center(
       child: ConstrainedBox(
@@ -1556,20 +2113,20 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: AppComponents.card(
+            backgroundColor: _dashCard(context),
+            borderColor: _dashBorder(context),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Still loading…',
-                  style: AppTypography.heading4,
+                  style: AppTypography.heading4.copyWith(color: _dashFg(context)),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   message,
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
@@ -1604,9 +2161,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                         }
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
+                        foregroundColor:
+                            _dashIsLight() ? const Color(0xFF000000) : Colors.white,
                         side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.2),
+                          color: _dashIsLight()
+                              ? const Color(0x33000000)
+                              : Colors.white.withValues(alpha: 0.2),
                         ),
                       ),
                       child: const Text('Sign out'),
@@ -1617,12 +2177,104 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   const SizedBox(height: 10),
                   Text(
                     error!,
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                    style: AppTypography.caption.copyWith(color: _dashFg(context)),
                     textAlign: TextAlign.center,
                   ),
                 ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  UserProfile? _fallbackUserProfileFromAuth() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    final email = user.email ?? '';
+    final displayName = (user.displayName ?? '').trim().isNotEmpty
+        ? user.displayName!.trim()
+        : (email.isNotEmpty ? email.split('@').first : 'User');
+    return UserProfile(
+      uid: user.uid,
+      email: email,
+      displayName: displayName,
+      totalPoints: userProfile?.totalPoints ?? 0,
+      level: userProfile?.level ?? 1,
+      badges: userProfile?.badges ?? const [],
+      badgesV2: userProfile?.badgesV2 ?? const [],
+    );
+  }
+}
+
+class _QuickActionTile extends StatefulWidget {
+  const _QuickActionTile({
+    required this.label,
+    required this.assetPath,
+    required this.onTap,
+  });
+
+  final String label;
+  final String assetPath;
+  final VoidCallback onTap;
+
+  @override
+  State<_QuickActionTile> createState() => _QuickActionTileState();
+}
+
+class _QuickActionTileState extends State<_QuickActionTile> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final light = _dashIsLight();
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeInOut,
+            decoration: BoxDecoration(
+              color: _hover ? _kQuickActionHoverRed : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _hover
+                    ? _kQuickActionHoverRed
+                    : (light
+                          ? const Color(0x33000000)
+                          : Colors.white.withValues(alpha: 0.25)),
+                width: 1.5,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 28,
+                  width: double.infinity,
+                  child: _quickActionLeadingIcon(
+                    context,
+                    hover: _hover,
+                    assetPath: widget.assetPath,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  widget.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: _hover ? Colors.white : _dashFg(context),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),

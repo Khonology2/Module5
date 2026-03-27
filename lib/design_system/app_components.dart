@@ -51,10 +51,16 @@ class AppComponents {
     Color? valueColor,
     String? subtitle,
     VoidCallback? onTap,
+    Color? backgroundColor,
+    Color? labelColor,
+    Color? subtitleColor,
+    Color? borderColor,
   }) {
     return card(
       padding: const EdgeInsets.all(14),
       onTap: onTap,
+      backgroundColor: backgroundColor,
+      borderColor: borderColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -74,14 +80,18 @@ class AppComponents {
           const SizedBox(height: AppSpacing.xs),
           Text(
             label,
-            style: AppTypography.kpiLabel,
+            style: AppTypography.kpiLabel.copyWith(
+              color: labelColor ?? AppTypography.kpiLabel.color,
+            ),
             textAlign: TextAlign.center,
           ),
           if (subtitle != null) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(
               subtitle,
-              style: AppTypography.muted,
+              style: AppTypography.muted.copyWith(
+                color: subtitleColor ?? AppTypography.muted.color,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -289,6 +299,8 @@ class AppComponents {
     required String subtitle,
     required Color iconColor,
     VoidCallback? onTap,
+    Color? titleColor,
+    Color? subtitleColor,
   }) {
     return listItem(
       onTap: onTap,
@@ -312,10 +324,16 @@ class AppComponents {
                   title,
                   style: AppTypography.bodyMedium.copyWith(
                     fontWeight: FontWeight.w500,
+                    color: titleColor ?? AppTypography.bodyMedium.color,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                Text(subtitle, style: AppTypography.muted),
+                Text(
+                  subtitle,
+                  style: AppTypography.muted.copyWith(
+                    color: subtitleColor ?? AppTypography.muted.color,
+                  ),
+                ),
               ],
             ),
           ),
@@ -332,12 +350,18 @@ class AppComponents {
     Color? valueColor,
     double height = 8.0,
     String? label,
+    Color? labelColor,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (label != null) ...[
-          Text(label, style: AppTypography.labelSmall),
+          Text(
+            label,
+            style: AppTypography.labelSmall.copyWith(
+              color: labelColor ?? AppTypography.labelSmall.color,
+            ),
+          ),
           const SizedBox(height: AppSpacing.xs),
         ],
         LinearProgressIndicator(
@@ -354,7 +378,8 @@ class AppComponents {
   }
 
   // ===== BACKGROUND COMPONENTS =====
-  /// Background with image and blur overlay
+  /// Background with image and optional blur overlay.
+  /// When [blurSigma] is 0, no blur is applied (sharp background image).
   static Widget backgroundWithImage({
     required String imagePath,
     required Widget child,
@@ -370,46 +395,55 @@ class AppComponents {
       final double height = constraints.hasBoundedHeight
           ? constraints.maxHeight
           : MediaQuery.of(context).size.height;
+
+      Widget layeredContent({required bool useBlur}) {
+        final overlay = Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 1.2,
+              colors: gradientColors ?? AppColors.radialGradientColors,
+              stops: gradientStops ?? AppColors.radialGradientStops,
+            ),
+          ),
+          child: Builder(
+            builder: (context) {
+              final dir =
+                  Directionality.maybeOf(context) ?? TextDirection.ltr;
+              return Directionality(
+                textDirection: dir,
+                child: FocusTraversalGroup(
+                  policy: WidgetOrderTraversalPolicy(),
+                  child: child,
+                ),
+              );
+            },
+          ),
+        );
+
+        if (!useBlur) {
+          return Positioned.fill(child: overlay);
+        }
+        return Positioned.fill(
+          child: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+              child: overlay,
+            ),
+          ),
+        );
+      }
+
       return RepaintBoundary(
         child: SizedBox(
           width: width,
           height: height,
           child: Stack(
             children: [
-              // Background image
               Positioned.fill(
                 child: Image.asset(imagePath, fit: BoxFit.cover),
               ),
-              // Overlay with blur and gradient (must be clipped for BackdropFilter)
-              Positioned.fill(
-                child: ClipRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: Alignment.center,
-                          radius: 1.2,
-                          colors: gradientColors ?? AppColors.radialGradientColors,
-                          stops: gradientStops ?? AppColors.radialGradientStops,
-                        ),
-                      ),
-                      child: Builder(
-                        builder: (context) {
-                          final dir = Directionality.maybeOf(context) ?? TextDirection.ltr;
-                          return Directionality(
-                            textDirection: dir,
-                            child: FocusTraversalGroup(
-                              policy: WidgetOrderTraversalPolicy(),
-                              child: child,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              layeredContent(useBlur: blurSigma > 0),
             ],
           ),
         ),
