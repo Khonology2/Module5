@@ -55,6 +55,7 @@ import 'package:pdh/team_management_screen.dart'; // Import the new TeamManageme
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
@@ -785,6 +786,26 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                const SizedBox(height: spacing),
+                ValueListenableBuilder<bool>(
+                  valueListenable: employeeDashboardLightModeNotifier,
+                  builder: (context, light, _) {
+                    return _MiniFab(
+                      size: miniFabSize,
+                      onTap: () {
+                        employeeDashboardLightModeNotifier.value = !light;
+                      },
+                      child: Icon(
+                        light
+                            ? Icons.dark_mode_outlined
+                            : Icons.light_mode_outlined,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      backgroundColor: AppColors.activeColor,
+                    );
+                  },
+                ),
                 const SizedBox(height: spacing),
                 _MiniFab(
                   size: miniFabSize,

@@ -5,6 +5,7 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_breakpoints.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -65,9 +66,17 @@ class AppScaffold extends StatelessWidget {
         appBar: showAppBar
             ? AppBar(
                 leading: Builder(
-                  builder: (context) => IconButton(
-                    icon: const Icon(Icons.menu, color: AppColors.textPrimary),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
+                  builder: (context) => ValueListenableBuilder<bool>(
+                    valueListenable: employeeDashboardLightModeNotifier,
+                    builder: (context, light, _) {
+                      return IconButton(
+                        icon: Icon(
+                          Icons.menu,
+                          color: light ? Colors.black : AppColors.textPrimary,
+                        ),
+                        onPressed: () => Scaffold.of(context).openDrawer(),
+                      );
+                    },
                   ),
                 ),
                 title: Text(title, style: AppTypography.heading3),
@@ -75,24 +84,29 @@ class AppScaffold extends StatelessWidget {
                 elevation: 0,
               )
             : null,
-        drawer: Drawer(
-          elevation: 12,
-          backgroundColor: AppColors.backgroundColor,
-          child: SafeArea(
-            child: ResponsiveSidebar(
-              items: items,
-              currentRouteName: currentRouteName,
-              onNavigate: (r) {
-                Navigator.pop(context);
-                onNavigate(r);
-              },
-              onLogout: onLogout,
-              tutorialStepIndex: tutorialStepIndex,
-              sidebarTutorialKeys: sidebarTutorialKeys,
-              onTutorialNext: onTutorialNext,
-              onTutorialSkip: onTutorialSkip,
-            ),
-          ),
+        drawer: ValueListenableBuilder<bool>(
+          valueListenable: employeeDashboardLightModeNotifier,
+          builder: (context, light, _) {
+            return Drawer(
+              elevation: 12,
+              backgroundColor: light ? Colors.white : AppColors.backgroundColor,
+              child: SafeArea(
+                child: ResponsiveSidebar(
+                  items: items,
+                  currentRouteName: currentRouteName,
+                  onNavigate: (r) {
+                    Navigator.pop(context);
+                    onNavigate(r);
+                  },
+                  onLogout: onLogout,
+                  tutorialStepIndex: tutorialStepIndex,
+                  sidebarTutorialKeys: sidebarTutorialKeys,
+                  onTutorialNext: onTutorialNext,
+                  onTutorialSkip: onTutorialSkip,
+                ),
+              ),
+            );
+          },
         ),
         body: SafeArea(
           child: Stack(
@@ -121,10 +135,18 @@ class AppScaffold extends StatelessWidget {
       extendBodyBehindAppBar: false,
       appBar: showAppBar
           ? AppBar(
-              leading: IconButton(
-                icon: const Icon(Icons.menu, color: AppColors.textPrimary),
-                onPressed: () => SidebarState.instance.isCollapsed.value =
-                    !SidebarState.instance.isCollapsed.value,
+              leading: ValueListenableBuilder<bool>(
+                valueListenable: employeeDashboardLightModeNotifier,
+                builder: (context, light, _) {
+                  return IconButton(
+                    icon: Icon(
+                      Icons.menu,
+                      color: light ? Colors.black : AppColors.textPrimary,
+                    ),
+                    onPressed: () => SidebarState.instance.isCollapsed.value =
+                        !SidebarState.instance.isCollapsed.value,
+                  );
+                },
               ),
               title: Text(title, style: AppTypography.heading3),
               backgroundColor: Colors.transparent,

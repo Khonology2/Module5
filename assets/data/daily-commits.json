@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.ED10.SIT",
-  "generated_at": "2026-03-26T12:11:56Z",
+  "version": "2026.03.EE3.SIT",
+  "generated_at": "2026-03-27T10:09:14Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -9,55 +9,15 @@
     },
     {
       "author": "Nathi2266",
-      "message": "dropdown icon added for the chatbot and chat button",
-      "timestamp": "2026-03-17T15:44:38+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "refactor: replace Admin screens with shared components for improved consistency and maintainability",
-      "timestamp": "2026-03-17T09:44:24+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: implement Manager Goal Workspace menu with updated routing and sidebar configuration",
-      "timestamp": "2026-03-17T07:29:16+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Sync with Nathi-S13 working implementation - Repository & Audit fixed",
-      "timestamp": "2026-03-25T09:23:55+02:00"
+      "message": "feat: update asset paths and implement light/dark mode support across multiple screens",
+      "timestamp": "2026-03-26T09:59:41+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - Implement admin oversight alert filtering logic to display only relevant team and supervision signals, enhancing the alert management experience for admin users.",
-      "timestamp": "2026-03-26T14:11:14+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - Implement logic to filter alerts for manager workspace, hiding specific team-context alerts and overdue goal alerts based on user context.",
-      "timestamp": "2026-03-26T13:12:02+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - Refactor season filtering logic to differentiate between employee and manager contexts, ensuring admin-created seasons are excluded for employees and included for managers.",
-      "timestamp": "2026-03-26T11:08:32+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - add the same delete control for manager Team Challenges, scoped safely so managers can delete only seasons they own.",
-      "timestamp": "2026-03-26T10:59:43+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Add delete season functionality for admin oversight with confirmation dialog and notification handling.",
-      "timestamp": "2026-03-26T10:51:57+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - update pubspec.lock with new package versions and enhance manager inbox display for admin oversight.",
-      "timestamp": "2026-03-26T10:41:37+02:00"
+      "message": "fix: update package versions and SHA256 checksums in pubspec.lock",
+      "timestamp": "2026-03-27T12:08:31+02:00"
     }
   ],
-  "total_commits": 10,
-  "date_range": "2026-03-26"
+  "total_commits": 3,
+  "date_range": "2026-03-27"
 }
