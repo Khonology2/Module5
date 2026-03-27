@@ -80,6 +80,27 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   bool _isLoadingRisks = false;
   bool _isRiskAlertsExpanded = false;
   List<Alert>? _cachedAlerts;
+
+  bool _isManagerSideAlertForGw(Alert alert) {
+    // In Manager Workspace (employee-style), hide supervisor/team-context alerts.
+    if (alert.audience == AlertAudience.team) return true;
+    switch (alert.type) {
+      case AlertType.inactivity:
+      case AlertType.milestoneRisk:
+      case AlertType.seasonJoined:
+      case AlertType.seasonProgressUpdate:
+      case AlertType.seasonCompleted:
+      case AlertType.goalMilestoneCompleted:
+      case AlertType.milestoneDeletionRequest:
+      case AlertType.managerGeneral:
+      case AlertType.oneOnOneAccepted:
+      case AlertType.oneOnOneRescheduled:
+      case AlertType.oneOnOneCancelled:
+        return true;
+      default:
+        return false;
+    }
+  }
   List<OneOnOneMeeting>? _cachedMeetings;
   final Map<String, String> _userNameCache = {};
   static const Duration _defaultMeetingDuration = Duration(hours: 1);
@@ -420,9 +441,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       }
 
                       // Filter: hide overdue goal alerts in this view
-                      final filtered = alerts
-                          .where((a) => a.type != AlertType.goalOverdue)
-                          .toList();
+                      final filtered = alerts.where((a) {
+                        if (a.type == AlertType.goalOverdue) return false;
+                        if (widget.forManagerGwMenu &&
+                            _isManagerSideAlertForGw(a)) {
+                          return false;
+                        }
+                        return true;
+                      }).toList();
 
                       return Column(
                         children: [

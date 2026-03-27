@@ -83,9 +83,7 @@ class _EmployeeSeasonChallengesScreenState
       // Sync season challenge points into the employee profile.
       await SeasonService.syncCurrentEmployeeSeasonPoints();
 
-      if (widget.forManagerGwMenu) {
-        await _loadAdminUserIds();
-      }
+      await _loadAdminUserIds();
     }
   }
 
@@ -110,10 +108,17 @@ class _EmployeeSeasonChallengesScreenState
   }
 
   List<Season> _filterSeasonsForContext(List<Season> seasons) {
-    if (!widget.forManagerGwMenu) return seasons;
-    if (!_adminUsersLoaded) return const <Season>[];
-    // Manager workspace season challenges should show admin-authored seasons only.
-    return seasons.where((season) => _adminUserIds.contains(season.createdBy)).toList();
+    if (!_adminUsersLoaded) return seasons;
+    if (widget.forManagerGwMenu) {
+      // Manager workspace season challenges should show admin-authored seasons only.
+      return seasons
+          .where((season) => _adminUserIds.contains(season.createdBy))
+          .toList();
+    }
+    // Employee context should never show admin-authored seasons.
+    return seasons
+        .where((season) => !_adminUserIds.contains(season.createdBy))
+        .toList();
   }
 
   @override
@@ -204,6 +209,7 @@ class _EmployeeSeasonChallengesScreenState
     return StreamBuilder<List<Season>>(
       stream: SeasonService.getActiveSeasonsStream(
         department: _currentUserDepartment,
+        includeAdminCreated: widget.forManagerGwMenu,
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -242,6 +248,7 @@ class _EmployeeSeasonChallengesScreenState
     return StreamBuilder<List<Season>>(
       stream: SeasonService.getActiveSeasonsStream(
         department: _currentUserDepartment,
+        includeAdminCreated: widget.forManagerGwMenu,
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {

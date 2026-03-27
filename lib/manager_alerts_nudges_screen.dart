@@ -192,6 +192,24 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return true;
   }
 
+  bool _isAdminOversightTeamAlert(Alert alert) {
+    // In admin oversight, only show team/supervision signals.
+    if (alert.audience == AlertAudience.team) return true;
+    switch (alert.type) {
+      case AlertType.inactivity:
+      case AlertType.goalOverdue:
+      case AlertType.milestoneRisk:
+      case AlertType.seasonJoined:
+      case AlertType.seasonProgressUpdate:
+      case AlertType.seasonCompleted:
+      case AlertType.goalMilestoneCompleted:
+      case AlertType.milestoneDeletionRequest:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   Future<void> _rescheduleGoal(
     BuildContext context,
     String goalId,
@@ -715,9 +733,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         }
 
         final allAlerts = snapshot.data ?? [];
-        final managerScopedAlerts = allAlerts
-            .where((a) => _shouldShowInManagerWorkspace(a, manager.uid))
-            .toList();
+        final managerScopedAlerts = widget.forAdminOversight
+            ? <Alert>[]
+            : allAlerts
+                .where((a) => _shouldShowInManagerWorkspace(a, manager.uid))
+                .toList();
         developer.log('Loaded ${allAlerts.length} alerts', name: 'TeamAlerts');
 
         try {
@@ -739,6 +759,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             final alerts = e.recentAlerts;
             if (alerts.isEmpty) continue;
             for (final a in alerts) {
+              if (widget.forAdminOversight &&
+                  !_isAdminOversightTeamAlert(a)) {
+                continue;
+              }
               if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
               if (a.id.isNotEmpty) seenAlertIds.add(a.id);
               combinedAlerts.add(a);
@@ -1500,6 +1524,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         }
         for (final e in employees) {
           for (final a in e.recentAlerts) {
+            if (widget.forAdminOversight && !_isAdminOversightTeamAlert(a)) {
+              continue;
+            }
             if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
             if (a.id.isNotEmpty) seenAlertIds.add(a.id);
             allAlerts.add(a);
@@ -1789,7 +1816,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 alert,
               ) {
                 final employee = employeesById[alert.userId];
-                if (employee == null) return const SizedBox.shrink();
+                if (employee == null) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildManagerScopedAlertCard(alert),
+                  );
+                }
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _buildSupervisionAlertCard(alert, employee),
@@ -1918,6 +1950,110 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 ),
               ),
               Flexible(child: _buildQuickActionButtons(alert, employee)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManagerScopedAlertCard(Alert alert) {
+    final alertColor = _getAlertColor(alert.priority);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: alertColor.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: alertColor.withValues(alpha: 0.2),
+                child: Icon(Icons.notifications_active, color: alertColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Manager Workspace',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      _getAlertTypeDescription(alert.type),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: alertColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: alertColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  alert.priority.name.toUpperCase(),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: alertColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            alert.title,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            alert.message,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _formatAlertTime(alert.createdAt),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (alert.actionRoute != null && alert.actionRoute!.trim().isNotEmpty)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      alert.actionRoute!,
+                      arguments: alert.actionData,
+                    );
+                  },
+                  icon: const Icon(Icons.visibility),
+                  label: Text(alert.actionText ?? 'View Details'),
+                ),
             ],
           ),
         ],

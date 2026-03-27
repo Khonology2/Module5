@@ -144,6 +144,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     // Defensive scope: manager inbox should only show alerts addressed to manager.
     if (alert.userId != managerId) return false;
 
+    // Admin inbox should reflect all personal alerts addressed to the admin
+    // account so the inbox list matches the notifications-bell unread count.
+    if (widget.forAdminOversight) {
+      return true;
+    }
+
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
     if (alert.actionRoute == _managerWorkspaceAlertsRoute) return false;
 
@@ -954,7 +960,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Manager IBox',
+                                widget.forAdminOversight
+                                    ? 'Admin Inbox'
+                                    : 'Manager IBox',
                                 style: AppTypography.heading3.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -962,7 +970,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Review alerts, nudges, and approvals in one place.',
+                                widget.forAdminOversight
+                                    ? 'Review admin alerts and oversight notifications in one place.'
+                                    : 'Review alerts, nudges, and approvals in one place.',
                                 style: AppTypography.bodySmall.copyWith(
                                   color: AppColors.textSecondary,
                                 ),
