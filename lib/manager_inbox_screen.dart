@@ -70,6 +70,7 @@ class _NudgeFeedback {
 
 class ManagerInboxScreen extends StatefulWidget {
   final bool embedded;
+
   /// When true, admin is viewing; do not show employee names or employee list.
   final bool forAdminOversight;
 
@@ -157,7 +158,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     if (_isEmployeePersonaAlertType(alert.type)) return false;
 
     // Keep only manager-scoped overdue alerts.
-    if (alert.type == AlertType.goalOverdue && !_isManagerScopedGoalOverdue(alert)) {
+    if (alert.type == AlertType.goalOverdue &&
+        !_isManagerScopedGoalOverdue(alert)) {
       return false;
     }
 
@@ -1100,8 +1102,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 };
                 items = List<Alert>.from(items)
                   ..sort((a, b) {
-                    final p = priorityOrder[a.priority]!
-                        .compareTo(priorityOrder[b.priority]!);
+                    final p = priorityOrder[a.priority]!.compareTo(
+                      priorityOrder[b.priority]!,
+                    );
                     if (p != 0) return p;
                     return b.createdAt.compareTo(a.createdAt);
                   });
@@ -1133,8 +1136,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                         .trim();
                     final feedback = rawFeedback.where((f) {
                       final meta = f.metadata;
-                      final mid =
-                          (meta['managerId'] ?? meta['senderId'])?.toString();
+                      final mid = (meta['managerId'] ?? meta['senderId'])
+                          ?.toString();
                       final mname =
                           (meta['managerNameLower'] ??
                                   meta['managerName'] ??
@@ -1386,7 +1389,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   Widget _buildInboxCard(Alert alert) {
-    if (alert.type == AlertType.goalApprovalRequested && _hasValidGoalId(alert)) {
+    if (alert.type == AlertType.goalApprovalRequested &&
+        _hasValidGoalId(alert)) {
       return _buildApprovalInboxCard(alert);
     }
 
@@ -1616,8 +1620,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         final statusColor = _approvalStatusColor(status);
         final statusLabel = _approvalStatusLabel(status);
         final statusIcon = _approvalStatusIcon(status);
-        final notePreview =
-            status == GoalApprovalStatus.rejected
+        final notePreview = status == GoalApprovalStatus.rejected
             ? _extractRejectedNotePreview(goal: goal, goalMap: goalMap)
             : null;
 
@@ -1644,7 +1647,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      goal?.title.isNotEmpty == true ? goal!.title : alert.title,
+                      goal?.title.isNotEmpty == true
+                          ? goal!.title
+                          : alert.title,
                       style: AppTypography.bodyMedium.copyWith(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w600,
