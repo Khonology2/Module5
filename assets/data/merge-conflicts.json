@@ -1,10 +1,10 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-03-25T07:49:55.671226Z",
+  "generated_at": "2026-03-27T09:52:51.951997Z",
   "source_branch": "pdh-deployed-backup-v3",
   "target_branch": "pdh-deployed-backup",
   "status": "conflicts_detected",
-  "total_conflicts": 3,
+  "total_conflicts": 2,
   "highlight_exact_broken_lines": true,
   "conflicts": [
     {
@@ -13,8 +13,8 @@
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
       "your_code": [
-        "  \"version\": \"2026.03.EC6.SIT\",",
-        "  \"generated_at\": \"2026-03-25T07:26:31Z\","
+        "  \"version\": \"2026.03.ED4.SIT\",",
+        "  \"generated_at\": \"2026-03-26T08:02:45Z\","
       ],
       "target_code": [
         "  \"version\": \"2026.02.ED6.SIT\",",
@@ -23,8 +23,8 @@
       "context_lines": [
         "{",
         "<<<<<<< HEAD",
-        "  \"version\": \"2026.03.EC6.SIT\",",
-        "  \"generated_at\": \"2026-03-25T07:26:31Z\",",
+        "  \"version\": \"2026.03.ED4.SIT\",",
+        "  \"generated_at\": \"2026-03-26T08:02:45Z\",",
         "=======",
         "  \"version\": \"2026.02.ED6.SIT\",",
         "  \"generated_at\": \"2026-02-26T23:39:56Z\",",
@@ -72,12 +72,16 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 22,
+      "line": 27,
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
       "your_code": [
-        "      \"message\": \"refactor: replace Admin screens with shared components for improved consistency and maintainability\",",
-        "      \"timestamp\": \"2026-03-17T09:44:24+02:00\""
+        "      \"message\": \"feat: update asset paths and implement light/dark mode support across multiple screens\",",
+        "      \"timestamp\": \"2026-03-26T09:59:41+02:00\"",
+        "    }",
+        "  ],",
+        "  \"total_commits\": 4,",
+        "  \"date_range\": \"2026-03-26\""
       ],
       "target_code": [
         "      \"message\": \"updated the manager dashboard\",",
@@ -86,14 +90,27 @@
         "    {",
         "      \"author\": \"Nathi2266\",",
         "      \"message\": \"updates from S11\",",
-        "      \"timestamp\": \"2026-02-26T17:41:27+02:00\""
+        "      \"timestamp\": \"2026-02-26T17:41:27+02:00\"",
+        "    },",
+        "    {",
+        "      \"author\": \"Thembelihle\",",
+        "      \"message\": \"Feature - Refactor Manager Inbox Screen to streamline audience filter UI by removing redundant choice chips and maintaining unread filter functionality.\",",
+        "      \"timestamp\": \"2026-02-26T10:58:03+02:00\"",
+        "    }",
+        "  ],",
+        "  \"total_commits\": 6,",
+        "  \"date_range\": \"2026-02-26\""
       ],
       "context_lines": [
         "    {",
         "      \"author\": \"Nathi2266\",",
         "<<<<<<< HEAD",
-        "      \"message\": \"refactor: replace Admin screens with shared components for improved consistency and maintainability\",",
-        "      \"timestamp\": \"2026-03-17T09:44:24+02:00\"",
+        "      \"message\": \"feat: update asset paths and implement light/dark mode support across multiple screens\",",
+        "      \"timestamp\": \"2026-03-26T09:59:41+02:00\"",
+        "    }",
+        "  ],",
+        "  \"total_commits\": 4,",
+        "  \"date_range\": \"2026-03-26\"",
         "=======",
         "      \"message\": \"updated the manager dashboard\",",
         "      \"timestamp\": \"2026-02-27T01:37:26+02:00\"",
@@ -102,65 +119,14 @@
         "      \"author\": \"Nathi2266\",",
         "      \"message\": \"updates from S11\",",
         "      \"timestamp\": \"2026-02-26T17:41:27+02:00\"",
-        ">>>>>>> origin/pdh-deployed-backup",
         "    },",
         "    {",
-        "      \"author\": \"Nathi2266\","
-      ],
-      "resolution_prompt": {
-        "message": "Code logic conflict - manual review required",
-        "risk_level": "medium",
-        "suggested_action": "manual_merge",
-        "explanation": "Both branches have different code logic - carefully review and merge manually"
-      },
-      "risk_level": "medium",
-      "suggested_action": "manual_merge"
-    },
-    {
-      "file": "assets/data/daily-commits.json",
-      "line": 24,
-      "marker": "=======",
-      "message": "Conflict separator",
-      "your_code": [],
-      "target_code": [],
-      "context_lines": [],
-      "resolution_prompt": {
-        "message": "Conflict separator - your code above, target code below"
-      },
-      "risk_level": "info",
-      "suggested_action": "choose_version"
-    },
-    {
-      "file": "assets/data/daily-commits.json",
-      "line": 32,
-      "marker": ">>>>>>>",
-      "message": "Current branch marker",
-      "your_code": [],
-      "target_code": [],
-      "context_lines": [],
-      "resolution_prompt": {
-        "message": "Conflict end marker - remove after resolving"
-      },
-      "risk_level": "info",
-      "suggested_action": "remove_marker"
-    },
-    {
-      "file": "assets/data/daily-commits.json",
-      "line": 47,
-      "marker": "<<<<<<<",
-      "message": "Incoming change marker",
-      "your_code": [
-        "  \"date_range\": \"2026-03-25\""
-      ],
-      "target_code": [
-        "  \"date_range\": \"2026-02-26\""
-      ],
-      "context_lines": [
+        "      \"author\": \"Thembelihle\",",
+        "      \"message\": \"Feature - Refactor Manager Inbox Screen to streamline audience filter UI by removing redundant choice chips and maintaining unread filter functionality.\",",
+        "      \"timestamp\": \"2026-02-26T10:58:03+02:00\"",
+        "    }",
         "  ],",
         "  \"total_commits\": 6,",
-        "<<<<<<< HEAD",
-        "  \"date_range\": \"2026-03-25\"",
-        "=======",
         "  \"date_range\": \"2026-02-26\"",
         ">>>>>>> origin/pdh-deployed-backup",
         "}"
@@ -176,7 +142,7 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 48,
+      "line": 33,
       "marker": "=======",
       "message": "Conflict separator",
       "your_code": [],
@@ -205,7 +171,7 @@
   ],
   "codebase_issues": [],
   "summary": {
-    "message": "Found 3 merge conflict(s) and 0 codebase issue(s) when merging pdh-deployed-backup-v3 into pdh-deployed-backup",
+    "message": "Found 2 merge conflict(s) and 0 codebase issue(s) when merging pdh-deployed-backup-v3 into pdh-deployed-backup",
     "action_required": "Please resolve conflicts and fix codebase issues listed below",
     "resolution_steps": [
       "1. Check out your branch: git checkout pdh-deployed-backup-v3",
@@ -216,6 +182,6 @@
       "6. Commit the merge: git commit",
       "7. Push your changes: git push origin pdh-deployed-backup-v3"
     ],
-    "ai_system_prompt": "I have merge conflicts when merging branch 'pdh-deployed-backup-v3' into 'pdh-deployed-backup'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.\n\nCONFLICTS TO RESOLVE:\n\nFILE: assets/data/daily-commits.json\n============================================================\n\nConflict 1 (Line 2):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"version\": \"2026.03.EC6.SIT\",\n  \"generated_at\": \"2026-03-25T07:26:31Z\",\n=======\n  \"version\": \"2026.02.ED6.SIT\",\n  \"generated_at\": \"2026-02-26T23:39:56Z\",\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n  {\n    \"version\": \"2026.03.EC6.SIT\",\n    \"generated_at\": \"2026-03-25T07:26:31Z\",\n    \"version\": \"2026.02.ED6.SIT\",\n    \"generated_at\": \"2026-02-26T23:39:56Z\",\n    \"commits\": [\n      {\n        \"author\": \"GitHub Action\",\n\n\nConflict 2 (Line 22):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n      \"message\": \"refactor: replace Admin screens with shared components for improved consistency and maintainability\",\n      \"timestamp\": \"2026-03-17T09:44:24+02:00\"\n=======\n      \"message\": \"updated the manager dashboard\",\n      \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"updates from S11\",\n      \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"refactor: replace Admin screens with shared components for improved consistency and maintainability\",\n        \"timestamp\": \"2026-03-17T09:44:24+02:00\"\n        \"message\": \"updated the manager dashboard\",\n        \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updates from S11\",\n        \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n\n\nConflict 3 (Line 47):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"date_range\": \"2026-03-25\"\n=======\n  \"date_range\": \"2026-02-26\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n    ],\n    \"total_commits\": 6,\n    \"date_range\": \"2026-03-25\"\n    \"date_range\": \"2026-02-26\"\n  }\n\nRESOLUTION REQUIREMENTS:\n1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n2. Consider the risk level and suggested action for each conflict\n3. Ensure the merged code maintains functionality from both branches\n4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n5. Provide the complete resolved code for each file\n\nOUTPUT FORMAT:\nFor each file, provide:\n1. Brief explanation of the resolution approach\n2. The complete resolved code block to replace the conflict\n3. Any notes about potential issues or testing needed\n\nPlease provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
+    "ai_system_prompt": "I have merge conflicts when merging branch 'pdh-deployed-backup-v3' into 'pdh-deployed-backup'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.\n\nCONFLICTS TO RESOLVE:\n\nFILE: assets/data/daily-commits.json\n============================================================\n\nConflict 1 (Line 2):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"version\": \"2026.03.ED4.SIT\",\n  \"generated_at\": \"2026-03-26T08:02:45Z\",\n=======\n  \"version\": \"2026.02.ED6.SIT\",\n  \"generated_at\": \"2026-02-26T23:39:56Z\",\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n  {\n    \"version\": \"2026.03.ED4.SIT\",\n    \"generated_at\": \"2026-03-26T08:02:45Z\",\n    \"version\": \"2026.02.ED6.SIT\",\n    \"generated_at\": \"2026-02-26T23:39:56Z\",\n    \"commits\": [\n      {\n        \"author\": \"GitHub Action\",\n\n\nConflict 2 (Line 27):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n      \"message\": \"feat: update asset paths and implement light/dark mode support across multiple screens\",\n      \"timestamp\": \"2026-03-26T09:59:41+02:00\"\n    }\n  ],\n  \"total_commits\": 4,\n  \"date_range\": \"2026-03-26\"\n=======\n      \"message\": \"updated the manager dashboard\",\n      \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"updates from S11\",\n      \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n    },\n    {\n      \"author\": \"Thembelihle\",\n      \"message\": \"Feature - Refactor Manager Inbox Screen to streamline audience filter UI by removing redundant choice chips and maintaining unread filter functionality.\",\n      \"timestamp\": \"2026-02-26T10:58:03+02:00\"\n    }\n  ],\n  \"total_commits\": 6,\n  \"date_range\": \"2026-02-26\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"feat: update asset paths and implement light/dark mode support across multiple screens\",\n        \"timestamp\": \"2026-03-26T09:59:41+02:00\"\n      }\n    ],\n    \"total_commits\": 4,\n    \"date_range\": \"2026-03-26\"\n        \"message\": \"updated the manager dashboard\",\n        \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updates from S11\",\n        \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n      },\n      {\n        \"author\": \"Thembelihle\",\n        \"message\": \"Feature - Refactor Manager Inbox Screen to streamline audience filter UI by removing redundant choice chips and maintaining unread filter functionality.\",\n        \"timestamp\": \"2026-02-26T10:58:03+02:00\"\n      }\n    ],\n    \"total_commits\": 6,\n    \"date_range\": \"2026-02-26\"\n  }\n\nRESOLUTION REQUIREMENTS:\n1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n2. Consider the risk level and suggested action for each conflict\n3. Ensure the merged code maintains functionality from both branches\n4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n5. Provide the complete resolved code for each file\n\nOUTPUT FORMAT:\nFor each file, provide:\n1. Brief explanation of the resolution approach\n2. The complete resolved code block to replace the conflict\n3. Any notes about potential issues or testing needed\n\nPlease provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
   }
 }
