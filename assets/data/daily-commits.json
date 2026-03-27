@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.ED4.SIT",
-  "generated_at": "2026-03-26T08:02:45Z",
+  "version": "2026.03.EE3.SIT",
+  "generated_at": "2026-03-27T10:09:14Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -8,21 +8,16 @@
       "timestamp": "2026-02-24T06:19:19Z"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature - Refactor season filtering logic to differentiate between employee and manager contexts, ensuring admin-created seasons are excluded for employees and included for managers.",
-      "timestamp": "2026-03-26T11:08:32+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Add delete season functionality for admin oversight with confirmation dialog and notification handling.",
-      "timestamp": "2026-03-26T10:51:57+02:00"
-    },
-    {
       "author": "Nathi2266",
       "message": "feat: update asset paths and implement light/dark mode support across multiple screens",
       "timestamp": "2026-03-26T09:59:41+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "fix: update package versions and SHA256 checksums in pubspec.lock",
+      "timestamp": "2026-03-27T12:08:31+02:00"
     }
   ],
-  "total_commits": 4,
-  "date_range": "2026-03-26"
+  "total_commits": 3,
+  "date_range": "2026-03-27"
 }
