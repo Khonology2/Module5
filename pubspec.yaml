@@ -82,7 +82,7 @@ flutter:
     - assets/Khonodemy Icons/
     - assets/Like_Thumbs_Up/
     - assets/Office_Workplace/
-    - "assets/Project Management/"
+    - "assets/Project_Management/"
     - assets/Process_Flows_Automation/
     - assets/Project_Direction_Acceleration/
     - assets/Send_Paper_Plane/
@@ -100,14 +100,18 @@ flutter:
     - assets/Information_Detail/Information_Red_Badge_White.png
     - assets/Time_Allocation_Approval/Allocation_Red Badge_White.png
     - assets/Team_Meeting/Meeting_Red Badge_White.png
-    - assets/Project Management/Project_Red Badge_White.png
+    - assets/Project_Management/Project_Red Badge_White.png
     - assets/red_bell.png
     - assets/Approved_Tick/Approved_White_Badge_Red.png
     - assets/Deadline Notification_Reminder/deadline.png
     - assets/plus.png
     - assets/Email_Notification/Notification_Red_White.png
     - assets/khono_red_discs.png
-
+    - assets/Badge.png
+    - assets/white_bell.png
+    - assets/Star.png
+    - assets/Innovation_Brainstorm.png
+    - assets/light_mode_bg.png
 
 
 

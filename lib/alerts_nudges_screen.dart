@@ -27,6 +27,31 @@ import 'package:pdh/services/one_on_one_meeting_service.dart';
 import 'package:pdh/badges_v2/badge_category_detail_screen.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
+
+/// Shared light/dark chrome for this screen (usable from nested State classes).
+class _AlertsChrome {
+  _AlertsChrome._();
+
+  /// Dark card surface aligned with dashboard tiles (`#3D3F40`).
+  static const Color _darkCard = Color(0xFF3D3F40);
+
+  static bool get light => employeeDashboardLightModeNotifier.value;
+  static Color get fg =>
+      light ? const Color(0xFF000000) : Colors.white;
+  static Color get muted =>
+      light ? const Color(0xFF666666) : Colors.white70;
+  static Color get cardFill =>
+      light ? const Color(0xFFFFFFFF) : _darkCard;
+  static Color get cardFillSoft =>
+      light ? const Color(0xFFF5F5F5) : _darkCard;
+  static Color get borderH =>
+      light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
+  static Color get borderH15 =>
+      light ? const Color(0x25000000) : Colors.white.withValues(alpha: 0.15);
+  static Color get inputFill =>
+      light ? const Color(0xFFF5F5F5) : _darkCard;
+}
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -272,12 +297,40 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
         }
       },
-      content: AppComponents.backgroundWithImage(
-        imagePath: 'assets/khono_bg.png',
-        child: SingleChildScrollView(
-          padding: AppSpacing.screenPadding,
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: StreamBuilder<String?>(
+      content: ValueListenableBuilder<bool>(
+        valueListenable: employeeDashboardLightModeNotifier,
+        builder: (context, light, _) {
+          return AppComponents.backgroundWithImage(
+            blurSigma: 0,
+            imagePath: light
+                ? 'assets/light_mode_bg.png'
+                : 'assets/khono_bg.png',
+            gradientColors: light
+                ? [
+                    Colors.white.withValues(alpha: 0.2),
+                    Colors.white.withValues(alpha: 0.08),
+                  ]
+                : null,
+            child: EmployeeDashboardThemeScope(
+              light: light,
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  outlinedButtonTheme: OutlinedButtonThemeData(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          light ? const Color(0xFF1F2840) : Colors.white70,
+                      side: BorderSide(
+                        color: light
+                            ? const Color(0x66000000)
+                            : Colors.white54,
+                      ),
+                    ),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  padding: AppSpacing.screenPadding,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: StreamBuilder<String?>(
             stream: RoleService.instance.roleStream(),
             initialData: RoleService.instance.cachedRole ?? 'employee',
             builder: (context, roleSnapshot) {
@@ -290,7 +343,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   child: Text(
                     'Please sign in to view alerts',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
+                      color: _AlertsChrome.muted,
                     ),
                   ),
                 );
@@ -335,14 +388,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                               Text(
                                 'Error loading alerts',
                                 style: AppTypography.heading4.copyWith(
-                                  color: AppColors.textPrimary,
+                                  color: _AlertsChrome.fg,
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 'Please try again later',
                                 style: AppTypography.bodyMedium.copyWith(
-                                  color: AppColors.textSecondary,
+                                  color: _AlertsChrome.muted,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
@@ -385,7 +438,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                               Text(
                                 'Recent Alerts',
                                 style: AppTypography.heading3.copyWith(
-                                  color: AppColors.textPrimary,
+                                  color: _AlertsChrome.fg,
                                 ),
                               ),
                               ElevatedButton.icon(
@@ -420,7 +473,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               );
             },
           ),
-        ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -457,6 +514,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         }
 
         return AppComponents.card(
+          backgroundColor: _AlertsChrome.cardFill,
+          borderColor: _AlertsChrome.borderH,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -469,7 +528,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     Text(
                       '1:1 Meetings',
                       style: AppTypography.heading4.copyWith(
-                        color: AppColors.textPrimary,
+                        color: _AlertsChrome.fg,
                       ),
                     ),
                   ],
@@ -591,9 +650,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.25),
+        color: _AlertsChrome.cardFillSoft,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        border: Border.all(color: _AlertsChrome.borderH15),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -610,7 +669,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     return Text(
                       'From: $label',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
+                        color: _AlertsChrome.fg,
                         fontWeight: FontWeight.w600,
                       ),
                     );
@@ -644,7 +703,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             Text(
               m.agenda!.trim(),
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: _AlertsChrome.muted,
               ),
             ),
           ],
@@ -655,7 +714,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ? 'Confirmed: $timeText'
                   : 'Proposed: $timeText',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: _AlertsChrome.muted,
               ),
             ),
           ],
@@ -710,8 +769,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           child: OutlinedButton(
             onPressed: () => _suggestNewTime(m),
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+              foregroundColor: _AlertsChrome.fg,
+              side: BorderSide(color: _AlertsChrome.borderH),
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
             child: Text(
@@ -973,9 +1032,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
+          color: _AlertsChrome.cardFill,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          border: Border.all(color: _AlertsChrome.borderH),
         ),
         child: Row(
           children: [
@@ -993,7 +1052,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             Text(
               'Analyzing goals for potential risks...',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
+                color: _AlertsChrome.muted,
               ),
             ),
           ],
@@ -1008,7 +1067,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _AlertsChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppColors.warningColor.withValues(alpha: 0.3),
@@ -1028,7 +1087,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               Text(
                 'Predictive Risk Alerts',
                 style: AppTypography.heading4.copyWith(
-                  color: AppColors.textPrimary,
+                  color: _AlertsChrome.fg,
                 ),
               ),
               const Spacer(),
@@ -1051,7 +1110,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   _isRiskAlertsExpanded
                       ? Icons.keyboard_arrow_up
                       : Icons.keyboard_arrow_down,
-                  color: AppColors.textSecondary,
+                  color: _AlertsChrome.muted,
                 ),
                 tooltip: _isRiskAlertsExpanded ? 'Collapse' : 'Expand',
               ),
@@ -1112,7 +1171,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                               child: Text(
                                 risk['goalTitle']?.toString() ?? 'Unknown Goal',
                                 style: AppTypography.bodyMedium.copyWith(
-                                  color: AppColors.textPrimary,
+                                  color: _AlertsChrome.fg,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -1124,7 +1183,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           risk['riskDescription']?.toString() ??
                               'No description available',
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
+                            color: _AlertsChrome.muted,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1166,7 +1225,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               child: Text(
                 '+${_predictiveRisks!.length - 1} more risk${_predictiveRisks!.length - 1 == 1 ? '' : 's'} identified',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _AlertsChrome.muted,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -1217,29 +1276,29 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _AlertsChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _AlertsChrome.borderH),
       ),
       child: Column(
         children: [
           Icon(
             Icons.notifications_none,
             size: 48,
-            color: AppColors.textSecondary,
+            color: _AlertsChrome.muted,
           ),
           const SizedBox(height: 16),
           Text(
             'No Alerts Yet',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _AlertsChrome.fg,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'You\'ll see notifications about your goals, achievements, and team updates here.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _AlertsChrome.muted,
             ),
             textAlign: TextAlign.center,
           ),
@@ -1252,7 +1311,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             label: const Text('Create Your First Goal'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),
               ),
@@ -1292,7 +1351,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             child: Text(
               cleanTitle,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: _AlertsChrome.fg,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1304,7 +1363,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Text(
       cleanTitle,
       style: AppTypography.bodyMedium.copyWith(
-        color: AppColors.textPrimary,
+        color: _AlertsChrome.fg,
         fontWeight: FontWeight.w600,
       ),
     );
@@ -1319,11 +1378,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _AlertsChrome.cardFill,
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(
           color: alert.isRead
-              ? Colors.white.withValues(alpha: 0.2)
+              ? _AlertsChrome.borderH
               : alertColor.withValues(alpha: 0.3),
           width: alert.isRead ? 1 : 2,
         ),
@@ -1369,7 +1428,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     Text(
                       _removeEmojis(alert.message),
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: _AlertsChrome.muted,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1378,7 +1437,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         Text(
                           _getTimeAgo(alert.createdAt),
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
+                            color: _AlertsChrome.muted,
                             fontSize: 11,
                           ),
                         ),
@@ -1386,7 +1445,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           Text(
                             ' • from ${alert.fromUserName}',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
+                              color: _AlertsChrome.muted,
                               fontSize: 11,
                             ),
                           ),
@@ -1437,7 +1496,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: alertColor,
-                      foregroundColor: AppColors.textPrimary,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -1453,8 +1512,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       await AlertService.dismissAlert(alert.id);
                     },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      side: BorderSide(color: AppColors.borderColor),
+                      foregroundColor: _AlertsChrome.muted,
+                      side: BorderSide(color: _AlertsChrome.borderH),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -1938,14 +1997,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           Text(
                             'Nudge from $senderName',
                             style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textPrimary,
+                              color: _AlertsChrome.fg,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           Text(
                             _getTimeAgo(alert.createdAt),
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
+                              color: _AlertsChrome.muted,
                               fontSize: 11,
                             ),
                           ),
@@ -1973,7 +2032,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         child: Text(
                           _removeEmojis(alert.message),
                           style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.textPrimary,
+                            color: _AlertsChrome.fg,
                           ),
                         ),
                       ),
@@ -1981,7 +2040,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       Text(
                         'Quick reaction',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
+                          color: _AlertsChrome.muted,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -2000,8 +2059,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             ),
                             labelStyle: AppTypography.bodySmall.copyWith(
                               color: isSelected
-                                  ? AppColors.textPrimary
-                                  : AppColors.textSecondary,
+                                  ? _AlertsChrome.fg
+                                  : _AlertsChrome.muted,
                             ),
                           );
                         }).toList(),
@@ -2010,7 +2069,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       Text(
                         'Respond to your manager',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
+                          color: _AlertsChrome.muted,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -2020,10 +2079,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         decoration: InputDecoration(
                           hintText: 'Share an update or ask for support...',
                           hintStyle: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
+                            color: _AlertsChrome.muted,
                           ),
                           filled: true,
-                          fillColor: Colors.black.withValues(alpha: 0.4),
+                          fillColor: _AlertsChrome.inputFill,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                             borderSide: BorderSide(
@@ -2045,7 +2104,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           contentPadding: const EdgeInsets.all(12),
                         ),
                         style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textPrimary,
+                          color: _AlertsChrome.fg,
                         ),
                         enabled: !sendingResponse,
                       ),
@@ -2078,7 +2137,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.textPrimary,
+                                _AlertsChrome.fg,
                               ),
                             ),
                           )
@@ -2088,7 +2147,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.activeColor,
-                      foregroundColor: AppColors.textPrimary,
+                      foregroundColor: Colors.white,
                     ),
                   ),
                 ],
@@ -2221,9 +2280,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _AlertsChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _AlertsChrome.borderH),
       ),
       child: Column(
         children: [
@@ -2232,14 +2291,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           Text(
             'Alerts Setup Required',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _AlertsChrome.fg,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'The alerts system needs to be configured by your administrator. In the meantime, you can still use all other features of the app.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _AlertsChrome.muted,
             ),
             textAlign: TextAlign.center,
           ),
@@ -2456,7 +2515,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                                   Text(
                                     'Ask me anything about your alerts!',
                                     style: AppTypography.bodyMedium.copyWith(
-                                      color: AppColors.textPrimary,
+                                      color: _AlertsChrome.fg,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
@@ -2464,7 +2523,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                                   Text(
                                     'I can help you understand, prioritize, and act on your alerts and goals.',
                                     style: AppTypography.bodySmall.copyWith(
-                                      color: AppColors.textSecondary,
+                                      color: _AlertsChrome.muted,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
@@ -2488,7 +2547,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                                           autofocus: true,
                                           style: AppTypography.bodyMedium
                                               .copyWith(
-                                                color: AppColors.textPrimary,
+                                                color: _AlertsChrome.fg,
                                               ),
                                           decoration: InputDecoration(
                                             filled: true,
@@ -2556,7 +2615,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                                         },
                                         icon: Icon(
                                           Icons.close,
-                                          color: AppColors.textSecondary,
+                                          color: _AlertsChrome.muted,
                                           size: 20,
                                         ),
                                       ),
@@ -2802,7 +2861,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             Text(
                               'AI is thinking...',
                               style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
+                                color: _AlertsChrome.muted,
                               ),
                             ),
                           ],
@@ -2818,10 +2877,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             decoration: InputDecoration(
                               hintText: 'Ask about your alerts...',
                               hintStyle: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textSecondary,
+                                color: _AlertsChrome.muted,
                               ),
                               filled: true,
-                              fillColor: Colors.black.withValues(alpha: 0.4),
+                              fillColor: _AlertsChrome.inputFill,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide(
@@ -2846,7 +2905,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                               ),
                             ),
                             style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textPrimary,
+                              color: _AlertsChrome.fg,
                             ),
                             onSubmitted: (value) {
                               sendMessage(value);
@@ -2922,6 +2981,40 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
 
   @override
   Widget build(BuildContext context) {
+    final light = _AlertsChrome.light;
+    // Light mode: solid white tiles + neutral border, accent border on hover (dashboard KPI style).
+    final Color fillColor = light
+        ? Colors.white
+        : (_isHovered
+            ? widget.color.withValues(alpha: 0.2)
+            : widget.color.withValues(alpha: 0.1));
+    final Color strokeColor = light
+        ? (_isHovered
+            ? widget.color.withValues(alpha: 0.45)
+            : const Color(0x33000000))
+        : (_isHovered
+            ? widget.color.withValues(alpha: 0.5)
+            : widget.color.withValues(alpha: 0.3));
+    final List<BoxShadow>? shadows = light
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: _isHovered ? 0.12 : 0.06),
+              blurRadius: _isHovered ? 10 : 4,
+              spreadRadius: _isHovered ? 1 : 0,
+              offset: const Offset(0, 2),
+            ),
+          ]
+        : (_isHovered
+            ? [
+                BoxShadow(
+                  color: widget.color.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -2931,26 +3024,13 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
         curve: Curves.easeInOut,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: _isHovered
-              ? widget.color.withValues(alpha: 0.2)
-              : widget.color.withValues(alpha: 0.1),
+          color: fillColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _isHovered
-                ? widget.color.withValues(alpha: 0.5)
-                : widget.color.withValues(alpha: 0.3),
+            color: strokeColor,
             width: _isHovered ? 2 : 1,
           ),
-          boxShadow: _isHovered
-              ? [
-                  BoxShadow(
-                    color: widget.color.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    spreadRadius: 2,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
+          boxShadow: shadows,
         ),
         child: Transform.translate(
           offset: _isHovered ? const Offset(0, -2) : Offset.zero,
@@ -2974,7 +3054,7 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
               Text(
                 widget.label,
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _AlertsChrome.muted,
                 ),
               ),
             ],
@@ -2989,29 +3069,29 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _AlertsChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _AlertsChrome.borderH),
       ),
       child: Column(
         children: [
           Icon(
             Icons.notifications_none,
             size: 48,
-            color: AppColors.textSecondary,
+            color: _AlertsChrome.muted,
           ),
           const SizedBox(height: 16),
           Text(
             'No Alerts Yet',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _AlertsChrome.fg,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'You\'ll see notifications about your goals, achievements, and team updates here.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _AlertsChrome.muted,
             ),
             textAlign: TextAlign.center,
           ),
@@ -3024,7 +3104,7 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
             label: const Text('Create Your First Goal'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),
               ),
@@ -3043,11 +3123,11 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _AlertsChrome.cardFill,
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(
           color: alert.isRead
-              ? Colors.white.withValues(alpha: 0.2)
+              ? _AlertsChrome.borderH
               : alertColor.withValues(alpha: 0.3),
           width: alert.isRead ? 1 : 2,
         ),
@@ -3076,7 +3156,7 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
                           child: Text(
                             alert.title,
                             style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textPrimary,
+                              color: _AlertsChrome.fg,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -3096,7 +3176,7 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
                     Text(
                       alert.message,
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: _AlertsChrome.muted,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -3105,7 +3185,7 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
                         Text(
                           _getTimeAgo(alert.createdAt),
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
+                            color: _AlertsChrome.muted,
                             fontSize: 11,
                           ),
                         ),
@@ -3113,7 +3193,7 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
                           Text(
                             ' • from ${alert.fromUserName}',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
+                              color: _AlertsChrome.muted,
                               fontSize: 11,
                             ),
                           ),
@@ -3251,7 +3331,7 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: alertColor,
-                      foregroundColor: AppColors.textPrimary,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -3267,8 +3347,8 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
                       await AlertService.dismissAlert(alert.id);
                     },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      side: BorderSide(color: AppColors.borderColor),
+                      foregroundColor: _AlertsChrome.muted,
+                      side: BorderSide(color: _AlertsChrome.borderH),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),

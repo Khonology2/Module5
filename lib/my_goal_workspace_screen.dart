@@ -21,6 +21,61 @@ import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/ai_generation_indicator.dart';
 
+/// Theme-local colors for [MyGoalWorkspaceScreen] (light vs dark surfaces and text).
+class _GoalWorkspacePalette {
+  const _GoalWorkspacePalette({
+    required this.widgetBg,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.borderColor,
+    required this.chipBg,
+    required this.chipDisabledBg,
+    required this.dropdownMenuBg,
+    required this.smartBadgeBg,
+    required this.iconMuted,
+  });
+
+  final Color widgetBg;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color borderColor;
+  final Color chipBg;
+  final Color chipDisabledBg;
+  final Color dropdownMenuBg;
+  final Color smartBadgeBg;
+  final Color iconMuted;
+
+  static const Color _darkWidget = Color(0xFF3D3F40);
+
+  static _GoalWorkspacePalette of(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (isDark) {
+      return _GoalWorkspacePalette(
+        widgetBg: _darkWidget,
+        textPrimary: AppColors.textPrimary,
+        textSecondary: AppColors.textSecondary,
+        borderColor: Colors.white.withValues(alpha: 0.2),
+        chipBg: _darkWidget,
+        chipDisabledBg: _darkWidget,
+        dropdownMenuBg: _darkWidget,
+        smartBadgeBg: _darkWidget,
+        iconMuted: AppColors.textSecondary,
+      );
+    }
+    return _GoalWorkspacePalette(
+      widgetBg: Colors.white.withValues(alpha: 0.92),
+      textPrimary: Colors.black,
+      textSecondary: Colors.black,
+      borderColor: Colors.black.withValues(alpha: 0.15),
+      chipBg: Colors.grey.shade300,
+      chipDisabledBg: Colors.grey.shade400,
+      dropdownMenuBg: Colors.white,
+      smartBadgeBg: Colors.white.withValues(alpha: 0.95),
+      iconMuted: Colors.black54,
+    );
+  }
+}
+
 class MyGoalWorkspaceScreen extends StatefulWidget {
   final bool embedded;
 
@@ -71,6 +126,32 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   bool _isOtherCategorySelected = false;
   bool _isSavingGoal = false;
 
+  Future<GenerateContentResponse> _generateContentWithRetry(
+    GenerativeModel model,
+    List<Content> prompt, {
+    void Function(String phase)? onPhase,
+  }) async {
+    const maxAttempts = 3;
+    Object? lastError;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (attempt > 1 && onPhase != null) {
+          onPhase('Retrying AI generation (attempt $attempt/$maxAttempts)...');
+        }
+        return await model.generateContent(prompt);
+      } catch (e) {
+        lastError = e;
+        if (attempt < maxAttempts) {
+          await Future.delayed(Duration(milliseconds: 500 * attempt));
+          continue;
+        }
+      }
+    }
+
+    throw Exception('AI generation failed after $maxAttempts attempts: $lastError');
+  }
+
   // Lists for dropdowns
   final List<String> _goalCategories = [
     'Career',
@@ -92,6 +173,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         precacheImage(const AssetImage('assets/khono_bg.png'), context);
+        precacheImage(
+          const AssetImage('assets/light_mode_bg.png'),
+          context,
+        );
         precacheImage(
           const AssetImage(
             'Calendar_Date_Picker/Date_Picker_White_Badge_Red.png',
@@ -148,18 +233,32 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       firstDate: firstDate,
       lastDate: DateTime(2101),
       builder: (BuildContext context, Widget? child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        const darkSurface = Color(0xFF3D3F40);
         return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: AppColors.activeColor,
-              onPrimary: AppColors.textPrimary,
-              surface: AppColors.elevatedBackground,
-              onSurface: AppColors.textPrimary,
-            ),
-            dialogTheme: DialogThemeData(
-              backgroundColor: AppColors.backgroundColor,
-            ),
-          ),
+          data: isDark
+              ? ThemeData.dark().copyWith(
+                  colorScheme: ColorScheme.dark(
+                    primary: AppColors.activeColor,
+                    onPrimary: Colors.white,
+                    surface: darkSurface,
+                    onSurface: AppColors.textPrimary,
+                  ),
+                  dialogTheme: const DialogThemeData(
+                    backgroundColor: darkSurface,
+                  ),
+                )
+              : ThemeData.light().copyWith(
+                  colorScheme: ColorScheme.light(
+                    primary: AppColors.activeColor,
+                    onPrimary: Colors.white,
+                    surface: Colors.white,
+                    onSurface: Colors.black,
+                  ),
+                  dialogTheme: const DialogThemeData(
+                    backgroundColor: Colors.white,
+                  ),
+                ),
           child: child!,
         );
       },
@@ -235,6 +334,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         final routeName = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
             ? widget.managerGwMenuRoute!
             : '/my_goal_workspace';
+        final gw = _GoalWorkspacePalette.of(context);
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return AppScaffold(
           title: 'Goal Workspace',
           showAppBar: false,
@@ -259,7 +360,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             }
           },
           content: AppComponents.backgroundWithImage(
-            imagePath: 'assets/khono_bg.png',
+            imagePath: isDark
+                ? 'assets/khono_bg.png'
+                : 'assets/light_mode_bg.png',
+            blurSigma: 0,
+            gradientColors: isDark
+                ? null
+                : [Colors.transparent, Colors.transparent],
             child: SingleChildScrollView(
               padding: AppSpacing.screenPadding,
               child: Column(
@@ -268,19 +375,22 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   Text(
                     'Create Personal Development Goal',
                     style: AppTypography.heading2.copyWith(
-                      color: AppColors.textPrimary,
+                      color: gw.textPrimary,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionCard(
+                    gw,
                     children: [
                       _buildTextFieldWithGenerate(
+                        gw,
                         controller: _goalTitleController,
                         hintText: 'Enter your development goal title (required)',
                         onGenerate: () =>
                             _showGenerateDescriptionDialog(context),
                       ),
                       _buildTextField(
+                        gw,
                         controller: _goalDescriptionController,
                         hintText: 'Describe your goal in detail (optional)...',
                         maxLines: 5,
@@ -291,7 +401,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildSectionHeader('Goal Details'),
+                      _buildSectionHeader('Goal Details', gw),
                       ElevatedButton.icon(
                         onPressed:
                             _goalDescriptionController.text.trim().isEmpty
@@ -311,11 +421,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     ],
                   ),
                   _buildSectionCard(
+                    gw,
                     children: [
                       Row(
                         children: [
                           Expanded(
                             child: _buildDateInput(
+                              gw,
                               context,
                               'Start Date',
                               _startDate,
@@ -325,6 +437,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                           const SizedBox(width: AppSpacing.md),
                           Expanded(
                             child: _buildDateInput(
+                              gw,
                               context,
                               'Target Date (required)',
                               _targetDate,
@@ -334,8 +447,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                         ],
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      _buildCategoryDropdown(),
+                      _buildCategoryDropdown(gw),
                       _buildDropdownField(
+                        gw,
                         hintText: 'Select priority',
                         value: _currentStatus,
                         items: ['High', 'Medium', 'Low'],
@@ -346,6 +460,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                         },
                       ),
                       _buildDropdownField(
+                        gw,
                         hintText: 'Select Key Performance Area',
                         value: Goal.kpaLabel(_kpa),
                         items: _kpaOptions,
@@ -358,12 +473,14 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  _buildSmartCriteriaSection(),
+                  _buildSmartCriteriaSection(gw),
                   const SizedBox(height: AppSpacing.xl),
-                  _buildSectionHeader('Dependencies & Prerequisites'),
+                  _buildSectionHeader('Dependencies & Prerequisites', gw),
                   _buildSectionCard(
+                    gw,
                     children: [
                       _buildTextField(
+                        gw,
                         controller: _dependenciesController,
                         hintText:
                             'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
@@ -372,10 +489,12 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  _buildSectionHeader('Success Metrics'),
+                  _buildSectionHeader('Success Metrics', gw),
                   _buildSectionCard(
+                    gw,
                     children: [
                       _buildTextField(
+                        gw,
                         controller: _successMetricsController,
                         hintText: 'Define specific metrics or milestones...',
                         maxLines: 4,
@@ -389,11 +508,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                       'You can create a goal with just a title and target date. '
                       'Suggest and Generate are optional.',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: gw.textSecondary,
                       ),
                     ),
                   ),
-                  _buildSectionCard(children: [_buildActionButtons()]),
+                  _buildSectionCard(gw, children: [_buildActionButtons(gw)]),
                 ],
               ),
             ),
@@ -403,23 +522,26 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(String title, _GoalWorkspacePalette gw) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Text(
         title,
-        style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+        style: AppTypography.heading4.copyWith(color: gw.textPrimary),
       ),
     );
   }
 
-  Widget _buildSectionCard({required List<Widget> children}) {
+  Widget _buildSectionCard(
+    _GoalWorkspacePalette gw, {
+    required List<Widget> children,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: gw.widgetBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: gw.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -428,7 +550,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
-  Widget _buildTextField({
+  Widget _buildTextField(
+    _GoalWorkspacePalette gw, {
     required TextEditingController controller,
     required String hintText,
     int maxLines = 1,
@@ -436,10 +559,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: gw.widgetBg,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
+          color: gw.borderColor,
           width: 1,
         ),
       ),
@@ -449,12 +572,12 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           controller: controller,
           maxLines: maxLines,
           style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
+            color: gw.textPrimary,
           ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: gw.textSecondary,
             ),
             border: InputBorder.none,
             contentPadding: const EdgeInsets.all(16),
@@ -464,7 +587,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
-  Widget _buildTextFieldWithGenerate({
+  Widget _buildTextFieldWithGenerate(
+    _GoalWorkspacePalette gw, {
     required TextEditingController controller,
     required String hintText,
     required VoidCallback onGenerate,
@@ -472,10 +596,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: gw.widgetBg,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
+          color: gw.borderColor,
           width: 1,
         ),
       ),
@@ -484,12 +608,12 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         child: TextField(
           controller: controller,
           style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
+            color: gw.textPrimary,
           ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: gw.textSecondary,
             ),
             border: InputBorder.none,
             contentPadding: const EdgeInsets.all(16),
@@ -519,6 +643,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final gw = _GoalWorkspacePalette.of(context);
             Future<void> generateDescription() async {
               final goalTitle = titleController.text.trim();
               if (goalTitle.isEmpty) {
@@ -773,11 +898,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             }
 
             return AlertDialog(
-              backgroundColor: AppColors.elevatedBackground,
+              backgroundColor: gw.widgetBg,
               title: Text(
                 'Generate Goal Description',
                 style: AppTypography.heading4.copyWith(
-                  color: AppColors.textPrimary,
+                  color: gw.textPrimary,
                 ),
               ),
               content: SingleChildScrollView(
@@ -787,29 +912,29 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     TextField(
                       controller: titleController,
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
+                        color: gw.textPrimary,
                       ),
                       decoration: InputDecoration(
                         labelText: 'Goal Title',
                         labelStyle: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textSecondary,
+                          color: gw.textSecondary,
                         ),
                         hintText: 'Enter the goal title',
                         hintStyle: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textSecondary,
+                          color: gw.textSecondary,
                         ),
                         filled: true,
-                        fillColor: Colors.black.withValues(alpha: 0.4),
+                        fillColor: gw.widgetBg,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.2),
+                            color: gw.borderColor,
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.2),
+                            color: gw.borderColor,
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
@@ -838,7 +963,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                       : () => Navigator.of(dialogContext).pop(),
                   child: Text(
                     'Cancel',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: gw.textSecondary),
                   ),
                 ),
                 ElevatedButton(
@@ -862,6 +987,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }
 
   Widget _buildDateInput(
+    _GoalWorkspacePalette gw,
     BuildContext context,
     String hintText,
     DateTime? date, {
@@ -870,10 +996,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: gw.widgetBg,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
+          color: gw.borderColor,
           width: 1,
         ),
       ),
@@ -891,8 +1017,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     : hintText,
                 style: AppTypography.bodyMedium.copyWith(
                   color: date != null
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary,
+                      ? gw.textPrimary
+                      : gw.textSecondary,
                 ),
               ),
               SizedBox(
@@ -910,7 +1036,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
-  Widget _buildCategoryDropdown() {
+  Widget _buildCategoryDropdown(_GoalWorkspacePalette gw) {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Column(
@@ -920,29 +1046,29 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             TextField(
               controller: _customCategoryController,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: gw.textPrimary,
               ),
               decoration: InputDecoration(
                 labelText: 'Category (Other)',
                 labelStyle: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
+                  color: gw.textSecondary,
                 ),
                 hintText: 'Enter custom category',
                 hintStyle: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
+                  color: gw.textSecondary,
                 ),
                 filled: true,
-                fillColor: Colors.black.withValues(alpha: 0.4),
+                fillColor: gw.widgetBg,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: gw.borderColor,
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: gw.borderColor,
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
@@ -951,7 +1077,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 ),
                 contentPadding: const EdgeInsets.all(16),
                 suffixIcon: IconButton(
-                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                  icon: Icon(Icons.close, color: gw.iconMuted),
                   onPressed: () {
                     setState(() {
                       _isOtherCategorySelected = false;
@@ -971,6 +1097,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             ),
           ] else
             _buildDropdownField(
+              gw,
               hintText: 'Select category',
               value: _goalCategory,
               items: _goalCategories,
@@ -995,7 +1122,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
-  Widget _buildDropdownField({
+  Widget _buildDropdownField(
+    _GoalWorkspacePalette gw, {
     required String hintText,
     required String? value,
     required List<String>? items,
@@ -1005,10 +1133,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: gw.widgetBg,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
+          color: gw.borderColor,
           width: 1,
         ),
       ),
@@ -1016,18 +1144,18 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         color: Colors.transparent,
         child: DropdownButtonFormField<String>(
           initialValue: value,
-          dropdownColor: Colors.black.withValues(alpha: 0.8),
+          dropdownColor: gw.dropdownMenuBg,
           style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
+            color: gw.textPrimary,
           ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: gw.textSecondary,
             ),
             border: InputBorder.none,
           ),
-          icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
+          icon: Icon(Icons.keyboard_arrow_down, color: gw.iconMuted),
           onChanged: onChanged,
           items: (items ?? const <String>[]).map<DropdownMenuItem<String>>((
             String value,
@@ -1037,7 +1165,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               child: Text(
                 value,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
+                  color: gw.textPrimary,
                 ),
               ),
             );
@@ -1055,8 +1183,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       context: context,
       barrierDismissible: true,
       builder: (dialogContext) {
+        final gw = _GoalWorkspacePalette.of(dialogContext);
         return AlertDialog(
-          backgroundColor: AppColors.elevatedBackground,
+          backgroundColor: gw.widgetBg,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -1070,7 +1199,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 child: Text(
                   message,
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary,
+                    color: gw.textPrimary,
                   ),
                 ),
               ),
@@ -1096,8 +1225,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       context: context,
       barrierDismissible: true,
       builder: (dialogContext) {
+        final gw = _GoalWorkspacePalette.of(dialogContext);
         return AlertDialog(
-          backgroundColor: AppColors.elevatedBackground,
+          backgroundColor: gw.widgetBg,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -1111,7 +1241,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 child: Text(
                   message,
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary,
+                    color: gw.textPrimary,
                   ),
                 ),
               ),
@@ -1152,11 +1282,24 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-        ),
-      ),
+      builder: (ctx) {
+        final gw = _GoalWorkspacePalette.of(ctx);
+        return Center(
+          child: Material(
+            color: gw.widgetBg,
+            borderRadius: BorderRadius.circular(12),
+            elevation: 4,
+            child: const Padding(
+              padding: EdgeInsets.all(28),
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.activeColor,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
 
     try {
@@ -1302,48 +1445,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     }
   }
 
-  Future<dynamic> _generateContentWithRetry(
-    dynamic model,
-    List<Content> prompt, {
-    void Function(String)? onPhase,
-    int maxAttempts = 2,
-  }) async {
-    var attempt = 0;
-    while (true) {
-      attempt++;
-      try {
-        final response = await model.generateContent(prompt);
-        return response;
-      } catch (e) {
-        final msg = e.toString();
-        final lower = msg.toLowerCase();
-        final isRateLimited = lower.contains('quota') ||
-            lower.contains('rate') ||
-            lower.contains('retry');
-        if (!isRateLimited || attempt >= maxAttempts) {
-          rethrow;
-        }
-        final m = RegExp(r'Please retry in ([0-9.]+)s', caseSensitive: false)
-            .firstMatch(msg);
-        final seconds = m != null ? double.tryParse(m.group(1)!) : null;
-        final waitMs = ((seconds ?? 5) * 1000).round();
-        if (onPhase != null) {
-          onPhase(
-            'Rate limited – retrying in ${(seconds ?? 5).toStringAsFixed(1)}s...',
-          );
-        }
-        await Future.delayed(Duration(milliseconds: waitMs));
-      }
-    }
-  }
-
-  Widget _buildSmartCriteriaSection() {
+  Widget _buildSmartCriteriaSection(_GoalWorkspacePalette gw) {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: gw.widgetBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: gw.borderColor),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1364,7 +1472,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 Text(
                   'SMART Criteria Verification',
                   style: AppTypography.heading4.copyWith(
-                    color: AppColors.textPrimary,
+                    color: gw.textPrimary,
                   ),
                 ),
                 const Spacer(),
@@ -1374,9 +1482,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.elevatedBackground,
+                    color: gw.smartBadgeBg,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.borderColor),
+                    border: Border.all(color: gw.borderColor),
                   ),
                   child: Text(
                     _smartScoresGenerated
@@ -1384,8 +1492,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                         : 'SMART: Not evaluated',
                     style: AppTypography.bodySmall.copyWith(
                       color: _smartScoresGenerated
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
+                          ? gw.textPrimary
+                          : gw.textSecondary,
                     ),
                   ),
                 ),
@@ -1393,6 +1501,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
             _buildScoreSelector(
+              gw,
               title: 'Specific - Goal is clear and well-defined',
               value: _smartScoresGenerated ? _clarity : 0, // 0 means unselected
               onChanged: null, // Disabled - AI will set scores
@@ -1401,6 +1510,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
+              gw,
               title: 'Measurable - Progress can be tracked',
               value: _smartScoresGenerated
                   ? _measurability
@@ -1412,6 +1522,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
+              gw,
               title: 'Achievable - Goal is realistic and attainable',
               value: _smartScoresGenerated
                   ? _achievability
@@ -1422,6 +1533,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
+              gw,
               title: 'Relevant - Goal aligns with your values/role/OKR',
               value: _smartScoresGenerated
                   ? _relevance
@@ -1432,6 +1544,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
+              gw,
               title: 'Time-bound - Goal has a clear deadline',
               value: _smartScoresGenerated
                   ? _timeline
@@ -1468,7 +1581,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return defaultValue;
   }
 
-  Widget _buildScoreSelector({
+  Widget _buildScoreSelector(
+    _GoalWorkspacePalette gw, {
     required String title,
     required int value,
     required ValueChanged<int>? onChanged,
@@ -1484,7 +1598,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           Text(
             title,
             style: AppTypography.bodyLarge.copyWith(
-              color: AppColors.textPrimary,
+              color: gw.textPrimary,
             ),
           ),
           if (helper != null) ...[
@@ -1492,7 +1606,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             Text(
               helper,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: gw.textSecondary,
               ),
             ),
           ],
@@ -1512,24 +1626,26 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   '$score',
                   style: AppTypography.bodyMedium.copyWith(
                     color: enabled
-                        ? (selected ? Colors.white : AppColors.textSecondary)
+                        ? (selected
+                              ? Colors.white
+                              : gw.textSecondary)
                         : (selected
                               ? Colors.white
-                              : AppColors.textSecondary.withValues(alpha: 0.5)),
+                              : gw.textSecondary.withValues(alpha: 0.5)),
                   ),
                 ),
                 selected: selected,
                 onSelected: enabled ? (_) => onChanged?.call(score) : null,
                 selectedColor: selectedColor,
-                backgroundColor: Colors.black.withValues(alpha: 0.3),
-                disabledColor: Colors.black.withValues(alpha: 0.2),
+                backgroundColor: gw.chipBg,
+                disabledColor: gw.chipDisabledBg,
                 shape: StadiumBorder(
                   side: BorderSide(
                     color: selected
                         ? selectedColor
                         : (enabled
-                              ? AppColors.borderColor
-                              : AppColors.borderColor.withValues(alpha: 0.3)),
+                              ? gw.borderColor
+                              : gw.borderColor.withValues(alpha: 0.5)),
                     width: selected ? 2 : 1,
                   ),
                 ),
@@ -1662,33 +1778,36 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppColors.elevatedBackground,
-          content: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.activeColor,
+        builder: (ctx) {
+          final gw = _GoalWorkspacePalette.of(ctx);
+          return AlertDialog(
+            backgroundColor: gw.widgetBg,
+            content: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Creating your goal... Please wait',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Creating your goal... Please wait',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: gw.textPrimary,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
+              ],
+            ),
+          );
+        },
       );
 
       await DatabaseService.createGoal(goal);
@@ -1766,7 +1885,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     }
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(_GoalWorkspacePalette gw) {
     return Row(
       children: [
         Expanded(
@@ -1775,8 +1894,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               Navigator.pop(context);
             },
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textPrimary,
-              side: BorderSide(color: AppColors.borderColor),
+              foregroundColor: gw.textPrimary,
+              side: BorderSide(color: gw.borderColor),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),

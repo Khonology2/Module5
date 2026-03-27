@@ -6,8 +6,9 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
 import 'package:web/web.dart' as web;
-import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
@@ -105,6 +106,22 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
     ),
   );
 }
+
+// PDP chrome matches [EmployeeDashboardScreen] light/dark (shared notifier).
+/// Dark card surface aligned with dashboard tiles (`#3D3F40`).
+const Color _kPdpDarkCard = Color(0xFF3D3F40);
+
+Color _pdpFg(bool light) =>
+    light ? const Color(0xFF000000) : Colors.white;
+Color _pdpMuted(bool light) =>
+    light ? const Color(0xFF555555) : Colors.white70;
+Color _pdpCardBg(bool light) =>
+    light ? const Color(0xFFFFFFFF) : _kPdpDarkCard;
+Color _pdpCardBorder(bool light) => light
+    ? const Color(0x33000000)
+    : Colors.white.withValues(alpha: 0.2);
+Color _pdpEvidenceInnerBg(bool light) =>
+    light ? const Color(0xFFF2F2F2) : const Color(0xFF2A3441);
 
 class _MyPdpScreenState extends State<MyPdpScreen>
     with SingleTickerProviderStateMixin {
@@ -965,95 +982,128 @@ class _MyPdpScreenState extends State<MyPdpScreen>
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false, // Prevents popping if we handle it explicitly
-      onPopInvokedWithResult: (bool didPop, dynamic result) {
-        if (!didPop) {
-          Navigator.of(context).pushReplacementNamed('/employee_dashboard');
-        }
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return PopScope(
+          canPop: false, // Prevents popping if we handle it explicitly
+          onPopInvokedWithResult: (bool didPop, dynamic result) {
+            if (!didPop) {
+              Navigator.of(context).pushReplacementNamed('/employee_dashboard');
+            }
+          },
+          // Background image is provided by [MainLayout] / manager portal so it
+          // fills the viewport behind this scrollable, not inside it.
+          child: EmployeeDashboardThemeScope(
+            light: light,
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                outlinedButtonTheme: OutlinedButtonThemeData(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor:
+                        light ? const Color(0xFF1F2840) : Colors.white,
+                    side: BorderSide(
+                      color: light
+                          ? const Color(0x66000000)
+                          : Colors.white54,
+                    ),
+                  ),
+                ),
+              ),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.zero,
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'My Personal Development Plan',
+                        style: AppTypography.heading2.copyWith(
+                          color: _pdpFg(light),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildExcellenceArea(
+                        light: light,
+                        title: 'Operational Excellence',
+                        expanded: _isOperationalExpanded,
+                        onToggle: (v) =>
+                            setState(() => _isOperationalExpanded = v),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildExcellenceArea(
+                        light: light,
+                        title: 'Customer Excellence',
+                        expanded: _isCustomerExpanded,
+                        onToggle: (v) =>
+                            setState(() => _isCustomerExpanded = v),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildExcellenceArea(
+                        light: light,
+                        title: 'Financial Excellence',
+                        expanded: _isFinancialExpanded,
+                        onToggle: (v) =>
+                            setState(() => _isFinancialExpanded = v),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildExcellenceArea(
+                        light: light,
+                        title: 'Organisational Excellence',
+                        expanded: _isOrganisationalExpanded,
+                        onToggle: (v) =>
+                            setState(() => _isOrganisationalExpanded = v),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildExcellenceArea(
+                        light: light,
+                        title: 'People Excellence',
+                        expanded: _isPeopleExpanded,
+                        onToggle: (v) =>
+                            setState(() => _isPeopleExpanded = v),
+                      ),
+                      const SizedBox(height: 80),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        );
       },
-      child: AppComponents.backgroundWithImage(
-        imagePath: 'assets/khono_bg.png',
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'My Personal Development Plan',
-                style: AppTypography.heading2.copyWith(color: Colors.white),
-              ),
-              const SizedBox(height: 20),
-              _buildExcellenceArea(
-                title: 'Operational Excellence',
-                expanded: _isOperationalExpanded,
-                onToggle: (v) => setState(() => _isOperationalExpanded = v),
-              ),
-              const SizedBox(height: 20),
-              _buildExcellenceArea(
-                title: 'Customer Excellence',
-                expanded: _isCustomerExpanded,
-                onToggle: (v) => setState(() => _isCustomerExpanded = v),
-              ),
-              const SizedBox(height: 20),
-              _buildExcellenceArea(
-                title: 'Financial Excellence',
-                expanded: _isFinancialExpanded,
-                onToggle: (v) => setState(() => _isFinancialExpanded = v),
-              ),
-              const SizedBox(height: 20),
-              _buildExcellenceArea(
-                title: 'Organisational Excellence',
-                expanded: _isOrganisationalExpanded,
-                onToggle: (v) =>
-                    setState(() => _isOrganisationalExpanded = v),
-              ),
-              const SizedBox(height: 20),
-              _buildExcellenceArea(
-                title: 'People Excellence',
-                expanded: _isPeopleExpanded,
-                onToggle: (v) => setState(() => _isPeopleExpanded = v),
-              ),
-              const SizedBox(height: 80),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
   Widget _buildExcellenceArea({
+    required bool light,
     required String title,
     required bool expanded,
     required ValueChanged<bool> onToggle,
   }) {
     return Material(
-      // Moved Material widget here
-      color: Colors.transparent, // Ensure it's transparent
+      color: Colors.transparent,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
+          color: _pdpCardBg(light),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          border: Border.all(color: _pdpCardBorder(light)),
         ),
         child: Column(
           children: [
             ListTile(
               title: Text(
                 title,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: _pdpFg(light),
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              subtitle: const Text(
+              subtitle: Text(
                 'Key Performance Area/Key Performance Indicator',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: _pdpMuted(light), fontSize: 12),
               ),
               trailing: Icon(
                 expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                color: Colors.white,
+                color: _pdpFg(light),
               ),
               onTap: () => onToggle(!expanded),
             ),
@@ -1063,7 +1113,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                   horizontal: 16.0,
                   vertical: 8.0,
                 ),
-                child: _buildGoalsForExcellence(title),
+                child: _buildGoalsForExcellence(title, light),
               ),
           ],
         ),
@@ -1071,21 +1121,23 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     );
   }
 
-  Widget _buildGoalsForExcellence(String excellence) {
+  Widget _buildGoalsForExcellence(String excellence, bool light) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnap) {
         if (authSnap.connectionState == ConnectionState.waiting) {
           return const Padding(
             padding: EdgeInsets.all(16.0),
-            child: CircularProgressIndicator(),
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
           );
         }
         final user = authSnap.data;
         if (user == null) {
-          return const Text(
+          return Text(
             'Please sign in',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: _pdpFg(light)),
           );
         }
         return FutureBuilder<String?>(
@@ -1129,7 +1181,14 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     );
                   }
                   return Column(
-                    children: goals.map((goal) => _buildGoalCard(goal)).toList(),
+                    children: goals
+                        .map(
+                          (goal) => _buildGoalCard(
+                            goal,
+                            light: Theme.of(context).brightness != Brightness.dark,
+                          ),
+                        )
+                        .toList(),
                   );
                 },
               );
@@ -1141,7 +1200,10 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                   if (teamSnap.connectionState == ConnectionState.waiting) {
                     return const Padding(
                       padding: EdgeInsets.all(16.0),
-                      child: CircularProgressIndicator(),
+                      child: CircularProgressIndicator(
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                      ),
                     );
                   }
                   if (teamSnap.hasError) {
@@ -1149,7 +1211,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                       padding: const EdgeInsets.all(16.0),
                       child: Text(
                         'Unable to load team goals. Please try again.',
-                        style: const TextStyle(color: Colors.white70),
+                        style: TextStyle(color: _pdpMuted(light)),
                       ),
                     );
                   }
@@ -1168,17 +1230,23 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     }
                   }
                   if (pairs.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.all(8.0),
+                    return Padding(
+                      padding: const EdgeInsets.all(8.0),
                       child: Text(
                         'No goals yet',
-                        style: TextStyle(color: Colors.white70),
+                        style: TextStyle(color: _pdpMuted(light)),
                       ),
                     );
                   }
                   return Column(
                     children: pairs
-                        .map((p) => _buildGoalCard(p.goal, employeeName: p.employeeName))
+                        .map(
+                          (p) => _buildGoalCard(
+                            p.goal,
+                            light: light,
+                            employeeName: p.employeeName,
+                          ),
+                        )
                         .toList(),
                   );
                 },
@@ -1194,7 +1262,10 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
-                    child: CircularProgressIndicator(),
+                    child: CircularProgressIndicator(
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                    ),
                   );
                 }
 
@@ -1216,24 +1287,26 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                         size: 48,
                       ),
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'Temporary loading issue',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: _pdpFg(light),
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Please refresh the page or try again in a moment.',
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                        style: TextStyle(
+                          color: _pdpMuted(light),
+                          fontSize: 14,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          // Trigger a rebuild by calling setState
                           if (mounted) {
                             setState(() {});
                           }
@@ -1261,10 +1334,10 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                       size: 48,
                     ),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       'Error loading goals',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: _pdpFg(light),
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1272,8 +1345,8 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     const SizedBox(height: 8),
                     Text(
                       'Please try refreshing the page.',
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      style: TextStyle(
+                        color: _pdpMuted(light),
                         fontSize: 14,
                       ),
                       textAlign: TextAlign.center,
@@ -1287,17 +1360,19 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 .where((g) => _mapGoalToExcellence(g) == excellence)
                 .toList();
             if (goals.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.all(8.0),
+              return Padding(
+                padding: const EdgeInsets.all(8.0),
                 child: Text(
                   'No goals yet',
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(color: _pdpMuted(light)),
                 ),
               );
             }
 
             return Column(
-              children: goals.map((goal) => _buildGoalCard(goal)).toList(),
+              children: goals
+                  .map((goal) => _buildGoalCard(goal, light: light))
+                  .toList(),
             );
           },
         );
@@ -1307,13 +1382,17 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     );
   }
 
-  Widget _buildGoalCard(Goal goal, {String? employeeName}) {
+  Widget _buildGoalCard(
+    Goal goal, {
+    required bool light,
+    String? employeeName,
+  }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _pdpCardBg(light),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
+          color: _pdpCardBorder(light),
         ),
       ),
       child: Padding(
@@ -1326,8 +1405,8 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 padding: const EdgeInsets.only(bottom: 6.0),
                 child: Text(
                   'Employee: $employeeName',
-                  style: const TextStyle(
-                    color: Colors.white70,
+                  style: TextStyle(
+                    color: _pdpMuted(light),
                     fontSize: 12,
                   ),
                 ),
@@ -1337,8 +1416,8 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 Expanded(
                   child: Text(
                     goal.title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: _pdpFg(light),
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1346,14 +1425,15 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 ),
                 Text(
                   '${goal.progress}%',
-                  style: const TextStyle(color: Colors.white70),
+                  style: TextStyle(color: _pdpMuted(light)),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             LinearProgressIndicator(
               value: (goal.progress.clamp(0, 100)) / 100.0,
-              backgroundColor: Colors.white12,
+              backgroundColor:
+                  light ? const Color(0xFFE0E0E0) : Colors.white12,
               color: const Color(0xFFC10D00),
               minHeight: 6,
             ),
@@ -1365,7 +1445,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                             width: double.infinity,
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF2A3441),
+                              color: _pdpEvidenceInnerBg(light),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: Colors.green.withValues(alpha: 0.3),
@@ -1429,7 +1509,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                                 : Icons.description,
                                             color: hasPreviewUrl
                                                 ? Colors.blue
-                                                : Colors.white70,
+                                                : _pdpMuted(light),
                                             size: 14,
                                           ),
                                           const SizedBox(width: 8),
@@ -1439,7 +1519,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                               style: TextStyle(
                                                 color: hasPreviewUrl
                                                     ? Colors.blue
-                                                    : Colors.white70,
+                                                    : _pdpMuted(light),
                                                 fontSize: 12,
                                                 decoration: hasPreviewUrl
                                                     ? TextDecoration.underline
@@ -1651,8 +1731,8 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                         padding: const EdgeInsets.only(top: 4),
                                         child: Text(
                                           'Acknowledged by ${auditEntry?.acknowledgedBy ?? 'Manager'}',
-                                          style: const TextStyle(
-                                            color: Colors.white70,
+                                          style: TextStyle(
+                                            color: _pdpMuted(light),
                                             fontSize: 11,
                                           ),
                                         ),
@@ -1661,11 +1741,9 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                       const SizedBox(height: 4),
                                     if (!hasAuditEntry && !isApproved)
                                       Text(
-                                        widget.managerOwnGoalsOnly
-                                            ? 'You can request acknowledgement once admin approves this goal.'
-                                            : 'You can request acknowledgement once your manager approves this goal.',
-                                        style: const TextStyle(
-                                          color: Colors.white70,
+                                        'You can request acknowledgement once your manager approves this goal.',
+                                        style: TextStyle(
+                                          color: _pdpMuted(light),
                                           fontSize: 11,
                                         ),
                                       ),
