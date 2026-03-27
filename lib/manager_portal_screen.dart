@@ -28,6 +28,7 @@ import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerPortalScreen extends StatefulWidget {
   const ManagerPortalScreen({super.key});
@@ -202,64 +203,76 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          // Background image
-          Positioned.fill(
-            child: Image.asset('assets/khono_bg.png', fit: BoxFit.cover),
-          ),
-          // Overlay for gradient effect and content
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.2,
-                  colors: [
-                    Color(0x880A0F1F), // More opaque semi-transparent overlay
-                    Color(0x88040610), // More opaque semi-transparent overlay
-                  ],
-                  stops: [0.0, 1.0],
+      body: ValueListenableBuilder<bool>(
+        valueListenable: employeeDashboardLightModeNotifier,
+        builder: (context, light, _) {
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Image.asset(
+                  light ? 'assets/light_mode_bg.png' : 'assets/khono_bg.png',
+                  fit: BoxFit.cover,
                 ),
               ),
-              child: Row(
-                children: [
-                  ResponsiveSidebar(
-                    items: SidebarConfig.managerItems,
-                    onNavigate: _onNavigate,
-                    currentRouteName: _currentRoute,
-                    onLogout: _onLogout,
-                    tutorialStepIndex: _shouldShowTutorial
-                        ? _currentTutorialStep
-                        : null,
-                    sidebarTutorialKeys:
-                        _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-                        ? _sidebarTutorialKeys
-                        : null,
-                    onTutorialNext: _shouldShowTutorial
-                        ? _moveToNextTutorialStep
-                        : null,
-                    onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 1.2,
+                      colors: light
+                          ? [
+                              Colors.white.withValues(alpha: 0.2),
+                              Colors.white.withValues(alpha: 0.08),
+                            ]
+                          : const [
+                              Color(0x880A0F1F),
+                              Color(0x88040610),
+                            ],
+                      stops: light ? null : const [0.0, 1.0],
+                    ),
                   ),
-                  Expanded(child: _getBodyWidget()),
-                ],
+                  child: Row(
+                    children: [
+                      ResponsiveSidebar(
+                        items: SidebarConfig.managerItems,
+                        onNavigate: _onNavigate,
+                        currentRouteName: _currentRoute,
+                        onLogout: _onLogout,
+                        tutorialStepIndex: _shouldShowTutorial
+                            ? _currentTutorialStep
+                            : null,
+                        sidebarTutorialKeys:
+                            _shouldShowTutorial &&
+                                _sidebarTutorialKeys.isNotEmpty
+                            ? _sidebarTutorialKeys
+                            : null,
+                        onTutorialNext: _shouldShowTutorial
+                            ? _moveToNextTutorialStep
+                            : null,
+                        onTutorialSkip:
+                            _shouldShowTutorial ? _skipTutorial : null,
+                      ),
+                      Expanded(child: _getBodyWidget()),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-          // Profile button positioned in top-right corner
-          Positioned(
-            top: 16,
-            right: 16,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const NotificationsBell(),
-                const SizedBox(width: 8),
-                _buildProfileButton(context),
-              ],
-            ),
-          ),
-        ],
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const NotificationsBell(),
+                    const SizedBox(width: 8),
+                    _buildProfileButton(context),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

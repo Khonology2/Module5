@@ -12,6 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/manager_profile_screen.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 /// MainLayout provides a persistent, collapsible sidebar layout for all
 /// application pages. It reuses the dashboard's sidebar and visuals.
@@ -101,13 +102,28 @@ class MainLayout extends StatelessWidget {
         // ignore: use_build_context_synchronously
         Navigator.pushNamedAndRemoveUntil(context, '/sign_in', (r) => false);
       },
-      // Keep background and spacing consistent with dashboard
-      content: AppComponents.backgroundWithImage(
-        imagePath: 'assets/khono_bg.png',
-        child: SingleChildScrollView(
-          padding: AppSpacing.screenPadding,
-          child: body,
-        ),
+      // Full-viewport background (light/dark) behind content — not inside the page
+      // scroll view, so the image stays fixed while [body] scrolls internally.
+      content: ValueListenableBuilder<bool>(
+        valueListenable: employeeDashboardLightModeNotifier,
+        builder: (context, light, _) {
+          return AppComponents.backgroundWithImage(
+            blurSigma: 0,
+            imagePath: light
+                ? 'assets/light_mode_bg.png'
+                : 'assets/khono_bg.png',
+            gradientColors: light
+                ? [
+                    Colors.white.withValues(alpha: 0.2),
+                    Colors.white.withValues(alpha: 0.08),
+                  ]
+                : null,
+            child: Padding(
+              padding: AppSpacing.screenPadding,
+              child: body,
+            ),
+          );
+        },
       ),
     );
   }
