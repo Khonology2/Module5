@@ -1167,7 +1167,9 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     );
                   }
                   return Column(
-                    children: goals.map((goal) => _buildGoalCard(goal)).toList(),
+                    children: goals
+                        .map((goal) => _buildGoalCard(goal, light: light))
+                        .toList(),
                   );
                 },
               );
