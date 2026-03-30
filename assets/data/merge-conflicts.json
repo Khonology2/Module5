@@ -1,6 +1,6 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-03-30T08:54:05.881008Z",
+  "generated_at": "2026-03-30T11:35:54.783523Z",
   "source_branch": "pdh-deployed-backup-v3",
   "target_branch": "pdh-deployed-backup",
   "status": "conflicts_detected",
@@ -13,8 +13,8 @@
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
       "your_code": [
-        "  \"version\": \"2026.03.AA5.SIT\",",
-        "  \"generated_at\": \"2026-03-30T08:26:37Z\","
+        "  \"version\": \"2026.03.AA6.SIT\",",
+        "  \"generated_at\": \"2026-03-30T11:25:24Z\","
       ],
       "target_code": [
         "  \"version\": \"2026.02.ED6.SIT\",",
@@ -23,8 +23,8 @@
       "context_lines": [
         "{",
         "<<<<<<< HEAD",
-        "  \"version\": \"2026.03.AA5.SIT\",",
-        "  \"generated_at\": \"2026-03-30T08:26:37Z\",",
+        "  \"version\": \"2026.03.AA6.SIT\",",
+        "  \"generated_at\": \"2026-03-30T11:25:24Z\",",
         "=======",
         "  \"version\": \"2026.02.ED6.SIT\",",
         "  \"generated_at\": \"2026-02-26T23:39:56Z\",",
@@ -146,25 +146,21 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 46,
+      "line": 52,
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
       "your_code": [
-        "  \"total_commits\": 5,",
         "  \"date_range\": \"2026-03-30\""
       ],
       "target_code": [
-        "  \"total_commits\": 6,",
         "  \"date_range\": \"2026-02-26\""
       ],
       "context_lines": [
-        "    }",
         "  ],",
+        "  \"total_commits\": 6,",
         "<<<<<<< HEAD",
-        "  \"total_commits\": 5,",
         "  \"date_range\": \"2026-03-30\"",
         "=======",
-        "  \"total_commits\": 6,",
         "  \"date_range\": \"2026-02-26\"",
         ">>>>>>> origin/pdh-deployed-backup",
         "}"
@@ -180,7 +176,7 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 48,
+      "line": 53,
       "marker": "=======",
       "message": "Conflict separator",
       "your_code": [],
@@ -194,7 +190,7 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 51,
+      "line": 55,
       "marker": ">>>>>>>",
       "message": "Current branch marker",
       "your_code": [],
@@ -220,6 +216,6 @@
       "6. Commit the merge: git commit",
       "7. Push your changes: git push origin pdh-deployed-backup-v3"
     ],
-    "ai_system_prompt": "I have merge conflicts when merging branch 'pdh-deployed-backup-v3' into 'pdh-deployed-backup'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.\n\nCONFLICTS TO RESOLVE:\n\nFILE: assets/data/daily-commits.json\n============================================================\n\nConflict 1 (Line 2):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"version\": \"2026.03.AA5.SIT\",\n  \"generated_at\": \"2026-03-30T08:26:37Z\",\n=======\n  \"version\": \"2026.02.ED6.SIT\",\n  \"generated_at\": \"2026-02-26T23:39:56Z\",\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n  {\n    \"version\": \"2026.03.AA5.SIT\",\n    \"generated_at\": \"2026-03-30T08:26:37Z\",\n    \"version\": \"2026.02.ED6.SIT\",\n    \"generated_at\": \"2026-02-26T23:39:56Z\",\n    \"commits\": [\n      {\n        \"author\": \"GitHub Action\",\n\n\nConflict 2 (Line 27):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n      \"message\": \"refactor: simplify StreamBuilder usage in manager inbox screen\",\n      \"timestamp\": \"2026-03-30T10:25:44+02:00\"\n=======\n      \"message\": \"updated the manager dashboard\",\n      \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"updates from S11\",\n      \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"refactor: simplify StreamBuilder usage in manager inbox screen\",\n        \"timestamp\": \"2026-03-30T10:25:44+02:00\"\n        \"message\": \"updated the manager dashboard\",\n        \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updates from S11\",\n        \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n\n\nConflict 3 (Line 46):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"total_commits\": 5,\n  \"date_range\": \"2026-03-30\"\n=======\n  \"total_commits\": 6,\n  \"date_range\": \"2026-02-26\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      }\n    ],\n    \"total_commits\": 5,\n    \"date_range\": \"2026-03-30\"\n    \"total_commits\": 6,\n    \"date_range\": \"2026-02-26\"\n  }\n\nRESOLUTION REQUIREMENTS:\n1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n2. Consider the risk level and suggested action for each conflict\n3. Ensure the merged code maintains functionality from both branches\n4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n5. Provide the complete resolved code for each file\n\nOUTPUT FORMAT:\nFor each file, provide:\n1. Brief explanation of the resolution approach\n2. The complete resolved code block to replace the conflict\n3. Any notes about potential issues or testing needed\n\nPlease provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
+    "ai_system_prompt": "I have merge conflicts when merging branch 'pdh-deployed-backup-v3' into 'pdh-deployed-backup'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.\n\nCONFLICTS TO RESOLVE:\n\nFILE: assets/data/daily-commits.json\n============================================================\n\nConflict 1 (Line 2):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"version\": \"2026.03.AA6.SIT\",\n  \"generated_at\": \"2026-03-30T11:25:24Z\",\n=======\n  \"version\": \"2026.02.ED6.SIT\",\n  \"generated_at\": \"2026-02-26T23:39:56Z\",\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n  {\n    \"version\": \"2026.03.AA6.SIT\",\n    \"generated_at\": \"2026-03-30T11:25:24Z\",\n    \"version\": \"2026.02.ED6.SIT\",\n    \"generated_at\": \"2026-02-26T23:39:56Z\",\n    \"commits\": [\n      {\n        \"author\": \"GitHub Action\",\n\n\nConflict 2 (Line 27):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n      \"message\": \"refactor: simplify StreamBuilder usage in manager inbox screen\",\n      \"timestamp\": \"2026-03-30T10:25:44+02:00\"\n=======\n      \"message\": \"updated the manager dashboard\",\n      \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"updates from S11\",\n      \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"refactor: simplify StreamBuilder usage in manager inbox screen\",\n        \"timestamp\": \"2026-03-30T10:25:44+02:00\"\n        \"message\": \"updated the manager dashboard\",\n        \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updates from S11\",\n        \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n\n\nConflict 3 (Line 52):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"date_range\": \"2026-03-30\"\n=======\n  \"date_range\": \"2026-02-26\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n    ],\n    \"total_commits\": 6,\n    \"date_range\": \"2026-03-30\"\n    \"date_range\": \"2026-02-26\"\n  }\n\nRESOLUTION REQUIREMENTS:\n1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n2. Consider the risk level and suggested action for each conflict\n3. Ensure the merged code maintains functionality from both branches\n4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n5. Provide the complete resolved code for each file\n\nOUTPUT FORMAT:\nFor each file, provide:\n1. Brief explanation of the resolution approach\n2. The complete resolved code block to replace the conflict\n3. Any notes about potential issues or testing needed\n\nPlease provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
   }
 }
