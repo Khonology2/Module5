@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 // For ImageFilter
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
@@ -24,7 +25,14 @@ class EmployeeProfileScreen extends StatefulWidget {
 }
 
 class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
-  // Job title and department options
+  static const Color _kDarkCard = Color(0xFF3D3F40);
+
+  bool get _light => employeeDashboardLightModeNotifier.value;
+  Color get _fg => _light ? const Color(0xFF000000) : Colors.white;
+  Color get _cardFill => _light ? const Color(0xFFFFFFFF) : _kDarkCard;
+  Color get _border =>
+      _light ? const Color(0x33000000) : Colors.white.withOpacity(0.2);
+
   static const List<String> _jobTitleOptions = [
     'Director',
     'Developer',
@@ -224,9 +232,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text(
+                  child: Text(
                     'Cancel',
-                    style: TextStyle(color: Colors.white70),
+                    style: TextStyle(color: _fg),
                   ),
                 ),
                 TextButton(
@@ -468,7 +476,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                                       hintStyle: const TextStyle(
                                         color: Colors.white38,
                                       ),
-                                      fillColor: Colors.white10,
+                                      fillColor: _cardFill,
                                       filled: true,
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(16),
@@ -710,7 +718,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
             const SizedBox(height: 12),
             Text(
               _aiHelpPhase.isEmpty ? 'Refining your profile...' : _aiHelpPhase,
-              style: const TextStyle(color: Colors.white70),
+              style: TextStyle(color: _fg),
             ),
           ] else if (_aiHelpError != null) ...[
             Text(
@@ -1003,8 +1011,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       child: Center(
         child: Text(
           title,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: _fg,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
@@ -1017,9 +1025,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4),
+        color: _cardFill,
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: _border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1031,7 +1039,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   Widget _buildInputLabel(String label) {
     return Text(
       label,
-      style: const TextStyle(color: Colors.white70, fontSize: 14),
+      style: TextStyle(color: _fg, fontSize: 14),
     ); // Equivalent to label class
   }
 
@@ -1046,9 +1054,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4),
+        color: _cardFill,
         borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: _border),
       ),
       child: TextFormField(
         controller: controller,
@@ -1057,14 +1065,12 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         maxLines: maxLines,
         textInputAction: textInputAction,
         onFieldSubmitted: onSubmitted,
-        style: TextStyle(
-          color: readOnly ? Colors.white54 : Colors.white,
-        ), // text-white / text-white/50
+        style: TextStyle(color: readOnly ? _fg.withValues(alpha: 0.6) : _fg),
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: const TextStyle(color: Colors.white70),
+          hintStyle: TextStyle(color: _fg),
           filled: true,
-          fillColor: const Color.fromARGB(13, 255, 255, 255),
+          fillColor: _cardFill,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16.0,
             vertical: 12.0,
@@ -1086,21 +1092,45 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   Widget _buildJobTitleDropdown() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color.fromARGB(13, 255, 255, 255),
+        color: _cardFill,
         borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: Colors.transparent),
+        border: Border.all(color: _border),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dropdownMenuTheme: DropdownMenuThemeData(
+            menuStyle: MenuStyle(
+              backgroundColor: WidgetStateProperty.all(_cardFill),
+            ),
+          ),
+        ),
+        child: DropdownButtonFormField<String>(
           value: _selectedJobTitle,
-          hint: const Text(
-            'Select job title',
-            style: TextStyle(color: Colors.white30),
+          style: TextStyle(color: _fg),
+          decoration: InputDecoration(
+            hintText: 'Select Job Title',
+            hintStyle: TextStyle(color: _fg),
+            filled: true,
+            fillColor: _cardFill,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8.0)),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8.0)),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8.0)),
+              borderSide: BorderSide(color: Color(0xFFC10D00), width: 1.0),
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 12.0,
+            ),
+            isDense: true,
           ),
           dropdownColor: const Color(0xFF1F2840),
-          style: const TextStyle(color: Colors.white, fontSize: 16),
           icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
           items: _jobTitleOptions.map((String title) {
             return DropdownMenuItem<String>(value: title, child: Text(title));
@@ -1118,14 +1148,19 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   Widget _buildDepartmentDropdown() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color.fromARGB(13, 255, 255, 255),
+        color: _cardFill,
         borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: Colors.transparent),
+        border: Border.all(color: _border),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dropdownMenuTheme: DropdownMenuThemeData(
+            menuStyle: MenuStyle(
+              backgroundColor: WidgetStateProperty.all(_cardFill),
+            ),
+          ),
+        ),
+        child: DropdownButtonFormField<String>(
           value: _selectedDepartment,
           hint: const Text(
             'Select department',
@@ -1172,7 +1207,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                   tag,
                   style: const TextStyle(color: Color(0xFFC10D00)),
                 ),
-                backgroundColor: const Color(0xFF1F2840),
+                backgroundColor: _cardFill,
                 deleteIconColor: Colors.white70,
                 onDeleted: () => onTagRemoved(tag),
               );
@@ -1206,7 +1241,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           maxWidth: 1000,
         ), // match manager profile width
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.4),
+          color: _cardFill,
           borderRadius: BorderRadius.circular(12.0),
           border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
@@ -1444,7 +1479,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                             'Select a style',
                             style: TextStyle(color: Colors.white30),
                           ),
-                          dropdownColor: const Color(0xFF1F2840),
+                          dropdownColor: _cardFill,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -1516,7 +1551,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                             'Select frequency',
                             style: TextStyle(color: Colors.white30),
                           ),
-                          dropdownColor: const Color(0xFF1F2840),
+                          dropdownColor: _cardFill,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -1697,40 +1732,49 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   Widget build(BuildContext context) {
     if (widget.embedded) {
       // When embedded in MainLayout, return just the content without Scaffold/AppBar/background
-      return PopScope(
-        canPop: _isBasicInfoComplete(),
-        onPopInvokedWithResult: (bool didPop, dynamic result) async {
-          if (!didPop && !_isBasicInfoComplete()) {
-            await _onWillPop();
-          }
+      return ValueListenableBuilder<bool>(
+        valueListenable: employeeDashboardLightModeNotifier,
+        builder: (context, light, _) {
+          return EmployeeDashboardThemeScope(
+            light: light,
+            child: _buildProfileContent(),
+          );
         },
-        child: _buildProfileContent(),
       );
     }
 
     // Standalone mode with full Scaffold
-    return PopScope(
-      canPop: _isBasicInfoComplete(),
-      onPopInvokedWithResult: (bool didPop, dynamic result) async {
-        if (!didPop && !_isBasicInfoComplete()) {
-          await _onWillPop();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-        body: AppComponents.backgroundWithImage(
-          imagePath: 'assets/khono_bg.png',
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24.0,
-              vertical: 64.0,
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            extendBodyBehindAppBar: true,
+            appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+            body: AppComponents.backgroundWithImage(
+              blurSigma: 0,
+              imagePath: light
+                  ? 'assets/light_mode_bg.png'
+                  : 'assets/khono_bg.png',
+              gradientColors: light
+                  ? [
+                      Colors.white.withValues(alpha: 0.2),
+                      Colors.white.withValues(alpha: 0.08),
+                    ]
+                  : null,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 64.0,
+                ),
+                child: _buildProfileContent(),
+              ),
             ),
-            child: _buildProfileContent(),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1752,7 +1796,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           activeColor: const Color(0xFFC10D00), // text-red-600
           checkColor: Colors.white,
         ),
-        Text(title, style: const TextStyle(color: Colors.white70)),
+        Text(title, style: TextStyle(color: _fg)),
       ],
     );
   }
@@ -1772,54 +1816,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           onChanged: onChanged,
           activeColor: const Color(0xFFC10D00), // text-red-600
         ),
-        Text(title, style: const TextStyle(color: Colors.white70)),
+        Text(title, style: TextStyle(color: _fg)),
       ],
     );
-  }
-
-  bool _isBasicInfoComplete() {
-    return _fullNameController.text.trim().isNotEmpty &&
-        _selectedJobTitle != null &&
-        _selectedJobTitle!.isNotEmpty &&
-        _selectedDepartment != null &&
-        _selectedDepartment!.isNotEmpty &&
-        _workEmailController.text.trim().isNotEmpty;
-  }
-
-  Future<bool> _onWillPop() async {
-    final shouldLeave = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1F2840),
-          title: const Text(
-            'Incomplete Profile',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: const Text(
-            'Your profile is incomplete. Are you sure you want to leave without saving?',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(
-                'Stay',
-                style: TextStyle(color: Color(0xFFC10D00)),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text(
-                'Leave',
-                style: TextStyle(color: Colors.white70),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    return shouldLeave ?? false;
   }
 }
 
