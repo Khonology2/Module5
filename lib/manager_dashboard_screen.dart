@@ -1,13 +1,13 @@
+// ignore_for_file: unnecessary_string_interpolations
+
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
-import 'package:pdh/design_system/app_components.dart';
+// import 'package:pdh/design_system/app_components.dart'; // unused after redesign
 import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:pdh/models/user_profile.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+// (removed unused Firestore/user_profile imports after redesign)
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_service.dart';
@@ -20,6 +20,7 @@ import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
@@ -44,7 +45,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
   String _managerName = 'Manager';
   late Stream<List<EmployeeData>> _employeesStream;
-  String? _currentProfilePhotoUrl;
+  // legacy: profile photo url (unused in redesigned dashboard)
+  // String? _currentProfilePhotoUrl;
   final Stopwatch _employeesLoadWatch = Stopwatch()..start();
 
   // Tutorial state
@@ -54,6 +56,27 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     12,
     (index) => GlobalKey(),
   );
+
+  final GlobalKey _middleLeftKey = GlobalKey();
+  double? _middleLeftHeight;
+
+  void _maybeSyncMiddleHeights() {
+    final ctx = _middleLeftKey.currentContext;
+    if (ctx == null) return;
+    final rb = ctx.findRenderObject();
+    if (rb is! RenderBox || !rb.hasSize) return;
+    final h = rb.size.height;
+    if (_middleLeftHeight == null || (h - _middleLeftHeight!).abs() > 1.0) {
+      setState(() => _middleLeftHeight = h);
+    }
+  }
+
+  String _pickBlurb(String key, List<String> lines) {
+    if (lines.isEmpty) return '';
+    final daySeed = DateTime.now().day;
+    final keySeed = key.codeUnits.fold<int>(0, (a, b) => a + b);
+    return lines[(daySeed + keySeed) % lines.length];
+  }
 
   @override
   void initState() {
@@ -396,7 +419,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   constraints: const BoxConstraints(maxWidth: 560),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: AppComponents.card(
+                    child: _card(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -409,7 +432,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                           Text(
                             'We couldn’t load your team data. This is usually caused by a connection issue or missing Firestore permissions.',
                             style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textSecondary,
+                              color: DashboardChrome.fg,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -446,9 +469,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                                   }
                                 },
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.white,
+                                  foregroundColor: DashboardChrome.fg,
                                   side: BorderSide(
-                                    color: Colors.white.withValues(alpha: 0.2),
+                                    color: DashboardChrome.border,
                                   ),
                                 ),
                                 child: const Text('Sign out'),
@@ -481,48 +504,112 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           // Compute metrics locally to avoid adding another Firestore listener
           final metrics = _computeTeamMetrics(employees);
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              StreamBuilder<UserProfile?>(
-                stream: _getManagerProfileStream(),
-                builder: (context, profileSnap) {
-                  return _buildWelcomeCard();
-                },
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              _buildDailyMotivationCard(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildQuickActions(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildKpis(metrics, employees),
-              const SizedBox(height: AppSpacing.xl),
-              _buildTeamHealth(metrics, employees),
-              const SizedBox(height: AppSpacing.xl),
-              _buildActivitySummary(employees),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSeasonProgressAlerts(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildTopTwoPerformers(employees),
-              const SizedBox(height: AppSpacing.xxl),
-            ],
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final topGridColumns = width >= 920
+                  ? 3
+                  : width >= 640
+                      ? 2
+                      : 1;
+              final middleTwoColumns = width >= 920;
+
+              final now = DateTime.now();
+              final today = DateTime(now.year, now.month, now.day);
+              final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+              final activeToday = employees
+                  .where((e) => e.lastActivity.isAfter(today))
+                  .length;
+              final activeThisWeek = employees
+                  .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+                  .length;
+              final inactive = employees
+                  .where((e) => e.status == EmployeeStatus.inactive)
+                  .length;
+              final overdue = employees
+                  .where((e) => e.status == EmployeeStatus.overdue)
+                  .length;
+              final atRisk = employees
+                  .where((e) => e.status == EmployeeStatus.atRisk)
+                  .length;
+              final onTrack = employees
+                  .where((e) => e.status == EmployeeStatus.onTrack)
+                  .length;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDashboardHeader(),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  _buildTopStatsGrid(
+                    columns: topGridColumns,
+                    activeToday: activeToday,
+                    activeThisWeek: activeThisWeek,
+                    inactive: inactive,
+                    overdue: overdue,
+                    atRisk: atRisk,
+                    onTrack: onTrack,
+                  ),
+
+                  const SizedBox(height: AppSpacing.lg),
+
+                  if (middleTwoColumns)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            key: _middleLeftKey,
+                            children: [
+                              _buildDailyMotivationCard(),
+                              const SizedBox(height: AppSpacing.md),
+                              _buildRecentActivitiesCard(employees),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: _buildQuickActions(
+                            expand: false,
+                            minHeight: _middleLeftHeight,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Column(
+                      children: [
+                        _buildDailyMotivationCard(),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildRecentActivitiesCard(employees),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildQuickActions(expand: false),
+                      ],
+                    ),
+
+                  const SizedBox(height: AppSpacing.lg),
+
+                  _buildBottomKpisAndHealth(metrics, employees, maxWidth: width),
+
+                  const SizedBox(height: AppSpacing.xxl),
+                ],
+              );
+            },
           );
         },
       ),
     );
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _maybeSyncMiddleHeights();
+    });
+
     if (widget.embedded) {
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: content,
-      );
+      // ManagerPortal provides background + theme scope
+      return content;
     }
 
     return AppScaffold(
@@ -553,83 +640,462 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
-      content: Stack(
-        fit: StackFit.expand,
+      content: DashboardThemedBackground(child: content),
+    );
+  }
+
+  Widget _card({required Widget child, double? minHeight}) {
+    return Container(
+      constraints: minHeight == null
+          ? null
+          : BoxConstraints(minHeight: minHeight),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: DashboardChrome.cardFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: DashboardChrome.border),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildDashboardHeader() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Text(
+            'Manager Dashboard',
+            style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
+          ),
+        ),
+        Text(
+          'Hello, ${_resolveManagerName()}',
+          style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopStatsGrid({
+    required int columns,
+    required int activeToday,
+    required int activeThisWeek,
+    required int inactive,
+    required int overdue,
+    required int atRisk,
+    required int onTrack,
+  }) {
+    final tiles = <Widget>[
+      _topStatTile(
+        title: 'Active Daily',
+        subtitle: _pickBlurb('activeDaily', const [
+          'Active team members today.',
+          'Daily engagement count (today).',
+          'Team activity recorded since midnight.',
+        ]),
+        value: '$activeToday',
+        icon: Icons.calendar_today,
+        accent: AppColors.activeColor,
+      ),
+      _topStatTile(
+        title: 'Active Weekly',
+        subtitle: _pickBlurb('activeWeekly', const [
+          'Active in the last 7 days.',
+          'Weekly engagement snapshot.',
+          'Team members active this week.',
+        ]),
+        value: '$activeThisWeek',
+        icon: Icons.check,
+        accent: AppColors.successColor,
+      ),
+      _topStatTile(
+        title: 'Inactive',
+        subtitle: _pickBlurb('inactive', const [
+          'No recent activity detected.',
+          'Needs a quick check‑in.',
+          'Inactive status (last 7 days).',
+        ]),
+        value: '$inactive',
+        icon: Icons.priority_high,
+        accent: AppColors.warningColor,
+      ),
+      _topStatTile(
+        title: 'Overdue',
+        subtitle: _pickBlurb('overdue', const [
+          'Goals past their target date.',
+          'Items requiring urgent attention.',
+          'Overdue goals across the team.',
+        ]),
+        value: '$overdue',
+        icon: Icons.remove_red_eye,
+        accent: AppColors.dangerColor,
+      ),
+      _topStatTile(
+        title: 'At Risk',
+        subtitle: _pickBlurb('atRisk', const [
+          'Goals trending behind plan.',
+          'Potential blockers detected.',
+          'At‑risk goals across the team.',
+        ]),
+        value: '$atRisk',
+        icon: Icons.error_outline,
+        accent: AppColors.dangerColor,
+      ),
+      _topStatTile(
+        title: 'On Track',
+        subtitle: _pickBlurb('onTrack', const [
+          'Goals progressing as planned.',
+          'On‑track goals across the team.',
+          'Healthy momentum this period.',
+        ]),
+        value: '$onTrack',
+        icon: Icons.rocket_launch,
+        accent: AppColors.successColor,
+      ),
+    ];
+
+    return GridView.count(
+      crossAxisCount: columns,
+      crossAxisSpacing: AppSpacing.md,
+      mainAxisSpacing: AppSpacing.md,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: columns == 1 ? 3.4 : 2.9,
+      children: tiles,
+    );
+  }
+
+  Widget _topStatTile({
+    required String title,
+    required String subtitle,
+    required String value,
+    required IconData icon,
+    required Color accent,
+  }) {
+    return _card(
+      child: Row(
         children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/khono_bg.png'),
-                fit: BoxFit.cover,
-              ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: DashboardChrome.fg,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: DashboardChrome.fg,
+                    fontSize: 11,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  value,
+                  style: AppTypography.heading2.copyWith(
+                    color: DashboardChrome.fg,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
             ),
-            child: content,
+          ),
+          const SizedBox(width: 12),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: DashboardChrome.light
+                  ? const Color(0x0F000000)
+                  : Colors.white.withValues(alpha: 0.12),
+              border: Border.all(color: DashboardChrome.border),
+            ),
+            child: Icon(icon, color: accent, size: 22),
           ),
         ],
       ),
     );
   }
 
-  Widget _card({required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        // Transparent black background to show background image
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+  Widget _buildRecentActivitiesCard(List<EmployeeData> employees) {
+    final items = <({String name, String description})>[];
+    for (final e in employees) {
+      for (final a in e.recentActivities) {
+        if (a.description.trim().isEmpty) continue;
+        items.add((name: e.profile.displayName, description: a.description));
+      }
+    }
+
+    final top = items.take(3).toList();
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.notifications_none, color: AppColors.dangerColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Recent Activities',
+                  style: AppTypography.heading4.copyWith(
+                    color: DashboardChrome.fg,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _pickBlurb('recentActivities', const [
+              'Latest updates from your team.',
+              'Most recent goal activity.',
+              'Recent progress and check‑ins.',
+            ]),
+            style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
+          ),
+          const SizedBox(height: 12),
+          if (top.isEmpty)
+            Text(
+              'No recent activities yet.',
+              style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
+            )
+          else
+            ...top.map(
+              (x) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.check_box,
+                      size: 18,
+                      color: DashboardChrome.light
+                          ? AppColors.dangerColor
+                          : AppColors.activeColor,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: RichText(
+                        text: TextSpan(
+                          style: AppTypography.bodySmall.copyWith(
+                            color: DashboardChrome.fg,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: '${x.name}: ',
+                              style: AppTypography.bodySmall.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: DashboardChrome.fg,
+                              ),
+                            ),
+                            TextSpan(text: x.description),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
-      child: child,
     );
   }
 
-  Widget _buildWelcomeCard() {
-    final greeting = _getTimeBasedGreeting();
+  Widget _buildBottomKpisAndHealth(
+    TeamMetrics? m,
+    List<EmployeeData> employees, {
+    required double maxWidth,
+  }) {
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    final totalEmployees = m?.totalEmployees ?? employees.length;
+    final activeEmployees =
+        m?.activeEmployees ??
+        employees.where((e) => e.lastActivity.isAfter(sevenDaysAgo)).length;
+    final avgProgress = m?.avgTeamProgress ?? 0.0;
+
+    final onTrack = m?.onTrackGoals ?? 0;
+    final atRisk = m?.atRiskGoals ?? 0;
+    final overdue = m?.overdueGoals ?? 0;
+
+    Widget section({
+      required String title,
+      required int cols,
+      required List<Widget> tiles,
+    }) {
+      final tileAspectRatio = cols == 1 ? 4.2 : 2.3;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          GridView.count(
+            crossAxisCount: cols,
+            crossAxisSpacing: AppSpacing.md,
+            mainAxisSpacing: AppSpacing.md,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: tileAspectRatio,
+            children: tiles,
+          ),
+        ],
+      );
+    }
+
+    if (maxWidth >= 920) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: section(
+              title: 'Team KPI’s',
+              cols: 3,
+              tiles: [
+                _smallKpiTile('Total', '$totalEmployees'),
+                _smallKpiTile('Active', '$activeEmployees'),
+                _smallKpiTile(
+                  'Average Progress',
+                  '${avgProgress.toStringAsFixed(0)}',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: section(
+              title: 'Team Health',
+              cols: 3,
+              tiles: [
+                _smallKpiTile('On Track', '$onTrack'),
+                _smallKpiTile('At Risk', '$atRisk'),
+                _smallKpiTile('Overdue', '$overdue'),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    final cols = maxWidth >= 640 ? 2 : 1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        section(
+          title: 'Team KPI’s',
+          cols: cols,
+          tiles: [
+            _smallKpiTile('Total', '$totalEmployees'),
+            _smallKpiTile('Active', '$activeEmployees'),
+            _smallKpiTile('Average Progress', '${avgProgress.toStringAsFixed(0)}'),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        section(
+          title: 'Team Health',
+          cols: cols,
+          tiles: [
+            _smallKpiTile('On Track', '$onTrack'),
+            _smallKpiTile('At Risk', '$atRisk'),
+            _smallKpiTile('Overdue', '$overdue'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _smallKpiTile(String title, String value) {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            style: AppTypography.bodyMedium.copyWith(
+              color: DashboardChrome.fg,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _pickBlurb('kpi:$title', const [
+              'This period.',
+              'Current snapshot.',
+              'Updated recently.',
+            ]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.bodySmall.copyWith(
+              color: DashboardChrome.fg,
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: AppTypography.heading3.copyWith(
+              color: DashboardChrome.fg,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // _buildWelcomeCard removed (dashboard now uses _buildDashboardHeader).
+
+
+  Widget _buildDailyMotivationCard() {
     return _card(
       child: Row(
         children: [
           Container(
-            width: 72,
-            height: 72,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
+              color: AppColors.activeColor.withValues(alpha: 0.12),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.9),
-                width: 2,
+                color: AppColors.activeColor.withValues(alpha: 0.35),
               ),
-              color: Colors.black.withValues(alpha: 0.15),
             ),
-            child: ClipOval(
-              child: ((_currentProfilePhotoUrl ?? '').isNotEmpty)
-                  ? Image.network(
-                      _currentProfilePhotoUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Icon(
-                        Icons.person,
-                        color: Colors.white,
-                        size: 36,
-                      ),
-                    )
-                  : const Icon(Icons.person, color: Colors.white, size: 36),
+            child: const Icon(
+              Icons.directions_run,
+              color: AppColors.activeColor,
             ),
           ),
-          const SizedBox(width: 15),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$greeting, ${_resolveManagerName()}!',
-                  style: AppTypography.heading4,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Lead by example and help your team grow today.',
+                  'Daily Motivation',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                    color: DashboardChrome.fg,
                   ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Lead by example, and let your team grow today!',
+                  style:
+                      AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
                 ),
               ],
             ),
@@ -639,130 +1105,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  Widget _buildDailyMotivationCard() {
-    return AppComponents.card(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            colors: [
-              AppColors.activeColor.withValues(alpha: 0.1),
-              AppColors.warningColor.withValues(alpha: 0.1),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(50),
-              ),
-              child: Image.asset(
-                'Innovation_Brainstorm/innovation_brainstorm_red_badge_white.png',
-                width: 78,
-                height: 78,
-                fit: BoxFit.contain,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Daily Motivation',
-                    style: AppTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.activeColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _getDailyMotivation(),
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // legacy: daily motivation picker removed (dashboard now matches screenshot copy)
 
-  String _getTimeBasedGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Good morning';
-    } else if (hour < 17) {
-      return 'Good afternoon';
-    } else {
-      return 'Good evening';
-    }
-  }
-
-  String _getDailyMotivation() {
-    final motivations = [
-      "Great leaders inspire others to dream more, learn more, do more.",
-      "Your guidance today shapes your team's success tomorrow.",
-      "Consistency beats intensity—coach your team daily.",
-      "Empower your team; results will follow.",
-      "Small nudges create big momentum.",
-      "Celebrate progress, not just outcomes.",
-      "Lead with clarity, empathy, and action.",
-      "The best leaders are those who develop other leaders.",
-      "Your team's growth reflects your leadership excellence.",
-      "Listen to understand, not just to respond.",
-      "Delegate with trust, support with guidance.",
-      "A great leader takes people where they don't necessarily want to go, but ought to be.",
-      "Build bridges, not walls, within your team.",
-      "Your vision becomes reality when your team believes in it.",
-      "Leadership is about making others better as a result of your presence.",
-      "Invest in your team's development; it's your greatest asset.",
-      "Clear communication is the foundation of effective leadership.",
-      "Recognize effort, reward achievement, inspire excellence.",
-      "The best leaders create more leaders, not more followers.",
-      "Your team's success is a reflection of your leadership.",
-      "Lead by example, not by command.",
-      "Empathy and strength together create unstoppable leadership.",
-      "Your decisions today shape your team's tomorrow.",
-      "Great leaders don't create followers; they create more leaders.",
-      "Trust your team, and they will trust you.",
-      "The mark of a great leader is the ability to bring out the best in others.",
-      "Your leadership legacy is built one interaction at a time.",
-      "Challenge your team to grow, support them to succeed.",
-      "Effective leadership is about influence, not authority.",
-      "Your team's potential is unlimited when you unlock it.",
-    ];
-    // Use day of month to get consistent daily motivation (1-30)
-    final dayOfMonth = DateTime.now().day;
-    return motivations[(dayOfMonth - 1) % motivations.length];
-  }
-
-  Stream<UserProfile?> _getManagerProfileStream() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return Stream.value(null);
-    return FirestoreSafe.stream(
-      FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
-    ).map((doc) {
-      if (!doc.exists) return null;
-      final profile = UserProfile.fromFirestore(doc);
-      _currentProfilePhotoUrl =
-          (profile.profilePhotoUrl != null &&
-              profile.profilePhotoUrl!.isNotEmpty)
-          ? profile.profilePhotoUrl
-          : null;
-      return profile;
-    });
-  }
+  // legacy: _getManagerProfileStream removed (unused in redesigned dashboard)
 
   String _resolveManagerName() {
     // Prefer the loaded manager name if available
@@ -827,170 +1172,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  Widget _buildKpis(TeamMetrics? m, List<EmployeeData> employees) {
-    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-    final totalEmployees = m?.totalEmployees ?? employees.length;
-    final activeEmployees =
-        m?.activeEmployees ??
-        employees.where((e) => e.lastActivity.isAfter(sevenDaysAgo)).length;
-    final avgProgress = m?.avgTeamProgress ?? 0.0;
-    final engagement =
-        m?.teamEngagement ??
-        (totalEmployees > 0 ? (activeEmployees / totalEmployees) * 100 : 0.0);
+  // legacy: _buildKpis/_buildTeamHealth removed (replaced by _buildBottomKpisAndHealth)
 
-    return AppComponents.card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Team KPIs', style: AppTypography.heading2),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _kpiTap('Total', totalEmployees.toString(), null),
-              const SizedBox(width: 8),
-              _kpiTap('Active (7d)', activeEmployees.toString(), 'active7d'),
-              const SizedBox(width: 8),
-              _kpi('Avg Progress', '${avgProgress.toStringAsFixed(0)}%'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Engagement: ${engagement.toStringAsFixed(0)}%',
-            style: AppTypography.muted,
-          ),
-        ],
-      ),
-    );
-  }
+  // legacy KPI helpers removed (dashboard uses _smallKpiTile + _buildBottomKpisAndHealth)
 
-  Widget _buildTeamHealth(TeamMetrics? m, List<EmployeeData> employees) {
-    final onTrack = m?.onTrackGoals ?? 0;
-    final atRisk = m?.atRiskGoals ?? 0;
-    final overdue = m?.overdueGoals ?? 0;
-
-    return AppComponents.card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Team Health', style: AppTypography.heading2),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _kpiTap('On Track', onTrack.toString(), 'onTrack'),
-              const SizedBox(width: 8),
-              _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
-              const SizedBox(width: 8),
-              _kpiTap('Overdue', overdue.toString(), 'overdue'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _kpi(String label, String value) {
-    return Expanded(child: _kpiInner(label, value));
-  }
-
-  /// Tappable KPI that navigates to the team list with an optional status filter.
-  /// [filterKey] null = no drill-down; non-null = navigate to Review Team with that filter.
-  Widget _kpiTap(String label, String value, String? filterKey) {
-    final inner = _kpiInner(label, value);
-    if (filterKey == null) return Expanded(child: inner);
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          Navigator.pushNamed(
-            context,
-            '/manager_review_team_dashboard',
-            arguments: <String, String>{'statusFilter': filterKey},
-          );
-        },
-        borderRadius: BorderRadius.circular(10),
-        child: inner,
-      ),
-    );
-  }
-
-  Widget _kpiInner(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: AppTypography.muted),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActivitySummary(List<EmployeeData> employees) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final sevenDaysAgo = now.subtract(const Duration(days: 7));
-    final activeToday = employees
-        .where((e) => e.lastActivity.isAfter(today))
-        .length;
-    final activeThisWeek = employees
-        .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
-        .length;
-    final inactive = employees
-        .where((e) => e.status == EmployeeStatus.inactive)
-        .length;
-    final overdue = employees
-        .where((e) => e.status == EmployeeStatus.overdue)
-        .length;
-    final atRisk = employees
-        .where((e) => e.status == EmployeeStatus.atRisk)
-        .length;
-
-    return AppComponents.card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Activity Summary', style: AppTypography.heading2),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _kpiTap('Active Today', activeToday.toString(), 'activeToday'),
-              const SizedBox(width: 8),
-              _kpiTap('Active (7d)', activeThisWeek.toString(), 'active7d'),
-              const SizedBox(width: 8),
-              _kpiTap('Inactive', inactive.toString(), 'inactive'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _kpiTap('Overdue', overdue.toString(), 'overdue'),
-              const SizedBox(width: 8),
-              _kpiTap('At Risk', atRisk.toString(), 'atRisk'),
-              const SizedBox(width: 8),
-              _kpiTap(
-                'On Track',
-                employees
-                    .where((e) => e.status == EmployeeStatus.onTrack)
-                    .length
-                    .toString(),
-                'onTrack',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  // legacy: _buildActivitySummary removed (replaced by top stat grid)
 
   // ignore: unused_element
   Widget _buildGreetingCard(List<EmployeeData> employees) {
@@ -1024,6 +1210,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     return 'Good evening, $name';
   }
 
+  // ignore: unused_element
   Widget _buildTopTwoPerformers(List<EmployeeData> employees) {
     final top = [...employees]
       ..sort((a, b) => b.totalPoints.compareTo(a.totalPoints));
@@ -1097,6 +1284,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   }
 
   // Check-in functionality removed
+  // ignore: unused_element
   Widget _buildSeasonProgressAlerts() {
     return _card(
       child: Column(
@@ -1109,7 +1297,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               Text(
                 'Season Progress Alerts',
                 style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textPrimary,
+                  color: DashboardChrome.fg,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1127,7 +1315,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 return Text(
                   'No season data available',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
+                    color: DashboardChrome.fg,
                   ),
                 );
               }
@@ -1141,7 +1329,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 return Text(
                   'No active seasons',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
+                    color: DashboardChrome.fg,
                   ),
                 );
               }
@@ -1216,7 +1404,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 child: Text(
                   season.title,
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1247,7 +1435,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               Text(
                 'Progress: ',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+                  color: DashboardChrome.fg,
                 ),
               ),
               Text(
@@ -1301,59 +1489,126 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  Widget _buildQuickActions() {
-    return AppComponents.card(
+  Widget _buildQuickActions({required bool expand, double? minHeight}) {
+    Widget actionTile({
+      required String label,
+      required VoidCallback onTap,
+      required IconData icon,
+      bool filled = false,
+    }) {
+      final fill = filled ? AppColors.dangerColor : DashboardChrome.cardFill;
+      final fg = filled ? Colors.white : DashboardChrome.fg;
+      final border = filled ? AppColors.dangerColor : AppColors.dangerColor;
+
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: border, width: 1.5),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: fg, size: 18),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final actions = <Widget>[
+      actionTile(
+        label: 'Goal Workspace',
+        icon: Icons.flag_outlined,
+        onTap: () => Navigator.pushNamed(
+          context,
+          '/my_goal_workspace',
+        ),
+      ),
+      actionTile(
+        label: 'Progress Visuals',
+        icon: Icons.insights_outlined,
+        onTap: () => Navigator.pushNamed(context, '/progress_visuals'),
+      ),
+      actionTile(
+        label: 'Leaderboard',
+        icon: Icons.attribution_outlined,
+        onTap: () => Navigator.pushNamed(context, '/manager_leaderboard'),
+      ),
+      actionTile(
+        label: 'Badges & Points',
+        icon: Icons.emoji_events_outlined,
+        filled: true,
+        onTap: () => Navigator.pushNamed(context, '/manager_badges_points'),
+      ),
+    ];
+
+    Widget grid({required bool shrinkWrap}) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          // Match screenshot: buttons are taller than our previous ratio-based tiles.
+          final tileHeight = constraints.maxWidth >= 520 ? 64.0 : 60.0;
+          return GridView.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: AppSpacing.md,
+              mainAxisSpacing: AppSpacing.md,
+              mainAxisExtent: tileHeight,
+            ),
+            itemCount: actions.length,
+            itemBuilder: (context, i) => actions[i],
+            shrinkWrap: shrinkWrap,
+            physics: const NeverScrollableScrollPhysics(),
+          );
+        },
+      );
+    }
+
+    return _card(
+      minHeight: minHeight,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Quick Actions', style: AppTypography.heading4),
-          const SizedBox(height: AppSpacing.md),
           Row(
             children: [
-              Expanded(
-                child: AppComponents.primaryButton(
-                  label: 'Manager Review',
-                  onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/manager_review_team_dashboard',
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: AppComponents.primaryButton(
-                  label: 'Progress Visuals',
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/progress_visuals');
-                  },
-                ),
+              const Icon(Icons.emoji_objects_outlined,
+                  color: AppColors.dangerColor),
+              const SizedBox(width: 8),
+              Text(
+                'Quick Action',
+                style: AppTypography.heading4.copyWith(color: DashboardChrome.fg),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: AppComponents.primaryButton(
-                  label: 'Leaderboard',
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/manager_leaderboard');
-                  },
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: AppComponents.primaryButton(
-                  label: 'Badges & Points',
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/manager_badges_points');
-                  },
-                ),
-              ),
-            ],
+          const SizedBox(height: 6),
+          Text(
+            _pickBlurb('quickAction', const [
+              'Jump to a tool to take action.',
+              'Shortcuts to common manager tasks.',
+              'Quick links for today’s focus.',
+            ]),
+            style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
           ),
+          const SizedBox(height: AppSpacing.md),
+          if (expand)
+            Expanded(child: grid(shrinkWrap: false))
+          else
+            grid(shrinkWrap: true),
         ],
       ),
     );

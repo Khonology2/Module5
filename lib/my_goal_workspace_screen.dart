@@ -19,6 +19,7 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/ai_generation_indicator.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 /// Theme-local colors for [MyGoalWorkspaceScreen] (light vs dark surfaces and text).
 class _GoalWorkspacePalette {
@@ -47,30 +48,31 @@ class _GoalWorkspacePalette {
   static const Color _darkWidget = Color(0xFF3D3F40);
 
   static _GoalWorkspacePalette of(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (isDark) {
+    // App uses a global dark theme; drive light-mode UI from the dashboard toggle.
+    final light = employeeDashboardLightModeNotifier.value;
+    if (!light) {
       return _GoalWorkspacePalette(
         widgetBg: _darkWidget,
-        textPrimary: AppColors.textPrimary,
-        textSecondary: AppColors.textSecondary,
+        textPrimary: Colors.white,
+        textSecondary: Colors.white,
         borderColor: Colors.white.withValues(alpha: 0.2),
         chipBg: _darkWidget,
         chipDisabledBg: _darkWidget,
         dropdownMenuBg: _darkWidget,
         smartBadgeBg: _darkWidget,
-        iconMuted: AppColors.textSecondary,
+        iconMuted: Colors.white,
       );
     }
     return _GoalWorkspacePalette(
-      widgetBg: Colors.white.withValues(alpha: 0.92),
-      textPrimary: Colors.black,
-      textSecondary: Colors.black,
-      borderColor: Colors.black.withValues(alpha: 0.15),
-      chipBg: Colors.grey.shade300,
+      widgetBg: Colors.white,
+      textPrimary: const Color(0xFF000000),
+      textSecondary: const Color(0xFF000000),
+      borderColor: const Color(0x33000000),
+      chipBg: Colors.white,
       chipDisabledBg: Colors.grey.shade400,
       dropdownMenuBg: Colors.white,
-      smartBadgeBg: Colors.white.withValues(alpha: 0.95),
-      iconMuted: Colors.black54,
+      smartBadgeBg: Colors.white,
+      iconMuted: Colors.black,
     );
   }
 }
@@ -205,10 +207,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       firstDate: firstDate,
       lastDate: DateTime(2101),
       builder: (BuildContext context, Widget? child) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
         const darkSurface = Color(0xFF3D3F40);
+        final light = employeeDashboardLightModeNotifier.value;
         return Theme(
-          data: isDark
+          data: !light
               ? ThemeData.dark().copyWith(
                   colorScheme: ColorScheme.dark(
                     primary: AppColors.activeColor,
@@ -303,11 +305,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 'onTutorialSkip': null,
               };
 
-        final routeName = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+        final routeName =
+            widget.forManagerGwMenu && widget.managerGwMenuRoute != null
             ? widget.managerGwMenuRoute!
             : '/my_goal_workspace';
-        final gw = _GoalWorkspacePalette.of(context);
-        final isDark = Theme.of(context).brightness == Brightness.dark;
         return AppScaffold(
           title: 'Goal Workspace',
           showAppBar: false,
@@ -331,25 +332,45 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
             }
           },
-          content: AppComponents.backgroundWithImage(
-            imagePath: isDark
-                ? 'assets/khono_bg.png'
-                : 'assets/light_mode_bg.png',
-            blurSigma: 0,
-            gradientColors: isDark
-                ? null
-                : [Colors.transparent, Colors.transparent],
-            child: SingleChildScrollView(
-              padding: AppSpacing.screenPadding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Create Personal Development Goal',
-                    style: AppTypography.heading2.copyWith(
-                      color: gw.textPrimary,
+          content: ValueListenableBuilder<bool>(
+            valueListenable: employeeDashboardLightModeNotifier,
+            builder: (context, light, _) {
+              final gw = _GoalWorkspacePalette.of(context);
+              return AppComponents.backgroundWithImage(
+                blurSigma: 0,
+                imagePath: light ? 'assets/light_mode_bg.png' : 'assets/khono_bg.png',
+                gradientColors: light
+                    ? [
+                        Colors.white.withValues(alpha: 0.2),
+                        Colors.white.withValues(alpha: 0.08),
+                      ]
+                    : null,
+                child: EmployeeDashboardThemeScope(
+                  light: light,
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      outlinedButtonTheme: OutlinedButtonThemeData(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: gw.textPrimary,
+                          side: BorderSide(
+                            color: light
+                                ? const Color(0x66000000)
+                                : Colors.white54,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    child: SingleChildScrollView(
+                      padding: AppSpacing.screenPadding,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Create Personal Development Goal',
+                            style: AppTypography.heading2.copyWith(
+                              color: gw.textPrimary,
+                            ),
+                          ),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionCard(
                     gw,
@@ -383,7 +404,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                         label: const Text('Suggest'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.activeColor,
-                          foregroundColor: Colors.white,
+                          foregroundColor: gw.textPrimary,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 12,
@@ -485,9 +506,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     ),
                   ),
                   _buildSectionCard(gw, children: [_buildActionButtons(gw)]),
-                ],
-              ),
-            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -530,14 +555,6 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      decoration: BoxDecoration(
-        color: gw.widgetBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: gw.borderColor,
-          width: 1,
-        ),
-      ),
       child: Material(
         color: Colors.transparent,
         child: TextField(
@@ -551,8 +568,21 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             hintStyle: AppTypography.bodyMedium.copyWith(
               color: gw.textSecondary,
             ),
-            border: InputBorder.none,
+            filled: true,
+            fillColor: gw.widgetBg,
             contentPadding: const EdgeInsets.all(16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: gw.borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: gw.borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.activeColor),
+            ),
           ),
         ),
       ),
@@ -567,14 +597,6 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      decoration: BoxDecoration(
-        color: gw.widgetBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: gw.borderColor,
-          width: 1,
-        ),
-      ),
       child: Material(
         color: Colors.transparent,
         child: TextField(
@@ -587,8 +609,21 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             hintStyle: AppTypography.bodyMedium.copyWith(
               color: gw.textSecondary,
             ),
-            border: InputBorder.none,
+            filled: true,
+            fillColor: gw.widgetBg,
             contentPadding: const EdgeInsets.all(16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: gw.borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: gw.borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.activeColor),
+            ),
             suffixIcon: IconButton(
               icon: const Icon(
                 Icons.auto_awesome,
@@ -922,7 +957,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   onPressed: isGenerating ? null : generateDescription,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.activeColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: gw.textPrimary,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 12,
@@ -1083,15 +1118,6 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      decoration: BoxDecoration(
-        color: gw.widgetBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: gw.borderColor,
-          width: 1,
-        ),
-      ),
       child: Material(
         color: Colors.transparent,
         child: DropdownButtonFormField<String>(
@@ -1105,7 +1131,24 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             hintStyle: AppTypography.bodyMedium.copyWith(
               color: gw.textSecondary,
             ),
-            border: InputBorder.none,
+            filled: true,
+            fillColor: gw.widgetBg,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 14.0,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: gw.borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: gw.borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.activeColor),
+            ),
           ),
           icon: Icon(Icons.keyboard_arrow_down, color: gw.iconMuted),
           onChanged: onChanged,
@@ -1567,11 +1610,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   style: AppTypography.bodyMedium.copyWith(
                     color: enabled
                         ? (selected
-                              ? Colors.white
+                              ? gw.textPrimary
                               : gw.textSecondary)
-                        : (selected
-                              ? Colors.white
-                              : gw.textSecondary.withValues(alpha: 0.5)),
+                        : (selected ? gw.textPrimary : gw.textSecondary),
                   ),
                 ),
                 selected: selected,
@@ -1603,19 +1644,20 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     bool value,
     ValueChanged<bool?> onChanged,
   ) {
+    final gw = _GoalWorkspacePalette.of(context);
     return Theme(
-      data: ThemeData(unselectedWidgetColor: AppColors.textSecondary),
+      data: ThemeData(unselectedWidgetColor: gw.textSecondary),
       child: CheckboxListTile(
         title: Text(
           title,
           style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
+            color: gw.textPrimary,
           ),
         ),
         value: value,
         onChanged: onChanged,
         activeColor: AppColors.activeColor,
-        checkColor: AppColors.textPrimary,
+        checkColor: gw.textPrimary,
         contentPadding: EdgeInsets.zero,
       ),
     );
@@ -1840,7 +1882,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             onPressed: _saveGoal,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
-              foregroundColor: Colors.white,
+              foregroundColor: gw.textPrimary,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),

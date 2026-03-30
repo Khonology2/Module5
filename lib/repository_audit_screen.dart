@@ -29,10 +29,29 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/firestore_stream_broker.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'dart:html'
     as html; // Keep using dart:html for now until migration to package:web is complete
+
+class _RepoAuditChrome {
+  _RepoAuditChrome._();
+
+  static bool get light => employeeDashboardLightModeNotifier.value;
+  static const Color _darkCard = Color(0xFF3D3F40);
+
+  static Color get cardFill => light ? const Color(0xFFFFFFFF) : _darkCard;
+  static Color get border =>
+      light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
+  static Color get fg => light ? const Color(0xFF000000) : Colors.white;
+  static List<Color>? get lightGradient => light
+      ? [
+          Colors.white.withValues(alpha: 0.2),
+          Colors.white.withValues(alpha: 0.08),
+        ]
+      : null;
+}
 
 class RepositoryAuditScreen extends StatefulWidget {
   /// When true, admin is viewing; show only manager-scoped audit data (no employees).
@@ -323,55 +342,62 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Repository & Audit',
-                style: AppTypography.heading2.copyWith(
-                  color: AppColors.textPrimary,
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: Material(
+            color: Colors.transparent,
+            child: AppComponents.backgroundWithImage(
+              blurSigma: 0,
+              imagePath: light
+                  ? 'assets/light_mode_bg.png'
+                  : 'assets/khono_bg.png',
+              gradientColors: _RepoAuditChrome.lightGradient,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Repository & Audit',
+                      style: AppTypography.heading2.copyWith(
+                        color: _RepoAuditChrome.fg,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildSearchAndFilters(),
+                    const SizedBox(height: 25),
+                    _buildHeader(),
+                    Column(
+                      children: [
+                        _buildRoleSummaryBar(isManager: _isManager),
+                        _buildAuditEntriesList(isManager: _isManager),
+                        const SizedBox(height: 24),
+                        _buildRepositorySection(isManager: _isManager),
+                        const SizedBox(height: 24),
+                        _buildApprovedGoalsSection(isManager: _isManager),
+                        const SizedBox(height: 24),
+                        _buildMilestoneAuditSection(isManager: _isManager),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 20),
-              _buildSearchAndFilters(),
-              const SizedBox(height: 25),
-              _buildHeader(),
-              Column(
-                children: [
-                  _buildRoleSummaryBar(isManager: _isManager),
-                  _buildAuditEntriesList(isManager: _isManager),
-                  const SizedBox(height: 24),
-                  _buildRepositorySection(isManager: _isManager),
-                  const SizedBox(height: 24),
-                  _buildApprovedGoalsSection(isManager: _isManager),
-                  const SizedBox(height: 24),
-                  _buildMilestoneAuditSection(isManager: _isManager),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   Widget _buildSearchAndFilters() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
+        color: _RepoAuditChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: _RepoAuditChrome.border),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -380,7 +406,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           Text(
             'Search & Filters',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: _RepoAuditChrome.fg,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -388,18 +414,20 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           const SizedBox(height: 12),
           TextField(
             controller: _searchController,
-            style: TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: _RepoAuditChrome.fg),
             decoration: InputDecoration(
               hintText: 'Search goals...',
-              hintStyle: TextStyle(color: AppColors.textMuted),
-              prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
+              hintStyle: TextStyle(color: _RepoAuditChrome.fg),
+              prefixIcon: Icon(Icons.search, color: _RepoAuditChrome.fg),
+              filled: true,
+              fillColor: _RepoAuditChrome.cardFill,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AppColors.borderColor),
+                borderSide: BorderSide(color: _RepoAuditChrome.border),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AppColors.borderColor),
+                borderSide: BorderSide(color: _RepoAuditChrome.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -420,7 +448,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   style: TextStyle(
                     color: _statusFilter == null
                         ? Colors.white
-                        : AppColors.textSecondary,
+                        : _RepoAuditChrome.fg,
                   ),
                 ),
                 selected: _statusFilter == null,
@@ -429,7 +457,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     _statusFilter = selected ? null : _statusFilter;
                   });
                 },
-                backgroundColor: Colors.grey[700],
+                backgroundColor: _RepoAuditChrome.cardFill,
                 selectedColor: AppColors.activeColor,
               ),
               FilterChip(
@@ -438,7 +466,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   style: TextStyle(
                     color: _statusFilter == 'created'
                         ? Colors.white
-                        : AppColors.textSecondary,
+                        : _RepoAuditChrome.fg,
                   ),
                 ),
                 selected: _statusFilter == 'created',
@@ -447,7 +475,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     _statusFilter = selected ? 'created' : null;
                   });
                 },
-                backgroundColor: Colors.grey[700],
+                backgroundColor: _RepoAuditChrome.cardFill,
                 selectedColor: AppColors.activeColor,
               ),
               FilterChip(
@@ -456,7 +484,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   style: TextStyle(
                     color: _statusFilter == 'pending'
                         ? Colors.white
-                        : AppColors.textSecondary,
+                        : _RepoAuditChrome.fg,
                   ),
                 ),
                 selected: _statusFilter == 'pending',
@@ -465,7 +493,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     _statusFilter = selected ? 'pending' : null;
                   });
                 },
-                backgroundColor: Colors.grey[700],
+                backgroundColor: _RepoAuditChrome.cardFill,
                 selectedColor: AppColors.activeColor,
               ),
               FilterChip(
@@ -474,7 +502,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   style: TextStyle(
                     color: _statusFilter == 'verified'
                         ? Colors.white
-                        : AppColors.textSecondary,
+                        : _RepoAuditChrome.fg,
                   ),
                 ),
                 selected: _statusFilter == 'verified',
@@ -483,7 +511,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     _statusFilter = selected ? 'verified' : null;
                   });
                 },
-                backgroundColor: Colors.grey[700],
+                backgroundColor: _RepoAuditChrome.cardFill,
                 selectedColor: AppColors.activeColor,
               ),
               FilterChip(
@@ -492,7 +520,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   style: TextStyle(
                     color: _statusFilter == 'rejected'
                         ? Colors.white
-                        : AppColors.textSecondary,
+                        : _RepoAuditChrome.fg,
                   ),
                 ),
                 selected: _statusFilter == 'rejected',
@@ -501,7 +529,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     _statusFilter = selected ? 'rejected' : null;
                   });
                 },
-                backgroundColor: Colors.grey[700],
+                backgroundColor: _RepoAuditChrome.cardFill,
                 selectedColor: AppColors.activeColor,
               ),
             ],
@@ -520,7 +548,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           child: Text(
             'Completed Goals Archive',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _RepoAuditChrome.fg,
             ),
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
@@ -567,9 +595,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
+        color: _RepoAuditChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: _RepoAuditChrome.border),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -578,7 +606,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           Text(
             isManager ? 'Team Overview' : 'Your Progress',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: _RepoAuditChrome.fg,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -637,7 +665,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           ),
           Text(
             label,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            style: TextStyle(color: _RepoAuditChrome.fg, fontSize: 12),
           ),
         ],
       ),
@@ -662,18 +690,18 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   Widget _buildEmptyState({required bool isManager}) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
+        color: _RepoAuditChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: _RepoAuditChrome.border),
       ),
       padding: const EdgeInsets.all(32),
       child: Column(
         children: [
-          Icon(Icons.inbox_outlined, size: 64, color: AppColors.textMuted),
+          Icon(Icons.inbox_outlined, size: 64, color: _RepoAuditChrome.fg),
           const SizedBox(height: 16),
           Text(
             isManager ? 'No team goals found' : 'No goals found',
-            style: AppTypography.heading4.copyWith(color: AppColors.textMuted),
+            style: AppTypography.heading4.copyWith(color: _RepoAuditChrome.fg),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
@@ -681,7 +709,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             isManager
                 ? 'Your team hasn\'t completed any goals yet. Encourage them to set and achieve goals!'
                 : 'You haven\'t completed any goals yet. Start by creating and completing some goals!',
-            style: TextStyle(color: AppColors.textMuted),
+            style: TextStyle(color: _RepoAuditChrome.fg),
             textAlign: TextAlign.center,
           ),
         ],
@@ -693,15 +721,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
+        color: _RepoAuditChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: _RepoAuditChrome.border),
       ),
       child: ExpansionTile(
         title: Text(
           entry.goalTitle,
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: _RepoAuditChrome.fg,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -748,7 +776,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       case 'rejected':
         return Colors.red;
       default:
-        return AppColors.textSecondary;
+        return _RepoAuditChrome.fg;
     }
   }
 
@@ -759,20 +787,20 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         Text(
           'Goal Details',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: _RepoAuditChrome.fg,
             fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           entry.comments ?? entry.goalTitle,
-          style: TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: _RepoAuditChrome.fg),
         ),
         const SizedBox(height: 8),
         if (entry.submittedDate != null)
           Text(
             'Submitted: ${entry.submittedDate.toString()}',
-            style: TextStyle(color: AppColors.textMuted),
+            style: TextStyle(color: _RepoAuditChrome.fg),
           ),
         if (entry.verifiedDate != null)
           Text(
@@ -799,7 +827,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         Text(
           'Evidence (${entry.evidence.length})',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: _RepoAuditChrome.fg,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -809,12 +837,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             padding: const EdgeInsets.only(bottom: 4),
             child: Row(
               children: [
-                Icon(Icons.attach_file, size: 16, color: AppColors.textMuted),
+                Icon(Icons.attach_file, size: 16, color: _RepoAuditChrome.fg),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     evidence,
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: _RepoAuditChrome.fg),
                   ),
                 ),
               ],
@@ -883,12 +911,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       children: [
         Row(
           children: [
-            Icon(Icons.cloud_done_outlined, color: AppColors.textPrimary),
+            Icon(Icons.cloud_done_outlined, color: _RepoAuditChrome.fg),
             const SizedBox(width: 8),
             Text(
               'Repository Results',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: _RepoAuditChrome.fg,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -898,9 +926,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.4),
+            color: _RepoAuditChrome.cardFill,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            border: Border.all(color: _RepoAuditChrome.border),
           ),
           child: repositoryGoals.isEmpty
               ? Padding(
@@ -909,7 +937,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     isManager
                         ? 'No verified entries found for your team. Previously acknowledged entries should appear here.'
                         : 'No repository items found. Complete and verify some goals to see them here.',
-                    style: TextStyle(color: AppColors.textMuted),
+                    style: TextStyle(color: _RepoAuditChrome.fg),
                   ),
                 )
               : _buildRepositoryListFromAuditEntries(repositoryGoals),
@@ -930,15 +958,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           leading: const Icon(Icons.verified, color: Colors.green),
           title: Text(
             entry.goalTitle,
-            style: TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: _RepoAuditChrome.fg),
           ),
           subtitle: Text(
             '${entry.userDisplayName} • ${entry.completedDate.year}-${entry.completedDate.month.toString().padLeft(2, '0')}-${entry.completedDate.day.toString().padLeft(2, '0')}',
-            style: TextStyle(color: AppColors.textMuted),
+            style: TextStyle(color: _RepoAuditChrome.fg),
           ),
           trailing: Text(
             '${entry.evidence.length} evidence',
-            style: TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: _RepoAuditChrome.fg),
           ),
         );
       },
@@ -962,7 +990,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             Text(
               'Approved Goals',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: _RepoAuditChrome.fg,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -972,9 +1000,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.4),
+            color: _RepoAuditChrome.cardFill,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            border: Border.all(color: _RepoAuditChrome.border),
           ),
           child: ListView.separated(
             shrinkWrap: true,
@@ -991,15 +1019,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 ),
                 title: Text(
                   goal.goalTitle,
-                  style: TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(color: _RepoAuditChrome.fg),
                 ),
                 subtitle: Text(
                   'Approved by: ${goal.userDisplayName}',
-                  style: TextStyle(color: AppColors.textMuted),
+                  style: TextStyle(color: _RepoAuditChrome.fg),
                 ),
                 trailing: Text(
                   '${goal.evidence.length} files',
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: _RepoAuditChrome.fg),
                 ),
               );
             },
@@ -1020,7 +1048,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             Text(
               'Milestone Audit Trail',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: _RepoAuditChrome.fg,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -1044,9 +1072,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.4),
+            color: _RepoAuditChrome.cardFill,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            border: Border.all(color: _RepoAuditChrome.border),
           ),
           child: _buildMilestoneAuditContent(),
         ),
@@ -1069,7 +1097,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Text(
           'No milestone audit entries found.',
-          style: TextStyle(color: AppColors.textMuted),
+          style: TextStyle(color: _RepoAuditChrome.fg),
         ),
       );
     }
@@ -1081,7 +1109,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Text(
             'Showing ${_milestoneAudits.length} milestone audit entries',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            style: TextStyle(color: _RepoAuditChrome.fg, fontSize: 12),
           ),
         ),
         ListView.separated(
@@ -1099,11 +1127,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               ),
               title: Text(
                 audit['goalTitle'] ?? 'Unknown Goal',
-                style: TextStyle(color: AppColors.textPrimary),
+                style: TextStyle(color: _RepoAuditChrome.fg),
               ),
               subtitle: Text(
                 '${audit['action']} • ${_formatDate(audit['timestamp'])}',
-                style: TextStyle(color: AppColors.textMuted),
+                style: TextStyle(color: _RepoAuditChrome.fg),
               ),
               trailing: Text(
                 audit['status'] ?? 'Unknown',
@@ -1148,7 +1176,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       case 'milestone_rejected':
         return Colors.red;
       default:
-        return AppColors.textSecondary;
+        return _RepoAuditChrome.fg;
     }
   }
 
@@ -1233,6 +1261,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   void _showExportSheet() {
     showModalBottomSheet(
       context: context,
+      backgroundColor: _RepoAuditChrome.cardFill,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (context) => Container(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1241,7 +1273,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             Text(
               'Export Options',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: _RepoAuditChrome.fg,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
