@@ -1,4 +1,4 @@
-# 1) Flutter analyze + test
+# 1) Flutter analyze
 # 2) On khono-v2: pull latest, flutter build web, stamp build/web with source commit SHA,
 #    commit + push build/web (always when SHA changes), wait, POST RENDER_DEPLOY_HOOK
 #
