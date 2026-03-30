@@ -7,6 +7,7 @@ import 'package:percent_indicator/percent_indicator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/ai_fallback_service.dart';
@@ -25,6 +26,32 @@ import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
+
+/// Shared light/dark chrome for progress visuals (matches My Goal Workspace).
+class _ProgressChrome {
+  _ProgressChrome._();
+
+  static bool get light => employeeDashboardLightModeNotifier.value;
+
+  // Dark widgets must be solid #3D3F40, light widgets solid white.
+  static const Color _darkCard = Color(0xFF3D3F40);
+
+  static Color get cardFill => light ? Colors.white : _darkCard;
+  static Color get border =>
+      light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
+
+  // Text must be solid black/white (no grey/white70).
+  static Color get fg => light ? const Color(0xFF000000) : Colors.white;
+  static Color get muted => fg;
+
+  static List<Color>? get lightGradient => light
+      ? [
+          Colors.white.withValues(alpha: 0.2),
+          Colors.white.withValues(alpha: 0.08),
+        ]
+      : null;
+}
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
@@ -235,27 +262,32 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
         userProfile = effectiveProfile;
 
-        return Container(
-          decoration: const BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('assets/khono_bg.png'),
-              fit: BoxFit.cover,
-            ),
-          ),
-          child: RefreshIndicator(
-            onRefresh: () async {
-              setState(() {});
-            },
-            child: isManager
-                ? (widget.forManagerGwMenu
-                      ? EmployeeProgressVisualsContent(userProfile: userProfile!)
-                      : ManagerProgressVisualsContent(
+        // Background + light/dark styling are applied here (top-level), so
+        // inner content can focus on layout/data.
+        return ValueListenableBuilder<bool>(
+          valueListenable: employeeDashboardLightModeNotifier,
+          builder: (context, light, _) {
+            return AppComponents.backgroundWithImage(
+              blurSigma: 0,
+              imagePath: light ? 'assets/light_mode_bg.png' : 'assets/khono_bg.png',
+              gradientColors: _ProgressChrome.lightGradient,
+              child: EmployeeDashboardThemeScope(
+                light: light,
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    setState(() {});
+                  },
+                  child: isManager
+                      ? ManagerProgressVisualsContent(
                           userProfile: userProfile!,
                           forAdminOversight: widget.forAdminOversight,
                           selectedManagerId: widget.selectedManagerId,
-                        ))
-                : EmployeeProgressVisualsContent(userProfile: userProfile!),
-          ),
+                        )
+                      : EmployeeProgressVisualsContent(userProfile: userProfile!),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -3386,9 +3418,9 @@ class _ManagerProgressVisualsContentState
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _ProgressChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _ProgressChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3396,12 +3428,12 @@ class _ManagerProgressVisualsContentState
           Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 20, color: iconColor ?? AppColors.textSecondary),
+                Icon(icon, size: 20, color: iconColor ?? _ProgressChrome.fg),
                 const SizedBox(width: 8),
               ],
               Text(
                 title,
-                style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+                style: AppTypography.heading4.copyWith(color: _ProgressChrome.fg),
               ),
             ],
           ),
@@ -3543,9 +3575,9 @@ class _ManagerProgressVisualsContentState
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _ProgressChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _ProgressChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3558,7 +3590,7 @@ class _ManagerProgressVisualsContentState
                 child: Text(
                   title,
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
+                    color: _ProgressChrome.fg,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -3569,7 +3601,7 @@ class _ManagerProgressVisualsContentState
           Text(
             value,
             style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+              color: _ProgressChrome.fg,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -3578,7 +3610,7 @@ class _ManagerProgressVisualsContentState
             Text(
               subtitle,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: _ProgressChrome.fg,
               ),
             ),
           ],
@@ -4642,9 +4674,9 @@ class _EmployeeProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _ProgressChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _ProgressChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4656,7 +4688,7 @@ class _EmployeeProgressVisualsContentState
               Text(
                 'AI Progress Summary',
                 style: AppTypography.heading4.copyWith(
-                  color: AppColors.textPrimary,
+                  color: _ProgressChrome.fg,
                 ),
               ),
               const Spacer(),
@@ -4668,7 +4700,7 @@ class _EmployeeProgressVisualsContentState
             Text(
               'Click the AI Insights button to generate an AI-powered summary of your progress.',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
+                color: _ProgressChrome.fg,
                 fontStyle: FontStyle.italic,
               ),
             )
@@ -4683,7 +4715,7 @@ class _EmployeeProgressVisualsContentState
             Text(
               _aiProgressSummary!,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: _ProgressChrome.fg,
               ),
             ),
         ],
@@ -5142,9 +5174,9 @@ $progressDetails
     return Container(
       height: 120,
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _ProgressChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _ProgressChrome.border),
       ),
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -5167,7 +5199,7 @@ $progressDetails
               Text(
                 title,
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _ProgressChrome.fg,
                 ),
               ),
             ],
@@ -5176,14 +5208,15 @@ $progressDetails
           Text(
             value,
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _ProgressChrome.fg,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
             value: progress.clamp(0.0, 1.0),
-            backgroundColor: AppColors.borderColor,
+            backgroundColor:
+                _ProgressChrome.light ? const Color(0xFFE0E0E0) : AppColors.borderColor,
             valueColor: AlwaysStoppedAnimation<Color>(color),
             minHeight: 4,
           ),
@@ -5198,19 +5231,19 @@ $progressDetails
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.35),
+          color: _ProgressChrome.cardFill,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+          border: Border.all(color: _ProgressChrome.border),
         ),
         child: Row(
           children: [
-            const Icon(Icons.dashboard_customize, color: Colors.white70),
+            Icon(Icons.dashboard_customize, color: _ProgressChrome.fg),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Portfolio view unlocks once you add your first goal.',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _ProgressChrome.fg,
                 ),
               ),
             ),
@@ -5249,21 +5282,21 @@ $progressDetails
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
+        color: _ProgressChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        border: Border.all(color: _ProgressChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.pie_chart_outline, color: Colors.white70),
+              Icon(Icons.pie_chart_outline, color: _ProgressChrome.fg),
               const SizedBox(width: 8),
               Text(
                 'Portfolio View',
                 style: AppTypography.heading4.copyWith(
-                  color: AppColors.textPrimary,
+                  color: _ProgressChrome.fg,
                 ),
               ),
             ],
@@ -5310,7 +5343,7 @@ $progressDetails
           Text(
             'Category allocation',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
+              color: _ProgressChrome.fg,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -5328,7 +5361,7 @@ $progressDetails
                       child: Text(
                         category.name.toUpperCase(),
                         style: AppTypography.caption.copyWith(
-                          color: AppColors.textSecondary,
+                          color: _ProgressChrome.fg,
                         ),
                       ),
                     ),
@@ -5348,7 +5381,9 @@ $progressDetails
                     const SizedBox(width: 8),
                     Text(
                       '${(ratio * 100).toInt()}%',
-                      style: AppTypography.caption,
+                      style: AppTypography.caption.copyWith(
+                        color: _ProgressChrome.fg,
+                      ),
                     ),
                   ],
                 ),
@@ -5369,7 +5404,7 @@ $progressDetails
       width: 150,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _ProgressChrome.cardFill,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: accent.withValues(alpha: 0.3)),
       ),
@@ -5379,14 +5414,14 @@ $progressDetails
           Text(
             label,
             style: AppTypography.caption.copyWith(
-              color: AppColors.textSecondary,
+              color: _ProgressChrome.fg,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _ProgressChrome.fg,
             ),
           ),
         ],
@@ -5415,9 +5450,9 @@ $progressDetails
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.35),
+              color: _ProgressChrome.cardFill,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              border: Border.all(color: _ProgressChrome.border),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -5436,7 +5471,7 @@ $progressDetails
                 Text(
                   'Loading streak insights…',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
+                    color: _ProgressChrome.fg,
                   ),
                 ),
               ],
@@ -5452,9 +5487,9 @@ $progressDetails
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.35),
+            color: _ProgressChrome.cardFill,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            border: Border.all(color: _ProgressChrome.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -5466,7 +5501,7 @@ $progressDetails
                   Text(
                     'Streaks',
                     style: AppTypography.heading4.copyWith(
-                      color: AppColors.textPrimary,
+                      color: _ProgressChrome.fg,
                     ),
                   ),
                 ],
@@ -5499,7 +5534,7 @@ $progressDetails
               Text(
                 'Log progress each week to grow your streak and stay on track.',
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _ProgressChrome.fg,
                 ),
               ),
             ],
@@ -5518,7 +5553,7 @@ $progressDetails
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _ProgressChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: accent.withValues(alpha: 0.2)),
       ),
@@ -5532,13 +5567,13 @@ $progressDetails
               Text(
                 label,
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _ProgressChrome.fg,
                 ),
               ),
               Text(
                 value,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
+                  color: _ProgressChrome.fg,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -5881,9 +5916,9 @@ $progressDetails
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _ProgressChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _ProgressChrome.border),
       ),
       child: Column(
         children: [
@@ -5899,14 +5934,14 @@ $progressDetails
           Text(
             'No Active Goals',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _ProgressChrome.fg,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Create your first goal to start tracking your progress!',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _ProgressChrome.fg,
             ),
             textAlign: TextAlign.center,
           ),

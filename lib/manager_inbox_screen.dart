@@ -18,6 +18,7 @@ import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 @immutable
 class _NudgeFeedback {
@@ -928,20 +929,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           child: Text(
             'Please sign in to view inbox',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+            color: DashboardChrome.fg,
             ),
           ),
         ),
       );
     }
 
-    return Container(
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/khono_bg.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
+    return DashboardThemedBackground(
+      embedded: widget.embedded,
       child: NestedScrollView(
         headerSliverBuilder: (context, innerScrolled) {
           return [
@@ -964,7 +960,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     ? 'Admin Inbox'
                                     : 'Manager IBox',
                                 style: AppTypography.heading3.copyWith(
-                                  color: Colors.white,
+                                  color: DashboardChrome.fg,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -974,7 +970,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     ? 'Review admin alerts and oversight notifications in one place.'
                                     : 'Review alerts, nudges, and approvals in one place.',
                                 style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.textSecondary,
+                                  color: DashboardChrome.fg,
                                 ),
                               ),
                             ],
@@ -1019,14 +1015,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           ];
         },
         body: Container(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.center,
-              radius: 1.1,
-              colors: [Color(0x880A0F1F), Color(0x88040610)],
-              stops: [0.0, 1.0],
-            ),
-          ),
           child: StreamBuilder<List<Alert>>(
             stream: AlertService.getUserAlertsStream(user.uid),
             builder: (context, snapshot) {
@@ -1963,9 +1951,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       selectedColor: AppColors.warningColor.withValues(alpha: 0.3),
       checkmarkColor: Colors.white,
       backgroundColor: _glassFieldColor,
-      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      side: BorderSide(color: DashboardChrome.border),
       labelStyle: AppTypography.bodySmall.copyWith(
-        color: Colors.white,
+        color: DashboardChrome.fg,
         fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
       ),
     );
@@ -1973,15 +1961,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   BoxDecoration _glassCardDecoration({double radius = 12, Color? borderColor}) {
     return BoxDecoration(
-      color: Colors.black.withValues(alpha: 0.45),
+      color: DashboardChrome.cardFill,
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
-        color: borderColor ?? Colors.white.withValues(alpha: 0.15),
+        color: borderColor ?? DashboardChrome.border,
       ),
     );
   }
 
-  Color get _glassFieldColor => Colors.black.withValues(alpha: 0.35);
+  Color get _glassFieldColor => DashboardChrome.cardFill;
 
   Color _getAlertColor(AlertPriority priority) {
     switch (priority) {

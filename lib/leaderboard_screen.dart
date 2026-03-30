@@ -10,6 +10,7 @@ import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 
@@ -23,6 +24,18 @@ enum LeaderboardFilter {
 }
 
 enum LeaderboardMetric { points, badges, streaks }
+
+class _LeaderboardChrome {
+  _LeaderboardChrome._();
+
+  static bool get light => employeeDashboardLightModeNotifier.value;
+  static const Color _darkCard = Color(0xFF3D3F40);
+
+  static Color get cardFill => light ? const Color(0xFFFFFFFF) : _darkCard;
+  static Color get border =>
+      light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
+  static Color get fg => light ? const Color(0xFF000000) : Colors.white;
+}
 
 /// Helper class to represent onboarding users as document-like objects
 class _OnboardingUserDoc {
@@ -620,95 +633,109 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     final isManager = _currentUser?.role == 'manager';
 
     // Render as a plain widget so it works inside MainLayout
-    return Container(
-      color: Colors.transparent,
-      child: FutureBuilder<void>(
-        future: _ensureUsersFetched(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return _buildErrorState();
-          }
-
-          return FutureBuilder<List<Map<String, dynamic>>>(
-            future: () async {
-              try {
-                if (_cachedUserDocs.isNotEmpty) {
-                  return await _computeLeaderboardFromCache();
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: Container(
+            color: Colors.transparent,
+            child: FutureBuilder<void>(
+              future: _ensureUsersFetched(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return _buildErrorState();
                 }
-                return _lastLeaderboardData;
-              } catch (e) {
-                developer.log('Error processing leaderboard data: $e');
-                return _lastLeaderboardData;
-              }
-            }(),
-            builder: (context, dataSnapshot) {
-              List<Map<String, dynamic>> leaderboardData;
-              if (dataSnapshot.hasData) {
-                leaderboardData = dataSnapshot.data!;
-                _lastLeaderboardData = leaderboardData;
-              } else if (dataSnapshot.hasError) {
-                return _buildErrorState();
-              } else {
-                leaderboardData = _lastLeaderboardData;
-              }
 
-              return RefreshIndicator(
-                onRefresh: () async {
-                  await _ensureUsersFetched(force: true);
-                  await _ensureOnboardingFetched(force: true);
-                  if (mounted) setState(() {});
-                },
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(child: _buildHeader()),
-                          const SizedBox(width: 12),
-                          IconButton(
-                            tooltip: 'Refresh',
-                            onPressed: () async {
-                              await _ensureUsersFetched(force: true);
-                              await _ensureOnboardingFetched(force: true);
-                              if (mounted) setState(() {});
-                            },
-                            icon: const Icon(
-                              Icons.refresh,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      _buildFiltersBar(isManager: isManager),
-                      const SizedBox(height: 16),
-                      leaderboardData.isEmpty
-                          ? _buildEmptyState()
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
+                return FutureBuilder<List<Map<String, dynamic>>>(
+                  future: () async {
+                    try {
+                      if (_cachedUserDocs.isNotEmpty) {
+                        return await _computeLeaderboardFromCache();
+                      }
+                      return _lastLeaderboardData;
+                    } catch (e) {
+                      developer.log('Error processing leaderboard data: $e');
+                      return _lastLeaderboardData;
+                    }
+                  }(),
+                  builder: (context, dataSnapshot) {
+                    List<Map<String, dynamic>> leaderboardData;
+                    if (dataSnapshot.hasData) {
+                      leaderboardData = dataSnapshot.data!;
+                      _lastLeaderboardData = leaderboardData;
+                    } else if (dataSnapshot.hasError) {
+                      return _buildErrorState();
+                    } else {
+                      leaderboardData = _lastLeaderboardData;
+                    }
+
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        await _ensureUsersFetched(force: true);
+                        await _ensureOnboardingFetched(force: true);
+                        if (mounted) setState(() {});
+                      },
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(
+                          24.0,
+                          32.0,
+                          24.0,
+                          24.0,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                _buildPodium(leaderboardData),
-                                const SizedBox(height: 20),
-                                _buildLeaderList(
-                                  leaderboardData,
-                                  isManager: isManager,
+                                Expanded(child: _buildHeader()),
+                                const SizedBox(width: 12),
+                                IconButton(
+                                  tooltip: 'Refresh',
+                                  onPressed: () async {
+                                    await _ensureUsersFetched(force: true);
+                                    await _ensureOnboardingFetched(force: true);
+                                    if (mounted) setState(() {});
+                                  },
+                                  icon: Icon(
+                                    Icons.refresh,
+                                    color: _LeaderboardChrome.fg,
+                                  ),
                                 ),
                               ],
                             ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+                            const SizedBox(height: 20),
+                            _buildFiltersBar(isManager: isManager),
+                            const SizedBox(height: 16),
+                            leaderboardData.isEmpty
+                                ? _buildEmptyState()
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildPodium(leaderboardData),
+                                      const SizedBox(height: 20),
+                                      _buildLeaderList(
+                                        leaderboardData,
+                                        isManager: isManager,
+                                      ),
+                                    ],
+                                  ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -717,9 +744,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _LeaderboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _LeaderboardChrome.border),
       ),
       child: Center(
         child: Column(
@@ -727,15 +754,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           children: [
             const Icon(Icons.refresh, color: AppColors.warningColor, size: 40),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Live data temporarily unavailable',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+              style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'A Firestore web issue was detected. Please reload the page to recover.',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 13),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -758,9 +785,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _LeaderboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _LeaderboardChrome.border),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -768,7 +795,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           Text(
             'Leaderboard',
             style: AppTypography.heading2.copyWith(
-              color: AppColors.textPrimary,
+              color: _LeaderboardChrome.fg,
             ),
           ),
           Row(
@@ -809,18 +836,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           decoration: BoxDecoration(
             color: isSelected
                 ? AppColors.activeColor
-                : AppColors.elevatedBackground,
+                : _LeaderboardChrome.cardFill,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? AppColors.activeColor : AppColors.borderColor,
+              color: isSelected ? AppColors.activeColor : _LeaderboardChrome.border,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
               color: isSelected
-                  ? AppColors.textPrimary
-                  : AppColors.textSecondary,
+                  ? Colors.white
+                  : _LeaderboardChrome.fg,
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
@@ -832,9 +859,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _LeaderboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _LeaderboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -857,8 +884,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 ),
               ),
               PopupMenuButton<LeaderboardMetric>(
-                icon: const Icon(Icons.sort, color: AppColors.textSecondary),
-                color: AppColors.elevatedBackground,
+                icon: Icon(Icons.sort, color: _LeaderboardChrome.fg),
+                color: _LeaderboardChrome.cardFill,
                 onSelected: _onMetricChange,
                 itemBuilder: (context) => [
                   PopupMenuItem(
@@ -868,7 +895,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       style: TextStyle(
                         color: _currentMetric == LeaderboardMetric.points
                             ? AppColors.activeColor
-                            : AppColors.textSecondary,
+                            : _LeaderboardChrome.fg,
                       ),
                     ),
                   ),
@@ -879,7 +906,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       style: TextStyle(
                         color: _currentMetric == LeaderboardMetric.badges
                             ? AppColors.activeColor
-                            : AppColors.textSecondary,
+                            : _LeaderboardChrome.fg,
                       ),
                     ),
                   ),
@@ -890,7 +917,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       style: TextStyle(
                         color: _currentMetric == LeaderboardMetric.streaks
                             ? AppColors.activeColor
-                            : AppColors.textSecondary,
+                            : _LeaderboardChrome.fg,
                       ),
                     ),
                   ),
@@ -902,7 +929,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             const SizedBox(height: 8),
             Text(
               'Active filters: ${_selectedFilters.map((f) => f.name).join(', ')}',
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+              style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 11),
             ),
           ],
         ],
@@ -937,9 +964,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               width: MediaQuery.of(context).size.width * 0.85,
               height: 200,
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.4),
+                color: _LeaderboardChrome.cardFill,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                border: Border.all(color: _LeaderboardChrome.border),
               ),
             ),
           ),
@@ -1017,7 +1044,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       width: width,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: _LeaderboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color, width: 2),
         boxShadow: [
@@ -1048,7 +1075,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           const SizedBox(height: 8),
           Text(
             user['name'],
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+            style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 12),
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1138,10 +1165,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Your Position',
                 style: TextStyle(
-                  color: AppColors.textPrimary,
+                  color: _LeaderboardChrome.fg,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),
@@ -1171,10 +1198,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         ],
 
         if (showTopPerformersSection && topPerformers.isNotEmpty) ...[
-          const Text(
+          Text(
             'Top Performers',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: _LeaderboardChrome.fg,
               fontWeight: FontWeight.bold,
               fontSize: 18,
             ),
@@ -1184,10 +1211,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         ],
         if (remainingUsers.isNotEmpty) ...[
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'Full Leaderboard',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: _LeaderboardChrome.fg,
               fontWeight: FontWeight.bold,
               fontSize: 18,
             ),
@@ -1241,7 +1268,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     final points = user['points'] ?? 0;
     final badges = user['badges'] ?? 0;
 
-    Color rankColor = AppColors.textSecondary;
+    Color rankColor = _LeaderboardChrome.fg;
     if (rank <= 3) {
       switch (rank) {
         case 1:
@@ -1260,9 +1287,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _LeaderboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _LeaderboardChrome.border),
       ),
       child: Row(
         children: [
@@ -1318,7 +1345,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         style: TextStyle(
                           color: isCurrentUser
                               ? AppColors.activeColor
-                              : AppColors.textPrimary,
+                              : _LeaderboardChrome.fg,
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
                         ),
@@ -1447,33 +1474,33 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: _LeaderboardChrome.cardFill,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: _LeaderboardChrome.border),
       ),
       child: Center(
         child: Column(
           children: [
             Icon(
               Icons.trending_up_outlined,
-              color: AppColors.textMuted,
+              color: _LeaderboardChrome.fg,
               size: 48,
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text(
               'Leaderboard Coming Soon',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+              style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 16),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Users need to enable leaderboard participation in their profile settings.',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+              style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 14),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.activeColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
@@ -1491,7 +1518,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         color: AppColors.activeColor,
                         size: 16,
                       ),
-                      SizedBox(width: 4),
+                      const SizedBox(width: 4),
                       Text(
                         'To Enable:',
                         style: TextStyle(
@@ -1502,10 +1529,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       ),
                     ],
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     '1. Go to Profile Settings\n2. Enable "Leaderboard Participation"',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                    style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 11),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -1522,22 +1549,22 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _LeaderboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _LeaderboardChrome.border),
       ),
-      child: const Center(
+      child: Center(
         child: Column(
           children: [
-            Icon(Icons.error_outline, color: AppColors.dangerColor, size: 48),
-            SizedBox(height: 12),
+            const Icon(Icons.error_outline, color: AppColors.dangerColor, size: 48),
+            const SizedBox(height: 12),
             Text(
               'Error loading leaderboard',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+              style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 16),
             ),
             Text(
               'Please try again later',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+              style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 14),
             ),
           ],
         ),
@@ -1663,11 +1690,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         await showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            backgroundColor: Colors.black.withValues(alpha: 0.9),
+            backgroundColor: _LeaderboardChrome.cardFill,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
               side: BorderSide(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: _LeaderboardChrome.border,
                 width: 1,
               ),
             ),
@@ -1678,7 +1705,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 Text(
                   'AI Competitor Analysis',
                   style: AppTypography.heading4.copyWith(
-                    color: AppColors.textPrimary,
+                    color: _LeaderboardChrome.fg,
                   ),
                 ),
               ],
@@ -1689,7 +1716,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 child: Text(
                   analysis,
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary,
+                    color: _LeaderboardChrome.fg,
                   ),
                 ),
               ),

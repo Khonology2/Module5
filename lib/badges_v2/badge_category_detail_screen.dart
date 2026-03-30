@@ -1,4 +1,3 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -10,8 +9,28 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 Color _categoryAccent(badge_model.BadgeCategory _) => AppColors.activeColor;
+
+class _BadgeCategoryChrome {
+  _BadgeCategoryChrome._();
+
+  static bool get light => employeeDashboardLightModeNotifier.value;
+  static const Color _darkCard = Color(0xFF3D3F40);
+
+  static Color get cardFill => light ? const Color(0xFFFFFFFF) : _darkCard;
+  static Color get border =>
+      light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
+  static Color get fg => light ? const Color(0xFF000000) : Colors.white;
+  static List<Color>? get lightGradient => light
+      ? [
+          Colors.white.withValues(alpha: 0.2),
+          Colors.white.withValues(alpha: 0.08),
+        ]
+      : null;
+}
 
 class BadgeCategoryDetailScreen extends StatefulWidget {
   final badge_model.BadgeCategory category;
@@ -178,7 +197,12 @@ class _BadgeCategoryDetailScreenState extends State<BadgeCategoryDetailScreen> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final accent = _categoryAccent(widget.category);
-    return AppScaffold(
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: AppScaffold(
       title: widget.title,
       showAppBar: false,
       embedded: widget.embedded,
@@ -197,102 +221,106 @@ class _BadgeCategoryDetailScreenState extends State<BadgeCategoryDetailScreen> {
         }
       },
       content: FocusTraversalGroup(
-        policy: WidgetOrderTraversalPolicy(),
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('assets/khono_bg.png'),
-              fit: BoxFit.cover,
-            ),
-          ),
-          child: ClipRRect(
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-              child: ListView(
-                padding: AppSpacing.screenPadding,
-                children: [
-                  _BackToBadgesButton(
-                    accentColor: accent,
-                    onPressed: () {
-                      final nav = Navigator.of(context);
-                      if (nav.canPop()) {
-                        nav.pop();
-                      } else {
-                        nav.pushReplacementNamed('/badges_points');
-                      }
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  _Header(title: widget.title, accentColor: accent),
-                  const SizedBox(height: AppSpacing.lg),
-                  if (user == null)
-                    _EmptyState(
-                      message: 'Please sign in to view badges',
-                      icon: Icons.lock_outline,
-                    )
-                  else
-                    StreamBuilder<List<badge_model.Badge>>(
-                      stream: BadgeService.getUserBadgesV2Stream(user.uid),
-                      initialData: const [],
-                      builder: (context, snap) {
-                        if (FirestoreWebCircuitBreaker.isBroken) {
-                          return _FirestoreBrokenState(
-                            onReload: FirestoreWebCircuitBreaker.forceReload,
-                          );
+            policy: WidgetOrderTraversalPolicy(),
+            child: Builder(
+              builder: (context) {
+                final Widget body = ListView(
+                  padding: AppSpacing.screenPadding,
+                  children: [
+                    _BackToBadgesButton(
+                      accentColor: accent,
+                      onPressed: () {
+                        final nav = Navigator.of(context);
+                        if (nav.canPop()) {
+                          nav.pop();
+                        } else {
+                          nav.pushReplacementNamed('/badges_points');
                         }
-
-                        final all = (snap.data ?? const <badge_model.Badge>[])
-                            .where((b) => b.id != 'init')
-                            .toList();
-                        final list = all
-                          .where((b) => b.category == widget.category)
-                          .toList()
-                          ..sort((a, b) {
-                            if (a.isEarned != b.isEarned) {
-                              return a.isEarned ? -1 : 1;
-                            }
-                            // Higher progress first, then name
-                            final p = b.progressPercentage.compareTo(
-                              a.progressPercentage,
-                            );
-                            if (p != 0) return p;
-                            return a.name.compareTo(b.name);
-                          });
-
-                        if (snap.connectionState == ConnectionState.waiting &&
-                            list.isEmpty) {
-                          return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.activeColor,
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-
-                        if (list.isEmpty) {
-                          return const _EmptyState(
-                            message:
-                                'No badges in this category yet. Keep going!',
-                            icon: Icons.emoji_events_outlined,
-                          );
-                        }
-
-                        _maybeAutoOpenBadge(list);
-                        return _BadgeGrid(badges: list);
                       },
                     ),
-                ],
-              ),
+                    const SizedBox(height: AppSpacing.md),
+                    _Header(title: widget.title, accentColor: accent),
+                    const SizedBox(height: AppSpacing.lg),
+                    if (user == null)
+                      _EmptyState(
+                        message: 'Please sign in to view badges',
+                        icon: Icons.lock_outline,
+                      )
+                    else
+                      StreamBuilder<List<badge_model.Badge>>(
+                        stream: BadgeService.getUserBadgesV2Stream(user.uid),
+                        initialData: const [],
+                        builder: (context, snap) {
+                          if (FirestoreWebCircuitBreaker.isBroken) {
+                            return _FirestoreBrokenState(
+                              onReload: FirestoreWebCircuitBreaker.forceReload,
+                            );
+                          }
+
+                          final all = (snap.data ?? const <badge_model.Badge>[])
+                              .where((b) => b.id != 'init')
+                              .toList();
+                          final list = all
+                            .where((b) => b.category == widget.category)
+                            .toList()
+                            ..sort((a, b) {
+                              if (a.isEarned != b.isEarned) {
+                                return a.isEarned ? -1 : 1;
+                              }
+                              // Higher progress first, then name
+                              final p = b.progressPercentage.compareTo(
+                                a.progressPercentage,
+                              );
+                              if (p != 0) return p;
+                              return a.name.compareTo(b.name);
+                            });
+
+                          if (snap.connectionState ==
+                                  ConnectionState.waiting &&
+                              list.isEmpty) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.activeColor,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (list.isEmpty) {
+                            return const _EmptyState(
+                              message:
+                                  'No badges in this category yet. Keep going!',
+                              icon: Icons.emoji_events_outlined,
+                            );
+                          }
+
+                          _maybeAutoOpenBadge(list);
+                          return _BadgeGrid(badges: list);
+                        },
+                      ),
+                  ],
+                );
+
+                if (widget.embedded) return body;
+
+                return AppComponents.backgroundWithImage(
+                  blurSigma: 0,
+                  imagePath: light
+                      ? 'assets/light_mode_bg.png'
+                      : 'assets/khono_bg.png',
+                  gradientColors: _BadgeCategoryChrome.lightGradient,
+                  child: body,
+                );
+              },
             ),
           ),
         ),
-      ),
+        );
+      },
     );
   }
 }
@@ -320,7 +348,9 @@ class _BackToBadgesButton extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: accentColor, width: 2),
-              color: Colors.black.withValues(alpha: 0.10),
+              color: _BadgeCategoryChrome.light
+                  ? Colors.black.withValues(alpha: 0.06)
+                  : Colors.white.withValues(alpha: 0.08),
             ),
             child: Center(
               child: Icon(
@@ -346,9 +376,9 @@ class _Header extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _BadgeCategoryChrome.cardFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _BadgeCategoryChrome.border),
       ),
       child: Row(
         children: [
@@ -358,7 +388,7 @@ class _Header extends StatelessWidget {
             child: Text(
               title,
               style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
+                color: _BadgeCategoryChrome.fg,
               ),
             ),
           ),
@@ -379,18 +409,18 @@ class _EmptyState extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _BadgeCategoryChrome.cardFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _BadgeCategoryChrome.border),
       ),
       child: Column(
         children: [
-          Icon(icon, size: 56, color: AppColors.textSecondary),
+          Icon(icon, size: 56, color: _BadgeCategoryChrome.fg),
           const SizedBox(height: 12),
           Text(
             message,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _BadgeCategoryChrome.fg,
             ),
             textAlign: TextAlign.center,
           ),
@@ -410,9 +440,9 @@ class _FirestoreBrokenState extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _BadgeCategoryChrome.cardFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _BadgeCategoryChrome.border),
       ),
       child: Column(
         children: [
@@ -425,7 +455,7 @@ class _FirestoreBrokenState extends StatelessWidget {
           Text(
             'Badges are temporarily unavailable',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _BadgeCategoryChrome.fg,
             ),
             textAlign: TextAlign.center,
           ),
@@ -433,7 +463,7 @@ class _FirestoreBrokenState extends StatelessWidget {
           Text(
             'We hit a Firestore web connection issue. Reloading the page fixes it.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _BadgeCategoryChrome.fg,
             ),
             textAlign: TextAlign.center,
           ),

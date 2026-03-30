@@ -23,6 +23,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
+
+class _SettingsChrome {
+  _SettingsChrome._();
+
+  static bool get light => employeeDashboardLightModeNotifier.value;
+  static const Color _darkCard = Color(0xFF3D3F40);
+
+  static Color get cardFill => light ? const Color(0xFFFFFFFF) : _darkCard;
+  static Color get border =>
+      light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
+  static Color get fg => light ? const Color(0xFF000000) : Colors.white;
+  static List<Color>? get lightGradient => light
+      ? [
+          Colors.white.withValues(alpha: 0.2),
+          Colors.white.withValues(alpha: 0.08),
+        ]
+      : null;
+}
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -171,23 +191,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
-          child: StreamBuilder<UserSettings?>(
-            key: const ValueKey('settings_stream'),
-            stream: _safeSettingsStream(),
-            initialData:
-                _currentSettings, // use cached settings to avoid spinner
-            builder: (context, settingsSnapshot) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: Material(
+            color: Colors.transparent,
+            child: AppComponents.backgroundWithImage(
+              blurSigma: 0,
+              imagePath: light
+                  ? 'assets/light_mode_bg.png'
+                  : 'assets/khono_bg.png',
+              gradientColors: _SettingsChrome.lightGradient,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+                child: StreamBuilder<UserSettings?>(
+                  key: const ValueKey('settings_stream'),
+                  stream: _safeSettingsStream(),
+                  initialData:
+                      _currentSettings, // use cached settings to avoid spinner
+                  builder: (context, settingsSnapshot) {
               // Prefer last known settings to avoid full-screen flicker while waiting
               if (settingsSnapshot.hasError && _currentSettings == null) {
                 return _buildErrorState(settingsSnapshot.error.toString());
@@ -274,8 +298,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
               }
 
-              // Use StreamBuilder for role, but with initial data to avoid waiting
-              return StreamBuilder<String?>(
+                    // Use StreamBuilder for role, but with initial data to avoid waiting
+                    return StreamBuilder<String?>(
                 key: const ValueKey('role_stream'),
                 stream: RoleService.instance.roleStream(),
                 initialData: RoleService.instance.cachedRole,
@@ -299,11 +323,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   );
                 },
-              );
-            },
+                    );
+                  },
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -331,9 +358,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Container(
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
+          color: _SettingsChrome.cardFill,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          border: Border.all(color: _SettingsChrome.border),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -343,7 +370,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text(
               'Error Loading Settings',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: _SettingsChrome.fg,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -351,7 +378,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             Text(
               'Unable to load your settings. Please check your connection and try again.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              style: TextStyle(color: _SettingsChrome.fg, fontSize: 14),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -371,7 +398,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             Text(
               'Error: $error',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+              style: TextStyle(color: _SettingsChrome.fg, fontSize: 10),
               textAlign: TextAlign.center,
             ),
           ],
@@ -388,9 +415,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _SettingsChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _SettingsChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,7 +426,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Text(
               title,
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: _SettingsChrome.fg,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -589,13 +616,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha: 0.6),
+      barrierColor: _SettingsChrome.light
+          ? Colors.black.withValues(alpha: 0.35)
+          : Colors.black.withValues(alpha: 0.6),
       builder: (context) => Center(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 280, maxHeight: 320),
           margin: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(
-            color: AppColors.backgroundColor.withValues(alpha: 0.9),
+            color: _SettingsChrome.cardFill,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: AppColors.activeColor.withValues(alpha: 0.6),
@@ -603,7 +632,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
+                color: Colors.black.withValues(
+                  alpha: _SettingsChrome.light ? 0.12 : 0.4,
+                ),
                 blurRadius: 12,
                 spreadRadius: 1,
               ),
@@ -624,7 +655,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'Start Sidebar Tutorial?',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: _SettingsChrome.fg,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -634,7 +665,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'This tutorial will guide you through all the sidebar navigation options. You can skip it at any time.',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: _SettingsChrome.fg,
                     fontSize: 13,
                     height: 1.3,
                   ),
@@ -649,11 +680,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(false),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textSecondary,
+                          foregroundColor: _SettingsChrome.fg,
                           side: BorderSide(
-                            color: AppColors.textSecondary.withValues(
-                              alpha: 0.6,
-                            ),
+                            color: _SettingsChrome.border,
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           minimumSize: const Size(0, 36),
@@ -767,9 +796,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   title,
                   style: TextStyle(
-                    color: enabled
-                        ? AppColors.textPrimary
-                        : AppColors.textMuted,
+                    color: enabled ? _SettingsChrome.fg : _SettingsChrome.fg,
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
                   ),
@@ -778,9 +805,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: enabled
-                        ? AppColors.textSecondary
-                        : AppColors.textMuted,
+                    color: enabled ? _SettingsChrome.fg : _SettingsChrome.fg,
                     fontSize: 14,
                   ),
                 ),
@@ -792,8 +817,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: enabled ? onChanged : null,
             activeThumbColor: AppColors.activeColor,
             activeTrackColor: AppColors.activeColor.withValues(alpha: 0.3),
-            inactiveThumbColor: AppColors.textMuted,
-            inactiveTrackColor: AppColors.textMuted.withValues(alpha: 0.3),
+            inactiveThumbColor: _SettingsChrome.fg,
+            inactiveTrackColor: _SettingsChrome.border,
           ),
         ],
       ),
@@ -814,7 +839,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(
             title,
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: _SettingsChrome.fg,
               fontWeight: FontWeight.w600,
               fontSize: 16,
             ),
@@ -840,11 +865,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: Colors.black.withValues(alpha: 0.4),
+                  fillColor: _SettingsChrome.cardFill,
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: _SettingsChrome.border,
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
@@ -856,8 +881,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     vertical: 16,
                   ),
                 ),
-                dropdownColor: Colors.black.withValues(alpha: 0.9),
-                style: TextStyle(color: AppColors.textPrimary),
+                dropdownColor: _SettingsChrome.cardFill,
+                style: TextStyle(color: _SettingsChrome.fg),
               );
             },
           ),
@@ -2349,14 +2374,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   vertical: 16,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
+                  color: _SettingsChrome.cardFill,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: _SettingsChrome.border,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
+                      color: Colors.black.withValues(
+                        alpha: _SettingsChrome.light ? 0.10 : 0.2,
+                      ),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -2365,7 +2392,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Text(
                   message,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(color: _SettingsChrome.fg),
                 ),
               ),
             ),
@@ -2383,13 +2410,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
       context: context,
-      barrierColor: Colors.black54,
+      barrierColor:
+          _SettingsChrome.light ? Colors.black.withValues(alpha: 0.35) : Colors.black54,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: AppColors.cardBackground,
+          backgroundColor: _SettingsChrome.cardFill,
+          surfaceTintColor: Colors.transparent,
           content: Text(
             message,
-            style: TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: _SettingsChrome.fg),
           ),
           actions: [
             TextButton(
@@ -2410,7 +2439,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
+        backgroundColor: _SettingsChrome.cardFill,
+        surfaceTintColor: Colors.transparent,
         content: Row(
           children: [
             const SizedBox(
@@ -2427,7 +2457,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Expanded(
               child: Text(
                 message,
-                style: TextStyle(color: AppColors.textPrimary),
+                style: TextStyle(color: _SettingsChrome.fg),
               ),
             ),
           ],

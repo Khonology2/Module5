@@ -3009,18 +3009,16 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
   Widget build(BuildContext context) {
     final light = _AlertsChrome.light;
     // Light mode: solid white tiles + neutral border, accent border on hover (dashboard KPI style).
-    final Color fillColor = light
-        ? Colors.white
-        : (_isHovered
-            ? widget.color.withValues(alpha: 0.2)
-            : widget.color.withValues(alpha: 0.1));
+    // Dark mode: always solid #3D3F40 fill (only border highlights on hover).
+    final Color fillColor = light ? Colors.white : _AlertsChrome.cardFill;
+
+    // Keep hover feel, but do not change background in dark mode.
     final Color strokeColor = light
         ? (_isHovered
             ? widget.color.withValues(alpha: 0.45)
             : const Color(0x33000000))
-        : (_isHovered
-            ? widget.color.withValues(alpha: 0.5)
-            : widget.color.withValues(alpha: 0.3));
+        : (_isHovered ? widget.color.withValues(alpha: 0.5) : _AlertsChrome.borderH);
+
     final List<BoxShadow>? shadows = light
         ? [
             BoxShadow(
@@ -3030,16 +3028,7 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
               offset: const Offset(0, 2),
             ),
           ]
-        : (_isHovered
-            ? [
-                BoxShadow(
-                  color: widget.color.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null);
+        : null;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
