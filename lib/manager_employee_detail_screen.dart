@@ -13,6 +13,7 @@ import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/widgets/manager_milestone_review_widget.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerEmployeeDetailScreen extends StatefulWidget {
   final EmployeeData employee;
@@ -64,82 +65,70 @@ class _ManagerEmployeeDetailScreenState
         elevation: 0,
         title: Text(
           widget.employee.profile.displayName,
-          style: AppTypography.heading2.copyWith(color: Colors.white),
+          style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: IconThemeData(color: DashboardChrome.fg),
       ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/khono_bg.png'),
-                  fit: BoxFit.cover,
+      body: DashboardThemedBackground(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 80), // Space for AppBar
+              _header(),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () => _addStretchObjective(),
+                icon: const Icon(Icons.add_circle_outline, size: 18),
+                label: const Text('Add Stretch Objective'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange.withValues(alpha: 0.8),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 16,
+                  ),
                 ),
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 80), // Space for AppBar
-                _header(),
-                const SizedBox(height: 12),
-                // Add Stretch Objective Button
-                ElevatedButton.icon(
-                  onPressed: () => _addStretchObjective(),
-                  icon: const Icon(Icons.add_circle_outline, size: 18),
-                  label: const Text('Add Stretch Objective'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange.withValues(alpha: 0.8),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 16,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: StreamBuilder<List<Goal>>(
-                    stream: _goalsStream(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.activeColor,
-                          ),
-                        );
-                      }
-                      final goals = snapshot.data!
-                          .where(
-                            (g) =>
-                                g.approvalStatus == GoalApprovalStatus.approved,
-                          )
-                          .toList();
-
-                      if (goals.isEmpty) {
-                        return Center(
-                          child: Text(
-                            'No approved goals yet',
-                            style: AppTypography.muted,
-                          ),
-                        );
-                      }
-                      return ListView.builder(
-                        itemCount: goals.length,
-                        itemBuilder: (context, i) => _goalTile(goals[i]),
+              const SizedBox(height: 12),
+              Expanded(
+                child: StreamBuilder<List<Goal>>(
+                  stream: _goalsStream(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.activeColor,
+                        ),
                       );
-                    },
-                  ),
+                    }
+                    final goals = snapshot.data!
+                        .where(
+                          (g) => g.approvalStatus == GoalApprovalStatus.approved,
+                        )
+                        .toList();
+
+                    if (goals.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No approved goals yet',
+                          style: AppTypography.muted.copyWith(
+                            color: DashboardChrome.fg,
+                          ),
+                        ),
+                      );
+                    }
+                    return ListView.builder(
+                      itemCount: goals.length,
+                      itemBuilder: (context, i) => _goalTile(goals[i]),
+                    );
+                  },
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -148,9 +137,9 @@ class _ManagerEmployeeDetailScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0x80000000),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Row(
         children: [
@@ -175,14 +164,14 @@ class _ManagerEmployeeDetailScreenState
                 Text(
                   widget.employee.profile.displayName,
                   style: AppTypography.bodyLarge.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   widget.employee.profile.jobTitle,
-                  style: AppTypography.muted,
+                  style: AppTypography.muted.copyWith(color: DashboardChrome.fg),
                 ),
               ],
             ),
@@ -193,7 +182,7 @@ class _ManagerEmployeeDetailScreenState
               Text(
                 '${widget.employee.totalPoints} pts',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
+                  color: DashboardChrome.fg,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -221,12 +210,12 @@ class _ManagerEmployeeDetailScreenState
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0x80000000),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isUrgent
               ? (isOverdue ? AppColors.dangerColor : AppColors.warningColor)
-              : AppColors.borderColor,
+              : DashboardChrome.border,
           width: isUrgent ? 2 : 1,
         ),
       ),
@@ -242,7 +231,7 @@ class _ManagerEmployeeDetailScreenState
                     Text(
                       g.title,
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
+                        color: DashboardChrome.fg,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -306,7 +295,7 @@ class _ManagerEmployeeDetailScreenState
                       Text(
                         'Due: ${_formatDate(g.targetDate)}',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
+                          color: DashboardChrome.fg,
                           fontSize: 11,
                         ),
                       ),
@@ -344,7 +333,7 @@ class _ManagerEmployeeDetailScreenState
               Text(
                 '${g.progress}% Complete',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+                  color: DashboardChrome.fg,
                   fontSize: 11,
                 ),
               ),
@@ -352,7 +341,7 @@ class _ManagerEmployeeDetailScreenState
                 Text(
                   '${g.points} pts',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
+                    color: DashboardChrome.fg,
                     fontSize: 11,
                   ),
                 ),
@@ -789,13 +778,13 @@ class _ManagerEmployeeDetailScreenState
                     child: Text(
                       'Milestone Review',
                       style: AppTypography.heading4.copyWith(
-                        color: AppColors.textPrimary,
+                        color: DashboardChrome.fg,
                       ),
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(dialogContext).pop(),
-                    icon: const Icon(Icons.close),
+                    icon: Icon(Icons.close, color: DashboardChrome.fg),
                   ),
                 ],
               ),
@@ -803,7 +792,7 @@ class _ManagerEmployeeDetailScreenState
               Text(
                 'Goal: ${goal.title}',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
+                  color: DashboardChrome.fg,
                 ),
               ),
               const SizedBox(height: 16),
@@ -854,7 +843,7 @@ class _ManagerEmployeeDetailScreenState
                         child: Text(
                           'No milestones found for this goal',
                           style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.textSecondary,
+                            color: DashboardChrome.fg,
                           ),
                         ),
                       );
@@ -869,7 +858,7 @@ class _ManagerEmployeeDetailScreenState
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.3),
+                            color: DashboardChrome.cardFill,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color:
@@ -880,7 +869,7 @@ class _ManagerEmployeeDetailScreenState
                                         GoalMilestoneStatus
                                             .completedAcknowledged
                                   ? Colors.purple.withValues(alpha: 0.5)
-                                  : Colors.white.withValues(alpha: 0.2),
+                                  : DashboardChrome.border,
                             ),
                           ),
                           child: Column(
@@ -892,7 +881,7 @@ class _ManagerEmployeeDetailScreenState
                                     child: Text(
                                       milestone.title,
                                       style: AppTypography.bodyMedium.copyWith(
-                                        color: AppColors.textPrimary,
+                                        color: DashboardChrome.fg,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -951,7 +940,7 @@ class _ManagerEmployeeDetailScreenState
                                 Text(
                                   milestone.description,
                                   style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.textSecondary,
+                                    color: DashboardChrome.fg,
                                   ),
                                 ),
                               ],
@@ -962,7 +951,7 @@ class _ManagerEmployeeDetailScreenState
                                 Text(
                                   'Submitted Evidence:',
                                   style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.textSecondary,
+                                    color: DashboardChrome.fg,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -1076,10 +1065,10 @@ class _ManagerEmployeeDetailScreenState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
+        backgroundColor: DashboardChrome.cardFill,
         title: Text(
           'Add Stretch Objective for ${widget.employee.profile.displayName}',
-          style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+          style: AppTypography.heading4.copyWith(color: DashboardChrome.fg),
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -1088,17 +1077,17 @@ class _ManagerEmployeeDetailScreenState
               TextField(
                 controller: titleController,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
+                  color: DashboardChrome.fg,
                 ),
                 decoration: InputDecoration(
                   labelText: 'Objective Title',
                   labelStyle: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
+                    color: DashboardChrome.fg,
                   ),
                   hintText: 'e.g., Complete advanced certification',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.borderColor),
+                    borderSide: BorderSide(color: DashboardChrome.border),
                   ),
                 ),
               ),
@@ -1106,18 +1095,18 @@ class _ManagerEmployeeDetailScreenState
               TextField(
                 controller: descriptionController,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
+                  color: DashboardChrome.fg,
                 ),
                 maxLines: 3,
                 decoration: InputDecoration(
                   labelText: 'Description',
                   labelStyle: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
+                    color: DashboardChrome.fg,
                   ),
                   hintText: 'Describe the stretch objective...',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.borderColor),
+                    borderSide: BorderSide(color: DashboardChrome.border),
                   ),
                 ),
               ),
@@ -1125,18 +1114,18 @@ class _ManagerEmployeeDetailScreenState
               TextField(
                 controller: targetDateController,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
+                  color: DashboardChrome.fg,
                 ),
                 readOnly: true,
                 decoration: InputDecoration(
                   labelText: 'Target Date',
                   labelStyle: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
+                    color: DashboardChrome.fg,
                   ),
-                  suffixIcon: const Icon(Icons.calendar_today),
+                  suffixIcon: Icon(Icons.calendar_today, color: DashboardChrome.fg),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.borderColor),
+                    borderSide: BorderSide(color: DashboardChrome.border),
                   ),
                 ),
                 onTap: () async {
@@ -1168,7 +1157,7 @@ class _ManagerEmployeeDetailScreenState
                     Text(
                       'Quick Plan Template:',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textPrimary,
+                        color: DashboardChrome.fg,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1176,7 +1165,7 @@ class _ManagerEmployeeDetailScreenState
                     Text(
                       '• Define success metrics\n• Break into milestones\n• Set review checkpoints\n• Identify resources needed',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: DashboardChrome.fg,
                         fontSize: 11,
                       ),
                     ),
@@ -1192,7 +1181,7 @@ class _ManagerEmployeeDetailScreenState
             child: Text(
               'Cancel',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
+                color: DashboardChrome.fg,
               ),
             ),
           ),
@@ -1256,11 +1245,11 @@ class _ManagerEmployeeDetailScreenState
         t = 'In Progress';
         break;
       case GoalStatus.notStarted:
-        c = AppColors.textSecondary;
+        c = DashboardChrome.fg;
         t = 'Not Started';
         break;
       case GoalStatus.paused:
-        c = AppColors.textSecondary;
+        c = DashboardChrome.fg;
         t = 'Paused';
         break;
       case GoalStatus.burnout:
@@ -1302,10 +1291,10 @@ class _ManagerEmployeeDetailScreenState
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1F2840),
+        backgroundColor: DashboardChrome.cardFill,
         title: Text(
           isImage ? 'Evidence Image' : 'Evidence Details',
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: DashboardChrome.fg),
         ),
         content: isImage
             ? ClipRRect(
@@ -1339,7 +1328,7 @@ class _ManagerEmployeeDetailScreenState
                   children: [
                     Text(
                       'File Name:',
-                      style: TextStyle(color: Colors.grey.shade400),
+                      style: TextStyle(color: DashboardChrome.fg),
                     ),
                     Text(
                       evidence.fileName,
@@ -1348,7 +1337,7 @@ class _ManagerEmployeeDetailScreenState
                     const SizedBox(height: 8),
                     Text(
                       'File Type:',
-                      style: TextStyle(color: Colors.grey.shade400),
+                      style: TextStyle(color: DashboardChrome.fg),
                     ),
                     Text(
                       evidence.fileType,
@@ -1357,7 +1346,7 @@ class _ManagerEmployeeDetailScreenState
                     const SizedBox(height: 8),
                     Text(
                       'File Size:',
-                      style: TextStyle(color: Colors.grey.shade400),
+                      style: TextStyle(color: DashboardChrome.fg),
                     ),
                     Text(
                       '${(evidence.fileSize / 1024).toStringAsFixed(1)} KB',
@@ -1366,7 +1355,7 @@ class _ManagerEmployeeDetailScreenState
                     const SizedBox(height: 8),
                     Text(
                       'Uploaded By:',
-                      style: TextStyle(color: Colors.grey.shade400),
+                      style: TextStyle(color: DashboardChrome.fg),
                     ),
                     Text(
                       evidence.uploadedByName ?? 'User',
@@ -1375,7 +1364,7 @@ class _ManagerEmployeeDetailScreenState
                     const SizedBox(height: 8),
                     Text(
                       'Upload Date:',
-                      style: TextStyle(color: Colors.grey.shade400),
+                      style: TextStyle(color: DashboardChrome.fg),
                     ),
                     Text(
                       _formatDate(evidence.uploadedAt),
@@ -1403,7 +1392,7 @@ class _ManagerEmployeeDetailScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
+            child: Text('Close', style: TextStyle(color: DashboardChrome.fg)),
           ),
         ],
       ),
@@ -1455,12 +1444,12 @@ class _NudgeDialogState extends State<_NudgeDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppColors.cardBackground,
+      backgroundColor: DashboardChrome.cardFill,
       title: Text(
         widget.employee != null
             ? 'Send Nudge to ${widget.employee!.profile.displayName}'
             : 'Send Nudge',
-        style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+        style: AppTypography.heading4.copyWith(color: DashboardChrome.fg),
       ),
       content: SingleChildScrollView(
         child: Column(
@@ -1473,7 +1462,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
               Text(
                 'Related Goal:',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
+                  color: DashboardChrome.fg,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1484,27 +1473,27 @@ class _NudgeDialogState extends State<_NudgeDialog> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.elevatedBackground,
+                  color: DashboardChrome.cardFill,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.borderColor),
+                  border: Border.all(color: DashboardChrome.border),
                 ),
                 child: DropdownButton<Goal>(
                   value: _selectedGoal,
                   underline: const SizedBox(),
                   isExpanded: true,
-                  dropdownColor: AppColors.cardBackground,
+                  dropdownColor: DashboardChrome.cardFill,
                   hint: Text(
                     'Select Goal',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
+                      color: DashboardChrome.fg,
                     ),
                   ),
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                   ),
                   icon: Icon(
                     Icons.arrow_drop_down,
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                   ),
                   onChanged: (goal) => setState(() => _selectedGoal = goal),
                   items: widget.employee!.goals.map((goal) {
@@ -1535,7 +1524,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
                       child: Text(
                         widget.goal!.title,
                         style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textPrimary,
+                          color: DashboardChrome.fg,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1548,7 +1537,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
             Text(
               'Message:',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: DashboardChrome.fg,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1557,20 +1546,20 @@ class _NudgeDialogState extends State<_NudgeDialog> {
               controller: _messageController,
               maxLines: 4,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: DashboardChrome.fg,
               ),
               decoration: InputDecoration(
                 hintText: 'Enter your nudge message...',
                 hintStyle: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+                  color: DashboardChrome.fg,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.borderColor),
+                  borderSide: BorderSide(color: DashboardChrome.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.borderColor),
+                  borderSide: BorderSide(color: DashboardChrome.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1587,7 +1576,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
           child: Text(
             'Cancel',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
           ),
         ),
@@ -1610,11 +1599,11 @@ class _NudgeDialogState extends State<_NudgeDialog> {
         barrierColor: Colors.black54,
         builder: (dialogContext) {
           return AlertDialog(
-            backgroundColor: AppColors.cardBackground,
+            backgroundColor: DashboardChrome.cardFill,
             content: Text(
               'Please enter a message',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: DashboardChrome.fg,
               ),
             ),
             actions: [

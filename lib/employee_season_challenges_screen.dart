@@ -13,6 +13,25 @@ import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/widgets/season_milestone_progress_card.dart';
 import 'package:pdh/season_celebration_screen.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
+
+class _SeasonChrome {
+  _SeasonChrome._();
+
+  static bool get light => employeeDashboardLightModeNotifier.value;
+  static const Color _darkCard = Color(0xFF3D3F40);
+
+  static Color get cardFill => light ? const Color(0xFFFFFFFF) : _darkCard;
+  static Color get border =>
+      light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
+  static Color get fg => light ? const Color(0xFF000000) : Colors.white;
+  static List<Color>? get lightGradient => light
+      ? [
+          Colors.white.withValues(alpha: 0.2),
+          Colors.white.withValues(alpha: 0.08),
+        ]
+      : null;
+}
 
 class EmployeeSeasonChallengesScreen extends StatefulWidget {
   const EmployeeSeasonChallengesScreen({
@@ -91,79 +110,95 @@ class _EmployeeSeasonChallengesScreenState
     final routeName = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
         ? widget.managerGwMenuRoute!
         : '/season_challenges';
-    return AppScaffold(
-      title: 'Season Challenges',
-      showAppBar: false,
-      embedded: widget.embedded,
-      items: sidebarItems,
-      currentRouteName: routeName,
-      onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await _authService.signOut();
-        if (!mounted) return;
-        navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-      },
-      content: AppComponents.backgroundWithImage(
-        imagePath: 'assets/khono_bg.png',
-        child: Column(
-          children: [
-            Container(
-              color: AppColors.activeColor,
-              padding: const EdgeInsets.only(
-                top: AppSpacing.lg,
-                left: AppSpacing.lg,
-                right: AppSpacing.lg,
-                bottom: AppSpacing.sm,
-              ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: AppScaffold(
+            title: 'Season Challenges',
+            showAppBar: false,
+            embedded: widget.embedded,
+            items: sidebarItems,
+            currentRouteName: routeName,
+            onNavigate: (route) {
+              final current = ModalRoute.of(context)?.settings.name;
+              if (current != route) {
+                Navigator.pushNamed(context, route);
+              }
+            },
+            onLogout: () async {
+              final navigator = Navigator.of(context);
+              await _authService.signOut();
+              if (!mounted) return;
+              navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+            },
+            content: AppComponents.backgroundWithImage(
+              blurSigma: 0,
+              imagePath: light
+                  ? 'assets/light_mode_bg.png'
+                  : 'assets/khono_bg.png',
+              gradientColors: _SeasonChrome.lightGradient,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Season Challenges',
-                        style: AppTypography.heading2.copyWith(
-                          color: Colors.white,
+                  Container(
+                    color: light
+                        ? const Color(0xFFFFFFFF)
+                        : AppColors.activeColor,
+                    padding: const EdgeInsets.only(
+                      top: AppSpacing.lg,
+                      left: AppSpacing.lg,
+                      right: AppSpacing.lg,
+                      bottom: AppSpacing.sm,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Season Challenges',
+                              style: AppTypography.heading2.copyWith(
+                                color: _SeasonChrome.fg,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        TabBar(
+                          controller: _tabController,
+                          indicatorColor: light
+                              ? AppColors.activeColor
+                              : Colors.white,
+                          labelColor: _SeasonChrome.fg,
+                          unselectedLabelColor: _SeasonChrome.fg,
+                          tabs: const [
+                            Tab(text: 'Available'),
+                            Tab(text: 'My Seasons'),
+                            Tab(text: 'Completed'),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  TabBar(
-                    controller: _tabController,
-                    indicatorColor: Colors.white,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: Colors.white70,
-                    tabs: const [
-                      Tab(text: 'Available'),
-                      Tab(text: 'My Seasons'),
-                      Tab(text: 'Completed'),
-                    ],
+                  Expanded(
+                    child: SafeArea(
+                      top: false,
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildAvailableSeasonsTab(),
+                          _buildMySeasonsTab(),
+                          _buildCompletedSeasonsTab(),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-            Expanded(
-              child: SafeArea(
-                top: false,
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildAvailableSeasonsTab(),
-                    _buildMySeasonsTab(),
-                    _buildCompletedSeasonsTab(),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -293,9 +328,9 @@ class _EmployeeSeasonChallengesScreenState
       margin: margin ?? EdgeInsets.zero,
       padding: padding ?? const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _SeasonChrome.cardFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        border: Border.all(color: _SeasonChrome.border),
       ),
       child: child,
     );
@@ -330,12 +365,12 @@ class _EmployeeSeasonChallengesScreenState
                 ),
               ),
               const Spacer(),
-              Icon(Icons.schedule, size: 16, color: AppColors.textSecondary),
+              Icon(Icons.schedule, size: 16, color: _SeasonChrome.fg),
               const SizedBox(width: AppSpacing.xs),
               Text(
                 '$daysLeft days left',
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                 ),
               ),
             ],
@@ -344,7 +379,7 @@ class _EmployeeSeasonChallengesScreenState
           Text(
             season.title,
             style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+              color: _SeasonChrome.fg,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -352,7 +387,7 @@ class _EmployeeSeasonChallengesScreenState
           Text(
             season.description,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _SeasonChrome.fg,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -360,12 +395,12 @@ class _EmployeeSeasonChallengesScreenState
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              Icon(Icons.people, size: 16, color: AppColors.textSecondary),
+              Icon(Icons.people, size: 16, color: _SeasonChrome.fg),
               const SizedBox(width: AppSpacing.xs),
               Text(
                 '${season.metrics.totalParticipants} participants',
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -374,7 +409,7 @@ class _EmployeeSeasonChallengesScreenState
               Text(
                 '${season.challenges.length} challenges',
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                 ),
               ),
             ],
@@ -437,7 +472,7 @@ class _EmployeeSeasonChallengesScreenState
               Text(
                 '$progress/$totalPossiblePoints pts',
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -447,21 +482,23 @@ class _EmployeeSeasonChallengesScreenState
           Text(
             season.title,
             style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+              color: _SeasonChrome.fg,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
           LinearProgressIndicator(
             value: progressPercentage / 100,
-            backgroundColor: AppColors.elevatedBackground,
+            backgroundColor: _SeasonChrome.light
+                ? const Color(0xFFE0E0E0)
+                : Colors.white.withValues(alpha: 0.2),
             valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             '$progressPercentage% Complete',
             style: AppTypography.caption.copyWith(
-              color: AppColors.textSecondary,
+              color: _SeasonChrome.fg,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -503,7 +540,7 @@ class _EmployeeSeasonChallengesScreenState
             Text(
               'Challenges & Milestones',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: _SeasonChrome.fg,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -539,9 +576,9 @@ class _EmployeeSeasonChallengesScreenState
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: _SeasonChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: _SeasonChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,7 +591,7 @@ class _EmployeeSeasonChallengesScreenState
                 child: Text(
                   challenge.title,
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary,
+                    color: _SeasonChrome.fg,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -573,14 +610,16 @@ class _EmployeeSeasonChallengesScreenState
             Text(
               challenge.description,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: _SeasonChrome.fg,
               ),
             ),
           ],
           const SizedBox(height: AppSpacing.xs),
           LinearProgressIndicator(
             value: progress,
-            backgroundColor: AppColors.borderColor,
+            backgroundColor: _SeasonChrome.light
+                ? const Color(0xFFE0E0E0)
+                : Colors.white.withValues(alpha: 0.2),
             valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
             minHeight: 4,
           ),
@@ -591,7 +630,7 @@ class _EmployeeSeasonChallengesScreenState
               Text(
                 '$completedMilestones/$totalMilestones milestones',
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                 ),
               ),
               OutlinedButton.icon(
@@ -684,7 +723,7 @@ class _EmployeeSeasonChallengesScreenState
               Text(
                 '$progress points earned',
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -694,7 +733,7 @@ class _EmployeeSeasonChallengesScreenState
           Text(
             season.title,
             style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+              color: _SeasonChrome.fg,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -703,7 +742,7 @@ class _EmployeeSeasonChallengesScreenState
             Text(
               'Badges Earned:',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: _SeasonChrome.fg,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -734,7 +773,7 @@ class _EmployeeSeasonChallengesScreenState
               Text(
                 ' +${badges.length - 3} more',
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                 ),
               ),
             const SizedBox(height: AppSpacing.md),
@@ -770,7 +809,7 @@ class _EmployeeSeasonChallengesScreenState
             Text(
               'Error',
               style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
+                color: _SeasonChrome.fg,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -778,7 +817,7 @@ class _EmployeeSeasonChallengesScreenState
               child: Text(
                 message,
                 style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 3,
@@ -802,13 +841,13 @@ class _EmployeeSeasonChallengesScreenState
             Icon(
               Icons.event_available,
               size: 60,
-              color: AppColors.textSecondary,
+              color: _SeasonChrome.fg,
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
               'No Available Seasons',
               style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
+                color: _SeasonChrome.fg,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -816,7 +855,7 @@ class _EmployeeSeasonChallengesScreenState
               child: Text(
                 'Check back later for new growth seasons from your manager',
                 style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
@@ -837,12 +876,12 @@ class _EmployeeSeasonChallengesScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.event_note, size: 60, color: AppColors.textSecondary),
+            Icon(Icons.event_note, size: 60, color: _SeasonChrome.fg),
             const SizedBox(height: AppSpacing.md),
             Text(
               'No Active Seasons',
               style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
+                color: _SeasonChrome.fg,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -850,7 +889,7 @@ class _EmployeeSeasonChallengesScreenState
               child: Text(
                 'Join available seasons to start earning points and badges',
                 style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
@@ -871,12 +910,12 @@ class _EmployeeSeasonChallengesScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.celebration, size: 60, color: AppColors.textSecondary),
+            Icon(Icons.celebration, size: 60, color: _SeasonChrome.fg),
             const SizedBox(height: AppSpacing.md),
             Text(
               'No Completed Seasons',
               style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
+                color: _SeasonChrome.fg,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -884,7 +923,7 @@ class _EmployeeSeasonChallengesScreenState
               child: Text(
                 'Complete season challenges to see your achievements here',
                 style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _SeasonChrome.fg,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,

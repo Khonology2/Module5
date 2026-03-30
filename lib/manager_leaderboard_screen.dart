@@ -4,6 +4,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 enum LeaderboardMetric { points, streaks, progress }
 
@@ -44,17 +45,17 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   Widget _buildEmptyState() {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: const [
-        Icon(Icons.trending_up_outlined, color: AppColors.textSecondary),
-        SizedBox(height: 8),
+      children: [
+        Icon(Icons.trending_up_outlined, color: DashboardChrome.fg),
+        const SizedBox(height: 8),
         Text(
           'No employees found',
-          style: TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: DashboardChrome.fg),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
           'If some employees are missing, verify their user profiles exist in Firestore `users` and their role is set to employee.',
-          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          style: TextStyle(color: DashboardChrome.fg, fontSize: 12),
         ),
       ],
     );
@@ -99,15 +100,15 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                 children: [
                   const Icon(Icons.error_outline, color: AppColors.dangerColor),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Failed to load leaderboard',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: DashboardChrome.fg),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${snapshot.error}',
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
+                    style: TextStyle(
+                      color: DashboardChrome.fg,
                       fontSize: 12,
                     ),
                   ),
@@ -175,7 +176,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                       },
                       icon: const Icon(
                         Icons.refresh,
-                        color: AppColors.textSecondary,
+                        color: AppColors.activeColor,
                       ),
                     ),
                   ],
@@ -208,7 +209,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                     },
                     icon: const Icon(
                       Icons.refresh,
-                      color: AppColors.textSecondary,
+                      color: AppColors.activeColor,
                     ),
                   ),
                 ],
@@ -237,15 +238,15 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
               children: [
                 const Icon(Icons.error_outline, color: AppColors.dangerColor),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Failed to load leaderboard',
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: DashboardChrome.fg),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '${snapshot.error}',
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
+                  style: TextStyle(
+                    color: DashboardChrome.fg,
                     fontSize: 12,
                   ),
                 ),
@@ -333,16 +334,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: AppColors.backgroundColor,
-        title: Text(
-          'Manager Leaderboard',
-          style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
-        ),
-        centerTitle: false,
-      ),
-      body: content,
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      body: DashboardThemedBackground(child: content),
     );
   }
 
@@ -357,16 +352,16 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           decoration: BoxDecoration(
             color: selected
                 ? AppColors.activeColor
-                : AppColors.elevatedBackground,
+                : DashboardChrome.cardFill,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? AppColors.activeColor : AppColors.borderColor,
+              color: selected ? AppColors.activeColor : DashboardChrome.border,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+              color: selected ? Colors.white : DashboardChrome.fg,
               fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
               fontSize: 12,
             ),
@@ -378,9 +373,9 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Row(
         children: [
@@ -390,13 +385,14 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
               children: [
                 Text(
                   'Top Team Performers',
-                  style: AppTypography.heading2.copyWith(color: Colors.white),
+                  style:
+                      AppTypography.heading2.copyWith(color: DashboardChrome.fg),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Switch metrics to compare different dimensions of impact.',
                   style: AppTypography.bodySmall.copyWith(
-                    color: Colors.white70,
+                    color: DashboardChrome.fg,
                   ),
                 ),
               ],
@@ -454,18 +450,11 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.55),
+                  color: DashboardChrome.cardFill,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.15),
+                    color: DashboardChrome.border,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -488,8 +477,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                       e.profile.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: DashboardChrome.fg,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -502,8 +491,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                         const SizedBox(width: 4),
                         Text(
                           '${e.totalPoints} pts',
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: DashboardChrome.fg,
                             fontSize: 11,
                           ),
                         ),
@@ -550,9 +539,9 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Row(
         children: [
@@ -560,15 +549,15 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: AppColors.elevatedBackground,
+              color: DashboardChrome.cardFill,
               borderRadius: BorderRadius.circular(17),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+              border: Border.all(color: DashboardChrome.border),
             ),
             child: Center(
               child: Text(
                 '$rank',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: DashboardChrome.fg,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -595,23 +584,23 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
               children: [
                 Text(
                   e.profile.displayName,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: DashboardChrome.fg,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   e.profile.department,
-                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                  style: TextStyle(color: DashboardChrome.fg, fontSize: 12),
                 ),
               ],
             ),
           ),
           Text(
             rightText,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: DashboardChrome.fg,
               fontWeight: FontWeight.bold,
             ),
           ),

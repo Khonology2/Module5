@@ -20,6 +20,7 @@ import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/badge_celebration_dialog.dart';
 import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerBadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -541,15 +542,8 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
 
     return FocusTraversalGroup(
       policy: WidgetOrderTraversalPolicy(),
-      child: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
+      child: DashboardThemedBackground(
+        embedded: widget.embedded,
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: FirestoreSafe.stream(
             FirebaseFirestore.instance
@@ -625,7 +619,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Text(
         title,
-        style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+        style: AppTypography.heading3.copyWith(color: DashboardChrome.fg),
       ),
     );
   }
@@ -635,12 +629,14 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
+            color: Colors.black.withValues(
+              alpha: DashboardChrome.light ? 0.08 : 0.2,
+            ),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -655,23 +651,23 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                 Text(
                   '$points',
                   style: AppTypography.heading1.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   'Total Points',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary.withValues(alpha: 0.8),
+                    color: DashboardChrome.fg,
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 16),
-          const Icon(
+          Icon(
             Icons.stars,
-            color: AppColors.textPrimary,
+            color: DashboardChrome.fg,
             size: 40,
           ),
         ],

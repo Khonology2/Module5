@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
-import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,6 +16,7 @@ import 'package:pdh/admin_leaderboard_screen.dart';
 import 'package:pdh/admin_badges_points_screen.dart';
 import 'package:pdh/admin_repository_audit_screen.dart';
 import 'package:pdh/admin_settings_screen.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -123,47 +123,34 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset('assets/khono_bg.png', fit: BoxFit.cover),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.2,
-                  colors: [Color(0x880A0F1F), Color(0x88040610)],
-                  stops: [0.0, 1.0],
+      body: DashboardThemedBackground(
+        child: Stack(
+          children: [
+            Row(
+              children: [
+                ResponsiveSidebar(
+                  items: SidebarConfig.adminItems,
+                  onNavigate: _onNavigate,
+                  currentRouteName: _currentRoute,
+                  onLogout: _onLogout,
                 ),
-              ),
+                Expanded(child: _getBodyWidget()),
+              ],
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  ResponsiveSidebar(
-                    items: SidebarConfig.adminItems,
-                    onNavigate: _onNavigate,
-                    currentRouteName: _currentRoute,
-                    onLogout: _onLogout,
-                  ),
-                  Expanded(child: _getBodyWidget()),
+                  NotificationsBell(onTap: () => _onNavigate('/admin_inbox')),
+                  const SizedBox(width: 8),
+                  _buildProfileButton(context),
                 ],
               ),
             ),
-          ),
-          Positioned(
-            top: 16,
-            right: 16,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                NotificationsBell(onTap: () => _onNavigate('/admin_inbox')),
-                const SizedBox(width: 8),
-                _buildProfileButton(context),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -184,18 +171,18 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
+          color: DashboardChrome.cardFill,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderColor),
+          border: Border.all(color: DashboardChrome.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.person, color: Colors.white, size: 18),
+            Icon(Icons.person, color: DashboardChrome.fg, size: 18),
             const SizedBox(width: 8),
             Text(
               userName,
-              style: AppTypography.bodySmall.copyWith(color: Colors.white),
+              style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
             ),
           ],
         ),
@@ -219,18 +206,18 @@ class _AdminPlaceholder extends StatelessWidget {
           Icon(
             Icons.construction_outlined,
             size: 64,
-            color: Colors.white.withValues(alpha: 0.6),
+            color: DashboardChrome.fg.withValues(alpha: 0.8),
           ),
           const SizedBox(height: 16),
           Text(
             label,
-            style: AppTypography.heading2.copyWith(color: Colors.white),
+            style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             'Coming soon',
-            style: AppTypography.bodyMedium.copyWith(color: Colors.white70),
+            style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
           ),
         ],
       ),
