@@ -1374,6 +1374,59 @@ class AlertService {
     }
   }
 
+  // MIGRATION: Update existing approved goal alerts to have correct type
+  static Future<void> migrateExistingApprovedGoalAlerts() async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final manager = FirebaseAuth.instance.currentUser;
+      if (manager == null) return;
+
+      // Get all goals that are approved
+      final approvedGoals = await firestore
+          .collection('goals')
+          .where('approvalStatus', isEqualTo: 'approved')
+          .get();
+
+      developer.log(
+        'Found ${approvedGoals.docs.length} approved goals to migrate',
+      );
+
+      for (final goalDoc in approvedGoals.docs) {
+        final goalId = goalDoc.id;
+        final goalData = goalDoc.data();
+        final userId = goalData['userId'] as String?;
+
+        if (userId == null) continue;
+
+        // Find any existing approval request alerts for this goal
+        final existingAlerts = await firestore
+            .collection('alerts')
+            .where('userId', isEqualTo: manager.uid)
+            .where('relatedGoalId', isEqualTo: goalId)
+            .where('type', isEqualTo: 'goalApprovalRequested')
+            .get();
+
+        // Update them to approved type
+        final batch = firestore.batch();
+        for (final alertDoc in existingAlerts.docs) {
+          batch.update(alertDoc.reference, {
+            'type': 'goalApprovalApproved',
+            'isRead': true,
+          });
+        }
+
+        if (existingAlerts.docs.isNotEmpty) {
+          await batch.commit();
+          developer.log(
+            'Migrated ${existingAlerts.docs.length} alerts for goal $goalId to approved type',
+          );
+        }
+      }
+    } catch (e) {
+      developer.log('Error migrating approved goal alerts: $e');
+    }
+  }
+
   // Auto-generate alerts based on goal events
   static Future<void> checkAndCreateGoalAlerts() async {
     final user = FirebaseAuth.instance.currentUser;
