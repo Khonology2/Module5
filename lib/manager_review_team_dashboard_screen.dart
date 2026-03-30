@@ -1777,6 +1777,9 @@ class _ManagerReviewTeamDashboardScreenState
         employeeId: employeeId,
         goalId: goalId,
         message: message,
+        recipientActionRoute: widget.forAdminOversight
+            ? '/manager_gw_menu_alerts'
+            : null,
       );
       if (mounted) {
         await _showCenterNotice(context, 'Nudge sent successfully!');
@@ -1887,6 +1890,9 @@ class _ManagerReviewTeamDashboardScreenState
                       await ManagerRealtimeService.requestOneOnOne(
                         employeeId: employee.profile.uid,
                         agenda: agendaController.text.trim(),
+                        recipientActionRoute: widget.forAdminOversight
+                            ? '/manager_gw_menu_alerts'
+                            : null,
                       );
                       if (!mounted) return;
                       Navigator.pop(sheetContext);
@@ -1987,6 +1993,9 @@ class _ManagerReviewTeamDashboardScreenState
                             proposedStartDateTime: proposedStart,
                             proposedEndDateTime: proposedEnd,
                             agenda: agenda.isEmpty ? null : agenda,
+                            actionRouteOverride: widget.forAdminOversight
+                                ? '/manager_gw_menu_alerts'
+                                : null,
                           );
                         }
                       } else {
@@ -1995,6 +2004,9 @@ class _ManagerReviewTeamDashboardScreenState
                           scheduledStartTime: proposedStart,
                           scheduledEndTime: proposedEnd,
                           purpose: agenda.isEmpty ? '1:1' : agenda,
+                          recipientActionRoute: widget.forAdminOversight
+                              ? '/manager_gw_menu_alerts'
+                              : null,
                         );
                       }
 
@@ -2076,6 +2088,9 @@ class _ManagerReviewTeamDashboardScreenState
                               ? typedReason
                               : 'Outstanding performance this week!',
                           points: 50,
+                          recipientActionRoute: widget.forAdminOversight
+                              ? '/manager_gw_menu_alerts'
+                              : null,
                         );
                         Navigator.pop(dialogContext); // Use dialogContext
                         if (!mounted) return;

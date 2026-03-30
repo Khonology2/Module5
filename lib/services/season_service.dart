@@ -12,6 +12,8 @@ import 'package:pdh/utils/firestore_safe.dart';
 class SeasonService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
+  static Set<String>? _cachedAdminUserIds;
+  static DateTime? _cachedAdminUserIdsAt;
 
   static const int _managerSeasonCreationBonus = 100;
   static const int _managerSeasonExtensionBonus = 30;
@@ -95,8 +97,12 @@ class SeasonService {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) throw Exception('No authenticated user');
+      final creatorRole = await _resolveUserRole(currentUser.uid);
 
       final seasonId = _firestore.collection('seasons').doc().id;
+      final createdByName = creatorRole == 'admin'
+          ? 'Admin'
+          : (currentUser.displayName ?? 'Manager');
       final season = Season(
         id: seasonId,
         title: title,
@@ -107,7 +113,7 @@ class SeasonService {
         endDate: endDate,
         createdAt: DateTime.now(),
         createdBy: currentUser.uid,
-        createdByName: currentUser.displayName ?? 'Manager',
+        createdByName: createdByName,
         department: department,
         challenges: challenges,
         participantIds: [],
@@ -125,34 +131,78 @@ class SeasonService {
         settings: settings,
       );
 
-      await _firestore
-          .collection('seasons')
-          .doc(seasonId)
-          .set(season.toFirestore());
+      final payload = season.toFirestore();
+      payload['createdByRole'] = creatorRole;
+      await _firestore.collection('seasons').doc(seasonId).set(payload);
 
-      await _awardManagerActionBadge(season, 'season_architect');
-      await _awardManagerSeasonPoints(
-        season: season,
-        points: _managerSeasonCreationBonus,
-        reason: 'Season created',
-      );
+      // Manager-specific rewards/telemetry should only apply to manager-created seasons.
+      if (creatorRole != 'admin') {
+        await _awardManagerActionBadge(season, 'season_architect');
+        await _awardManagerSeasonPoints(
+          season: season,
+          points: _managerSeasonCreationBonus,
+          reason: 'Season created',
+        );
 
-      // Record activity
-      await ManagerRealtimeService.recordEmployeeActivity(
-        employeeId: currentUser.uid,
-        activityType: 'season_created',
-        description: 'Created season: $title',
-        metadata: {'seasonId': seasonId, 'theme': theme},
-      );
+        // Record activity
+        await ManagerRealtimeService.recordEmployeeActivity(
+          employeeId: currentUser.uid,
+          activityType: 'season_created',
+          description: 'Created season: $title',
+          metadata: {'seasonId': seasonId, 'theme': theme},
+        );
+      }
 
       // Notify all employees about the new season
-      await _notifyEmployeesAboutNewSeason(seasonId, title, theme, department);
+      await _notifyEmployeesAboutNewSeason(
+        seasonId,
+        title,
+        theme,
+        department,
+        creatorRole: creatorRole,
+        creatorId: currentUser.uid,
+        creatorName: createdByName,
+      );
 
       developer.log('Season created: $seasonId');
       return seasonId;
     } catch (e) {
       developer.log('Error creating season: $e');
       rethrow;
+    }
+  }
+
+  static Future<String> _resolveUserRole(String uid) async {
+    try {
+      final doc = await _firestore.collection('users').doc(uid).get();
+      final role = (doc.data()?['role'] ?? '').toString().trim().toLowerCase();
+      if (role.isNotEmpty) return role;
+    } catch (_) {
+      // Fall through to default.
+    }
+    return 'manager';
+  }
+
+  static Future<Set<String>> _getAdminUserIds({bool forceRefresh = false}) async {
+    final now = DateTime.now();
+    if (!forceRefresh &&
+        _cachedAdminUserIds != null &&
+        _cachedAdminUserIdsAt != null &&
+        now.difference(_cachedAdminUserIdsAt!).inMinutes < 5) {
+      return _cachedAdminUserIds!;
+    }
+
+    try {
+      final snap = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .get();
+      _cachedAdminUserIds = snap.docs.map((d) => d.id).toSet();
+      _cachedAdminUserIdsAt = now;
+      return _cachedAdminUserIds!;
+    } catch (e) {
+      developer.log('Error loading admin user ids: $e');
+      return _cachedAdminUserIds ?? <String>{};
     }
   }
 
@@ -499,12 +549,24 @@ class SeasonService {
       if (currentUser == null) return const Stream.empty();
 
       return FirestoreSafe.stream(
-        _firestore
-            .collection('seasons')
-            .where('createdBy', isEqualTo: currentUser.uid)
-            .snapshots(),
-      ).map((snapshot) {
+        _firestore.collection('seasons').snapshots(),
+      ).asyncMap((snapshot) async {
+        final adminIds = await _getAdminUserIds();
         final seasons = snapshot.docs
+            .where((doc) {
+              final data = doc.data();
+              final createdBy = (data['createdBy'] ?? '').toString();
+              final createdByRole =
+                  (data['createdByRole'] ?? '').toString().trim().toLowerCase();
+
+              // Managers see:
+              // 1) their own seasons
+              // 2) admin-authored seasons (shared team challenges)
+              if (createdBy == currentUser.uid) return true;
+              if (createdByRole == 'admin') return true;
+              // Backwards compatibility for older seasons without createdByRole.
+              return adminIds.contains(createdBy);
+            })
             .map((doc) => Season.fromFirestore(doc))
             .toList();
         // Sort in memory to avoid composite index requirement
@@ -521,6 +583,49 @@ class SeasonService {
     }
   }
 
+  // Get active seasons.
+  // Set [includeAdminCreated] to false for employee context.
+  static Stream<List<Season>> getActiveSeasonsStream({
+    String? department,
+    bool includeAdminCreated = true,
+  }) {
+    try {
+      return FirestoreSafe.stream(
+        _firestore
+            .collection('seasons')
+            .where('status', isEqualTo: SeasonStatus.active.name)
+            .snapshots(),
+      ).asyncMap((snapshot) async {
+        final adminIds = includeAdminCreated
+            ? const <String>{}
+            : await _getAdminUserIds();
+        final seasons = snapshot.docs
+            .where((doc) {
+              if (includeAdminCreated) return true;
+              final data = doc.data();
+              final createdBy = (data['createdBy'] ?? '').toString();
+              final createdByRole =
+                  (data['createdByRole'] ?? '').toString().trim().toLowerCase();
+              if (createdByRole == 'admin') return false;
+              // Backwards compatibility for older seasons without createdByRole.
+              return !adminIds.contains(createdBy);
+            })
+            .map((doc) => Season.fromFirestore(doc))
+            .toList();
+        // Sort in memory to avoid composite index requirement
+        seasons.sort((a, b) => b.startDate.compareTo(a.startDate));
+        for (final season in seasons) {
+          // ignore: unawaited_futures
+          refreshParticipantDisplayNames(season.id);
+        }
+        return seasons;
+      });
+    } catch (e) {
+      developer.log('Error getting active seasons: $e');
+      return const Stream.empty();
+    }
+  }
+  
   /// Seasons an employee has participated in (active + completed + etc).
   /// Uses only `arrayContains` and sorts client-side to avoid composite indexes.
   static Stream<List<Season>> getParticipantSeasonsStream(
@@ -551,32 +656,6 @@ class SeasonService {
       });
     } catch (e) {
       developer.log('Error getting participant seasons: $e');
-      return const Stream.empty();
-    }
-  }
-
-  // Get active seasons for employees
-  static Stream<List<Season>> getActiveSeasonsStream({String? department}) {
-    try {
-      return FirestoreSafe.stream(
-        _firestore
-            .collection('seasons')
-            .where('status', isEqualTo: SeasonStatus.active.name)
-            .snapshots(),
-      ).map((snapshot) {
-        final seasons = snapshot.docs
-            .map((doc) => Season.fromFirestore(doc))
-            .toList();
-        // Sort in memory to avoid composite index requirement
-        seasons.sort((a, b) => b.startDate.compareTo(a.startDate));
-        for (final season in seasons) {
-          // ignore: unawaited_futures
-          refreshParticipantDisplayNames(season.id);
-        }
-        return seasons;
-      });
-    } catch (e) {
-      developer.log('Error getting active seasons: $e');
       return const Stream.empty();
     }
   }
@@ -1988,6 +2067,11 @@ class SeasonService {
     String title,
     String theme,
     String? department,
+    {
+    required String creatorRole,
+    required String creatorId,
+    required String creatorName,
+  }
   ) async {
     try {
       Query usersQuery = _firestore.collection('users');
@@ -1997,10 +2081,87 @@ class SeasonService {
       final usersSnapshot = await usersQuery.get();
       for (final userDoc in usersSnapshot.docs) {
         final userId = userDoc.id;
+        final userData = userDoc.data() as Map<String, dynamic>? ?? const {};
+        final role = (userData['role'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+
+        // Admin-created seasons should never be sent to employees.
+        if (creatorRole == 'admin' && role != 'manager' && role != 'admin') {
+          continue;
+        }
+
+        // Managers should receive team-facing alerts for admin-created seasons.
+        if (role == 'manager' && creatorRole == 'admin') {
+          await _firestore.collection('alerts').add({
+            'userId': userId,
+            'type': AlertType.seasonProgressUpdate.name,
+            'audience': AlertAudience.team.name,
+            'priority': AlertPriority.high.name,
+            'title': 'New Season Started! 🎉',
+            'message':
+                'Admin launched "$title" on theme "$theme". Join from Manager Workspace Team Challenges.',
+            'actionText': 'View Seasons',
+            'actionRoute': '/manager_gw_menu_season_challenges',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'isDismissed': false,
+            'expiresAt': Timestamp.fromDate(
+              DateTime.now().add(const Duration(days: 14)),
+            ),
+            'fromUserId': creatorId,
+            'fromUserName': creatorName,
+            'metadata': {
+              'seasonId': seasonId,
+              'seasonTitle': title,
+              'theme': theme,
+              'createdByRole': creatorRole,
+              if (department != null) ...{'department': department},
+            },
+          });
+          continue;
+        }
+
+        // Admin inbox should also reflect season publication actions.
+        if (role == 'admin' && creatorRole == 'admin') {
+          final isCreator = userId == creatorId;
+          await _firestore.collection('alerts').add({
+            'userId': userId,
+            'type': AlertType.managerGeneral.name,
+            'audience': AlertAudience.personal.name,
+            'priority': AlertPriority.medium.name,
+            'title': 'Season Published',
+            'message': isCreator
+                ? 'You published "$title" ($theme). Managers and employees were notified.'
+                : '$creatorName published "$title" ($theme).',
+            'actionText': 'View Inbox',
+            'actionRoute': '/admin_inbox',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'isDismissed': false,
+            'expiresAt': Timestamp.fromDate(
+              DateTime.now().add(const Duration(days: 14)),
+            ),
+            'fromUserId': creatorId,
+            'fromUserName': creatorName,
+            'metadata': {
+              'seasonId': seasonId,
+              'seasonTitle': title,
+              'theme': theme,
+              'createdByRole': creatorRole,
+              if (department != null) ...{'department': department},
+            },
+          });
+          continue;
+        }
+
+        // Employees (and any legacy/no-role user docs) receive season availability.
         await _firestore.collection('alerts').add({
           'userId': userId,
-          'type': 'season_available',
-          'priority': 'high',
+          'type': AlertType.teamGoalAvailable.name,
+          'audience': AlertAudience.personal.name,
+          'priority': AlertPriority.high.name,
           'title': 'New Season Started! 🎉',
           'message':
               'A new "$title" season on theme "$theme" has started. Join and earn points!',
@@ -2012,10 +2173,13 @@ class SeasonService {
           'expiresAt': Timestamp.fromDate(
             DateTime.now().add(const Duration(days: 14)),
           ),
+          'fromUserId': creatorId,
+          'fromUserName': creatorName,
           'metadata': {
             'seasonId': seasonId,
             'seasonTitle': title,
             'theme': theme,
+            'createdByRole': creatorRole,
             if (department != null) ...{'department': department},
           },
         });

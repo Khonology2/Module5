@@ -633,7 +633,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     }
 
     return StreamBuilder<List<badge_model.Badge>>(
-      stream: BadgeService.getUserBadgesV2Stream(user.uid).handleError((error) {
+      stream: BadgeService.getUserBadgesStream(user.uid).handleError((error) {
         // Silently handle errors to prevent unmount errors
         developer.log('Error in getUserBadgesStream: $error');
       }),
@@ -659,10 +659,12 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           );
         }
 
-        final badges =
-            (snapshot.data ?? const <badge_model.Badge>[])
-                .where((b) => b.id != 'init')
-                .toList();
+        final badges = (snapshot.data ?? const <badge_model.Badge>[])
+            .where((b) => b.id != 'init')
+            // Employee-style screen should never show manager-only badges.
+            .where((b) => !BadgeService.isManagerBadge(b))
+            .map(_normalizeBadgeForDisplay)
+            .toList();
 
         if (badges.isEmpty) {
           if (!_attemptedInitBadges) {
@@ -728,6 +730,30 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         );
       },
     );
+  }
+
+  badge_model.Badge _normalizeBadgeForDisplay(badge_model.Badge badge) {
+    final mappedCategory = switch (badge.category) {
+      // Keep v2 categories as-is.
+      badge_model.BadgeCategory.goalMastery => badge_model.BadgeCategory.goalMastery,
+      badge_model.BadgeCategory.consistency => badge_model.BadgeCategory.consistency,
+      badge_model.BadgeCategory.growth => badge_model.BadgeCategory.growth,
+      badge_model.BadgeCategory.milestones => badge_model.BadgeCategory.milestones,
+      // Legacy categories mapped into the current employee UI groups.
+      badge_model.BadgeCategory.goals => badge_model.BadgeCategory.goalMastery,
+      badge_model.BadgeCategory.streak => badge_model.BadgeCategory.consistency,
+      badge_model.BadgeCategory.learning => badge_model.BadgeCategory.growth,
+      badge_model.BadgeCategory.achievement => badge_model.BadgeCategory.milestones,
+      badge_model.BadgeCategory.collaboration => badge_model.BadgeCategory.collaboration,
+      // Legacy manager-focused categories are hidden by the filter above,
+      // but keep a safe fallback mapping in case old data is inconsistent.
+      badge_model.BadgeCategory.innovation => badge_model.BadgeCategory.growth,
+      badge_model.BadgeCategory.leadership => badge_model.BadgeCategory.milestones,
+      badge_model.BadgeCategory.community => badge_model.BadgeCategory.collaboration,
+    };
+
+    if (mappedCategory == badge.category) return badge;
+    return badge.copyWith(category: mappedCategory);
   }
 
   Widget _buildCategoryCard({
