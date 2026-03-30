@@ -64,6 +64,8 @@ class _EmployeeSeasonChallengesScreenState
   String? _currentUserId;
   String? _currentUserName;
   String? _currentUserDepartment;
+  Set<String> _adminUserIds = <String>{};
+  bool _adminUsersLoaded = false;
 
   @override
   void initState() {
@@ -99,7 +101,43 @@ class _EmployeeSeasonChallengesScreenState
 
       // Sync season challenge points into the employee profile.
       await SeasonService.syncCurrentEmployeeSeasonPoints();
+
+      await _loadAdminUserIds();
     }
+  }
+
+  Future<void> _loadAdminUserIds() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _adminUserIds = snap.docs.map((d) => d.id).toSet();
+        _adminUsersLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _adminUserIds = <String>{};
+        _adminUsersLoaded = true;
+      });
+    }
+  }
+
+  List<Season> _filterSeasonsForContext(List<Season> seasons) {
+    if (!_adminUsersLoaded) return seasons;
+    if (widget.forManagerGwMenu) {
+      // Manager workspace season challenges should show admin-authored seasons only.
+      return seasons
+          .where((season) => _adminUserIds.contains(season.createdBy))
+          .toList();
+    }
+    // Employee context should never show admin-authored seasons.
+    return seasons
+        .where((season) => !_adminUserIds.contains(season.createdBy))
+        .toList();
   }
 
   @override
@@ -206,6 +244,7 @@ class _EmployeeSeasonChallengesScreenState
     return StreamBuilder<List<Season>>(
       stream: SeasonService.getActiveSeasonsStream(
         department: _currentUserDepartment,
+        includeAdminCreated: widget.forManagerGwMenu,
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -220,7 +259,7 @@ class _EmployeeSeasonChallengesScreenState
           return _buildEmptyAvailableSeasonsState();
         }
 
-        final seasons = snapshot.data!;
+        final seasons = _filterSeasonsForContext(snapshot.data!);
         final availableSeasons = seasons.where((season) {
           return !season.participantIds.contains(_currentUserId);
         }).toList();
@@ -244,6 +283,7 @@ class _EmployeeSeasonChallengesScreenState
     return StreamBuilder<List<Season>>(
       stream: SeasonService.getActiveSeasonsStream(
         department: _currentUserDepartment,
+        includeAdminCreated: widget.forManagerGwMenu,
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -258,7 +298,7 @@ class _EmployeeSeasonChallengesScreenState
           return _buildEmptyMySeasonsState();
         }
 
-        final seasons = snapshot.data!;
+        final seasons = _filterSeasonsForContext(snapshot.data!);
         final mySeasons = seasons.where((season) {
           return season.participantIds.contains(_currentUserId);
         }).toList();
@@ -299,7 +339,7 @@ class _EmployeeSeasonChallengesScreenState
           return _buildEmptyCompletedSeasonsState();
         }
 
-        final seasons = snapshot.data!;
+        final seasons = _filterSeasonsForContext(snapshot.data!);
         final completedSeasons = seasons.where((season) {
           return season.status == SeasonStatus.completed;
         }).toList();

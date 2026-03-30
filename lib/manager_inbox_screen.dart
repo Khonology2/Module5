@@ -85,6 +85,7 @@ class ManagerInboxScreen extends StatefulWidget {
 }
 
 class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
+  static const String _managerWorkspaceAlertsRoute = '/manager_gw_menu_alerts';
   String? _typeFilter; // null=All, 'nudge', 'approval_request'
   bool _unreadOnly = false;
   String _search = '';
@@ -107,6 +108,138 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   final Map<String, int> _relevance = {};
   final Map<String, int> _timeline = {};
   final Map<String, TextEditingController> _reviewNotes = {};
+
+  bool _isEmployeePersonaAlertType(AlertType type) {
+    switch (type) {
+      case AlertType.goalCreated:
+      case AlertType.goalCompleted:
+      case AlertType.goalDueSoon:
+      case AlertType.goalApprovalApproved:
+      case AlertType.goalApprovalRejected:
+      case AlertType.pointsEarned:
+      case AlertType.levelUp:
+      case AlertType.badgeEarned:
+      case AlertType.teamAssigned:
+      case AlertType.achievementUnlocked:
+      case AlertType.streakMilestone:
+      case AlertType.deadlineReminder:
+      case AlertType.teamGoalAvailable:
+      case AlertType.recognition:
+      case AlertType.oneOnOneRequested:
+      case AlertType.oneOnOneProposed:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  bool _isManagerScopedGoalOverdue(Alert alert) {
+    final title = alert.title.toLowerCase();
+    final msg = alert.message.toLowerCase();
+    return alert.audience == AlertAudience.team ||
+        title.contains('employee') ||
+        msg.contains('review and decide next step');
+  }
+
+  bool _isManagerInboxRelevantAlert(Alert alert, String managerId) {
+    // Defensive scope: manager inbox should only show alerts addressed to manager.
+    if (alert.userId != managerId) return false;
+
+    // Admin inbox should reflect all personal alerts addressed to the admin
+    // account so the inbox list matches the notifications-bell unread count.
+    if (widget.forAdminOversight) {
+      return true;
+    }
+
+    // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
+    if (alert.actionRoute == _managerWorkspaceAlertsRoute) return false;
+
+    // Suppress employee-persona cards in manager inbox.
+    if (_isEmployeePersonaAlertType(alert.type)) return false;
+
+    // Keep only manager-scoped overdue alerts.
+    if (alert.type == AlertType.goalOverdue && !_isManagerScopedGoalOverdue(alert)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Manager-only routes in alert [actionRoute] hit [RoleGate] and show "Access restricted"
+  /// for admins. Map them to [AdminPortalScreen] sidebar routes (`initialRoute`).
+  String? _mapInboxRouteToAdminInitialRoute(String route) {
+    switch (route) {
+      case '/manager_badges_points':
+      case '/badges_points':
+      case '/manager_gw_menu_badges':
+        return '/admin_badges_points';
+      case '/progress_visuals':
+      case '/manager_gw_menu_progress':
+        return '/admin_progress_visuals';
+      case '/manager_leaderboard':
+      case '/leaderboard':
+      case '/manager_gw_menu_leaderboard':
+        return '/org_leaderboard';
+      case '/manager_review_team_dashboard':
+        return '/admin_team_review';
+      case '/manager_alerts_nudges':
+        return '/admin_team_alerts_nudges';
+      case '/team_challenges_seasons':
+      case '/season_challenges':
+      case '/manager_gw_menu_season_challenges':
+        return '/admin_team_challenges';
+      case '/repository_audit':
+      case '/manager_gw_menu_repository':
+        return '/admin_repository_audit';
+      case '/manager_inbox':
+      case '/alerts_nudges':
+      case '/manager_gw_menu_alerts':
+        return '/admin_inbox';
+      case '/dashboard':
+      case '/manager_gw_menu_dashboard':
+        return '/admin_dashboard';
+      case '/manager_profile':
+        return '/admin_profile';
+      case '/settings':
+        return '/admin_settings';
+      default:
+        if (route.startsWith('/admin_')) {
+          return route;
+        }
+        return null;
+    }
+  }
+
+  /// Navigates from inbox actions. Managers use raw routes; admins use [AdminPortalScreen].
+  void _navigateInboxByAlertRoute(String route, {Object? arguments}) {
+    if (!widget.forAdminOversight) {
+      Navigator.pushNamed(context, route, arguments: arguments);
+      return;
+    }
+
+    if (route == '/org_leaderboard' ||
+        route == '/admin_inbox' ||
+        route == '/admin_portal' ||
+        route == '/admin_dashboard' ||
+        route == '/manager_oversight') {
+      Navigator.pushNamed(context, route, arguments: arguments);
+      return;
+    }
+
+    final initial = _mapInboxRouteToAdminInitialRoute(route);
+    if (initial != null) {
+      final merged = <String, dynamic>{'initialRoute': initial};
+      if (arguments is Map<String, dynamic>) {
+        merged.addAll(arguments);
+      }
+      Navigator.pushNamed(context, '/admin_portal', arguments: merged);
+      return;
+    }
+
+    Navigator.pushNamed(context, '/admin_portal', arguments: {
+      'initialRoute': '/admin_dashboard',
+    });
+  }
 
   String? _normalizeGoalId(dynamic raw) {
     final s = raw?.toString().trim();
@@ -202,11 +335,17 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         .toString()
         .trim();
     if (badgeId.isEmpty) {
-      Navigator.pushNamed(
-        context,
-        '/manager_portal',
-        arguments: {'initialRoute': '/manager_badges_points'},
-      );
+      if (widget.forAdminOversight) {
+        Navigator.pushNamed(context, '/admin_portal', arguments: {
+          'initialRoute': '/admin_badges_points',
+        });
+      } else {
+        Navigator.pushNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': '/manager_badges_points'},
+        );
+      }
       return;
     }
 
@@ -243,6 +382,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         badge_model.BadgeCategory.leadership;
 
     if (!mounted) return;
+    if (widget.forAdminOversight) {
+      Navigator.pushNamed(context, '/admin_portal', arguments: {
+        'initialRoute': '/admin_badges_points',
+      });
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -899,7 +1044,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Manager IBox',
+                                widget.forAdminOversight
+                                    ? 'Admin Inbox'
+                                    : 'Manager IBox',
                                 style: AppTypography.heading3.copyWith(
                                   color: DashboardChrome.fg,
                                   fontWeight: FontWeight.bold,
@@ -907,7 +1054,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Review alerts, nudges, and approvals in one place.',
+                                widget.forAdminOversight
+                                    ? 'Review admin alerts and oversight notifications in one place.'
+                                    : 'Review alerts, nudges, and approvals in one place.',
                                 style: AppTypography.bodySmall.copyWith(
                                   color: DashboardChrome.fg,
                                 ),
@@ -966,6 +1115,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 );
               }
               var items = snapshot.data ?? const <Alert>[];
+              items = items
+                  .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
+                  .toList();
 
               if (_unreadOnly) {
                 items = items.where((a) => !a.isRead).toList();
@@ -1056,9 +1208,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                         .trim();
                     final feedback = rawFeedback.where((f) {
                       final meta = f.metadata;
-                      final mid = meta['managerId']?.toString();
+                      final mid =
+                          (meta['managerId'] ?? meta['senderId'])?.toString();
                       final mname =
-                          (meta['managerNameLower'] ?? meta['managerName'])
+                          (meta['managerNameLower'] ??
+                                  meta['managerName'] ??
+                                  meta['senderNameLower'] ??
+                                  meta['senderName'])
                               ?.toString()
                               .toLowerCase()
                               .trim();
@@ -1379,11 +1535,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   alert.relatedGoalId!.isNotEmpty) ...[
                 TextButton.icon(
                   onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/manager_portal',
+                    _navigateInboxByAlertRoute(
+                      '/manager_review_team_dashboard',
                       arguments: {
-                        'initialRoute': '/manager_review_team_dashboard',
                         'goalId': alert.relatedGoalId,
                       },
                     );
@@ -1399,11 +1553,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 TextButton.icon(
                   onPressed: () {
                     if (alert.relatedGoalId != null) {
-                      Navigator.pushNamed(
-                        context,
-                        '/manager_portal',
+                      _navigateInboxByAlertRoute(
+                        '/manager_review_team_dashboard',
                         arguments: {
-                          'initialRoute': '/manager_review_team_dashboard',
                           'goalId': alert.relatedGoalId,
                         },
                       );
@@ -1452,7 +1604,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       args = {'goalId': alert.relatedGoalId};
                     }
 
-                    Navigator.pushNamed(context, route, arguments: args);
+                    _navigateInboxByAlertRoute(route, arguments: args);
                   },
                   icon: const Icon(Icons.open_in_new),
                   label: Text(alert.actionText!),
@@ -1464,28 +1616,18 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     final actionLower = alert.actionText!.toLowerCase();
                     if (actionLower.contains('badge') ||
                         actionLower.contains('achievement')) {
-                      Navigator.pushNamed(
-                        context,
-                        '/manager_portal',
-                        arguments: {'initialRoute': '/manager_badges_points'},
-                      );
+                      _navigateInboxByAlertRoute('/manager_badges_points');
                     } else if (actionLower.contains('goal')) {
                       if (alert.relatedGoalId != null) {
-                        Navigator.pushNamed(
-                          context,
-                          '/manager_portal',
+                        _navigateInboxByAlertRoute(
+                          '/manager_review_team_dashboard',
                           arguments: {
-                            'initialRoute': '/manager_review_team_dashboard',
                             'goalId': alert.relatedGoalId,
                           },
                         );
                       }
                     } else if (actionLower.contains('leaderboard')) {
-                      Navigator.pushNamed(
-                        context,
-                        '/manager_portal',
-                        arguments: {'initialRoute': '/manager_leaderboard'},
-                      );
+                      _navigateInboxByAlertRoute('/manager_leaderboard');
                     }
                   },
                   child: Text(alert.actionText!),

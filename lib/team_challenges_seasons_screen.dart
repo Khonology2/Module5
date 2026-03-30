@@ -8,6 +8,7 @@ import 'package:pdh/season_details_screen.dart';
 import 'package:pdh/season_celebration_screen.dart';
 import 'package:pdh/season_management_screen.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class TeamChallengesSeasonsScreen extends StatefulWidget {
   /// When true, admin is viewing; no employee-specific data.
@@ -239,7 +240,7 @@ class _TeamChallengesSeasonsScreenState
                       );
                     }
 
-                    final seasons = snapshot.data ?? [];
+                    final seasons = _filterSeasonsForScreen(snapshot.data ?? []);
                     final activeSeasons = seasons
                         .where((s) => s.status == SeasonStatus.active)
                         .toList();
@@ -401,7 +402,7 @@ class _TeamChallengesSeasonsScreenState
                   );
                 }
 
-                final seasons = snapshot.data ?? [];
+                final seasons = _filterSeasonsForScreen(snapshot.data ?? []);
                 final completedSeasons = seasons
                     .where((s) => s.status == SeasonStatus.completed)
                     .toList();
@@ -756,26 +757,93 @@ class _TeamChallengesSeasonsScreenState
                   ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => _manageSeason(season),
-                  icon: const ImageIcon(
-                    AssetImage('assets/gear.png'),
-                    size: 24,
-                  ),
-                  label: const Text('Manage'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.activeColor,
-                    foregroundColor: Colors.white,
+              if (widget.forAdminOversight ||
+                  season.createdBy ==
+                      FirebaseAuth.instance.currentUser?.uid) ...[
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _manageSeason(season),
+                    icon: const ImageIcon(
+                      AssetImage('assets/gear.png'),
+                      size: 24,
+                    ),
+                    label: const Text('Manage'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.activeColor,
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ),
-              ),
+              ],
+              if (widget.forAdminOversight ||
+                  season.createdBy ==
+                      FirebaseAuth.instance.currentUser?.uid) ...[
+                const SizedBox(width: AppSpacing.md),
+                IconButton(
+                  onPressed: () => _confirmDeleteSeason(season),
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete season',
+                  color: AppColors.dangerColor,
+                ),
+              ],
             ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDeleteSeason(Season season) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          title: Text(
+            'Delete season?',
+            style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+          ),
+          content: Text(
+            'This will permanently delete "${season.title}" and notify participants.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                'Cancel',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dangerColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      await SeasonService.deleteSeasonAndNotify(season.id);
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Season deleted successfully.');
+    } catch (e) {
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Failed to delete season: $e');
+    }
   }
 
   Widget _buildSeasonHistoryCard(Season season) {
@@ -1065,6 +1133,14 @@ class _TeamChallengesSeasonsScreenState
       return false;
     }
     return true;
+  }
+
+  List<Season> _filterSeasonsForScreen(List<Season> seasons) {
+    if (widget.forAdminOversight) return seasons;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return const <Season>[];
+    // Supervisor Team Challenges should only show seasons owned by this manager.
+    return seasons.where((season) => season.createdBy == currentUserId).toList();
   }
 
   Widget _buildManagerStatsRow({

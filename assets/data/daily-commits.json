@@ -1,6 +1,6 @@
 {
-  "version": "2026.03.AA5.SIT",
-  "generated_at": "2026-03-30T08:26:37Z",
+  "version": "2026.03.EG4.SIT",
+  "generated_at": "2026-03-29T16:12:12Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -8,26 +8,21 @@
       "timestamp": "2026-02-24T06:19:19Z"
     },
     {
+      "author": "Nathi2266",
+      "message": "feat: update asset paths and implement light/dark mode support across multiple screens",
+      "timestamp": "2026-03-26T09:59:41+02:00"
+    },
+    {
       "author": "Thembelihle",
-      "message": "Feature - implement goal approval inbox card with fallback handling",
-      "timestamp": "2026-03-17T14:34:32+02:00"
+      "message": "add admin route mapping and navigation logic for inbox actions, enhancing admin oversight experience",
+      "timestamp": "2026-03-29T18:10:50+02:00"
     },
     {
-      "author": "BhutSipho",
-      "message": "🔧 Implement unified Firestore stream broker to fix INTERNAL ASSERTION FAILED errors",
-      "timestamp": "2026-03-17T07:53:27+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "refactor: simplify StreamBuilder usage in manager inbox screen",
-      "timestamp": "2026-03-30T10:25:44+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: add employee dashboard theme support and refactor UI components for light/dark mode",
-      "timestamp": "2026-03-30T10:22:33+02:00"
+      "author": "Thembelihle",
+      "message": "fix: update _buildGoalCard to accept light parameter in my_pdp_screen.dart",
+      "timestamp": "2026-03-29T17:57:46+02:00"
     }
   ],
-  "total_commits": 5,
-  "date_range": "2026-03-30"
+  "total_commits": 4,
+  "date_range": "2026-03-29"
 }

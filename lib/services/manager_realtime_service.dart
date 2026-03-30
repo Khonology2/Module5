@@ -1965,35 +1965,46 @@ class ManagerRealtimeService {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
-      final batch = _firestore.batch();
       final now = Timestamp.fromDate(DateTime.now());
 
-      // Add activity record
-      final activityRef = _firestore.collection('activities').doc();
-      batch.set(activityRef, {
-        'userId': employeeId,
-        'activityType': activityType,
-        'description': description,
-        'metadata': metadata ?? {},
-        // Use a stable, client-side timestamp so queries ordered by `timestamp`
-        // don't temporarily drop/reorder documents while serverTimestamp resolves.
-        // Keep `serverTimestamp` for auditing / server-accurate time if needed.
-        'timestamp': now,
-        'serverTimestamp': FieldValue.serverTimestamp(),
-      });
+      // Always persist the activity first. This is the core action used by
+      // manager inbox feedback (nudge responses/reactions).
+      await FirestoreSafe.addDoc<Map<String, dynamic>>(
+        _firestore.collection('activities'),
+        {
+          'userId': employeeId,
+          'activityType': activityType,
+          'description': description,
+          'metadata': metadata ?? {},
+          // Use a stable, client-side timestamp so queries ordered by `timestamp`
+          // don't temporarily drop/reorder documents while serverTimestamp resolves.
+          // Keep `serverTimestamp` for auditing / server-accurate time if needed.
+          'timestamp': now,
+          'serverTimestamp': FieldValue.serverTimestamp(),
+        },
+      );
 
       // Update user's timestamps ONLY when the user is recording their own activity.
       // Managers should not be able to mutate employee profile timestamps.
       if (currentUser.uid == employeeId) {
         final userRef = _firestore.collection('users').doc(employeeId);
-        batch.update(userRef, {
-          'lastActivityAt': FieldValue.serverTimestamp(),
-          // Keep lastLoginAt in sync for self activity only.
-          'lastLoginAt': FieldValue.serverTimestamp(),
-        });
+        try {
+          // Use merge so this does not fail when a user profile doc was not yet
+          // created in /users (for example onboarding-first accounts).
+          await FirestoreSafe.setDoc<Map<String, dynamic>>(
+            userRef,
+            {
+              'lastActivityAt': FieldValue.serverTimestamp(),
+              // Keep lastLoginAt in sync for self activity only.
+              'lastLoginAt': FieldValue.serverTimestamp(),
+            },
+            options: SetOptions(merge: true),
+          );
+        } catch (e) {
+          // Non-fatal: activity already recorded above.
+          developer.log('Skipped self timestamp sync for $employeeId: $e');
+        }
       }
-
-      await FirestoreSafe.writeBatch(batch);
 
       developer.log(
         'Recorded activity for employee $employeeId: $activityType',
@@ -2066,6 +2077,7 @@ class ManagerRealtimeService {
     required String goalId,
     required String message,
     NudgeType nudgeType = NudgeType.motivational,
+    String? recipientActionRoute,
   }) async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
@@ -2094,6 +2106,7 @@ class ManagerRealtimeService {
         managerName: managerName,
         goalTitle: goalTitle,
         nudgeMessage: message,
+        actionRouteOverride: recipientActionRoute,
       );
 
       // Record manager action
@@ -2221,6 +2234,7 @@ class ManagerRealtimeService {
     required String reason,
     required int points,
     String? badgeName,
+    String? recipientActionRoute,
   }) async {
     // Two-phase behavior:
     // - Phase 1 (must succeed): points increment + alert creation
@@ -2249,7 +2263,7 @@ class ManagerRealtimeService {
             '${badgeName != null && badgeName.trim().isNotEmpty ? ' (Badge: ${badgeName.trim()})' : ''}'
             ' (+$points pts)',
         'actionText': 'View Achievement',
-        'actionRoute': '/badges_points',
+        'actionRoute': recipientActionRoute ?? '/badges_points',
         'createdAt': FieldValue.serverTimestamp(),
         'isRead': false,
         'isDismissed': false,
@@ -2294,6 +2308,7 @@ class ManagerRealtimeService {
   static Future<void> requestOneOnOne({
     required String employeeId,
     String? agenda,
+    String? recipientActionRoute,
   }) async {
     try {
       final managerId = FirebaseAuth.instance.currentUser!.uid;
@@ -2324,6 +2339,7 @@ class ManagerRealtimeService {
         managerId: managerId,
         meetingId: meetingId,
         agenda: agenda,
+        actionRouteOverride: recipientActionRoute,
       );
     } catch (e) {
       developer.log('Error requesting 1:1 meeting: $e');
@@ -2338,6 +2354,7 @@ class ManagerRealtimeService {
     required DateTime scheduledEndTime,
     required String purpose,
     String? notes,
+    String? recipientActionRoute,
   }) async {
     try {
       final managerId = FirebaseAuth.instance.currentUser!.uid;
@@ -2379,6 +2396,7 @@ class ManagerRealtimeService {
         proposedStartDateTime: scheduledStartTime,
         proposedEndDateTime: scheduledEndTime,
         agenda: purpose,
+        actionRouteOverride: recipientActionRoute,
       );
 
       developer.log('1:1 proposed for employee $employeeId');

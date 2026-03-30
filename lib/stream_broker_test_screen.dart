@@ -39,7 +39,7 @@ class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
       _addLog('🔄 Testing stream broker...');
 
       final broker = FirestoreStreamBroker();
-      
+
       // Test audit entries stream
       _addLog('📡 Getting audit entries stream...');
       final stream = broker.getAuditEntriesStream(
@@ -49,11 +49,11 @@ class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
       );
 
       _addLog('👂 Listening to stream...');
-      
+
       final subscription = stream.listen(
         (snapshot) {
           _addLog('📦 Stream received ${snapshot.docs.length} documents');
-          
+
           for (int i = 0; i < snapshot.docs.length && i < 3; i++) {
             final doc = snapshot.docs[i];
             final data = doc.data() as Map<String, dynamic>? ?? {};
@@ -72,7 +72,6 @@ class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
       await Future.delayed(const Duration(seconds: 30));
       await subscription.cancel();
       _addLog('⏹️ Test completed');
-
     } catch (e, stackTrace) {
       _addLog('❌ Test failed: $e');
       _addLog('📋 Stack trace: $stackTrace');
@@ -102,9 +101,9 @@ class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
               ),
-              child: _isLoading 
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Test Stream Broker'),
+              child: _isLoading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Test Stream Broker'),
             ),
           ),
           Expanded(
