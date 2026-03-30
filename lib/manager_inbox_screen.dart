@@ -94,6 +94,30 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   bool _bulkMarking = false;
   final Map<String, String> _employeeNameCache = {};
   final Set<String> _pendingEmployeeLookups = {};
+
+  // Context switcher state
+  bool _showArchived =
+      false; // false = Inbox (active), true = Archived (read/completed)
+
+  // Method to switch between inbox and archived views
+  void _switchContext(bool showArchived) {
+    setState(() {
+      _showArchived = showArchived;
+      // Reset unread-only filter when switching to archived view
+      // since all archived messages are already read
+      if (showArchived) {
+        _unreadOnly = false;
+      }
+    });
+  }
+
+  // Helper method to mark alert as read when action is taken
+  void _markAlertAsReadIfUnread(Alert alert) {
+    if (!alert.isRead) {
+      AlertService.markAsRead(alert.id);
+    }
+  }
+
   // Keep a stable stream + last good value to prevent reaction flicker when
   // parent widgets rebuild (filters, alert stream updates, etc.).
   Stream<List<Map<String, dynamic>>>? _nudgeFeedbackStream;
@@ -163,7 +187,23 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       return false;
     }
 
-    return true;
+    // Context switcher logic:
+    // - Inbox (active): Show unread messages AND pending approval requests (even if read)
+    // - Archived: Show read messages AND completed approval actions (approved/rejected)
+    if (_showArchived) {
+      // In archived view, show:
+      // 1. All read messages (except pending approvals)
+      // 2. Approved and rejected goals (regardless of read status)
+      return (alert.isRead && alert.type != AlertType.goalApprovalRequested) ||
+          (alert.type == AlertType.goalApprovalApproved) ||
+          (alert.type == AlertType.goalApprovalRejected);
+    } else {
+      // In inbox view, show:
+      // 1. All unread messages
+      // 2. Pending approval requests (even if read) - so manager doesn't miss them
+      // 3. BUT NOT approved or rejected goals - those should be in archived
+      return (!alert.isRead) || (alert.type == AlertType.goalApprovalRequested);
+    }
   }
 
   String? _normalizeGoalId(dynamic raw) {
@@ -383,6 +423,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       );
       return;
     }
+
+    // Mark this alert as read since manager is now viewing the goal
+    _markAlertAsReadIfUnread(alert);
+
     _clarity.putIfAbsent(goalId, () => 3);
     _measurability.putIfAbsent(goalId, () => 3);
     _achievability.putIfAbsent(goalId, () => 3);
@@ -893,6 +937,30 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     }
   }
 
+  // Helper method to build context switcher buttons
+  Widget _buildContextButton(String text, bool isActive, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppColors.activeColor.withValues(alpha: 0.8)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          text,
+          style: AppTypography.bodySmall.copyWith(
+            color: isActive ? Colors.white : AppColors.textSecondary,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
@@ -964,7 +1032,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               Text(
                                 widget.forAdminOversight
                                     ? 'Admin Inbox'
-                                    : 'Manager IBox',
+                                    : _showArchived
+                                    ? 'Archived Messages'
+                                    : 'Manager Inbox',
                                 style: AppTypography.heading3.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -973,7 +1043,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               const SizedBox(height: 2),
                               Text(
                                 widget.forAdminOversight
-                                    ? 'Review admin alerts and oversight notifications in one place.'
+                                    ? _showArchived
+                                          ? 'Review previously read admin alerts and oversight notifications.'
+                                          : 'Review admin alerts and oversight notifications in one place.'
+                                    : _showArchived
+                                    ? 'Review previously read messages and completed conversations.'
                                     : 'Review alerts, nudges, and approvals in one place.',
                                 style: AppTypography.bodySmall.copyWith(
                                   color: AppColors.textSecondary,
@@ -982,33 +1056,64 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                             ],
                           ),
                           const Spacer(),
-                          TextButton.icon(
-                            onPressed: _bulkMarking
-                                ? null
-                                : () async {
-                                    final user =
-                                        FirebaseAuth.instance.currentUser;
-                                    if (user == null) return;
-                                    setState(() => _bulkMarking = true);
-                                    await AlertService.markAllAsRead(user.uid);
-                                    if (!mounted) return;
-                                    setState(() => _bulkMarking = false);
-                                    await _showCenterNotice(
-                                      this.context,
-                                      'All alerts marked as read',
-                                    );
-                                  },
-                            icon: _bulkMarking
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.mark_email_read_outlined),
-                            label: const Text('Mark all as read'),
+                          // Context Switcher Toggle
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(25),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildContextButton(
+                                  'Inbox',
+                                  !_showArchived,
+                                  () => _switchContext(false),
+                                ),
+                                _buildContextButton(
+                                  'Archived',
+                                  _showArchived,
+                                  () => _switchContext(true),
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 12),
+                          // Only show "Mark all as read" button in inbox view
+                          if (!_showArchived)
+                            TextButton.icon(
+                              onPressed: _bulkMarking
+                                  ? null
+                                  : () async {
+                                      final user =
+                                          FirebaseAuth.instance.currentUser;
+                                      if (user == null) return;
+                                      setState(() => _bulkMarking = true);
+                                      await AlertService.markAllAsRead(
+                                        user.uid,
+                                      );
+                                      if (!mounted) return;
+                                      setState(() => _bulkMarking = false);
+                                      await _showCenterNotice(
+                                        this.context,
+                                        'All alerts marked as read',
+                                      );
+                                    },
+                              icon: _bulkMarking
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.mark_email_read_outlined),
+                              label: const Text('Mark all as read'),
+                            ),
                         ],
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -1255,7 +1360,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   child: Padding(
                     padding: AppSpacing.screenPadding,
                     child: Text(
-                      'No inbox items match your filters.',
+                      _showArchived
+                          ? 'No archived messages found.'
+                          : 'No inbox items match your filters.',
                       style: AppTypography.bodyMedium.copyWith(
                         color: Colors.white70,
                       ),
@@ -1308,11 +1415,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   setState(() => _typeFilter = 'approval_request'),
             ),
             const Spacer(),
-            _inboxFilterChip(
-              label: 'Unread',
-              selected: _unreadOnly,
-              onSelected: (v) => setState(() => _unreadOnly = v),
-            ),
+            // Only show "Unread" filter in inbox view
+            if (!_showArchived)
+              _inboxFilterChip(
+                label: 'Unread',
+                selected: _unreadOnly,
+                onSelected: (v) => setState(() => _unreadOnly = v),
+              ),
           ],
         ),
         const SizedBox(height: 8),

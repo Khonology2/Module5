@@ -304,7 +304,8 @@ class AlertService {
     String? fromUserName,
     Duration ttl = const Duration(days: 14),
   }) async {
-    final resolvedActionRoute = actionRoute ?? await _alertsRouteForRecipient(userId);
+    final resolvedActionRoute =
+        actionRoute ?? await _alertsRouteForRecipient(userId);
     final alert = Alert(
       id: '',
       userId: userId,
@@ -498,7 +499,6 @@ class AlertService {
       rethrow; // Re-throw to help with debugging
     }
   }
-
 
   static Future<void> createGoalApprovalDecisionAlert({
     required String employeeId,
@@ -1315,6 +1315,62 @@ class AlertService {
       await batch.commit();
     } catch (e) {
       developer.log('Error marking all alerts as read: $e');
+    }
+  }
+
+  static Future<void> markGoalRelatedAlertsAsRead(
+    String userId,
+    String goalId,
+  ) async {
+    try {
+      final batch = _firestore.batch();
+      final alerts = await _firestore
+          .collection('alerts')
+          .where('userId', isEqualTo: userId)
+          .where('relatedGoalId', isEqualTo: goalId)
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      for (final doc in alerts.docs) {
+        batch.update(doc.reference, {'isRead': true});
+      }
+
+      await batch.commit();
+      developer.log(
+        'Marked ${alerts.docs.length} alerts as read for goal $goalId',
+      );
+    } catch (e) {
+      developer.log('Error marking goal-related alerts as read: $e');
+    }
+  }
+
+  static Future<void> markGoalApprovalAlertsAsRead(
+    String userId,
+    String goalId,
+  ) async {
+    try {
+      final batch = _firestore.batch();
+      final alerts = await _firestore
+          .collection('alerts')
+          .where('userId', isEqualTo: userId)
+          .where('relatedGoalId', isEqualTo: goalId)
+          .where('type', isEqualTo: 'goalApprovalRequested')
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      for (final doc in alerts.docs) {
+        batch.update(doc.reference, {
+          'isRead': true,
+          'type': 'goalApprovalApproved', // Change type to approved
+        });
+      }
+
+      await batch.commit();
+      developer.log(
+        'Marked ${alerts.docs.length} goal approval alert(s) as read and changed to approved for userId: $userId, goalId: $goalId',
+      );
+    } catch (e) {
+      developer.log('Error marking goal approval alerts as read: $e');
     }
   }
 
