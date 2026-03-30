@@ -953,8 +953,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             ),
           ];
         },
-        body: Container(
-          child: StreamBuilder<List<Alert>>(
+        body: StreamBuilder<List<Alert>>(
             stream: AlertService.getUserAlertsStream(user.uid),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1190,7 +1189,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               );
             },
           ),
-        ),
       ),
     );
   }
