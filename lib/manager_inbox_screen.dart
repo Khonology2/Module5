@@ -395,6 +395,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   void initState() {
     super.initState();
     _redirectIfManager();
+    // Run migration for existing approved goals
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AlertService.migrateExistingApprovedGoalAlerts();
+    });
   }
 
   void _ensureNudgeFeedbackStream({
@@ -1151,7 +1155,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
                   .toList();
 
-              if (_unreadOnly) {
+              if (_unreadOnly && !_showArchived) {
                 items = items.where((a) => !a.isRead).toList();
               }
               if (_priorityFilter != null) {
