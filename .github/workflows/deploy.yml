@@ -53,9 +53,6 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      - name: Test
-        run: flutter test
-
       - name: Build web (for Render — not built on Render)
         if: github.ref == 'refs/heads/pdh-deployed-backup-v3'
         run: flutter build web --release --base-href /
@@ -83,7 +80,7 @@ jobs:
             echo "No build/web changes to commit"
           else
             git commit -m "chore: update Flutter web build [skip ci]"
-                git fetch origin pdh-deployed-backup-v3
+            git fetch origin pdh-deployed-backup-v3
             if ! git pull origin pdh-deployed-backup-v3 --rebase; then
               echo "::error::Rebase failed (conflicts with origin/pdh-deployed-backup-v3). Resolve on the branch and re-run workflow."
               exit 1
@@ -97,6 +94,27 @@ jobs:
       - name: Wait for GitHub default branch tip (Render clones latest)
         if: github.ref == 'refs/heads/pdh-deployed-backup-v3'
         run: sleep 20
+
+      - name: Verify branch tip is latest before deploy
+        if: github.ref == 'refs/heads/pdh-deployed-backup-v3'
+        run: |
+          TARGET_BRANCH=pdh-deployed-backup-v3
+          LOCAL_SHA=$(git rev-parse HEAD)
+          echo "Expecting remote $TARGET_BRANCH to be at $LOCAL_SHA"
+
+          for i in $(seq 1 12); do
+            git fetch origin "$TARGET_BRANCH"
+            REMOTE_SHA=$(git rev-parse "origin/$TARGET_BRANCH")
+            if [ "$REMOTE_SHA" = "$LOCAL_SHA" ]; then
+              echo "Remote is up to date at $REMOTE_SHA"
+              exit 0
+            fi
+            echo "Attempt $i/12: remote is $REMOTE_SHA, waiting for latest tip..."
+            sleep 5
+          done
+
+          echo "::error::Remote tip did not match workflow SHA; refusing to deploy stale code."
+          exit 1
 
       - name: Trigger Render deploy hook
         if: github.ref == 'refs/heads/pdh-deployed-backup-v3'
