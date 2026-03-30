@@ -9,6 +9,7 @@ import 'package:pdh/services/badge_service.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore - Removed as DatabaseService handles it
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:pdh/services/role_service.dart'; // Import RoleService
+import 'package:pdh/services/token_auth_service.dart';
 import 'dart:async'; // Import for Timer
 
 // The registration screen widget.
@@ -39,6 +40,23 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
   void initState() {
     super.initState();
     _hintTimer = Timer(const Duration(milliseconds: 1), () {});
+    _redirectToLandingIfTokenPresent();
+  }
+
+  Future<void> _redirectToLandingIfTokenPresent() async {
+    try {
+      final token = await TokenAuthService.extractTokenFromUrl();
+      if (!mounted) return;
+      if (token == null || token.isEmpty) return;
+
+      // A token-based login flow must always start on landing screen.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/landing', arguments: token);
+      });
+    } catch (_) {
+      // Ignore; if token extraction fails, keep normal registration.
+    }
   }
 
   @override

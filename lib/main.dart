@@ -324,7 +324,7 @@ class _MyAppState extends State<MyApp> {
               navigatorKey: navigatorKey,
               title: 'Personal Development Hub',
               theme: AppTheme.darkTheme,
-              initialRoute: '/', // Let AuthWrapper handle authentication flow
+              initialRoute: '/landing', // Always start on landing for token processing
               locale: locale,
               debugShowCheckedModeBanner: false, // Disable debug banner
               localizationsDelegates: const [
@@ -369,7 +369,11 @@ class _MyAppState extends State<MyApp> {
               );
             },
             routes: {
-              '/landing': (context) => const PersonalDevelopmentHubScreen(),
+              '/landing': (context) {
+                final args = ModalRoute.of(context)?.settings.arguments;
+                final initialToken = args is String ? args : null;
+                return PersonalDevelopmentHubScreen(initialToken: initialToken);
+              },
               '/': (context) => const AuthWrapper(),
               '/register': (context) => const RegisterScreen(),
               '/sign_in': (context) => const LoginScreen(),

@@ -40,7 +40,9 @@ const bool kShowTokenLoginUI = true;
 
 // The main screen widget for the Personal Development Hub.
 class PersonalDevelopmentHubScreen extends StatefulWidget {
-  const PersonalDevelopmentHubScreen({super.key});
+  const PersonalDevelopmentHubScreen({super.key, this.initialToken});
+
+  final String? initialToken;
 
   @override
   State<PersonalDevelopmentHubScreen> createState() =>
@@ -80,7 +82,7 @@ class _PersonalDevelopmentHubScreenState
     // Start initial bounce animation when screen loads
     _bounceController.forward();
 
-    _checkTokenAndAutoLogin();
+    _checkTokenAndAutoLogin(manualToken: widget.initialToken);
 
     inspirationalLines = [
       "Cultivate your mind, blossom your potential.",
@@ -177,7 +179,9 @@ class _PersonalDevelopmentHubScreenState
               _bounceController.reset();
               _bounceController.forward();
               if (role == 'manager') {
-                Navigator.pushReplacementNamed(context, '/manager_dashboard');
+                Navigator.pushReplacementNamed(context, '/manager_portal');
+              } else if (role == 'admin') {
+                Navigator.pushReplacementNamed(context, '/admin_dashboard');
               } else {
                 Navigator.pushReplacementNamed(context, '/employee_dashboard');
               }
@@ -499,7 +503,7 @@ class _PersonalDevelopmentHubScreenState
             );
       } else if (pdhRole == 'PDH - Manager') {
         debugPrint('Landing screen: Navigating to manager dashboard...');
-        Navigator.pushReplacementNamed(context, '/manager_dashboard')
+        Navigator.pushReplacementNamed(context, '/manager_portal')
             .then(
               (_) => debugPrint(
                 'Landing screen: Navigation to manager dashboard completed',

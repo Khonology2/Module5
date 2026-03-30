@@ -423,7 +423,7 @@ class _RoleGateState extends State<RoleGate> {
         if (context.mounted) {
           Navigator.pushReplacementNamed(
             context,
-            role == 'manager' ? '/manager_dashboard' : '/employee_dashboard',
+            role == 'manager' ? '/manager_portal' : '/employee_dashboard',
           );
         }
       });
@@ -488,7 +488,7 @@ class _RoleGateState extends State<RoleGate> {
           if (context.mounted) {
             Navigator.pushReplacementNamed(
               context,
-              role == 'manager' ? '/manager_dashboard' : '/employee_dashboard',
+              role == 'manager' ? '/manager_portal' : '/employee_dashboard',
             );
           }
         });

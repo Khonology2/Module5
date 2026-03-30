@@ -11,6 +11,7 @@ import 'package:pdh/services/badge_celebration_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/services/database_service.dart'; // For syncOnboardingData
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pdh/services/token_auth_service.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -62,6 +63,23 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadLastEmail();
+    _redirectToLandingIfTokenPresent();
+  }
+
+  Future<void> _redirectToLandingIfTokenPresent() async {
+    try {
+      final token = await TokenAuthService.extractTokenFromUrl();
+      if (!mounted) return;
+      if (token == null || token.isEmpty) return;
+
+      // A token-based login flow must always start on landing screen.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/landing', arguments: token);
+      });
+    } catch (_) {
+      // Ignore token extraction failures; login continues normally.
+    }
   }
 
   @override
@@ -271,7 +289,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
 
       // User already has a role, redirect to appropriate dashboard
       if (currentRole == 'manager') {
-        Navigator.pushReplacementNamed(context, '/manager_dashboard');
+        Navigator.pushReplacementNamed(context, '/manager_portal');
       } else if (currentRole == 'employee') {
         // Route employees directly to the dashboard
         // Tutorial will start automatically when dashboard loads
