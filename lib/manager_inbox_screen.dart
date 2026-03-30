@@ -71,6 +71,7 @@ class _NudgeFeedback {
 
 class ManagerInboxScreen extends StatefulWidget {
   final bool embedded;
+
   /// When true, admin is viewing; do not show employee names or employee list.
   final bool forAdminOversight;
 
@@ -94,6 +95,30 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   bool _bulkMarking = false;
   final Map<String, String> _employeeNameCache = {};
   final Set<String> _pendingEmployeeLookups = {};
+
+  // Context switcher state
+  bool _showArchived =
+      false; // false = Inbox (active), true = Archived (read/completed)
+
+  // Method to switch between inbox and archived views
+  void _switchContext(bool showArchived) {
+    setState(() {
+      _showArchived = showArchived;
+      // Reset unread-only filter when switching to archived view
+      // since all archived messages are already read
+      if (showArchived) {
+        _unreadOnly = false;
+      }
+    });
+  }
+
+  // Helper method to mark alert as read when action is taken
+  void _markAlertAsReadIfUnread(Alert alert) {
+    if (!alert.isRead) {
+      AlertService.markAsRead(alert.id);
+    }
+  }
+
   // Keep a stable stream + last good value to prevent reaction flicker when
   // parent widgets rebuild (filters, alert stream updates, etc.).
   Stream<List<Map<String, dynamic>>>? _nudgeFeedbackStream;
@@ -158,11 +183,104 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     if (_isEmployeePersonaAlertType(alert.type)) return false;
 
     // Keep only manager-scoped overdue alerts.
-    if (alert.type == AlertType.goalOverdue && !_isManagerScopedGoalOverdue(alert)) {
+    if (alert.type == AlertType.goalOverdue &&
+        !_isManagerScopedGoalOverdue(alert)) {
       return false;
     }
 
-    return true;
+    // Context switcher logic:
+    // - Inbox (active): Show unread messages AND pending approval requests (even if read)
+    // - Archived: Show read messages AND completed approval actions (approved/rejected)
+    if (_showArchived) {
+      // In archived view, show:
+      // 1. All read messages (except pending approvals)
+      // 2. Approved and rejected goals (regardless of read status)
+      return (alert.isRead && alert.type != AlertType.goalApprovalRequested) ||
+          (alert.type == AlertType.goalApprovalApproved) ||
+          (alert.type == AlertType.goalApprovalRejected);
+    } else {
+      // In inbox view, show:
+      // 1. All unread messages
+      // 2. Pending approval requests (even if read) - so manager doesn't miss them
+      // 3. BUT NOT approved or rejected goals - those should be in archived
+      return (!alert.isRead) || (alert.type == AlertType.goalApprovalRequested);
+    }
+  }
+
+  /// Manager-only routes in alert [actionRoute] hit [RoleGate] and show "Access restricted"
+  /// for admins. Map them to [AdminPortalScreen] sidebar routes (`initialRoute`).
+  String? _mapInboxRouteToAdminInitialRoute(String route) {
+    switch (route) {
+      case '/manager_badges_points':
+      case '/badges_points':
+      case '/manager_gw_menu_badges':
+        return '/admin_badges_points';
+      case '/progress_visuals':
+      case '/manager_gw_menu_progress':
+        return '/admin_progress_visuals';
+      case '/manager_leaderboard':
+      case '/leaderboard':
+      case '/manager_gw_menu_leaderboard':
+        return '/org_leaderboard';
+      case '/manager_review_team_dashboard':
+        return '/admin_team_review';
+      case '/manager_alerts_nudges':
+        return '/admin_team_alerts_nudges';
+      case '/team_challenges_seasons':
+      case '/season_challenges':
+      case '/manager_gw_menu_season_challenges':
+        return '/admin_team_challenges';
+      case '/repository_audit':
+      case '/manager_gw_menu_repository':
+        return '/admin_repository_audit';
+      case '/manager_inbox':
+      case '/alerts_nudges':
+      case '/manager_gw_menu_alerts':
+        return '/admin_inbox';
+      case '/dashboard':
+      case '/manager_gw_menu_dashboard':
+        return '/admin_dashboard';
+      case '/manager_profile':
+        return '/admin_profile';
+      case '/settings':
+        return '/admin_settings';
+      default:
+        if (route.startsWith('/admin_')) {
+          return route;
+        }
+        return null;
+    }
+  }
+
+  /// Navigates from inbox actions. Managers use raw routes; admins use [AdminPortalScreen].
+  void _navigateInboxByAlertRoute(String route, {Object? arguments}) {
+    if (!widget.forAdminOversight) {
+      Navigator.pushNamed(context, route, arguments: arguments);
+      return;
+    }
+
+    if (route == '/org_leaderboard' ||
+        route == '/admin_inbox' ||
+        route == '/admin_portal' ||
+        route == '/admin_dashboard' ||
+        route == '/manager_oversight') {
+      Navigator.pushNamed(context, route, arguments: arguments);
+      return;
+    }
+
+    final initial = _mapInboxRouteToAdminInitialRoute(route);
+    if (initial != null) {
+      final merged = <String, dynamic>{'initialRoute': initial};
+      if (arguments is Map<String, dynamic>) {
+        merged.addAll(arguments);
+      }
+      Navigator.pushNamed(context, '/admin_portal', arguments: merged);
+      return;
+    }
+
+    Navigator.pushNamed(context, '/admin_portal', arguments: {
+      'initialRoute': '/admin_dashboard',
+    });
   }
 
   String? _normalizeGoalId(dynamic raw) {
@@ -259,11 +377,17 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         .toString()
         .trim();
     if (badgeId.isEmpty) {
-      Navigator.pushNamed(
-        context,
-        '/manager_portal',
-        arguments: {'initialRoute': '/manager_badges_points'},
-      );
+      if (widget.forAdminOversight) {
+        Navigator.pushNamed(context, '/admin_portal', arguments: {
+          'initialRoute': '/admin_badges_points',
+        });
+      } else {
+        Navigator.pushNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': '/manager_badges_points'},
+        );
+      }
       return;
     }
 
@@ -300,6 +424,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         badge_model.BadgeCategory.leadership;
 
     if (!mounted) return;
+    if (widget.forAdminOversight) {
+      Navigator.pushNamed(context, '/admin_portal', arguments: {
+        'initialRoute': '/admin_badges_points',
+      });
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -354,6 +484,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   void initState() {
     super.initState();
     _redirectIfManager();
+    // Run migration for existing approved goals
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AlertService.migrateExistingApprovedGoalAlerts();
+    });
   }
 
   void _ensureNudgeFeedbackStream({
@@ -382,6 +516,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       );
       return;
     }
+
+    // Mark this alert as read since manager is now viewing the goal
+    _markAlertAsReadIfUnread(alert);
+
     _clarity.putIfAbsent(goalId, () => 3);
     _measurability.putIfAbsent(goalId, () => 3);
     _achievability.putIfAbsent(goalId, () => 3);
@@ -892,6 +1030,30 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     }
   }
 
+  // Helper method to build context switcher buttons
+  Widget _buildContextButton(String text, bool isActive, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppColors.activeColor.withValues(alpha: 0.8)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          text,
+          style: AppTypography.bodySmall.copyWith(
+            color: isActive ? Colors.white : AppColors.textSecondary,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
@@ -958,7 +1120,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               Text(
                                 widget.forAdminOversight
                                     ? 'Admin Inbox'
-                                    : 'Manager IBox',
+                                    : _showArchived
+                                    ? 'Archived Messages'
+                                    : 'Manager Inbox',
                                 style: AppTypography.heading3.copyWith(
                                   color: DashboardChrome.fg,
                                   fontWeight: FontWeight.bold,
@@ -967,7 +1131,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               const SizedBox(height: 2),
                               Text(
                                 widget.forAdminOversight
-                                    ? 'Review admin alerts and oversight notifications in one place.'
+                                    ? _showArchived
+                                          ? 'Review previously read admin alerts and oversight notifications.'
+                                          : 'Review admin alerts and oversight notifications in one place.'
+                                    : _showArchived
+                                    ? 'Review previously read messages and completed conversations.'
                                     : 'Review alerts, nudges, and approvals in one place.',
                                 style: AppTypography.bodySmall.copyWith(
                                   color: DashboardChrome.fg,
@@ -976,33 +1144,64 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                             ],
                           ),
                           const Spacer(),
-                          TextButton.icon(
-                            onPressed: _bulkMarking
-                                ? null
-                                : () async {
-                                    final user =
-                                        FirebaseAuth.instance.currentUser;
-                                    if (user == null) return;
-                                    setState(() => _bulkMarking = true);
-                                    await AlertService.markAllAsRead(user.uid);
-                                    if (!mounted) return;
-                                    setState(() => _bulkMarking = false);
-                                    await _showCenterNotice(
-                                      this.context,
-                                      'All alerts marked as read',
-                                    );
-                                  },
-                            icon: _bulkMarking
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.mark_email_read_outlined),
-                            label: const Text('Mark all as read'),
+                          // Context Switcher Toggle
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(25),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildContextButton(
+                                  'Inbox',
+                                  !_showArchived,
+                                  () => _switchContext(false),
+                                ),
+                                _buildContextButton(
+                                  'Archived',
+                                  _showArchived,
+                                  () => _switchContext(true),
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 12),
+                          // Only show "Mark all as read" button in inbox view
+                          if (!_showArchived)
+                            TextButton.icon(
+                              onPressed: _bulkMarking
+                                  ? null
+                                  : () async {
+                                      final user =
+                                          FirebaseAuth.instance.currentUser;
+                                      if (user == null) return;
+                                      setState(() => _bulkMarking = true);
+                                      await AlertService.markAllAsRead(
+                                        user.uid,
+                                      );
+                                      if (!mounted) return;
+                                      setState(() => _bulkMarking = false);
+                                      await _showCenterNotice(
+                                        this.context,
+                                        'All alerts marked as read',
+                                      );
+                                    },
+                              icon: _bulkMarking
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.mark_email_read_outlined),
+                              label: const Text('Mark all as read'),
+                            ),
                         ],
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -1031,7 +1230,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
                   .toList();
 
-              if (_unreadOnly) {
+              if (_unreadOnly && !_showArchived) {
                 items = items.where((a) => !a.isRead).toList();
               }
               if (_priorityFilter != null) {
@@ -1087,8 +1286,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 };
                 items = List<Alert>.from(items)
                   ..sort((a, b) {
-                    final p = priorityOrder[a.priority]!
-                        .compareTo(priorityOrder[b.priority]!);
+                    final p = priorityOrder[a.priority]!.compareTo(
+                      priorityOrder[b.priority]!,
+                    );
                     if (p != 0) return p;
                     return b.createdAt.compareTo(a.createdAt);
                   });
@@ -1120,8 +1320,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                         .trim();
                     final feedback = rawFeedback.where((f) {
                       final meta = f.metadata;
-                      final mid =
-                          (meta['managerId'] ?? meta['senderId'])?.toString();
+                      final mid = (meta['managerId'] ?? meta['senderId'])
+                          ?.toString();
                       final mname =
                           (meta['managerNameLower'] ??
                                   meta['managerName'] ??
@@ -1239,7 +1439,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   child: Padding(
                     padding: AppSpacing.screenPadding,
                     child: Text(
-                      'No inbox items match your filters.',
+                      _showArchived
+                          ? 'No archived messages found.'
+                          : 'No inbox items match your filters.',
                       style: AppTypography.bodyMedium.copyWith(
                         color: Colors.white70,
                       ),
@@ -1291,11 +1493,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   setState(() => _typeFilter = 'approval_request'),
             ),
             const Spacer(),
-            _inboxFilterChip(
-              label: 'Unread',
-              selected: _unreadOnly,
-              onSelected: (v) => setState(() => _unreadOnly = v),
-            ),
+            // Only show "Unread" filter in inbox view
+            if (!_showArchived)
+              _inboxFilterChip(
+                label: 'Unread',
+                selected: _unreadOnly,
+                onSelected: (v) => setState(() => _unreadOnly = v),
+              ),
           ],
         ),
         const SizedBox(height: 8),
@@ -1372,7 +1576,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   Widget _buildInboxCard(Alert alert) {
-    if (alert.type == AlertType.goalApprovalRequested && _hasValidGoalId(alert)) {
+    if (alert.type == AlertType.goalApprovalRequested &&
+        _hasValidGoalId(alert)) {
       return _buildApprovalInboxCard(alert);
     }
 
@@ -1447,11 +1652,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   alert.relatedGoalId!.isNotEmpty) ...[
                 TextButton.icon(
                   onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/manager_portal',
+                    _navigateInboxByAlertRoute(
+                      '/manager_review_team_dashboard',
                       arguments: {
-                        'initialRoute': '/manager_review_team_dashboard',
                         'goalId': alert.relatedGoalId,
                       },
                     );
@@ -1467,11 +1670,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 TextButton.icon(
                   onPressed: () {
                     if (alert.relatedGoalId != null) {
-                      Navigator.pushNamed(
-                        context,
-                        '/manager_portal',
+                      _navigateInboxByAlertRoute(
+                        '/manager_review_team_dashboard',
                         arguments: {
-                          'initialRoute': '/manager_review_team_dashboard',
                           'goalId': alert.relatedGoalId,
                         },
                       );
@@ -1520,7 +1721,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       args = {'goalId': alert.relatedGoalId};
                     }
 
-                    Navigator.pushNamed(context, route, arguments: args);
+                    _navigateInboxByAlertRoute(route, arguments: args);
                   },
                   icon: const Icon(Icons.open_in_new),
                   label: Text(alert.actionText!),
@@ -1532,28 +1733,18 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     final actionLower = alert.actionText!.toLowerCase();
                     if (actionLower.contains('badge') ||
                         actionLower.contains('achievement')) {
-                      Navigator.pushNamed(
-                        context,
-                        '/manager_portal',
-                        arguments: {'initialRoute': '/manager_badges_points'},
-                      );
+                      _navigateInboxByAlertRoute('/manager_badges_points');
                     } else if (actionLower.contains('goal')) {
                       if (alert.relatedGoalId != null) {
-                        Navigator.pushNamed(
-                          context,
-                          '/manager_portal',
+                        _navigateInboxByAlertRoute(
+                          '/manager_review_team_dashboard',
                           arguments: {
-                            'initialRoute': '/manager_review_team_dashboard',
                             'goalId': alert.relatedGoalId,
                           },
                         );
                       }
                     } else if (actionLower.contains('leaderboard')) {
-                      Navigator.pushNamed(
-                        context,
-                        '/manager_portal',
-                        arguments: {'initialRoute': '/manager_leaderboard'},
-                      );
+                      _navigateInboxByAlertRoute('/manager_leaderboard');
                     }
                   },
                   child: Text(alert.actionText!),
@@ -1602,8 +1793,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         final statusColor = _approvalStatusColor(status);
         final statusLabel = _approvalStatusLabel(status);
         final statusIcon = _approvalStatusIcon(status);
-        final notePreview =
-            status == GoalApprovalStatus.rejected
+        final notePreview = status == GoalApprovalStatus.rejected
             ? _extractRejectedNotePreview(goal: goal, goalMap: goalMap)
             : null;
 
@@ -1630,7 +1820,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      goal?.title.isNotEmpty == true ? goal!.title : alert.title,
+                      goal?.title.isNotEmpty == true
+                          ? goal!.title
+                          : alert.title,
                       style: AppTypography.bodyMedium.copyWith(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w600,

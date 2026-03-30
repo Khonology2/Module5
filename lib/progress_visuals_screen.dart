@@ -55,8 +55,8 @@ class _ProgressChrome {
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
-  /// When true, render employee-style progress visuals even for manager users.
-  /// Used by Manager Workspace routes.
+  /// When true, render the employee-style progress visuals even for manager users.
+  /// This is used by the Manager GW (dropdown) menu.
   final bool forManagerGwMenu;
   /// When true, admin is viewing; show managers only (no employees).
   final bool forAdminOversight;
@@ -277,7 +277,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
                   onRefresh: () async {
                     setState(() {});
                   },
-                  child: isManager
+                  child: (isManager && !widget.forManagerGwMenu)
                       ? ManagerProgressVisualsContent(
                           userProfile: userProfile!,
                           forAdminOversight: widget.forAdminOversight,

@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -18,41 +17,29 @@ class ManagerLeaderboardScreen extends StatefulWidget {
       _ManagerLeaderboardScreenState();
 }
 
-class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
-    with SingleTickerProviderStateMixin {
-  final LeaderboardMetric _metric = LeaderboardMetric.points;
-  List<EmployeeData> _lastManagers = const [];
-  late final Stream<List<EmployeeData>> _managerStream;
-  Future<List<EmployeeData>>? _managerFuture;
-  late final AnimationController _topHoverController;
-  bool _isTopHovered = false;
+class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
+  LeaderboardMetric _metric = LeaderboardMetric.points;
+  List<EmployeeData> _lastTeam = const [];
+  late final Stream<List<EmployeeData>> _teamStream;
+  Future<List<EmployeeData>>? _teamFuture;
 
   @override
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
-    _topHoverController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-    _topHoverController.repeat(reverse: true);
     // IMPORTANT: Cache the stream instance so StreamBuilder doesn't resubscribe
     // on every rebuild (which can destabilize Firestore listeners on web).
-    _managerStream = ManagerRealtimeService.getManagersDataStream(
+    _teamStream = ManagerRealtimeService.getTeamDataStream(
+      department: null,
       timeFilter: TimeFilter.month,
     );
     // On web, prefer one-time fetches to avoid Firestore Web listener instability.
     if (kIsWeb) {
-      _managerFuture = ManagerRealtimeService.getManagersDataStream(
+      _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+        department: null,
         timeFilter: TimeFilter.month,
-      ).first;
+      );
     }
-  }
-
-  @override
-  void dispose() {
-    _topHoverController.dispose();
-    super.dispose();
   }
 
   Widget _buildEmptyState() {
@@ -104,7 +91,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
 
     if (kIsWeb) {
       content = FutureBuilder<List<EmployeeData>>(
-        future: _managerFuture,
+        future: _teamFuture,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
@@ -129,11 +116,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                   ElevatedButton.icon(
                     onPressed: () {
                       setState(() {
-                        _managerFuture = ManagerRealtimeService
-                            .getManagersDataStream(
-                              timeFilter: TimeFilter.month,
-                            )
-                            .first;
+                        _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+                          department: null,
+                          timeFilter: TimeFilter.month,
+                        );
                       });
                     },
                     icon: const Icon(Icons.refresh),
@@ -148,7 +134,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
             );
           }
 
-          final team = snapshot.data ?? _lastManagers;
+          final raw = snapshot.data ?? _lastTeam;
+          final team = raw.where((e) => e.profile.leaderboardOptin).toList();
 
           // Sort by metric
           team.sort((a, b) {
@@ -168,7 +155,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
             }
           });
 
-          if (team.isNotEmpty) _lastManagers = team;
+          if (team.isNotEmpty) _lastTeam = team;
 
           if (team.isEmpty) {
             return ListView(
@@ -181,11 +168,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                       tooltip: 'Refresh',
                       onPressed: () {
                         setState(() {
-                          _managerFuture = ManagerRealtimeService
-                              .getManagersDataStream(
-                                timeFilter: TimeFilter.month,
-                              )
-                              .first;
+                          _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+                            department: null,
+                            timeFilter: TimeFilter.month,
+                          );
                         });
                       },
                       icon: const Icon(
@@ -215,11 +201,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                     tooltip: 'Refresh',
                     onPressed: () {
                       setState(() {
-                        _managerFuture = ManagerRealtimeService
-                            .getManagersDataStream(
-                              timeFilter: TimeFilter.month,
-                            )
-                            .first;
+                        _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+                          department: null,
+                          timeFilter: TimeFilter.month,
+                        );
                       });
                     },
                     icon: const Icon(
@@ -244,7 +229,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
       );
     } else {
       content = StreamBuilder<List<EmployeeData>>(
-        stream: _managerStream,
+        stream: _teamStream,
         builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
@@ -271,7 +256,9 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
         }
 
         // Prefer live data, otherwise show last cached team to avoid spinners
-        final team = snapshot.data ?? _lastManagers;
+        final raw = snapshot.data ?? _lastTeam;
+        // Only show employees who opted in to leaderboard participation
+        final team = raw.where((e) => e.profile.leaderboardOptin).toList();
 
         // Sort by metric
         team.sort((a, b) {
@@ -293,7 +280,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
 
         // Update cache when we have any data
         if (team.isNotEmpty) {
-          _lastManagers = team;
+          _lastTeam = team;
         }
 
         if (team.isEmpty &&
@@ -355,6 +342,34 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
   }
 
   Widget _buildHeaderWithFilters() {
+    Widget metricChip(String label, LeaderboardMetric metric) {
+      final selected = _metric == metric;
+      return GestureDetector(
+        onTap: () => setState(() => _metric = metric),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.activeColor
+                : DashboardChrome.cardFill,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? AppColors.activeColor : DashboardChrome.border,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : DashboardChrome.fg,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -362,8 +377,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: DashboardChrome.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
           Expanded(
             child: Column(
@@ -384,98 +398,54 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
               ],
             ),
           ),
+          metricChip('Points', LeaderboardMetric.points),
+          metricChip('Streaks', LeaderboardMetric.streaks),
+          metricChip('Progress', LeaderboardMetric.progress),
         ],
       ),
     );
   }
 
-  String _podiumMetricText(EmployeeData e) {
-    switch (_metric) {
-      case LeaderboardMetric.points:
-        return '${e.totalPoints} pts';
-      case LeaderboardMetric.streaks:
-        return '${e.streakDays} day streak';
-      case LeaderboardMetric.progress:
-        return '${e.avgProgress.toStringAsFixed(1)}%';
-    }
-  }
-
   Widget _buildPodium(List<EmployeeData> top) {
-    final topThree = top.take(3).toList();
-    if (topThree.isEmpty) return const SizedBox.shrink();
-
-    final colors = [
-      const Color(0xFFFFD700), // Gold
-      const Color(0xFFC0C0C0), // Silver
-      const Color(0xFFCD7F32), // Bronze
+    // Pad to 3 slots
+    final List<EmployeeData?> slots = [
+      top.length > 1 ? top[1] : null, // 2nd place left
+      top.isNotEmpty ? top[0] : null, // 1st center
+      top.length > 2 ? top[2] : null, // 3rd right
     ];
 
-    return SizedBox(
-      height: 300,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            bottom: 0,
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.85,
-              height: 200,
+    Widget tile(EmployeeData? e, int rank, double height, Color color) {
+      return Expanded(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Container(
+              height: height,
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                gradient: LinearGradient(
+                  colors: [
+                    color.withValues(alpha: 0.8),
+                    color.withValues(alpha: 0.4),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(10),
+                ),
               ),
-            ),
-          ),
-          if (topThree.length > 1)
-            Positioned(
-              bottom: 20,
-              left: MediaQuery.of(context).size.width * 0.2,
-              child: _buildPodiumCardWithNumber(
-                employee: topThree[1],
-                color: colors[1],
-                width: 120,
-                numberText: '2',
-              ),
-            ),
-          if (topThree.length > 2)
-            Positioned(
-              bottom: 20,
-              right: MediaQuery.of(context).size.width * 0.2,
-              child: _buildPodiumCardWithNumber(
-                employee: topThree[2],
-                color: colors[2],
-                width: 120,
-                numberText: '3',
-              ),
-            ),
-          if (topThree.isNotEmpty)
-            Positioned(
-              top: 0,
-              child: MouseRegion(
-                onEnter: (_) => setState(() => _isTopHovered = true),
-                onExit: (_) => setState(() => _isTopHovered = false),
-                child: AnimatedBuilder(
-                  animation: _topHoverController,
-                  builder: (context, child) {
-                    final amplitude = _isTopHovered ? 10.0 : 4.0;
-                    final dy =
-                        math.sin(_topHoverController.value * math.pi) * amplitude;
-                    return Transform.translate(
-                      offset: Offset(0, dy),
-                      child: child,
-                    );
-                  },
-                  child: _buildPodiumCardWithNumber(
-                    employee: topThree[0],
-                    color: colors[0],
-                    width: 120,
-                    numberText: '1',
+              child: Center(
+                child: Text(
+                  '$rank',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
                 ),
               ),
             ),
-            /*const SizedBox(height: 8),
+            const SizedBox(height: 8),
             if (e != null)
               Container(
                 padding: const EdgeInsets.all(10),
@@ -531,12 +501,12 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                   ],
                 ),
               ),
-            */
           ],
         ),
       );
-    
-    /*return SizedBox(
+    }
+
+    return SizedBox(
       height: 200,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -547,112 +517,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
           const SizedBox(width: 8),
           tile(slots[2], 3, 50, const Color(0xFFCD7F32)),
         ],
-      ),
-    );*/
-  }
-
-  Widget _buildPodiumCardWithNumber({
-    required EmployeeData employee,
-    required Color color,
-    required double width,
-    required String numberText,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildPodiumCard(
-          employee: employee,
-          color: color,
-          width: width,
-        ),
-        const SizedBox(height: 8),
-        _buildPositionBadge(color: color, text: numberText),
-      ],
-    );
-  }
-
-  Widget _buildPodiumCard({
-    required EmployeeData employee,
-    required Color color,
-    required double width,
-  }) {
-    return Container(
-      width: width,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.3),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundColor: color,
-            child: Text(
-              employee.profile.displayName.isNotEmpty
-                  ? employee.profile.displayName[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            employee.profile.displayName,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            _podiumMetricText(employee),
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPositionBadge({required Color color, required String text}) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.4),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
       ),
     );
   }
@@ -682,8 +546,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
       child: Row(
         children: [
           Container(
-            width: 30,
-            height: 30,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: DashboardChrome.cardFill,
               borderRadius: BorderRadius.circular(17),
@@ -695,7 +559,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                 style: TextStyle(
                   color: DashboardChrome.fg,
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
                 ),
               ),
             ),

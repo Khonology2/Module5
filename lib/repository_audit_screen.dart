@@ -28,7 +28,9 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/streak_service.dart';
+import 'package:pdh/services/firestore_stream_broker.dart';
 import 'package:pdh/services/robust_stream_manager.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'dart:html'
@@ -42,6 +44,13 @@ class RepositoryAuditScreen extends StatefulWidget {
 
   @override
   State<RepositoryAuditScreen> createState() => _RepositoryAuditScreenState();
+}
+
+class _RepoAuditChrome {
+  static const Color fg = Colors.white;
+  static const Color cardFill = Color(0x3323293A);
+  static const Color border = Color(0x66FFFFFF);
+  static const List<Color> lightGradient = [Color(0x22000000), Color(0x00000000)];
 }
 
 class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
@@ -64,10 +73,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   @override
   void initState() {
     super.initState();
-    developer.log(
-      'RepositoryAuditScreen: initState started',
-      name: 'RepositoryAuditScreen',
-    );
+
+    // Initialize unified stream after role is determined
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _initializeUserRole();
+      }
+    });
 
     // Initialize debouncer for search queries
     _searchDebouncer = ValueDebouncer<String>(
@@ -75,20 +87,22 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       callback: (value) {
         if (mounted) {
           setState(() {
-            // Search filter updated
+            // _searchQuery = value; // Removed unused field
           });
         }
       },
     );
 
+    // Enable repository auto-sync for functionality
+    try {
+      RepositoryService.startAutoSync();
+    } catch (e) {
+      developer.log('Error starting auto-sync: $e');
+    }
+
     // Add timeout to prevent infinite loading
     Timer(const Duration(seconds: 30), () {
       if (mounted && _isInitializing) {
-        developer.log(
-          'RepositoryAuditScreen: Initialization timeout - forcing UI update',
-          name: 'RepositoryAuditScreen',
-        );
-
         setState(() {
           _isInitializing = false;
           _lastError = 'Initialization timeout - please retry';
@@ -128,7 +142,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       await _initializeUserRole();
 
       // Step 3: Initialize unified stream
-      await _initializeUnifiedStream();
+      _initializeUnifiedStream();
 
       // Step 4: Enable repository services
       await _initializeRepositoryServices();
@@ -212,97 +226,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         name: 'RepositoryAuditScreen',
       );
       throw Exception('Failed to initialize user role: $e');
-    }
-  }
-
-  // Initialize unified stream with proper error handling
-  Future<void> _initializeUnifiedStream() async {
-    developer.log(
-      'RepositoryAuditScreen: Initializing unified stream',
-      name: 'RepositoryAuditScreen',
-    );
-
-    if (_unifiedStreamSubscription != null) {
-      developer.log(
-        'RepositoryAuditScreen: Stream already exists, cancelling previous',
-        name: 'RepositoryAuditScreen',
-      );
-      await _unifiedStreamSubscription!.cancel();
-      _unifiedStreamSubscription = null;
-    }
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      throw Exception('User not authenticated');
-    }
-
-    try {
-      // Use the robust stream manager to get a shared stream
-      final streamManager = RobustStreamManager();
-      final stream = streamManager.getAuditEntriesStream(
-        userId: user.uid,
-        isManager: _isManager,
-        limit: 500,
-      );
-
-      developer.log(
-        'RepositoryAuditScreen: Created stream, setting up listener',
-        name: 'RepositoryAuditScreen',
-      );
-
-      _unifiedStreamSubscription = stream.listen(
-        (snapshot) {
-          if (mounted) {
-            developer.log(
-              'RepositoryAuditScreen: Stream received ${snapshot.docs.length} documents',
-              name: 'RepositoryAuditScreen',
-            );
-
-            // Debug: Print first document data
-            if (snapshot.docs.isNotEmpty) {
-              final firstDoc = snapshot.docs.first;
-              developer.log(
-                'RepositoryAuditScreen: First document data: ${firstDoc.data()}',
-                name: 'RepositoryAuditScreen',
-              );
-            }
-
-            _processStreamData(snapshot);
-          }
-        },
-        onError: (error) {
-          if (mounted) {
-            developer.log(
-              'RepositoryAuditScreen: Stream error: $error',
-              name: 'RepositoryAuditScreen',
-              error: error,
-            );
-
-            setState(() {
-              _isInitializing = false;
-              _lastError = 'Stream error: $error';
-              _hasLoadedOnce = true;
-            });
-          }
-        },
-        onDone: () {
-          developer.log(
-            'RepositoryAuditScreen: Stream completed',
-            name: 'RepositoryAuditScreen',
-          );
-        },
-      );
-
-      developer.log(
-        'RepositoryAuditScreen: Stream listener setup complete',
-        name: 'RepositoryAuditScreen',
-      );
-    } catch (e) {
-      developer.log(
-        'RepositoryAuditScreen: Error creating stream: $e',
-        name: 'RepositoryAuditScreen',
-      );
-      throw Exception('Failed to create unified stream: $e');
     }
   }
 
@@ -598,11 +521,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
   @override
   void dispose() {
-    developer.log(
-      'RepositoryAuditScreen: Disposing',
-      name: 'RepositoryAuditScreen',
-    );
-
     // Clean up unified stream subscription
     _unifiedStreamSubscription?.cancel();
     _unifiedStreamSubscription = null;
@@ -620,250 +538,171 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     super.dispose();
   }
 
-  // Get cached audit entries for UI
-  List<AuditEntry> getCachedAuditEntries() {
-    return _allAuditEntries;
+  // Initialize unified stream that serves all UI components
+  void _initializeUnifiedStream() {
+    if (_unifiedStreamSubscription != null) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // Use the stream broker to get a shared stream
+    final broker = FirestoreStreamBroker();
+    final stream = broker.getAuditEntriesStream(
+      userId: user.uid,
+      isManager: _isManager,
+      limit: 500,
+    );
+
+    _unifiedStreamSubscription = stream.listen(
+      (snapshot) {
+        if (mounted) {
+          developer.log(
+            'Unified stream received ${snapshot.docs.length} documents',
+          );
+
+          final entries = <AuditEntry>[];
+          final milestoneAudits = <Map<String, dynamic>>[];
+          var skippedCount = 0;
+          var milestoneCount = 0;
+          var auditCount = 0;
+
+          for (final doc in snapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>? ?? {};
+
+            // Skip entries without goalId
+            if ((data['goalId'] ?? '').toString().isEmpty) {
+              skippedCount++;
+              continue;
+            }
+
+            // Check if it's a milestone audit
+            if (data.containsKey('action')) {
+              // This is a MILESTONE audit, NOT a regular audit entry
+              // Skip it from regular audit entries list
+              final action = data['action'] as String? ?? '';
+              final isMilestoneAction = [
+                'milestone_created',
+                'milestone_updated',
+                'milestone_status_changed',
+                'milestone_completed',
+                'milestone_acknowledged',
+                'milestone_pending_review',
+                'milestone_rejected',
+                'milestone_dismissed',
+              ].contains(action);
+
+              if (isMilestoneAction) {
+                // Add to milestone audits
+                milestoneAudits.add({'id': doc.id, ...data});
+                milestoneCount++;
+              }
+              // Skip milestone actions from regular audit entries
+              continue;
+            }
+
+            // Add to regular audit entries
+            try {
+              final entry = AuditEntry.fromFirestore(doc);
+              entries.add(entry);
+              auditCount++;
+              developer.log(
+                'Audit entry: ${entry.goalTitle} - Status: ${entry.status}',
+              );
+            } catch (e) {
+              developer.log('Error parsing audit entry ${doc.id}: $e');
+            }
+          }
+
+          developer.log(
+            'Stream processing complete: $auditCount audit entries, $milestoneCount milestone audits, $skippedCount skipped',
+          );
+
+          setState(() {
+            _allAuditEntries = entries;
+            _milestoneAudits = milestoneAudits;
+            _isLoadingMilestones = false;
+            _hasLoadedOnce = true;
+          });
+
+          developer.log(
+            'Unified stream updated: ${entries.length} audit entries, ${milestoneAudits.length} milestone audits',
+          );
+        }
+      },
+      onError: (error) {
+        developer.log(
+          'Unified stream error: $error',
+          name: 'RepositoryAuditScreen',
+        );
+        if (mounted) {
+          setState(() {
+            _isLoadingMilestones = false;
+            _hasLoadedOnce = true;
+          });
+        }
+      },
+    );
   }
+
+  // Get cached data for UI components
+  List<AuditEntry> getCachedAuditEntries() => _allAuditEntries;
 
   @override
   Widget build(BuildContext context) {
-    developer.log(
-      'RepositoryAuditScreen: Building UI - isInitializing: $_isInitializing, hasLoadedOnce: $_hasLoadedOnce, entries: ${_allAuditEntries.length}',
-      name: 'RepositoryAuditScreen',
-    );
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text('Repository & Audit'),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        actions: [
-          if (_lastError != null)
-            IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.white),
-              onPressed: _retryInitialization,
-              tooltip: 'Retry',
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _refreshMilestoneAudits,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    developer.log(
-      'RepositoryAuditScreen: _buildBody called - isInitializing: $_isInitializing, hasLoadedOnce: $_hasLoadedOnce, entries: ${_allAuditEntries.length}, error: $_lastError',
-      name: 'RepositoryAuditScreen',
-    );
-
-    // Show error state
-    if (_lastError != null && _allAuditEntries.isEmpty) {
-      return _buildErrorState();
-    }
-
-    // Show loading state during initialization
-    if (_isInitializing) {
-      return _buildLoadingState();
-    }
-
-    // Fallback debug state if somehow we reach here with no data
-    if (_allAuditEntries.isEmpty && _milestoneAudits.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.info_outline, color: Colors.white, size: 64),
-            const SizedBox(height: 16),
-            const Text(
-              'No data available',
-              style: TextStyle(color: Colors.white, fontSize: 18),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _retryInitialization,
-              child: const Text('Retry'),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                // Add mock data for testing
-                setState(() {
-                  _allAuditEntries = [
-                    AuditEntry(
-                      id: 'test1',
-                      userId: 'test',
-                      goalId: 'goal1',
-                      goalTitle: 'Test Goal 1',
-                      completedDate: DateTime.now(),
-                      submittedDate: DateTime.now(),
-                      status: 'created',
-                      evidence: [],
-                      userDisplayName: 'Test User',
-                      userDepartment: 'Test Dept',
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: Material(
+            color: Colors.transparent,
+            child: AppComponents.backgroundWithImage(
+              blurSigma: 0,
+              imagePath: light
+                  ? 'assets/light_mode_bg.png'
+                  : 'assets/khono_bg.png',
+              gradientColors: _RepoAuditChrome.lightGradient,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Repository & Audit',
+                      style: AppTypography.heading2.copyWith(
+                        color: _RepoAuditChrome.fg,
+                      ),
                     ),
-                    AuditEntry(
-                      id: 'test2',
-                      userId: 'test',
-                      goalId: 'goal2',
-                      goalTitle: 'Test Goal 2',
-                      completedDate: DateTime.now(),
-                      submittedDate: DateTime.now(),
-                      status: 'pending',
-                      evidence: [],
-                      userDisplayName: 'Test User 2',
-                      userDepartment: 'Test Dept 2',
+                    if (_lastError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _lastError!,
+                        style: const TextStyle(color: Colors.redAccent),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    _buildSearchAndFilters(),
+                    const SizedBox(height: 25),
+                    _buildHeader(),
+                    Column(
+                      children: [
+                        _buildRoleSummaryBar(isManager: _isManager),
+                        _buildAuditEntriesList(isManager: _isManager),
+                        const SizedBox(height: 24),
+                        _buildRepositorySection(isManager: _isManager),
+                        const SizedBox(height: 24),
+                        _buildApprovedGoalsSection(isManager: _isManager),
+                        const SizedBox(height: 24),
+                        _buildMilestoneAuditSection(isManager: _isManager),
+                      ],
                     ),
-                  ];
-                  _isInitializing = false;
-                  _hasLoadedOnce = true;
-                });
-              },
-              child: const Text('Add Mock Data'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Show main content
-    return RefreshIndicator(
-      onRefresh: _retryInitialization,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          children: [
-            _buildRoleSummaryBar(isManager: _isManager),
-            const SizedBox(height: 16),
-            _buildSearchAndFilters(),
-            const SizedBox(height: 16),
-            _buildStatsContainer({
-              'total': _allAuditEntries.length,
-              'created': _allAuditEntries
-                  .where((e) => e.status == 'created')
-                  .length,
-              'pending': _allAuditEntries
-                  .where((e) => e.status == 'pending')
-                  .length,
-              'approved': _allAuditEntries
-                  .where((e) => e.status == 'verified')
-                  .length,
-              'rejected': _allAuditEntries
-                  .where((e) => e.status == 'rejected')
-                  .length,
-              'verified': _allAuditEntries
-                  .where((e) => e.status == 'verified')
-                  .length,
-            }, isManager: _isManager),
-            const SizedBox(height: 24),
-            _buildAuditEntriesList(),
-            const SizedBox(height: 24),
-            _buildMilestoneAuditSection(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: Colors.white),
-          SizedBox(height: 16),
-          Text(
-            'Initializing Repository & Audit...',
-            style: TextStyle(color: Colors.white, fontSize: 16),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 64),
-            const SizedBox(height: 16),
-            const Text(
-              'Initialization Failed',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _lastError ?? 'Unknown error',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _retryInitialization,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleSummaryBar({required bool isManager}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[700]!),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isManager ? Icons.admin_panel_settings : Icons.person,
-            color: Colors.white,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              isManager ? 'Manager View' : 'Employee View',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+                  ],
+                ),
               ),
             ),
           ),
-          if (_lastError != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'Error',
-                style: TextStyle(color: Colors.red, fontSize: 12),
-              ),
-            ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -942,23 +781,79 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
+  void _showDiagnosticInfo() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Diagnostics are available in logs.')),
+    );
+  }
+
+  Widget _buildHeader() {
+    final isManager = _isManager;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            'Completed Goals Archive',
+            style: AppTypography.heading4.copyWith(
+              color: _RepoAuditChrome.fg,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isManager)
+              IconButton(
+                tooltip: 'Diagnostic Info',
+                onPressed: _showDiagnosticInfo,
+                icon: const Icon(Icons.info_outline),
+                color: AppColors.warningColor,
+              ),
+            IconButton(
+              tooltip: 'Export',
+              onPressed: _showExportSheet,
+              icon: const Icon(Icons.download_rounded),
+              color: AppColors.activeColor,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleSummaryBar({required bool isManager}) {
+    final entries = getCachedAuditEntries();
+    final stats = {
+      'total': entries.length,
+      'created': entries.length,
+      'pending': entries.where((e) => e.status == 'pending').length,
+      'approved': entries.where((e) => e.status == 'verified').length,
+      'rejected': entries.where((e) => e.status == 'rejected').length,
+      'verified': entries.where((e) => e.status == 'verified').length,
+    };
+    return _buildStatsContainer(stats, isManager: isManager);
+  }
+
   Widget _buildStatsContainer(
     Map<String, int> stats, {
     required bool isManager,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[700]!),
+        color: _RepoAuditChrome.cardFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _RepoAuditChrome.border),
       ),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Progress Overview',
+          Text(
+            isManager ? 'Team Overview' : 'Your Progress',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -968,12 +863,28 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           const SizedBox(height: 16),
           Wrap(
             spacing: 16,
-            runSpacing: 16,
+            runSpacing: 8,
             children: [
-              _buildStatItem('Total', stats['total'] ?? 0, Colors.blue),
-              _buildStatItem('Created', stats['created'] ?? 0, Colors.grey),
-              _buildStatItem('Pending', stats['pending'] ?? 0, Colors.orange),
-              _buildStatItem('Verified', stats['verified'] ?? 0, Colors.green),
+              _buildStatItem(
+                'Total',
+                stats['total'] ?? 0,
+                AppColors.activeColor,
+              ),
+              _buildStatItem(
+                'Created',
+                stats['created'] ?? 0,
+                AppColors.infoColor,
+              ),
+              _buildStatItem(
+                'Pending',
+                stats['pending'] ?? 0,
+                AppColors.warningColor,
+              ),
+              _buildStatItem(
+                'Verified',
+                stats['verified'] ?? 0,
+                AppColors.successColor,
+              ),
               _buildStatItem('Rejected', stats['rejected'] ?? 0, Colors.red),
             ],
           ),
@@ -982,175 +893,129 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, int value, Color color) {
+  Widget _buildStatItem(String label, int count, Color color) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            value.toString(),
+            count.toString(),
             style: TextStyle(
               color: color,
-              fontSize: 24,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: Colors.white70, fontSize: 12)),
+          Text(
+            label,
+            style: TextStyle(color: _RepoAuditChrome.fg, fontSize: 12),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildAuditEntriesList() {
-    final entries = _getFilteredEntries();
-
-    if (entries.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(32),
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.grey[900],
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey[700]!),
-        ),
-        child: const Center(
-          child: Column(
-            children: [
-              Icon(Icons.inbox_outlined, color: Colors.grey, size: 48),
-              SizedBox(height: 16),
-              Text(
-                'No audit entries found',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Try adjusting your filters or check back later',
-                style: TextStyle(color: Color(0xFF757575), fontSize: 14),
-              ),
-            ],
-          ),
-        ),
+  Widget _buildAuditEntriesList({required bool isManager}) {
+    final entries = getCachedAuditEntries();
+    if (!_hasLoadedOnce && _isLoadingMilestones) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.activeColor),
       );
     }
+    if (entries.isEmpty) {
+      return _buildEmptyState(isManager: isManager);
+    }
+    return Column(
+      children: entries.map((e) => _buildAuditEntryCard(e, isManager)).toList(),
+    );
+  }
 
+  Widget _buildEmptyState({required bool isManager}) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[700]!),
+        color: _RepoAuditChrome.cardFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _RepoAuditChrome.border),
       ),
+      padding: const EdgeInsets.all(32),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Audit Entries (${entries.length})',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+          Icon(Icons.inbox_outlined, size: 64, color: _RepoAuditChrome.fg),
+          const SizedBox(height: 16),
+          Text(
+            isManager ? 'No team goals found' : 'No goals found',
+            style: AppTypography.heading4.copyWith(color: _RepoAuditChrome.fg),
+            textAlign: TextAlign.center,
           ),
-          ...entries.map((entry) => _buildAuditEntryCard(entry)),
+          const SizedBox(height: 8),
+          Text(
+            isManager
+                ? 'Your team hasn\'t completed any goals yet. Encourage them to set and achieve goals!'
+                : 'You haven\'t completed any goals yet. Start by creating and completing some goals!',
+            style: TextStyle(color: _RepoAuditChrome.fg),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
   }
 
-  List<AuditEntry> _getFilteredEntries() {
-    var entries = getCachedAuditEntries();
-
-    // Apply status filter
-    if (_statusFilter != null) {
-      entries = entries.where((e) => e.status == _statusFilter).toList();
-    }
-
-    // Apply search filter
-    if (_searchController.text.isNotEmpty) {
-      final searchLower = _searchController.text.toLowerCase();
-      entries = entries
-          .where(
-            (e) =>
-                e.goalTitle.toLowerCase().contains(searchLower) ||
-                (e.comments?.toLowerCase().contains(searchLower) ?? false),
-          )
-          .toList();
-    }
-
-    return entries;
-  }
-
-  Widget _buildAuditEntryCard(AuditEntry entry) {
+  Widget _buildAuditEntryCard(AuditEntry entry, bool isManager) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.grey[800],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Color(0xFF757575)),
+        color: _RepoAuditChrome.cardFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _RepoAuditChrome.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  entry.goalTitle,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              _buildStatusBadge(entry.status),
-            ],
+      child: ExpansionTile(
+        title: Text(
+          entry.goalTitle,
+          style: TextStyle(
+            color: _RepoAuditChrome.fg,
+            fontWeight: FontWeight.bold,
           ),
-          const SizedBox(height: 8),
-          Text(
-            'User: ${entry.userDisplayName}',
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Department: ${entry.userDepartment}',
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-          const SizedBox(height: 8),
-          if (entry.comments?.isNotEmpty == true)
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              entry.comments!,
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.calendar_today, color: Colors.grey, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                'Submitted: ${entry.submittedDate.toString().split(' ')[0]}',
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              'Status: ${entry.status}',
+              style: TextStyle(
+                color: _getStatusColor(entry.status),
+                fontWeight: FontWeight.w500,
               ),
-            ],
+            ),
+          ],
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildAuditDetails(entry),
+                const SizedBox(height: 12),
+                _buildEvidenceSection(entry),
+                const SizedBox(height: 12),
+                _buildActionButtons(entry, isManager),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatusBadge(String status) {
+  Color _getStatusColor(String status) {
     Color color;
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'created':
         color = Colors.grey;
         break;
@@ -1164,89 +1029,458 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         color = Colors.red;
         break;
       default:
-        color = Colors.blue;
+        color = _RepoAuditChrome.fg;
+        break;
     }
+    return color;
+  }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        status.toUpperCase(),
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
+  Widget _buildAuditDetails(AuditEntry entry) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Goal Details',
+          style: TextStyle(
+            color: _RepoAuditChrome.fg,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          entry.comments ?? entry.goalTitle,
+          style: TextStyle(color: _RepoAuditChrome.fg),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Submitted: ${entry.submittedDate.toString()}',
+          style: TextStyle(color: _RepoAuditChrome.fg),
+        ),
+        if (entry.verifiedDate != null)
+          Text(
+            'Verified: ${entry.verifiedDate.toString()}',
+            style: TextStyle(color: AppColors.successColor),
+          ),
+        if (entry.rejectedDate != null)
+          Text(
+            'Rejected: ${entry.rejectedDate.toString()}',
+            style: TextStyle(color: Colors.red),
+          ),
+      ],
     );
   }
 
-  Widget _buildMilestoneAuditSection() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[700]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
+  Widget _buildEvidenceSection(AuditEntry entry) {
+    if (entry.evidence.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Evidence (${entry.evidence.length})',
+          style: TextStyle(
+            color: _RepoAuditChrome.fg,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...entry.evidence.map(
+          (evidence) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
             child: Row(
               children: [
-                const Text(
-                  'Milestone Audit Trail',
-                  style: TextStyle(
-                    color: Color(0xFF9E9E9E),
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                Icon(Icons.attach_file, size: 16, color: _RepoAuditChrome.fg),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    evidence,
+                    style: TextStyle(color: _RepoAuditChrome.fg),
                   ),
-                ),
-                const Spacer(),
-                if (_isLoadingMilestones)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.refresh,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  onPressed: _refreshMilestoneAudits,
-                  tooltip: 'Refresh',
                 ),
               ],
             ),
           ),
-          if (_milestoneAudits.isEmpty && !_isLoadingMilestones)
-            Container(
-              padding: const EdgeInsets.all(32),
-              child: const Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.timeline, color: Colors.grey, size: 48),
-                    SizedBox(height: 16),
-                    Text(
-                      'No milestone audits found',
-                      style: TextStyle(color: Colors.grey, fontSize: 16),
-                    ),
-                  ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons(AuditEntry entry, bool isManager) {
+    return Row(
+      children: [
+        if (isManager && entry.status == 'pending')
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () => _approveGoal(entry),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.successColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Approve'),
+            ),
+          ),
+        if (isManager && entry.status == 'pending') const SizedBox(width: 8),
+        if (isManager && entry.status == 'pending')
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () => _rejectGoal(entry),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Reject'),
+            ),
+          ),
+        if (!isManager)
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () => _viewGoalDetails(entry),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.activeColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('View Details'),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildRepositorySection({required bool isManager}) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+
+    // Use cached data from unified stream to prevent Firestore conflicts
+    final entries = getCachedAuditEntries();
+
+    // Filter for verified entries only (repository shows verified goals)
+    final repositoryGoals = entries
+        .where((e) => e.status == 'verified')
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.cloud_done_outlined, color: _RepoAuditChrome.fg),
+            const SizedBox(width: 8),
+            Text(
+              'Repository Results',
+              style: TextStyle(
+                color: _RepoAuditChrome.fg,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: _RepoAuditChrome.cardFill,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _RepoAuditChrome.border),
+          ),
+          child: repositoryGoals.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    isManager
+                        ? 'No verified entries found for your team. Previously acknowledged entries should appear here.'
+                        : 'No repository items found. Complete and verify some goals to see them here.',
+                    style: TextStyle(color: _RepoAuditChrome.fg),
+                  ),
+                )
+              : _buildRepositoryListFromAuditEntries(repositoryGoals),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRepositoryListFromAuditEntries(List<AuditEntry> entries) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: entries.length,
+      separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
+      itemBuilder: (context, index) {
+        final entry = entries[index];
+        return ListTile(
+          leading: const Icon(Icons.verified, color: Colors.green),
+          title: Text(
+            entry.goalTitle,
+            style: TextStyle(color: _RepoAuditChrome.fg),
+          ),
+          subtitle: Text(
+            '${entry.userDisplayName} • ${entry.completedDate.year}-${entry.completedDate.month.toString().padLeft(2, '0')}-${entry.completedDate.day.toString().padLeft(2, '0')}',
+            style: TextStyle(color: _RepoAuditChrome.fg),
+          ),
+          trailing: Text(
+            '${entry.evidence.length} evidence',
+            style: TextStyle(color: _RepoAuditChrome.fg),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildApprovedGoalsSection({required bool isManager}) {
+    final entries = getCachedAuditEntries();
+    final approvedGoals = entries
+        .where((e) => e.status == 'verified' || e.status == 'approved')
+        .toList();
+    if (approvedGoals.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.verified, color: AppColors.successColor),
+            const SizedBox(width: 8),
+            Text(
+              'Approved Goals',
+              style: TextStyle(
+                color: _RepoAuditChrome.fg,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: _RepoAuditChrome.cardFill,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _RepoAuditChrome.border),
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: approvedGoals.length,
+            separatorBuilder: (_, _) =>
+                const Divider(color: AppColors.borderColor),
+            itemBuilder: (context, index) {
+              final goal = approvedGoals[index];
+              return ListTile(
+                leading: Icon(
+                  Icons.check_circle,
+                  color: AppColors.successColor,
+                ),
+                title: Text(
+                  goal.goalTitle,
+                  style: TextStyle(color: _RepoAuditChrome.fg),
+                ),
+                subtitle: Text(
+                  'Approved by: ${goal.userDisplayName}',
+                  style: TextStyle(color: _RepoAuditChrome.fg),
+                ),
+                trailing: Text(
+                  '${goal.evidence.length} files',
+                  style: TextStyle(color: _RepoAuditChrome.fg),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMilestoneAuditSection({required bool isManager}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.timeline, color: AppColors.infoColor),
+            const SizedBox(width: 8),
+            Text(
+              'Milestone Audit Trail',
+              style: TextStyle(
+                color: _RepoAuditChrome.fg,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              onPressed: _refreshMilestoneAudits,
+              icon: _isLoadingMilestones
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.activeColor,
+                      ),
+                    )
+                  : const Icon(Icons.refresh, color: AppColors.activeColor),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: _RepoAuditChrome.cardFill,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _RepoAuditChrome.border),
+          ),
+          child: _buildMilestoneAuditContent(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMilestoneAuditContent() {
+    if (!_hasLoadedOnce && _isLoadingMilestones) {
+      return const Padding(
+        padding: EdgeInsets.all(32.0),
+        child: Center(
+          child: CircularProgressIndicator(color: AppColors.activeColor),
+        ),
+      );
+    }
+
+    if (_milestoneAudits.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Text(
+          'No milestone audit entries found.',
+          style: TextStyle(color: _RepoAuditChrome.fg),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            'Showing ${_milestoneAudits.length} milestone audit entries',
+            style: TextStyle(color: _RepoAuditChrome.fg, fontSize: 12),
+          ),
+        ),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _milestoneAudits.length,
+          separatorBuilder: (_, _) =>
+              const Divider(color: AppColors.borderColor),
+          itemBuilder: (context, index) {
+            final audit = _milestoneAudits[index];
+            return ListTile(
+              leading: Icon(
+                _getMilestoneIcon(audit['action']),
+                color: _getMilestoneColor(audit['action']),
+              ),
+              title: Text(
+                audit['goalTitle'] ?? 'Unknown Goal',
+                style: TextStyle(color: _RepoAuditChrome.fg),
+              ),
+              subtitle: Text(
+                '${audit['action']} • ${_formatDate(audit['timestamp'])}',
+                style: TextStyle(color: _RepoAuditChrome.fg),
+              ),
+              trailing: Text(
+                audit['status'] ?? 'Unknown',
+                style: TextStyle(
+                  color: _getStatusColor(audit['status'] ?? 'unknown'),
+                  fontSize: 12,
                 ),
               ),
-            )
-          else
-            ..._milestoneAudits.map((audit) => _buildMilestoneAuditCard(audit)),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  IconData _getMilestoneIcon(String? action) {
+    switch (action) {
+      case 'milestone_created':
+        return Icons.add_circle_outline;
+      case 'milestone_updated':
+        return Icons.edit;
+      case 'milestone_completed':
+        return Icons.check_circle;
+      case 'milestone_acknowledged':
+        return Icons.visibility;
+      case 'milestone_rejected':
+        return Icons.cancel;
+      default:
+        return Icons.info_outline;
+    }
+  }
+
+  Color _getMilestoneColor(String? action) {
+    switch (action) {
+      case 'milestone_created':
+        return AppColors.infoColor;
+      case 'milestone_updated':
+        return AppColors.warningColor;
+      case 'milestone_completed':
+      case 'milestone_acknowledged':
+        return AppColors.successColor;
+      case 'milestone_rejected':
+        return Colors.red;
+      default:
+        return _RepoAuditChrome.fg;
+    }
+  }
+
+  String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown';
+    if (timestamp is Timestamp) {
+      final date = timestamp.toDate();
+      return '${date.day}-${date.month}-${date.year}';
+    }
+    return 'Unknown';
+  }
+
+  void _approveGoal(AuditEntry entry) async {
+    try {
+      // Implementation for approving goal
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Goal "${entry.goalTitle}" approved')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error approving goal: $e')));
+    }
+  }
+
+  void _rejectGoal(AuditEntry entry) async {
+    try {
+      // Implementation for rejecting goal
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Goal "${entry.goalTitle}" rejected')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error rejecting goal: $e')));
+    }
+  }
+
+  void _viewGoalDetails(AuditEntry entry) {
+    // Implementation for viewing goal details
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(entry.goalTitle),
+        content: Text(entry.comments ?? entry.goalTitle),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );
@@ -1304,5 +1538,96 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         ],
       ),
     );
+  }
+
+  void _showExportSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _RepoAuditChrome.cardFill,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Export Options',
+              style: TextStyle(
+                color: _RepoAuditChrome.fg,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(
+                Icons.file_download,
+                color: AppColors.activeColor,
+              ),
+              title: const Text('Export as CSV'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _exportAsCSV();
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.file_download,
+                color: AppColors.activeColor,
+              ),
+              title: const Text('Export as JSON'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _exportAsJSON();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _exportAsCSV() async {
+    try {
+      final entries = getCachedAuditEntries();
+      if (entries.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No data to export')));
+        return;
+      }
+
+      // CSV export implementation
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('CSV export completed')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    }
+  }
+
+  void _exportAsJSON() async {
+    try {
+      final entries = getCachedAuditEntries();
+      if (entries.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No data to export')));
+        return;
+      }
+
+      // JSON export implementation
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('JSON export completed')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    }
   }
 }

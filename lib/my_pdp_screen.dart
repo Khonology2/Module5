@@ -111,15 +111,11 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
 /// Dark card surface aligned with dashboard tiles (`#3D3F40`).
 const Color _kPdpDarkCard = Color(0xFF3D3F40);
 
-Color _pdpFg(bool light) =>
-    light ? const Color(0xFF000000) : Colors.white;
-Color _pdpMuted(bool light) =>
-    light ? const Color(0xFF555555) : Colors.white70;
-Color _pdpCardBg(bool light) =>
-    light ? const Color(0xFFFFFFFF) : _kPdpDarkCard;
-Color _pdpCardBorder(bool light) => light
-    ? const Color(0x33000000)
-    : Colors.white.withValues(alpha: 0.2);
+Color _pdpFg(bool light) => light ? const Color(0xFF000000) : Colors.white;
+Color _pdpMuted(bool light) => light ? const Color(0xFF555555) : Colors.white70;
+Color _pdpCardBg(bool light) => light ? const Color(0xFFFFFFFF) : _kPdpDarkCard;
+Color _pdpCardBorder(bool light) =>
+    light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
 Color _pdpEvidenceInnerBg(bool light) =>
     light ? const Color(0xFFF2F2F2) : const Color(0xFF2A3441);
 
@@ -1000,12 +996,11 @@ class _MyPdpScreenState extends State<MyPdpScreen>
               data: Theme.of(context).copyWith(
                 outlinedButtonTheme: OutlinedButtonThemeData(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor:
-                        light ? const Color(0xFF1F2840) : Colors.white,
+                    foregroundColor: light
+                        ? const Color(0xFF1F2840)
+                        : Colors.white,
                     side: BorderSide(
-                      color: light
-                          ? const Color(0x66000000)
-                          : Colors.white54,
+                      color: light ? const Color(0x66000000) : Colors.white54,
                     ),
                   ),
                 ),
@@ -1013,60 +1008,57 @@ class _MyPdpScreenState extends State<MyPdpScreen>
               child: SingleChildScrollView(
                 padding: EdgeInsets.zero,
                 child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'My Personal Development Plan',
-                        style: AppTypography.heading2.copyWith(
-                          color: _pdpFg(light),
-                        ),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'My Personal Development Plan',
+                      style: AppTypography.heading2.copyWith(
+                        color: _pdpFg(light),
                       ),
-                      const SizedBox(height: 20),
-                      _buildExcellenceArea(
-                        light: light,
-                        title: 'Operational Excellence',
-                        expanded: _isOperationalExpanded,
-                        onToggle: (v) =>
-                            setState(() => _isOperationalExpanded = v),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildExcellenceArea(
-                        light: light,
-                        title: 'Customer Excellence',
-                        expanded: _isCustomerExpanded,
-                        onToggle: (v) =>
-                            setState(() => _isCustomerExpanded = v),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildExcellenceArea(
-                        light: light,
-                        title: 'Financial Excellence',
-                        expanded: _isFinancialExpanded,
-                        onToggle: (v) =>
-                            setState(() => _isFinancialExpanded = v),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildExcellenceArea(
-                        light: light,
-                        title: 'Organisational Excellence',
-                        expanded: _isOrganisationalExpanded,
-                        onToggle: (v) =>
-                            setState(() => _isOrganisationalExpanded = v),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildExcellenceArea(
-                        light: light,
-                        title: 'People Excellence',
-                        expanded: _isPeopleExpanded,
-                        onToggle: (v) =>
-                            setState(() => _isPeopleExpanded = v),
-                      ),
-                      const SizedBox(height: 80),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildExcellenceArea(
+                      light: light,
+                      title: 'Operational Excellence',
+                      expanded: _isOperationalExpanded,
+                      onToggle: (v) =>
+                          setState(() => _isOperationalExpanded = v),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildExcellenceArea(
+                      light: light,
+                      title: 'Customer Excellence',
+                      expanded: _isCustomerExpanded,
+                      onToggle: (v) => setState(() => _isCustomerExpanded = v),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildExcellenceArea(
+                      light: light,
+                      title: 'Financial Excellence',
+                      expanded: _isFinancialExpanded,
+                      onToggle: (v) => setState(() => _isFinancialExpanded = v),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildExcellenceArea(
+                      light: light,
+                      title: 'Organisational Excellence',
+                      expanded: _isOrganisationalExpanded,
+                      onToggle: (v) =>
+                          setState(() => _isOrganisationalExpanded = v),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildExcellenceArea(
+                      light: light,
+                      title: 'People Excellence',
+                      expanded: _isPeopleExpanded,
+                      onToggle: (v) => setState(() => _isPeopleExpanded = v),
+                    ),
+                    const SizedBox(height: 80),
+                  ],
                 ),
               ),
             ),
+          ),
         );
       },
     );
@@ -1135,10 +1127,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
         }
         final user = authSnap.data;
         if (user == null) {
-          return Text(
-            'Please sign in',
-            style: TextStyle(color: _pdpFg(light)),
-          );
+          return Text('Please sign in', style: TextStyle(color: _pdpFg(light)));
         }
         return FutureBuilder<String?>(
           future: RoleService.instance.getRole(),
@@ -1147,11 +1136,10 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             final isManager = role == 'manager';
             if (isManager && widget.managerOwnGoalsOnly) {
               return StreamBuilder<List<Goal>>(
-                stream: DatabaseService.getUserGoalsStream(user.uid).handleError((
-                  error,
-                ) {
-                  return;
-                }),
+                stream: DatabaseService.getUserGoalsStream(user.uid)
+                    .handleError((error) {
+                      return;
+                    }),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Padding(
@@ -1182,12 +1170,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                   }
                   return Column(
                     children: goals
-                        .map(
-                          (goal) => _buildGoalCard(
-                            goal,
-                            light: Theme.of(context).brightness != Brightness.dark,
-                          ),
-                        )
+                        .map((goal) => _buildGoalCard(goal, light: light))
                         .toList(),
                   );
                 },
@@ -1201,8 +1184,9 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     return const Padding(
                       padding: EdgeInsets.all(16.0),
                       child: CircularProgressIndicator(
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.activeColor,
+                        ),
                       ),
                     );
                   }
@@ -1263,119 +1247,120 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
                     child: CircularProgressIndicator(
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.activeColor,
+                      ),
                     ),
                   );
                 }
 
-            // Handle errors gracefully
-            if (snapshot.hasError) {
-              final error = snapshot.error;
-              final errorString = error.toString();
+                // Handle errors gracefully
+                if (snapshot.hasError) {
+                  final error = snapshot.error;
+                  final errorString = error.toString();
 
-              // Check if it's a Firestore internal assertion failure
-              if (errorString.contains('INTERNAL ASSERTION FAILED')) {
-                return Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Colors.orange,
-                        size: 48,
+                  // Check if it's a Firestore internal assertion failure
+                  if (errorString.contains('INTERNAL ASSERTION FAILED')) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.orange,
+                            size: 48,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Temporary loading issue',
+                            style: TextStyle(
+                              color: _pdpFg(light),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Please refresh the page or try again in a moment.',
+                            style: TextStyle(
+                              color: _pdpMuted(light),
+                              fontSize: 14,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              if (mounted) {
+                                setState(() {});
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFC10D00),
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Retry'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Temporary loading issue',
-                        style: TextStyle(
-                          color: _pdpFg(light),
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                    );
+                  }
+
+                  // For other errors, show a generic error message
+                  return Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 48,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Please refresh the page or try again in a moment.',
-                        style: TextStyle(
-                          color: _pdpMuted(light),
-                          fontSize: 14,
+                        const SizedBox(height: 12),
+                        Text(
+                          'Error loading goals',
+                          style: TextStyle(
+                            color: _pdpFg(light),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          if (mounted) {
-                            setState(() {});
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFC10D00),
-                          foregroundColor: Colors.white,
+                        const SizedBox(height: 8),
+                        Text(
+                          'Please try refreshing the page.',
+                          style: TextStyle(
+                            color: _pdpMuted(light),
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  );
+                }
+
+                final goals = (snapshot.data ?? [])
+                    .where((g) => _mapGoalToExcellence(g) == excellence)
+                    .toList();
+                if (goals.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      'No goals yet',
+                      style: TextStyle(color: _pdpMuted(light)),
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: goals
+                      .map((goal) => _buildGoalCard(goal, light: light))
+                      .toList(),
                 );
-              }
-
-              // For other errors, show a generic error message
-              return Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Error loading goals',
-                      style: TextStyle(
-                        color: _pdpFg(light),
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Please try refreshing the page.',
-                      style: TextStyle(
-                        color: _pdpMuted(light),
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            final goals = (snapshot.data ?? [])
-                .where((g) => _mapGoalToExcellence(g) == excellence)
-                .toList();
-            if (goals.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  'No goals yet',
-                  style: TextStyle(color: _pdpMuted(light)),
-                ),
-              );
-            }
-
-            return Column(
-              children: goals
-                  .map((goal) => _buildGoalCard(goal, light: light))
-                  .toList(),
+              },
             );
-          },
-        );
           },
         );
       },
@@ -1391,9 +1376,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
       decoration: BoxDecoration(
         color: _pdpCardBg(light),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _pdpCardBorder(light),
-        ),
+        border: Border.all(color: _pdpCardBorder(light)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
@@ -1405,10 +1388,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 padding: const EdgeInsets.only(bottom: 6.0),
                 child: Text(
                   'Employee: $employeeName',
-                  style: TextStyle(
-                    color: _pdpMuted(light),
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: _pdpMuted(light), fontSize: 12),
                 ),
               ),
             Row(
@@ -1432,8 +1412,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             const SizedBox(height: 8),
             LinearProgressIndicator(
               value: (goal.progress.clamp(0, 100)) / 100.0,
-              backgroundColor:
-                  light ? const Color(0xFFE0E0E0) : Colors.white12,
+              backgroundColor: light ? const Color(0xFFE0E0E0) : Colors.white12,
               color: const Color(0xFFC10D00),
               minHeight: 6,
             ),
@@ -1442,320 +1421,296 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             // Show attached evidence if any
             if (goal.evidence.isNotEmpty) ...[
               Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: _pdpEvidenceInnerBg(light),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.green.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.attachment,
-                                      color: Colors.green,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Attached Evidence (${goal.evidence.length})',
-                                      style: const TextStyle(
-                                        color: Colors.green,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                ...goal.evidence.map((evidence) {
-                                  final allEvidence = goal.evidence;
-                                  final isDirectUrl =
-                                      evidence.startsWith('http://') ||
-                                      evidence.startsWith('https://');
-                                  final isFileLabel = evidence.startsWith('📎');
-
-                                  String targetEvidence = evidence;
-                                  if (!isDirectUrl && isFileLabel) {
-                                    // Try to find a matching URL evidence in the list
-                                    final linkedUrl = allEvidence.firstWhere(
-                                      (e) =>
-                                          e.startsWith('http://') ||
-                                          e.startsWith('https://'),
-                                      orElse: () => evidence,
-                                    );
-                                    targetEvidence = linkedUrl;
-                                  }
-
-                                  final hasPreviewUrl =
-                                      targetEvidence.startsWith('http://') ||
-                                      targetEvidence.startsWith('https://');
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: InkWell(
-                                      onTap: () =>
-                                          _openEvidenceFromPdp(targetEvidence),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            hasPreviewUrl
-                                                ? Icons.cloud_upload
-                                                : Icons.description,
-                                            color: hasPreviewUrl
-                                                ? Colors.blue
-                                                : _pdpMuted(light),
-                                            size: 14,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              evidence,
-                                              style: TextStyle(
-                                                color: hasPreviewUrl
-                                                    ? Colors.blue
-                                                    : _pdpMuted(light),
-                                                fontSize: 12,
-                                                decoration: hasPreviewUrl
-                                                    ? TextDecoration.underline
-                                                    : null,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          if (hasPreviewUrl)
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.open_in_new,
-                                                color: Colors.blue,
-                                                size: 12,
-                                              ),
-                                              padding: EdgeInsets.zero,
-                                              constraints:
-                                                  const BoxConstraints(),
-                                              onPressed: () =>
-                                                  _openEvidenceFromPdp(
-                                                    targetEvidence,
-                                                  ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _pdpEvidenceInnerBg(light),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.green.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.attachment,
+                          color: Colors.green,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Attached Evidence (${goal.evidence.length})',
+                          style: const TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
                           ),
-                          const SizedBox(height: 12),
-                        ],
-
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: () => _quickIncrementSession(goal),
-                              icon: const Icon(Icons.add_task, size: 18),
-                              label: const Text('+1 session'),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => _markModuleComplete(goal),
-                              icon: const Icon(Icons.check_circle, size: 18),
-                              label: const Text('Module complete'),
-                              style:
-                                  (goal.status == GoalStatus.completed ||
-                                      goal.progress >= 100)
-                                  ? OutlinedButton.styleFrom(
-                                      backgroundColor: Colors.green,
-                                      foregroundColor: Colors.white,
-                                      side: const BorderSide(
-                                        color: Colors.green,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                            Builder(
-                              builder: (context) {
-                                bool isHovered = false;
-                                return StatefulBuilder(
-                                  builder: (context, localSetState) =>
-                                      MouseRegion(
-                                        onEnter: (_) {
-                                          if (goal.evidence.isNotEmpty) {
-                                            localSetState(() {
-                                              isHovered = true;
-                                            });
-                                          }
-                                        },
-                                        onExit: (_) {
-                                          if (goal.evidence.isNotEmpty) {
-                                            localSetState(() {
-                                              isHovered = false;
-                                            });
-                                          }
-                                        },
-                                        child: OutlinedButton.icon(
-                                          onPressed: () =>
-                                              goal.evidence.isNotEmpty
-                                              ? _showChangeEvidenceDialog(
-                                                  context,
-                                                  goal,
-                                                )
-                                              : _attachEvidence(context, goal),
-                                          icon: Icon(
-                                            goal.evidence.isNotEmpty
-                                                ? Icons.check_circle
-                                                : Icons.attach_file,
-                                            size: 18,
-                                          ),
-                                          label: Text(
-                                            goal.evidence.isNotEmpty
-                                                ? (isHovered
-                                                      ? 'Change evidence'
-                                                      : 'Evidence submitted')
-                                                : 'Attach evidence',
-                                          ),
-                                          style: goal.evidence.isNotEmpty
-                                              ? OutlinedButton.styleFrom(
-                                                  backgroundColor: Colors.green
-                                                      .withValues(alpha: 0.1),
-                                                  foregroundColor: Colors.green,
-                                                  side: const BorderSide(
-                                                    color: Colors.green,
-                                                  ),
-                                                )
-                                              : null,
-                                        ),
-                                      ),
-                                );
-                              },
-                            ),
-                            StreamBuilder<List<AuditEntry>>(
-                              stream: AuditService.getEmployeeAuditEntriesStream()
-                                  .handleError((error) {
-                                    // Silently handle errors to prevent unmount errors
-                                    return;
-                                  }),
-                              builder: (context, auditSnapshot) {
-                                final auditEntries =
-                                    auditSnapshot.data ?? const <AuditEntry>[];
-                                AuditEntry? auditEntry;
-                                for (final entry in auditEntries) {
-                                  if (entry.goalId == goal.id) {
-                                    auditEntry = entry;
-                                    break;
-                                  }
-                                }
-                                final hasAuditEntry = auditEntry != null;
-                                final status = auditEntry?.status;
-                                final isVerified = status == 'verified';
-                                final isRejected = status == 'rejected';
-                                final isApproved =
-                                    goal.approvalStatus ==
-                                    GoalApprovalStatus.approved;
-                                final canRequest = isApproved && !hasAuditEntry;
-
-                                final label = isVerified
-                                    ? 'Acknowledged'
-                                    : isRejected
-                                    ? 'Changes requested'
-                                    : hasAuditEntry
-                                    ? 'Acknowledgement requested'
-                                    : (isApproved
-                                          ? 'Request acknowledgement'
-                                          : widget.managerOwnGoalsOnly
-                                          ? 'Waiting for admin approval'
-                                          : 'Waiting for manager approval');
-                                final icon = isVerified
-                                    ? Icons.verified
-                                    : isRejected
-                                    ? Icons.warning_amber_rounded
-                                    : hasAuditEntry
-                                    ? Icons.check_circle
-                                    : (isApproved
-                                          ? Icons.verified_user
-                                          : Icons.lock_clock);
-                                final style = isVerified
-                                    ? OutlinedButton.styleFrom(
-                                        backgroundColor: Colors.green
-                                            .withValues(alpha: 0.1),
-                                        foregroundColor: Colors.green,
-                                        side: const BorderSide(
-                                          color: Colors.green,
-                                        ),
-                                      )
-                                    : isRejected
-                                    ? OutlinedButton.styleFrom(
-                                        backgroundColor: Colors.red.withValues(
-                                          alpha: 0.1,
-                                        ),
-                                        foregroundColor: Colors.red,
-                                        side: const BorderSide(
-                                          color: Colors.red,
-                                        ),
-                                      )
-                                    : hasAuditEntry
-                                    ? OutlinedButton.styleFrom(
-                                        // ignore: deprecated_member_use
-                                        backgroundColor: Colors.orange
-                                            .withValues(alpha: 0.1),
-                                        foregroundColor: Colors.orange,
-                                        side: const BorderSide(
-                                          color: Colors.orange,
-                                        ),
-                                      )
-                                    : null;
-
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      onPressed: canRequest
-                                          ? () =>
-                                                _requestManagerAcknowledgement(
-                                                  goal,
-                                                )
-                                          : null,
-                                      icon: Icon(icon, size: 18),
-                                      label: Text(label),
-                                      style: style,
-                                    ),
-                                    if (isVerified)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Text(
-                                          'Acknowledged by ${auditEntry?.acknowledgedBy ?? 'Manager'}',
-                                          style: TextStyle(
-                                            color: _pdpMuted(light),
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ),
-                                    if (!hasAuditEntry && !isApproved)
-                                      const SizedBox(height: 4),
-                                    if (!hasAuditEntry && !isApproved)
-                                      Text(
-                                        'You can request acknowledgement once your manager approves this goal.',
-                                        style: TextStyle(
-                                          color: _pdpMuted(light),
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ],
                         ),
                       ],
                     ),
-                  ),
-                );
+                    const SizedBox(height: 8),
+                    ...goal.evidence.map((evidence) {
+                      final allEvidence = goal.evidence;
+                      final isDirectUrl =
+                          evidence.startsWith('http://') ||
+                          evidence.startsWith('https://');
+                      final isFileLabel = evidence.startsWith('📎');
+
+                      String targetEvidence = evidence;
+                      if (!isDirectUrl && isFileLabel) {
+                        // Try to find a matching URL evidence in the list
+                        final linkedUrl = allEvidence.firstWhere(
+                          (e) =>
+                              e.startsWith('http://') ||
+                              e.startsWith('https://'),
+                          orElse: () => evidence,
+                        );
+                        targetEvidence = linkedUrl;
+                      }
+
+                      final hasPreviewUrl =
+                          targetEvidence.startsWith('http://') ||
+                          targetEvidence.startsWith('https://');
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: InkWell(
+                          onTap: () => _openEvidenceFromPdp(targetEvidence),
+                          child: Row(
+                            children: [
+                              Icon(
+                                hasPreviewUrl
+                                    ? Icons.cloud_upload
+                                    : Icons.description,
+                                color: hasPreviewUrl
+                                    ? Colors.blue
+                                    : _pdpMuted(light),
+                                size: 14,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  evidence,
+                                  style: TextStyle(
+                                    color: hasPreviewUrl
+                                        ? Colors.blue
+                                        : _pdpMuted(light),
+                                    fontSize: 12,
+                                    decoration: hasPreviewUrl
+                                        ? TextDecoration.underline
+                                        : null,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (hasPreviewUrl)
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.open_in_new,
+                                    color: Colors.blue,
+                                    size: 12,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () =>
+                                      _openEvidenceFromPdp(targetEvidence),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _quickIncrementSession(goal),
+                  icon: const Icon(Icons.add_task, size: 18),
+                  label: const Text('+1 session'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _markModuleComplete(goal),
+                  icon: const Icon(Icons.check_circle, size: 18),
+                  label: const Text('Module complete'),
+                  style:
+                      (goal.status == GoalStatus.completed ||
+                          goal.progress >= 100)
+                      ? OutlinedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.green),
+                        )
+                      : null,
+                ),
+                Builder(
+                  builder: (context) {
+                    bool isHovered = false;
+                    return StatefulBuilder(
+                      builder: (context, localSetState) => MouseRegion(
+                        onEnter: (_) {
+                          if (goal.evidence.isNotEmpty) {
+                            localSetState(() {
+                              isHovered = true;
+                            });
+                          }
+                        },
+                        onExit: (_) {
+                          if (goal.evidence.isNotEmpty) {
+                            localSetState(() {
+                              isHovered = false;
+                            });
+                          }
+                        },
+                        child: OutlinedButton.icon(
+                          onPressed: () => goal.evidence.isNotEmpty
+                              ? _showChangeEvidenceDialog(context, goal)
+                              : _attachEvidence(context, goal),
+                          icon: Icon(
+                            goal.evidence.isNotEmpty
+                                ? Icons.check_circle
+                                : Icons.attach_file,
+                            size: 18,
+                          ),
+                          label: Text(
+                            goal.evidence.isNotEmpty
+                                ? (isHovered
+                                      ? 'Change evidence'
+                                      : 'Evidence submitted')
+                                : 'Attach evidence',
+                          ),
+                          style: goal.evidence.isNotEmpty
+                              ? OutlinedButton.styleFrom(
+                                  backgroundColor: Colors.green.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                  foregroundColor: Colors.green,
+                                  side: const BorderSide(color: Colors.green),
+                                )
+                              : null,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                StreamBuilder<List<AuditEntry>>(
+                  stream: AuditService.getEmployeeAuditEntriesStream()
+                      .handleError((error) {
+                        // Silently handle errors to prevent unmount errors
+                        return;
+                      }),
+                  builder: (context, auditSnapshot) {
+                    final auditEntries =
+                        auditSnapshot.data ?? const <AuditEntry>[];
+                    AuditEntry? auditEntry;
+                    for (final entry in auditEntries) {
+                      if (entry.goalId == goal.id) {
+                        auditEntry = entry;
+                        break;
+                      }
+                    }
+                    final hasAuditEntry = auditEntry != null;
+                    final status = auditEntry?.status;
+                    final isVerified = status == 'verified';
+                    final isRejected = status == 'rejected';
+                    final isApproved =
+                        goal.approvalStatus == GoalApprovalStatus.approved;
+                    final canRequest = isApproved && !hasAuditEntry;
+
+                    final label = isVerified
+                        ? 'Acknowledged'
+                        : isRejected
+                        ? 'Changes requested'
+                        : hasAuditEntry
+                        ? 'Acknowledgement requested'
+                        : (isApproved
+                              ? 'Request acknowledgement'
+                              : widget.managerOwnGoalsOnly
+                              ? 'Waiting for admin approval'
+                              : 'Waiting for manager approval');
+                    final icon = isVerified
+                        ? Icons.verified
+                        : isRejected
+                        ? Icons.warning_amber_rounded
+                        : hasAuditEntry
+                        ? Icons.check_circle
+                        : (isApproved ? Icons.verified_user : Icons.lock_clock);
+                    final style = isVerified
+                        ? OutlinedButton.styleFrom(
+                            backgroundColor: Colors.green.withValues(
+                              alpha: 0.1,
+                            ),
+                            foregroundColor: Colors.green,
+                            side: const BorderSide(color: Colors.green),
+                          )
+                        : isRejected
+                        ? OutlinedButton.styleFrom(
+                            backgroundColor: Colors.red.withValues(alpha: 0.1),
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                          )
+                        : hasAuditEntry
+                        ? OutlinedButton.styleFrom(
+                            // ignore: deprecated_member_use
+                            backgroundColor: Colors.orange.withValues(
+                              alpha: 0.1,
+                            ),
+                            foregroundColor: Colors.orange,
+                            side: const BorderSide(color: Colors.orange),
+                          )
+                        : null;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: canRequest
+                              ? () => _requestManagerAcknowledgement(goal)
+                              : null,
+                          icon: Icon(icon, size: 18),
+                          label: Text(label),
+                          style: style,
+                        ),
+                        if (isVerified)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              'Acknowledged by ${auditEntry?.acknowledgedBy ?? 'Manager'}',
+                              style: TextStyle(
+                                color: _pdpMuted(light),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        if (!hasAuditEntry && !isApproved)
+                          const SizedBox(height: 4),
+                        if (!hasAuditEntry && !isApproved)
+                          Text(
+                            'You can request acknowledgement once your manager approves this goal.',
+                            style: TextStyle(
+                              color: _pdpMuted(light),
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

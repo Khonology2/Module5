@@ -304,7 +304,8 @@ class AlertService {
     String? fromUserName,
     Duration ttl = const Duration(days: 14),
   }) async {
-    final resolvedActionRoute = actionRoute ?? await _alertsRouteForRecipient(userId);
+    final resolvedActionRoute =
+        actionRoute ?? await _alertsRouteForRecipient(userId);
     final alert = Alert(
       id: '',
       userId: userId,
@@ -498,7 +499,6 @@ class AlertService {
       rethrow; // Re-throw to help with debugging
     }
   }
-
 
   static Future<void> createGoalApprovalDecisionAlert({
     required String employeeId,
@@ -1319,6 +1319,115 @@ class AlertService {
       await batch.commit();
     } catch (e) {
       developer.log('Error marking all alerts as read: $e');
+    }
+  }
+
+  static Future<void> markGoalRelatedAlertsAsRead(
+    String userId,
+    String goalId,
+  ) async {
+    try {
+      final batch = _firestore.batch();
+      final alerts = await _firestore
+          .collection('alerts')
+          .where('userId', isEqualTo: userId)
+          .where('relatedGoalId', isEqualTo: goalId)
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      for (final doc in alerts.docs) {
+        batch.update(doc.reference, {'isRead': true});
+      }
+
+      await batch.commit();
+      developer.log(
+        'Marked ${alerts.docs.length} alerts as read for goal $goalId',
+      );
+    } catch (e) {
+      developer.log('Error marking goal-related alerts as read: $e');
+    }
+  }
+
+  static Future<void> markGoalApprovalAlertsAsRead(
+    String userId,
+    String goalId,
+  ) async {
+    try {
+      final batch = _firestore.batch();
+      final alerts = await _firestore
+          .collection('alerts')
+          .where('userId', isEqualTo: userId)
+          .where('relatedGoalId', isEqualTo: goalId)
+          .where('type', isEqualTo: 'goalApprovalRequested')
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      for (final doc in alerts.docs) {
+        batch.update(doc.reference, {
+          'isRead': true,
+          'type': 'goalApprovalApproved', // Change type to approved
+        });
+      }
+
+      await batch.commit();
+      developer.log(
+        'Marked ${alerts.docs.length} goal approval alert(s) as read and changed to approved for userId: $userId, goalId: $goalId',
+      );
+    } catch (e) {
+      developer.log('Error marking goal approval alerts as read: $e');
+    }
+  }
+
+  // MIGRATION: Update existing approved goal alerts to have correct type
+  static Future<void> migrateExistingApprovedGoalAlerts() async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final manager = FirebaseAuth.instance.currentUser;
+      if (manager == null) return;
+
+      // Get all goals that are approved
+      final approvedGoals = await firestore
+          .collection('goals')
+          .where('approvalStatus', isEqualTo: 'approved')
+          .get();
+
+      developer.log(
+        'Found ${approvedGoals.docs.length} approved goals to migrate',
+      );
+
+      for (final goalDoc in approvedGoals.docs) {
+        final goalId = goalDoc.id;
+        final goalData = goalDoc.data();
+        final userId = goalData['userId'] as String?;
+
+        if (userId == null) continue;
+
+        // Find any existing approval request alerts for this goal
+        final existingAlerts = await firestore
+            .collection('alerts')
+            .where('userId', isEqualTo: manager.uid)
+            .where('relatedGoalId', isEqualTo: goalId)
+            .where('type', isEqualTo: 'goalApprovalRequested')
+            .get();
+
+        // Update them to approved type
+        final batch = firestore.batch();
+        for (final alertDoc in existingAlerts.docs) {
+          batch.update(alertDoc.reference, {
+            'type': 'goalApprovalApproved',
+            'isRead': true,
+          });
+        }
+
+        if (existingAlerts.docs.isNotEmpty) {
+          await batch.commit();
+          developer.log(
+            'Migrated ${existingAlerts.docs.length} alerts for goal $goalId to approved type',
+          );
+        }
+      }
+    } catch (e) {
+      developer.log('Error migrating approved goal alerts: $e');
     }
   }
 
