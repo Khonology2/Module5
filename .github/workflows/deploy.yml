@@ -48,7 +48,7 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Analyze
         run: flutter analyze
@@ -75,6 +75,14 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Safety: CI must not mutate tracked files outside build/web (e.g. pubspec.lock).
+          if [ -n "$(git status --porcelain -- . ':!build/web')" ]; then
+            echo "::error::Working tree has changes outside build/web after build steps. Refusing to deploy."
+            git status --porcelain -- . ':!build/web' || true
+            exit 1
+          fi
+
           # build/ is typically gitignored in Flutter projects; force-add only the built web bundle.
           git add -f build/web
           if git diff --staged --quiet; then
