@@ -427,16 +427,15 @@ class DatabaseService {
       await ApprovedGoalAuditService.logApprovedGoal(
         goalId: goalId,
         goalTitle: (goalData!['title'] ?? '') as String,
-        employeeId: (goalData!['userId'] ?? '') as String,
+        employeeId: (goalData!['userId'] ?? '') as String? ?? '',
         employeeName: employeeName,
         department: department,
         approvedBy: managerId,
         approvedByName: managerName,
       );
-    } catch (e) {
-      developer.log('Error logging approved goal audit: $e');
-    }
+    } catch (_) {}
 
+    // Create approval alert for EMPLOYEE (existing functionality)
     try {
       await AlertService.createGoalApprovalDecisionAlert(
         employeeId: (goalData!['userId'] ?? '') as String,
@@ -444,20 +443,24 @@ class DatabaseService {
         goalTitle: (goalData!['title'] ?? '') as String,
         approved: true,
       );
-      // Also send the employee a 'New Goal Created' alert upon approval
-      // This reminds the employee to start working on their newly approved goal
-      try {
-        final goal = Goal.fromMap(goalData!, id: goalId);
-        await AlertService.createGoalAlert(
-          userId: goal.userId,
-          goal: goal,
-          type: AlertType.goalCreated,
+    } catch (e) {
+      developer.log('Error creating employee approval alert: $e');
+    }
+
+    // Create approval alert for MANAGER (NEW - so manager sees approved goal in archived)
+    try {
+      final manager = FirebaseAuth.instance.currentUser;
+      if (manager != null) {
+        await AlertService.createGoalApprovalDecisionAlert(
+          employeeId: manager.uid,
+          goalId: goalId,
+          goalTitle: (goalData!['title'] ?? '') as String,
+          approved: true,
         );
-      } catch (e) {
-        developer.log('Error creating goalCreated alert after approval: $e');
-        // Continue even if alert creation fails - approval was successful
       }
-    } catch (_) {}
+    } catch (e) {
+      developer.log('Error creating manager approval alert: $e');
+    }
   }
 
   static Future<void> rejectGoal({
@@ -536,6 +539,22 @@ class DatabaseService {
       );
     } catch (e) {
       developer.log('Error logging goal rejection: $e');
+    }
+
+    // Create rejection alert for MANAGER (NEW - so manager sees rejected goal in archived)
+    try {
+      final manager = FirebaseAuth.instance.currentUser;
+      if (manager != null) {
+        await AlertService.createGoalApprovalDecisionAlert(
+          employeeId: manager.uid,
+          goalId: goalId,
+          goalTitle: (goalData!['title'] ?? '') as String,
+          approved: false,
+          reason: reason,
+        );
+      }
+    } catch (e) {
+      developer.log('Error creating manager rejection alert: $e');
     }
   }
 
