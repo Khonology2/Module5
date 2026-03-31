@@ -7,7 +7,6 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/milestone_evidence_service.dart';
 import 'package:pdh/services/alert_service.dart';
-import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/season_service.dart';
