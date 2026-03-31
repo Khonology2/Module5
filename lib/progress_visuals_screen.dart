@@ -54,6 +54,9 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   String? error;
   UserProfile? _cachedProfile;
   static UserProfile? _globalCachedProfile;
+  bool get _isAdminManagerView => widget.forAdminOversight;
+  String get _populationSingular => _isAdminManagerView ? 'Manager' : 'Employee';
+  String get _populationPlural => _isAdminManagerView ? 'Managers' : 'Employees';
 
   @override
   void initState() {
@@ -661,6 +664,8 @@ class _ManagerProgressVisualsContentState
   static List<ManagerActivity> _cachedManagerActivities = const [];
   static String _cachedTeamKey = '';
   static List<EmployeeData> _cachedTeamEmployees = const [];
+  bool get _isAdminManagerView => widget.forAdminOversight;
+  String get _populationPlural => _isAdminManagerView ? 'Managers' : 'Employees';
 
   @override
   void initState() {
@@ -744,7 +749,9 @@ class _ManagerProgressVisualsContentState
                 Expanded(
                   child: Text(
                     currentViewType == ProgressViewType.team
-                        ? 'Team Progress Analytics'
+                        ? (_isAdminManagerView
+                              ? 'Manager Progress Analytics'
+                              : 'Team Progress Analytics')
                         : 'My Progress Overview',
                     style: AppTypography.heading2.copyWith(
                       color: AppColors.textPrimary,
@@ -1002,7 +1009,7 @@ class _ManagerProgressVisualsContentState
         ),
         const SizedBox(height: AppSpacing.md),
         _buildMetricCard(
-          title: 'Active Employees',
+          title: 'Active $_populationPlural',
           value: '...',
           icon: Icons.online_prediction,
           color: AppColors.infoColor,
@@ -3031,7 +3038,9 @@ class _ManagerProgressVisualsContentState
     final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
 
     return _buildSectionCard(
-      title: 'Team Engagement (Active Members)',
+      title: _isAdminManagerView
+          ? 'Manager Engagement (Active Managers)'
+          : 'Team Engagement (Active Members)',
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.lg),
         child: Column(
@@ -3089,12 +3098,14 @@ class _ManagerProgressVisualsContentState
         showAll ? sorted : sorted.take(3).toList();
 
     return _buildSectionCard(
-      title: 'Team Performance Ranking',
+      title: _isAdminManagerView
+          ? 'Manager Performance Ranking'
+          : 'Team Performance Ranking',
       child: sorted.isEmpty
           ? Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Text(
-                'No team members',
+                _isAdminManagerView ? 'No managers' : 'No team members',
                 style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
               ),
             )
@@ -3179,7 +3190,7 @@ class _ManagerProgressVisualsContentState
                 if (!showAll && sorted.length > 3) ...[
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    '+${sorted.length - 3} more employees',
+                    '+${sorted.length - 3} more ${_populationPlural.toLowerCase()}',
                     style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
                   ),
                 ],
@@ -3287,8 +3298,12 @@ class _ManagerProgressVisualsContentState
             ),
             child: Text(
               trendDirection == 'stayed flat'
-                  ? 'Team progress stayed flat this month.'
-                  : 'Team progress $trendDirection by ${trendDelta.abs()}% this month.',
+                  ? (_isAdminManagerView
+                        ? 'Manager progress stayed flat this month.'
+                        : 'Team progress stayed flat this month.')
+                  : (_isAdminManagerView
+                        ? 'Manager progress $trendDirection by ${trendDelta.abs()}% this month.'
+                        : 'Team progress $trendDirection by ${trendDelta.abs()}% this month.'),
               style: AppTypography.bodyMedium.copyWith(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.w600,
@@ -3421,7 +3436,7 @@ class _ManagerProgressVisualsContentState
           children: [
             Expanded(
               child: _buildMetricCard(
-                title: 'Team Members',
+                title: _isAdminManagerView ? 'Managers' : 'Team Members',
                 value: metrics.totalEmployees.toString(),
                 icon: Icons.people_outline,
                 iconWidget: const ImageIcon(
@@ -3451,7 +3466,7 @@ class _ManagerProgressVisualsContentState
                     : metrics.avgTeamProgress >= 40
                     ? AppColors.warningColor
                     : AppColors.dangerColor,
-                subtitle: 'Team average',
+                subtitle: _isAdminManagerView ? 'Manager average' : 'Team average',
               ),
             ),
           ],
@@ -3495,7 +3510,9 @@ class _ManagerProgressVisualsContentState
           children: [
             Expanded(
               child: _buildMetricCard(
-                title: 'Team Engagement',
+                title: _isAdminManagerView
+                    ? 'Manager Engagement'
+                    : 'Team Engagement',
                 value: '${metrics.teamEngagement.toStringAsFixed(1)}%',
                 icon: Icons.group_work_outlined,
                 iconWidget: const ImageIcon(
@@ -3521,7 +3538,9 @@ class _ManagerProgressVisualsContentState
                   size: 23,
                 ),
                 color: AppColors.infoColor,
-                subtitle: 'Currently active',
+                subtitle: _isAdminManagerView
+                    ? 'Currently active managers'
+                    : 'Currently active',
               ),
             ),
           ],
@@ -4233,7 +4252,9 @@ class _ManagerProgressVisualsContentState
           ),
           const SizedBox(height: 8),
           Text(
-            'Team metrics and insights will appear here once employees start using the system.',
+            _isAdminManagerView
+                ? 'Manager metrics and insights will appear here once managers start using the system.'
+                : 'Team metrics and insights will appear here once employees start using the system.',
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -4257,14 +4278,16 @@ class _ManagerProgressVisualsContentState
           Icon(Icons.groups_outlined, size: 48, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
-            'No team members found',
+            _isAdminManagerView ? 'No managers found' : 'No team members found',
             style: AppTypography.heading4.copyWith(
               color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Make sure your team members have been added to your department or check your filter settings.',
+            _isAdminManagerView
+                ? 'Make sure managers are available for this view or check your filter settings.'
+                : 'Make sure your team members have been added to your department or check your filter settings.',
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),
