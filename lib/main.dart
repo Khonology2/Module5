@@ -320,10 +320,13 @@ class _MyAppState extends State<MyApp> {
         child: ValueListenableBuilder<Locale?>(
           valueListenable: appLocaleNotifier,
           builder: (context, locale, _) {
-            return MaterialApp(
+            return ValueListenableBuilder<bool>(
+              valueListenable: employeeDashboardLightModeNotifier,
+              builder: (context, light, _) {
+                return MaterialApp(
               navigatorKey: navigatorKey,
               title: 'Personal Development Hub',
-              theme: AppTheme.darkTheme,
+              theme: light ? AppTheme.lightTheme : AppTheme.darkTheme,
               initialRoute: '/landing', // Always start on landing for token processing
               locale: locale,
               debugShowCheckedModeBanner: false, // Disable debug banner
@@ -639,6 +642,8 @@ class _MyAppState extends State<MyApp> {
               ),
               },
               navigatorObservers: [MyNavigatorObserver()],
+            );
+              },
             );
           },
         ),

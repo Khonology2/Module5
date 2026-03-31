@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'dart:async'; // For Timer
 import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
@@ -164,8 +165,10 @@ class _PersonalDevelopmentHubScreenState
       _isLightMode = light;
     });
     employeeDashboardLightModeNotifier.value = light;
-    // Ensure theme repaint happens before sign-in/navigation.
-    await Future.delayed(const Duration(milliseconds: 120));
+    // Let MaterialApp + landing repaint before sign-in.
+    await SchedulerBinding.instance.endOfFrame;
+    await SchedulerBinding.instance.endOfFrame;
+    await Future.delayed(const Duration(milliseconds: 50));
   }
 
   /// Check for token in URL, validate with backend API, and auto-login
