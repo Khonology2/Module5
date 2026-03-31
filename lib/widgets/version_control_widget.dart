@@ -147,6 +147,19 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
     }
   }
 
+  /// Raw version from JSON or widget default, then always shown as `Ver. <code>`.
+  String _displayVersionText() {
+    final raw = (_commitData?.version ?? widget.version).trim();
+    var core = raw;
+    final lower = core.toLowerCase();
+    if (lower.startsWith('ver.')) {
+      core = core.substring(4).trimLeft();
+    } else if (lower.startsWith('ver ')) {
+      core = core.substring(4).trimLeft();
+    }
+    return 'Ver. $core';
+  }
+
   @override
   Widget build(BuildContext context) {
     // Generate tooltip message based on loaded commit data
@@ -187,7 +200,7 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
             return Transform.scale(
               scale: _scaleAnimation.value,
               child: Text(
-                _commitData?.version ?? widget.version,
+                _displayVersionText(),
                 style: TextStyle(
                   fontSize: widget.fontSize,
                   color: _colorAnimation.value,

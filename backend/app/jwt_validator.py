@@ -162,9 +162,16 @@ def extract_user_info(decoded_token: Dict[str, Any]) -> Dict[str, Any]:
     # Email is optional - can be resolved from Firestore
     # Convert to string and return empty string if None
     email_str = str(email) if email else ""
+    theme = (
+        decoded_token.get('theme') or
+        decoded_token.get('Theme') or
+        decoded_token.get('app_theme')
+    )
+    theme_str = str(theme).strip() if theme is not None else ""
     
     return {
         'user_id': str(user_id),
         'email': email_str,
+        'theme': theme_str,
     }
 

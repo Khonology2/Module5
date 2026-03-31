@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/widgets/floating_circles_particle_animation.dart';
 import 'package:pdh/widgets/version_control_widget.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/utils/web_origin_stub.dart' if (dart.library.html) 'package:pdh/utils/web_origin_web.dart' as web_origin;
 
 /// Set to true to show the token input field and Login button on the landing screen.
@@ -58,6 +59,7 @@ class _PersonalDevelopmentHubScreenState
   bool _isCheckingToken = false;
   bool _isProcessingButton = false;
   bool _isSlowNetwork = false;
+  bool _isLightMode = false;
 
   // Animation controller for bounce effect
   late AnimationController _bounceController;
@@ -65,9 +67,16 @@ class _PersonalDevelopmentHubScreenState
   bool _isRedirecting = false;
   final TextEditingController _tokenController = TextEditingController();
 
+  Color get _solidTextColor => _isLightMode ? Colors.black : Colors.white;
+  Color get _subtitleColor =>
+      _isLightMode ? Colors.black : const Color.fromARGB(204, 255, 255, 255);
+  String get _backgroundAsset =>
+      _isLightMode ? 'assets/light_mode_bg.png' : 'assets/khono_bg.png';
+
   @override
   void initState() {
     super.initState();
+    employeeDashboardLightModeNotifier.value = false;
 
     // Initialize bounce animation
     _bounceController = AnimationController(
@@ -123,6 +132,11 @@ class _PersonalDevelopmentHubScreenState
         context,
         size: Size(bgWidth.toDouble(), MediaQuery.of(context).size.height),
       );
+      precacheImage(
+        const AssetImage('assets/light_mode_bg.png'),
+        context,
+        size: Size(bgWidth.toDouble(), MediaQuery.of(context).size.height),
+      );
       // Logo: decode at device-pixel-ratio size to keep it crisp
       final double dpr = MediaQuery.of(context).devicePixelRatio;
       precacheImage(
@@ -130,7 +144,28 @@ class _PersonalDevelopmentHubScreenState
         context,
         size: Size(320 * dpr, 160 * dpr),
       );
+      precacheImage(const AssetImage('assets/discs.png'), context);
+      precacheImage(const AssetImage('assets/Red_Khono_Discs.png'), context);
     });
+  }
+
+  bool _isTokenThemeLight(dynamic tokenTheme) {
+    final raw = tokenTheme?.toString().trim().toLowerCase() ?? '';
+    return raw == 'light';
+  }
+
+  Future<void> _applyThemeBeforeLogin(dynamic tokenTheme) async {
+    final light = _isTokenThemeLight(tokenTheme);
+    if (!mounted) {
+      employeeDashboardLightModeNotifier.value = light;
+      return;
+    }
+    setState(() {
+      _isLightMode = light;
+    });
+    employeeDashboardLightModeNotifier.value = light;
+    // Ensure theme repaint happens before sign-in/navigation.
+    await Future.delayed(const Duration(milliseconds: 120));
   }
 
   /// Check for token in URL, validate with backend API, and auto-login
@@ -237,6 +272,7 @@ class _PersonalDevelopmentHubScreenState
       final firebaseTokenRaw = validationResponse['firebase_token'] as String?;
       final email = validationResponse['email'] as String?;
       final roles = validationResponse['roles'] as List<dynamic>?;
+      final tokenTheme = validationResponse['theme'];
 
       if (firebaseTokenRaw == null || firebaseTokenRaw.isEmpty) {
         debugPrint('Landing screen: No firebase_token in response');
@@ -319,6 +355,9 @@ class _PersonalDevelopmentHubScreenState
         }
         return;
       }
+
+      // Apply token theme before sign-in and before dashboard navigation.
+      await _applyThemeBeforeLogin(tokenTheme);
 
       // Step C: Sign in using Firebase custom token (config from backend /firebase-config or firebase_options)
       final opts = Firebase.app().options;
@@ -553,12 +592,14 @@ class _PersonalDevelopmentHubScreenState
             child: Container(
               decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: const AssetImage('assets/khono_bg.png'),
+                  image: AssetImage(_backgroundAsset),
                   fit: BoxFit.cover,
-                  colorFilter: ColorFilter.mode(
-                    Colors.black.withValues(alpha: 0.4),
-                    BlendMode.darken,
-                  ),
+                  colorFilter: _isLightMode
+                      ? null
+                      : ColorFilter.mode(
+                          Colors.black.withValues(alpha: 0.4),
+                          BlendMode.darken,
+                        ),
                 ),
               ),
             ),
@@ -568,7 +609,10 @@ class _PersonalDevelopmentHubScreenState
           Positioned.fill(
             child: FloatingCirclesParticleAnimation(
               key: _animationKey,
-              circleColor: const Color(0xFFC10D00).withValues(alpha: 0.7),
+              circleColor: (_isLightMode
+                      ? Colors.black
+                      : const Color(0xFFC10D00))
+                  .withValues(alpha: 0.7),
               numberOfParticles: 20,
               maxParticleSize: 6.0,
             ),
@@ -603,26 +647,26 @@ class _PersonalDevelopmentHubScreenState
                     const SizedBox(height: 14),
 
                     // Title
-                    const Text(
+                    Text(
                       'Personal Development Hub',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: _solidTextColor,
                         fontFamily: 'Poppins',
                       ),
                     ),
                     const SizedBox(height: 8),
 
                     // Subtitle
-                    const Text(
+                    Text(
                       'Empower growth through purposeful, role-aligned development pathways.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
-                        color: Color.fromARGB(204, 255, 255, 255),
+                        color: _subtitleColor,
                         fontFamily: 'Poppins',
                         height: 1.35,
                       ),
@@ -651,7 +695,7 @@ class _PersonalDevelopmentHubScreenState
                               style: TextStyle(
                                 fontSize: 54,
                                 fontWeight: FontWeight.w300,
-                                color: Colors.white.withAlpha(170),
+                                color: _solidTextColor.withAlpha(170),
                                 fontFamily: 'Poppins',
                               ),
                             ),
@@ -665,7 +709,7 @@ class _PersonalDevelopmentHubScreenState
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w400,
-                                color: Colors.white.withAlpha(120),
+                                color: _solidTextColor.withAlpha(120),
                                 letterSpacing: 2.2,
                                 fontFamily: 'Poppins',
                               ),
@@ -685,20 +729,22 @@ class _PersonalDevelopmentHubScreenState
                           decoration: InputDecoration(
                             hintText: 'Enter your authentication token',
                             hintStyle: TextStyle(
-                              color: Colors.white.withAlpha(128),
+                              color: _solidTextColor.withAlpha(128),
                             ),
                             filled: true,
-                            fillColor: Colors.white.withAlpha(26),
+                            fillColor: _isLightMode
+                                ? Colors.white.withAlpha(220)
+                                : Colors.white.withAlpha(26),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
-                                color: Colors.white.withAlpha(51),
+                                color: _solidTextColor.withAlpha(51),
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
-                                color: Colors.white.withAlpha(51),
+                                color: _solidTextColor.withAlpha(51),
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -710,11 +756,11 @@ class _PersonalDevelopmentHubScreenState
                             ),
                             prefixIcon: Icon(
                               Icons.vpn_key,
-                              color: Colors.white.withAlpha(179),
+                              color: _solidTextColor.withAlpha(179),
                             ),
                           ),
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: _solidTextColor,
                             fontSize: 16,
                           ),
                           obscureText: false,
@@ -730,7 +776,7 @@ class _PersonalDevelopmentHubScreenState
                           'The app will sign you in automatically.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Colors.white.withAlpha(204),
+                            color: _solidTextColor.withAlpha(204),
                             fontSize: 13,
                             height: 1.35,
                           ),
@@ -781,16 +827,31 @@ class _PersonalDevelopmentHubScreenState
             ),
           ),
 
-          // Version Control Widget - Bottom of screen
+          // Bottom center discs image depends on theme.
           Positioned(
-            bottom: 20,
-            left: 16,
-            child: VersionControlWidget(
-              fontSize: 12.0,
-              textColor: Colors.white70,
-              hoverColor: Colors.white,
+            bottom: 18,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Image.asset(
+                _isLightMode ? 'assets/Red_Khono_Discs.png' : 'assets/discs.png',
+                height: 42,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
+
+          // Version control text: bottom-left in both themes.
+          Positioned(
+            bottom: 18,
+            left: 14,
+            child: VersionControlWidget(
+              fontSize: 12,
+              textColor: _isLightMode ? Colors.black : Colors.white,
+              hoverColor: _isLightMode ? Colors.black : Colors.white,
+            ),
+          ),
+
         ],
       ),
     );

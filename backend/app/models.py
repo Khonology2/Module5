@@ -45,6 +45,11 @@ class TokenValidationResponse(BaseModel):
         description="List of user roles (e.g., ['PDH - Employee', 'PDH - Manager'])",
         example=["PDH - Employee"]
     )
+    theme: Optional[str] = Field(
+        None,
+        description='Theme preference from token ("Light" or "dark")',
+        example="Light"
+    )
 
 
 class AuthCallbackRequest(BaseModel):

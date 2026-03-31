@@ -88,6 +88,7 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         user_info = extract_user_info(decoded_token)
         user_id = user_info['user_id']
         email = user_info['email']
+        theme = user_info.get('theme') or ""
         
         logger.info(f"Token validated for user_id: {user_id}, email: {email or 'not provided (will resolve from Firestore)'}")
         
@@ -138,6 +139,7 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
             user_id=user_data['user_id'],
             email=user_data['email'],
             roles=user_data['roles'],
+            theme=theme,
         )
         
     except JWTValidationError as e:
