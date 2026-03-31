@@ -130,17 +130,243 @@ jobs:
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
+          set -euo pipefail
           if [ -z "${RENDER_DEPLOY_HOOK}" ]; then
             echo "::error::RENDER_DEPLOY_HOOK is not set. Add it under Settings → Secrets and variables → Actions."
             exit 1
           fi
-          curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
-          echo "Render deploy hook invoked successfully."
+
+          # Mask hook target (never print the full hook URL)
+          RENDER_HOOK_TARGET="$(python3 - <<'PY'
+          import os, urllib.parse
+          u = os.environ.get("RENDER_DEPLOY_HOOK","")
+          try:
+              p = urllib.parse.urlparse(u)
+              host = p.hostname or "unknown-host"
+              path = (p.path or "").strip("/")
+              parts = [x for x in path.split("/") if x]
+              tail = "/".join(parts[:2]) if parts else ""
+              print(f"{host}/{tail}" if tail else host)
+          except Exception:
+              print("unknown")
+          PY
+          )"
+
+          DEPLOY_START_ISO="$(date -Is)"
+          DEPLOY_START_EPOCH="$(date +%s)"
+
+          # Capture body + status (Render may return empty body; that’s fine)
+          CURL_OUT="$(mktemp)"
+          HTTP_CODE="$(curl -sS -o "$CURL_OUT" -w "%{http_code}" -X POST "$RENDER_DEPLOY_HOOK" || true)"
+          DEPLOY_END_ISO="$(date -Is)"
+          DEPLOY_END_EPOCH="$(date +%s)"
+          DEPLOY_SECONDS="$((DEPLOY_END_EPOCH - DEPLOY_START_EPOCH))"
+          DEPLOY_BODY="$(tr -d '\r' < "$CURL_OUT" | head -c 2000 || true)"
+          rm -f "$CURL_OUT" || true
+
+          # Export for summary step
+          {
+            echo "RENDER_HOOK_TARGET=$RENDER_HOOK_TARGET"
+            echo "RENDER_DEPLOY_START_ISO=$DEPLOY_START_ISO"
+            echo "RENDER_DEPLOY_END_ISO=$DEPLOY_END_ISO"
+            echo "RENDER_DEPLOY_SECONDS=$DEPLOY_SECONDS"
+            echo "RENDER_DEPLOY_HTTP_CODE=$HTTP_CODE"
+            echo "RENDER_DEPLOY_BODY<<__EOF__"
+            echo "$DEPLOY_BODY"
+            echo "__EOF__"
+          } >> "$GITHUB_ENV"
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "Render deploy hook invoked successfully (HTTP $HTTP_CODE)."
+          else
+            echo "::error::Render deploy hook returned HTTP $HTTP_CODE"
+            echo "Response body (truncated):"
+            echo "$DEPLOY_BODY"
+            exit 1
+          fi
 
       - name: Deploy summary
         if: ${{ always() && github.ref == 'refs/heads/pdh-deployed-backup-v3' }}
         run: |
-          echo "## deploy-check summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Branch built:** pdh-deployed-backup-v3 at commit \`$(git rev-parse HEAD)\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **build/web** includes \`.ci-source-commit\` (open \`https://<your-site>/.ci-source-commit\` after deploy to verify the live SHA)." >> "$GITHUB_STEP_SUMMARY"
-          echo "- Render: use **only** the deploy hook after this workflow, or turn off auto-deploy on push so you never publish a commit before the bot updates \`build/web\`." >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          BUILT_BRANCH_SHA="$(git rev-parse HEAD)"
+
+          # The "real" app code SHA that was bundled into build/web.
+          CURRENT_SOURCE_SHA=""
+          if [ -f "build/web/.ci-source-commit" ]; then
+            CURRENT_SOURCE_SHA="$(cat build/web/.ci-source-commit | tr -d '\r\n' || true)"
+          fi
+
+          # Best-effort previous deployed source SHA: read from previous commit's build/web stamp.
+          PREVIOUS_SOURCE_SHA=""
+          if git show HEAD~1:build/web/.ci-source-commit >/dev/null 2>&1; then
+            PREVIOUS_SOURCE_SHA="$(git show HEAD~1:build/web/.ci-source-commit | tr -d '\r\n' || true)"
+          fi
+
+          # App version from pubspec (e.g. 1.2.3+45)
+          APP_VERSION="$(python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path("pubspec.yaml")
+          if not p.exists():
+              print("unknown")
+              raise SystemExit(0)
+          m = re.search(r"^version:\s*([^\s#]+)", p.read_text(encoding="utf-8"), re.M)
+          print(m.group(1) if m else "unknown")
+          PY
+          )"
+
+          # Toolchain
+          FLUTTER_VERSION="$(flutter --version 2>/dev/null | head -n 1 || true)"
+          DART_VERSION="$(dart --version 2>/dev/null || true)"
+
+          # Build artifact fingerprints (help debug caching/stale bundles)
+          INDEX_HASH=""
+          MAIN_JS_HASH=""
+          ASSET_MANIFEST_HASH=""
+          BUILD_WEB_SIZE=""
+          if [ -d "build/web" ]; then
+            BUILD_WEB_SIZE="$(du -sh build/web 2>/dev/null | awk '{print $1}' || true)"
+          fi
+          if [ -f "build/web/index.html" ]; then
+            INDEX_HASH="$(sha256sum build/web/index.html | awk '{print $1}' || true)"
+          fi
+          if [ -f "build/web/main.dart.js" ]; then
+            MAIN_JS_HASH="$(sha256sum build/web/main.dart.js | awk '{print $1}' || true)"
+          fi
+          if [ -f "build/web/assets/AssetManifest.json" ]; then
+            ASSET_MANIFEST_HASH="$(sha256sum build/web/assets/AssetManifest.json | awk '{print $1}' || true)"
+          fi
+
+          {
+            echo "## deploy-check summary"
+            echo ""
+            echo "### Deployment identity"
+            echo "- **Workflow**: \`${GITHUB_WORKFLOW}\`"
+            echo "- **Job**: \`${GITHUB_JOB}\`"
+            echo "- **Run**: \`${GITHUB_RUN_ID}\` (attempt \`${GITHUB_RUN_ATTEMPT}\`)"
+            echo "- **Branch built**: \`${BRANCH_NAME}\`"
+            echo "- **Branch tip commit (contains build/web)**: \`${BUILT_BRANCH_SHA}\`"
+            if [ -n "${CURRENT_SOURCE_SHA}" ]; then
+              echo "- **App source commit bundled into build/web**: \`${CURRENT_SOURCE_SHA}\`"
+            else
+              echo "- **App source commit bundled into build/web**: _(missing \`build/web/.ci-source-commit\`)_"
+            fi
+            echo ""
+
+            echo "### App version"
+            echo "- **pubspec.yaml version**: \`${APP_VERSION}\`"
+            echo ""
+
+            echo "### Toolchain"
+            if [ -n "${FLUTTER_VERSION}" ]; then
+              echo "- **Flutter**: \`${FLUTTER_VERSION}\`"
+            fi
+            if [ -n "${DART_VERSION}" ]; then
+              echo "- **Dart**: \`${DART_VERSION}\`"
+            fi
+            echo ""
+
+            echo "### Render deploy hook + timing"
+            echo "- **Target**: \`${RENDER_HOOK_TARGET:-unknown}\`"
+            echo "- **HTTP**: \`${RENDER_DEPLOY_HTTP_CODE:-unknown}\`"
+            echo "- **Start**: \`${RENDER_DEPLOY_START_ISO:-unknown}\`"
+            echo "- **End**: \`${RENDER_DEPLOY_END_ISO:-unknown}\`"
+            echo "- **Duration**: \`${RENDER_DEPLOY_SECONDS:-unknown}s\`"
+            if [ -n "${RENDER_DEPLOY_BODY:-}" ]; then
+              echo ""
+              echo "**Deploy hook response body (truncated)**"
+              echo ""
+              echo "\`\`\`"
+              echo "${RENDER_DEPLOY_BODY}"
+              echo "\`\`\`"
+            fi
+            echo ""
+
+            echo "### What changed in this deployment"
+            if [ -n "${PREVIOUS_SOURCE_SHA}" ] && [ -n "${CURRENT_SOURCE_SHA}" ] && [ "${PREVIOUS_SOURCE_SHA}" != "${CURRENT_SOURCE_SHA}" ]; then
+              echo "- **Previous deployed source SHA**: \`${PREVIOUS_SOURCE_SHA}\`"
+              echo "- **Current deployed source SHA**: \`${CURRENT_SOURCE_SHA}\`"
+              echo ""
+              echo "**Commits**"
+              echo ""
+              echo "\`\`\`"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" || true
+              echo "\`\`\`"
+              echo ""
+
+              echo "**Release notes (grouped)**"
+              echo ""
+              echo "**Features (\`feat\`)**"
+              echo ""
+              echo "\`\`\`"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|\\s)feat(\\(|:|\\s)' || echo "None"
+              echo "\`\`\`"
+              echo ""
+              echo "**Fixes (\`fix\`)**"
+              echo ""
+              echo "\`\`\`"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|\\s)fix(\\(|:|\\s)' || echo "None"
+              echo "\`\`\`"
+              echo ""
+              echo "**Chores (\`chore\`)**"
+              echo ""
+              echo "\`\`\`"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|\\s)chore(\\(|:|\\s)' || echo "None"
+              echo "\`\`\`"
+              echo ""
+              echo "**Breaking (\`BREAKING CHANGE\`)**"
+              echo ""
+              echo "\`\`\`"
+              git log --format=%B "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -E 'BREAKING CHANGE' || echo "None"
+              echo "\`\`\`"
+              echo ""
+
+              echo "**Changed files (excluding generated build output)**"
+              echo ""
+              echo "\`\`\`"
+              git diff --name-status "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" -- . ':(exclude)build/' || true
+              echo "\`\`\`"
+            elif [ -n "${PREVIOUS_SOURCE_SHA}" ] && [ -n "${CURRENT_SOURCE_SHA}" ] && [ "${PREVIOUS_SOURCE_SHA}" = "${CURRENT_SOURCE_SHA}" ]; then
+              echo "- No source-code changes detected vs previous deploy (\`${CURRENT_SOURCE_SHA}\`)."
+            else
+              echo "- Unable to compute previous deployed SHA (first deploy on branch, or missing historical \`.ci-source-commit\`)."
+              if [ -n "${CURRENT_SOURCE_SHA}" ]; then
+                echo "- Current deployed source SHA: \`${CURRENT_SOURCE_SHA}\`"
+              fi
+            fi
+            echo ""
+
+            echo "### Deployed bundle fingerprints"
+            echo "- **Stamp file**: \`build/web/.ci-source-commit\`"
+            echo "- **Build meta**: \`build/web/.ci-build-meta.json\`"
+            if [ -n "${BUILD_WEB_SIZE}" ]; then
+              echo "- **Total build/web size**: \`${BUILD_WEB_SIZE}\`"
+            fi
+            if [ -n "${INDEX_HASH}" ]; then
+              echo "- **index.html sha256**: \`${INDEX_HASH}\`"
+            fi
+            if [ -n "${MAIN_JS_HASH}" ]; then
+              echo "- **main.dart.js sha256**: \`${MAIN_JS_HASH}\`"
+            fi
+            if [ -n "${ASSET_MANIFEST_HASH}" ]; then
+              echo "- **assets/AssetManifest.json sha256**: \`${ASSET_MANIFEST_HASH}\`"
+            fi
+            echo ""
+            echo "**Top-level build/web files (size)**"
+            echo ""
+            echo "\`\`\`"
+            (cd build/web && ls -la | sed -n '1,120p') || true
+            echo "\`\`\`"
+            echo ""
+
+            echo "### Deployed automation/scripts"
+            echo "- **Workflow**: \`.github/workflows/deploy.yml\`"
+            echo "- **Cache-busting script**: \`tool/strip_web_service_worker.py\`"
+            echo ""
+
+            echo "### Post-deploy verification"
+            echo "- Open \`https://<your-site>/.ci-source-commit\` to confirm the live SHA matches **App source commit** above."
+            echo "- Render: use **only** the deploy hook after this workflow, or disable auto-deploy on push so you never publish a commit before the bot updates \`build/web\`."
+          } >> "$GITHUB_STEP_SUMMARY"
