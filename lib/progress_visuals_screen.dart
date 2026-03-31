@@ -249,7 +249,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
             onRefresh: () async {
               setState(() {});
             },
-            child: isManager
+            child: (widget.forAdminOversight || isManager)
                 ? (widget.forManagerGwMenu
                       ? EmployeeProgressVisualsContent(userProfile: userProfile!)
                       : ManagerProgressVisualsContent(
