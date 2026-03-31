@@ -152,11 +152,11 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
     // Generate tooltip message based on loaded commit data
     String tooltipMessage;
     if (_isLoading) {
-      tooltipMessage = 'Loading commit data...';
+      tooltipMessage = 'Loading feature data...';
     } else if (_commitData != null) {
       tooltipMessage = _commitData!.getTooltipMessage();
     } else {
-      tooltipMessage = 'Commit data unavailable';
+      tooltipMessage = 'Feature data unavailable';
     }
 
     return MouseRegion(

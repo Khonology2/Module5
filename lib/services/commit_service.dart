@@ -34,7 +34,7 @@ class CommitService {
       return _cachedCommitData!;
     } catch (e, stackTrace) {
       developer.log(
-        'Error loading commit data',
+        'Error loading feature data',
         error: e,
         stackTrace: stackTrace,
       );
@@ -52,7 +52,7 @@ class CommitService {
       commits: [
         CommitInfo(
           author: 'System',
-          message: 'No commits found for today',
+          message: 'No features found for today',
           timestamp: DateTime.now().toIso8601String(),
         ),
       ],
@@ -142,7 +142,7 @@ class CommitData {
   /// Generate tooltip message for the version control widget
   String getTooltipMessage() {
     final buffer = StringBuffer();
-    buffer.writeln('Daily Commits');
+    buffer.writeln('Latest Features');
     buffer.writeln();
 
     // Group commits by author, showing only the latest commit per author (excluding GitHub Actions)
