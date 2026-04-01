@@ -59,13 +59,10 @@ class _PersonalDevelopmentHubScreenState
   late Timer _timer;
   bool _isCheckingToken = false;
   bool _isProcessingButton = false;
-  bool _isSlowNetwork = false;
   bool _isLightMode = false;
 
   // Animation controller for bounce effect
   late AnimationController _bounceController;
-  late Animation<double> _bounceAnimation;
-  bool _isRedirecting = false;
   final TextEditingController _tokenController = TextEditingController();
 
   Color get _solidTextColor => _isLightMode ? Colors.black : Colors.white;
@@ -85,14 +82,8 @@ class _PersonalDevelopmentHubScreenState
       duration: const Duration(milliseconds: 800),
     );
 
-    _bounceAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _bounceController, curve: Curves.bounceOut),
-    );
-
     // Start initial bounce animation when screen loads
     _bounceController.forward();
-
-    _checkTokenAndAutoLogin(manualToken: widget.initialToken);
 
     inspirationalLines = [
       "Cultivate your mind, blossom your potential.",
@@ -179,19 +170,10 @@ class _PersonalDevelopmentHubScreenState
       RoleService.instance.clearRoleOverride();
       setState(() {
         _isCheckingToken = true;
-        _isSlowNetwork = false;
       });
       // Trigger bounce animation when starting token check
       _bounceController.reset();
       _bounceController.forward();
-      Future.delayed(const Duration(seconds: 5), () {
-        if (!mounted) return;
-        if (_isCheckingToken) {
-          setState(() {
-            _isSlowNetwork = true;
-          });
-        }
-      });
 
       debugPrint('Landing screen: Starting token check...');
 
@@ -201,40 +183,17 @@ class _PersonalDevelopmentHubScreenState
       if (token == null || token.isEmpty) {
         debugPrint('Landing screen: No token found in URL');
 
-        // Only check for existing user if we're not doing manual token login
-        if (manualToken == null) {
-          final user = FirebaseAuth.instance.currentUser;
-          if (user != null) {
-            final role = await RoleService.instance.getRole(refresh: true);
-            if (mounted) {
-              setState(() {
-                _isCheckingToken = true;
-                _isProcessingButton = false;
-                _isSlowNetwork = false;
-                _isRedirecting = true;
-              });
-              // Trigger bounce animation when starting token validation
-              _bounceController.reset();
-              _bounceController.forward();
-              if (role == 'manager') {
-                Navigator.pushReplacementNamed(context, '/manager_portal');
-              } else if (role == 'admin') {
-                Navigator.pushReplacementNamed(context, '/admin_dashboard');
-              } else {
-                Navigator.pushReplacementNamed(context, '/employee_dashboard');
-              }
-            }
-            return;
-          }
-        }
-
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
             _isProcessingButton = false;
-            _isSlowNetwork = false;
-            _isRedirecting = false;
           });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No login token found. Please open the app from your login link.'),
+              backgroundColor: Color(0xFFC10D00),
+            ),
+          );
         }
         return;
       }
@@ -265,7 +224,6 @@ class _PersonalDevelopmentHubScreenState
           setState(() {
             _isCheckingToken = false;
             _isProcessingButton = false;
-            _isSlowNetwork = false;
           });
         }
         return;
@@ -283,7 +241,6 @@ class _PersonalDevelopmentHubScreenState
           setState(() {
             _isCheckingToken = false;
             _isProcessingButton = false;
-            _isSlowNetwork = false;
           });
         }
         return;
@@ -417,8 +374,6 @@ class _PersonalDevelopmentHubScreenState
             setState(() {
               _isCheckingToken = true;
               _isProcessingButton = false;
-              _isSlowNetwork = false;
-              _isRedirecting = true;
             });
             _navigateToDashboard(pdhRole);
             return;
@@ -468,7 +423,6 @@ class _PersonalDevelopmentHubScreenState
         setState(() {
           _isCheckingToken = false;
           _isProcessingButton = false;
-          _isSlowNetwork = false;
         });
       }
     } catch (e) {
@@ -477,7 +431,6 @@ class _PersonalDevelopmentHubScreenState
         setState(() {
           _isCheckingToken = false;
           _isProcessingButton = false;
-          _isSlowNetwork = false;
         });
       }
     }
@@ -507,6 +460,17 @@ class _PersonalDevelopmentHubScreenState
     _bounceController.forward();
 
     await _checkTokenAndAutoLogin(manualToken: token);
+  }
+
+  Future<void> _handleGetStarted() async {
+    if (_isCheckingToken || _isProcessingButton) return;
+    setState(() {
+      _isProcessingButton = true;
+      _isCheckingToken = true;
+    });
+    _bounceController.reset();
+    _bounceController.forward();
+    await _checkTokenAndAutoLogin(manualToken: widget.initialToken);
   }
 
   /// Navigate to appropriate dashboard based on role
@@ -675,52 +639,57 @@ class _PersonalDevelopmentHubScreenState
                       ),
                     ),
 
-                    const SizedBox(height: 64),
+                    const SizedBox(height: 32),
 
-                    // Center loading glyph (shown while checking token)
-                    if (_isCheckingToken) ...[
-                      AnimatedBuilder(
-                        animation: _bounceAnimation,
-                        builder: (context, child) {
-                          return Transform.translate(
-                            offset: Offset(
-                              0,
-                              -14 * (1 - _bounceAnimation.value),
-                            ),
-                            child: child,
-                          );
-                        },
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '∞',
-                              style: TextStyle(
-                                fontSize: 54,
-                                fontWeight: FontWeight.w300,
-                                color: _solidTextColor.withAlpha(170),
-                                fontFamily: 'Poppins',
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              // Keep the screenshot look, but reference these state flags
-                              // so the analyzer doesn't report unused-field warnings.
-                              _isRedirecting
-                                  ? 'ACC'
-                                  : (_isSlowNetwork ? 'ACC' : 'ACC'),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: _solidTextColor.withAlpha(120),
-                                letterSpacing: 2.2,
-                                fontFamily: 'Poppins',
-                              ),
-                            ),
-                          ],
+                    if (!_isCheckingToken) ...[
+                      ElevatedButton(
+                        onPressed: _handleGetStarted,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC10D00),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 38,
+                            vertical: 14,
+                          ),
+                          shape: const StadiumBorder(),
+                          elevation: 4,
+                        ),
+                        child: const Text(
+                          'GET STARTED',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Image.asset(
+                        _isLightMode
+                            ? 'assets/Red_Khono_Discs.png'
+                            : 'assets/discs.png',
+                        height: 42,
+                        fit: BoxFit.contain,
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 20),
+                      const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFFC10D00),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Getting started...',
+                        style: TextStyle(
+                          color: _isLightMode ? Colors.black : Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
+
                     // Show token input field and login button when not checking token (and when enabled)
                     if (kShowTokenLoginUI && !_isCheckingToken) ...[
                       const SizedBox(height: 24),
@@ -826,20 +795,6 @@ class _PersonalDevelopmentHubScreenState
                     ],
                   ],
                 ),
-              ),
-            ),
-          ),
-
-          // Bottom center discs image depends on theme.
-          Positioned(
-            bottom: 18,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Image.asset(
-                _isLightMode ? 'assets/Red_Khono_Discs.png' : 'assets/discs.png',
-                height: 42,
-                fit: BoxFit.contain,
               ),
             ),
           ),
