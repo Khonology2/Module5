@@ -175,3 +175,45 @@ def extract_user_info(decoded_token: Dict[str, Any]) -> Dict[str, Any]:
         'theme': theme_str,
     }
 
+
+def extract_token_pdh_role(decoded_token: Dict[str, Any]) -> Optional[str]:
+    """
+    Extract the PDH role from token payload, if present.
+
+    Supports common token shapes:
+    - role/moduleAccessRole/moduleRole as string
+    - roles as list or comma-separated string
+    """
+    candidates = []
+    raw_role = (
+        decoded_token.get('moduleAccessRole') or
+        decoded_token.get('moduleRole') or
+        decoded_token.get('role')
+    )
+    if raw_role:
+        candidates.append(str(raw_role))
+
+    raw_roles = decoded_token.get('roles')
+    if isinstance(raw_roles, list):
+        candidates.extend([str(r) for r in raw_roles if r is not None])
+    elif isinstance(raw_roles, str):
+        candidates.append(raw_roles)
+
+    parts = []
+    for c in candidates:
+        parts.extend([p.strip() for p in c.split(',') if p and p.strip()])
+
+    for role in parts:
+        lower = role.lower()
+        if lower.startswith('pdh') and 'employee' in lower:
+            return "PDH - Employee"
+    for role in parts:
+        lower = role.lower()
+        if lower.startswith('pdh') and 'admin' in lower:
+            return "PDH - Admin"
+    for role in parts:
+        lower = role.lower()
+        if lower.startswith('pdh') and 'manager' in lower:
+            return "PDH - Manager"
+    return None
+

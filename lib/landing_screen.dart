@@ -161,6 +161,37 @@ class _PersonalDevelopmentHubScreenState
     return raw == 'light';
   }
 
+  String? _resolvePdhRole({
+    required String? pdhRoleFromBackend,
+    required List<dynamic>? rolesFromBackend,
+  }) {
+    final backendRole = pdhRoleFromBackend?.trim();
+    if (backendRole != null && backendRole.isNotEmpty) {
+      final lower = backendRole.toLowerCase();
+      if (lower.contains('employee')) return 'PDH - Employee';
+      if (lower.contains('admin')) return 'PDH - Admin';
+      if (lower.contains('manager')) return 'PDH - Manager';
+    }
+
+    final roles = (rolesFromBackend ?? [])
+        .map((r) => r.toString().trim())
+        .where((r) => r.isNotEmpty && r.toLowerCase().startsWith('pdh'))
+        .toList();
+    for (final role in roles) {
+      final lower = role.toLowerCase();
+      if (lower.contains('employee')) return 'PDH - Employee';
+    }
+    for (final role in roles) {
+      final lower = role.toLowerCase();
+      if (lower.contains('admin')) return 'PDH - Admin';
+    }
+    for (final role in roles) {
+      final lower = role.toLowerCase();
+      if (lower.contains('manager')) return 'PDH - Manager';
+    }
+    return null;
+  }
+
   Future<void> _applyThemeBeforeLogin(dynamic tokenTheme) async {
     final light = _isTokenThemeLight(tokenTheme);
     if (!mounted) {
@@ -242,6 +273,7 @@ class _PersonalDevelopmentHubScreenState
       final firebaseTokenRaw = validationResponse['firebase_token'] as String?;
       final email = validationResponse['email'] as String?;
       final roles = validationResponse['roles'] as List<dynamic>?;
+      final pdhRoleFromBackend = validationResponse['pdh_role'] as String?;
       final tokenTheme = validationResponse['theme'];
 
       if (firebaseTokenRaw == null || firebaseTokenRaw.isEmpty) {
@@ -276,25 +308,11 @@ class _PersonalDevelopmentHubScreenState
         return;
       }
 
-      // Extract PDH role from roles list (backend returns e.g. PDH - Employee, PDH - Manager, PDH - Admin)
-      String? pdhRole;
-      if (roles != null && roles.isNotEmpty) {
-        for (final role in roles) {
-          final s = role.toString().toLowerCase();
-          if (s.contains('admin')) {
-            pdhRole = 'PDH - Admin';
-            break;
-          }
-          if (s.contains('manager')) {
-            pdhRole = 'PDH - Manager';
-            break;
-          }
-          if (s.contains('employee') || s.contains('staff')) {
-            pdhRole = 'PDH - Employee';
-            break;
-          }
-        }
-      }
+      // Resolve PDH role from backend authoritative field first, then safe PDH-only fallback.
+      final pdhRole = _resolvePdhRole(
+        pdhRoleFromBackend: pdhRoleFromBackend,
+        rolesFromBackend: roles,
+      );
 
       if (pdhRole == null) {
         if (mounted) {

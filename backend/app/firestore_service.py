@@ -214,6 +214,26 @@ def get_user_roles_from_onboarding(onboarding_data: Dict[str, Any]) -> List[str]
     return pdh_roles
 
 
+def get_primary_pdh_role(roles: List[str]) -> Optional[str]:
+    """
+    Resolve a single PDH role from onboarding roles in stable priority order.
+    """
+    normalized = [str(r).strip() for r in roles if str(r).strip()]
+    for role in normalized:
+        lower = role.lower()
+        if lower.startswith('pdh') and 'employee' in lower:
+            return "PDH - Employee"
+    for role in normalized:
+        lower = role.lower()
+        if lower.startswith('pdh') and 'admin' in lower:
+            return "PDH - Admin"
+    for role in normalized:
+        lower = role.lower()
+        if lower.startswith('pdh') and 'manager' in lower:
+            return "PDH - Manager"
+    return None
+
+
 def validate_user_and_get_roles(
     user_id: str,
     email: str,
@@ -271,6 +291,7 @@ def validate_user_and_get_roles(
         )
     
     roles = get_user_roles_from_onboarding(onboarding_data)
+    pdh_role = get_primary_pdh_role(roles)
     
     resolved_email = email
     if not resolved_email:
@@ -290,6 +311,7 @@ def validate_user_and_get_roles(
         'user_id': user_id,
         'email': resolved_email,
         'roles': roles,
+        'pdh_role': pdh_role,
         'module_access_role': module_access_role,
         'status': onboarding_data.get('status', 'Active'),
     }

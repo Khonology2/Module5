@@ -13,7 +13,12 @@ from app.models import (
     AuthCallbackResponse,
     ErrorResponse,
 )
-from app.jwt_validator import validate_jwt_token, extract_user_info, JWTValidationError
+from app.jwt_validator import (
+    validate_jwt_token,
+    extract_user_info,
+    extract_token_pdh_role,
+    JWTValidationError,
+)
 from app.firestore_service import (
     validate_user_and_get_roles,
     FirestoreServiceError,
@@ -89,6 +94,7 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         user_id = user_info['user_id']
         email = user_info['email']
         theme = user_info.get('theme') or ""
+        token_pdh_role = extract_token_pdh_role(decoded_token)
         
         logger.info(f"Token validated for user_id: {user_id}, email: {email or 'not provided (will resolve from Firestore)'}")
         
@@ -97,6 +103,21 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         # Login flow should always use fresh role data so role changes apply immediately.
         user_data = validate_user_and_get_roles(user_id, email, use_cache=False)
         logger.info(f"Firestore query completed in {int((time.perf_counter() - t) * 1000)} ms")
+        db_pdh_role = user_data.get('pdh_role')
+        if token_pdh_role and db_pdh_role and token_pdh_role != db_pdh_role:
+            logger.warning(
+                "Token PDH role mismatch for user_id=%s token_role=%s db_role=%s",
+                user_id,
+                token_pdh_role,
+                db_pdh_role,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Token role ({token_pdh_role}) does not match onboarding role "
+                    f"({db_pdh_role})"
+                ),
+            )
         
         logger.info(f"Generating Firebase custom token for user_id: {user_id}")
         # Log project_id so we can confirm token audience matches client (must be pdh-v2)
@@ -139,6 +160,7 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
             user_id=user_data['user_id'],
             email=user_data['email'],
             roles=user_data['roles'],
+            pdh_role=user_data.get('pdh_role'),
             theme=theme,
         )
         

@@ -45,6 +45,11 @@ class TokenValidationResponse(BaseModel):
         description="List of user roles (e.g., ['PDH - Employee', 'PDH - Manager'])",
         example=["PDH - Employee"]
     )
+    pdh_role: Optional[str] = Field(
+        None,
+        description="Primary PDH role resolved from onboarding moduleAccessRole",
+        example="PDH - Employee"
+    )
     theme: Optional[str] = Field(
         None,
         description='Theme preference from token ("Light" or "dark")',
