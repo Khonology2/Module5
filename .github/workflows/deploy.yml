@@ -11,17 +11,10 @@
 name: deploy-check
 
 on:
-  workflow_run:
-    workflows:
-      - Generate Daily Commits
-    types:
-      - completed
-    branches:
-      - pdh-deployed-backup-v3
   workflow_dispatch:
 
 concurrency:
-  group: deploy-check-${{ github.event.workflow_run.head_branch || github.ref }}
+  group: deploy-check-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -29,14 +22,6 @@ permissions:
 
 jobs:
   checks-build-deploy:
-    if: >-
-      ${{
-        github.event_name != 'workflow_run' ||
-        (
-          github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.event == 'push'
-        )
-      }}
     name: Flutter CI, web build, Render deploy
     runs-on: ubuntu-latest
     env:
@@ -47,15 +32,12 @@ jobs:
         with:
           fetch-depth: 0
           clean: true
-          ref: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          ref: ${{ github.ref_name }}
 
       - name: Sync branch tip (ensure latest remote HEAD)
         run: |
           set -euo pipefail
           BRANCH="${GITHUB_REF_NAME}"
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            BRANCH="${{ github.event.workflow_run.head_branch }}"
-          fi
           if [ "$BRANCH" != "${TARGET_DEPLOY_BRANCH}" ]; then
             echo "Not the deploy branch ($BRANCH != ${TARGET_DEPLOY_BRANCH}). Exiting."
             exit 0
@@ -85,27 +67,15 @@ jobs:
         run: flutter analyze
 
       - name: Build web (for Render — not built on Render)
-        if: >-
-          ${{
-            (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == env.TARGET_DEPLOY_BRANCH) ||
-            (github.event_name != 'workflow_run' && github.ref_name == env.TARGET_DEPLOY_BRANCH)
-          }}
+        if: github.ref_name == env.TARGET_DEPLOY_BRANCH
         run: flutter build web --release --base-href /
 
       - name: Disable service worker in web bundle (avoid stale cached JS after deploy)
-        if: >-
-          ${{
-            (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == env.TARGET_DEPLOY_BRANCH) ||
-            (github.event_name != 'workflow_run' && github.ref_name == env.TARGET_DEPLOY_BRANCH)
-          }}
+        if: github.ref_name == env.TARGET_DEPLOY_BRANCH
         run: python3 tool/strip_web_service_worker.py
 
       - name: Stamp build with source commit (forces deploy when HEAD changes)
-        if: >-
-          ${{
-            (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == env.TARGET_DEPLOY_BRANCH) ||
-            (github.event_name != 'workflow_run' && github.ref_name == env.TARGET_DEPLOY_BRANCH)
-          }}
+        if: github.ref_name == env.TARGET_DEPLOY_BRANCH
         run: |
           mkdir -p build/web
           SOURCE_SHA=$(git rev-parse HEAD)
@@ -114,11 +84,7 @@ jobs:
             "$SOURCE_SHA" "${GITHUB_RUN_ID}" "${GITHUB_RUN_ATTEMPT}" > build/web/.ci-build-meta.json
 
       - name: Commit and push build/web
-        if: >-
-          ${{
-            (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == env.TARGET_DEPLOY_BRANCH) ||
-            (github.event_name != 'workflow_run' && github.ref_name == env.TARGET_DEPLOY_BRANCH)
-          }}
+        if: github.ref_name == env.TARGET_DEPLOY_BRANCH
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -148,19 +114,11 @@ jobs:
           fi
 
       - name: Wait for GitHub default branch tip (Render clones latest)
-        if: >-
-          ${{
-            (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == env.TARGET_DEPLOY_BRANCH) ||
-            (github.event_name != 'workflow_run' && github.ref_name == env.TARGET_DEPLOY_BRANCH)
-          }}
+        if: github.ref_name == env.TARGET_DEPLOY_BRANCH
         run: sleep 20
 
       - name: Verify branch tip is latest before deploy
-        if: >-
-          ${{
-            (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == env.TARGET_DEPLOY_BRANCH) ||
-            (github.event_name != 'workflow_run' && github.ref_name == env.TARGET_DEPLOY_BRANCH)
-          }}
+        if: github.ref_name == env.TARGET_DEPLOY_BRANCH
         run: |
           TARGET_BRANCH=pdh-deployed-backup-v3
           LOCAL_SHA=$(git rev-parse HEAD)
@@ -181,11 +139,7 @@ jobs:
           exit 1
 
       - name: Trigger Render deploy hook
-        if: >-
-          ${{
-            (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == env.TARGET_DEPLOY_BRANCH) ||
-            (github.event_name != 'workflow_run' && github.ref_name == env.TARGET_DEPLOY_BRANCH)
-          }}
+        if: github.ref_name == env.TARGET_DEPLOY_BRANCH
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
@@ -245,14 +199,7 @@ jobs:
           fi
 
       - name: Deploy summary
-        if: >-
-          ${{
-            always() &&
-            (
-              (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch == env.TARGET_DEPLOY_BRANCH) ||
-              (github.event_name != 'workflow_run' && github.ref_name == env.TARGET_DEPLOY_BRANCH)
-            )
-          }}
+        if: ${{ always() && github.ref_name == env.TARGET_DEPLOY_BRANCH }}
         run: |
           set -euo pipefail
 
