@@ -234,6 +234,86 @@ def get_primary_pdh_role(roles: List[str]) -> Optional[str]:
     return None
 
 
+def _normalize_pdh_role(role: Optional[str]) -> Optional[str]:
+    if not role:
+        return None
+    lower = str(role).strip().lower()
+    if "employee" in lower or "staff" in lower:
+        return "PDH - Employee"
+    if "admin" in lower:
+        return "PDH - Admin"
+    if "manager" in lower:
+        return "PDH - Manager"
+    return None
+
+
+def _merge_module_access_role_with_pdh(
+    module_access_role: str,
+    new_pdh_role: str,
+) -> str:
+    parts = [p.strip() for p in str(module_access_role).split(",") if p.strip()]
+    non_pdh = [p for p in parts if "PDH" not in p.upper()]
+    return ", ".join([new_pdh_role] + non_pdh)
+
+
+def update_onboarding_pdh_role(
+    user_id: str,
+    email: str,
+    new_pdh_role: str,
+) -> Dict[str, Any]:
+    """
+    Update onboarding.moduleAccessRole PDH segment to the incoming token role.
+    Returns the updated onboarding document data.
+    """
+    normalized_role = _normalize_pdh_role(new_pdh_role)
+    if not normalized_role:
+        raise FirestoreServiceError(f"Invalid PDH role for update: {new_pdh_role}")
+
+    try:
+        db = get_firestore()
+        doc_ref = db.collection("onboarding").document(user_id)
+        doc = doc_ref.get()
+
+        if not doc.exists and email:
+            matches = list(
+                db.collection("onboarding")
+                .where("email", "==", email)
+                .limit(1)
+                .stream()
+            )
+            if matches:
+                doc = matches[0]
+                doc_ref = doc.reference
+
+        if not doc.exists:
+            raise FirestoreServiceError(
+                f"User not found in onboarding collection for update (user_id: {user_id}, email: {email})"
+            )
+
+        data = doc.to_dict() or {}
+        current_module_access = extract_module_access_role(data) or ""
+        merged_module_access = _merge_module_access_role_with_pdh(
+            current_module_access,
+            normalized_role,
+        )
+
+        doc_ref.update({"moduleAccessRole": merged_module_access})
+        updated_doc = doc_ref.get()
+        updated_data = updated_doc.to_dict() or {}
+        logger.info(
+            "Updated onboarding PDH role for user_id=%s email=%s to %s",
+            user_id,
+            email,
+            normalized_role,
+        )
+        return updated_data
+    except FirestoreServiceError:
+        raise
+    except Exception as e:
+        logger.error("Failed updating onboarding PDH role: %s", e)
+        raise FirestoreServiceError(f"Failed to update onboarding role: {e}")
+
+
 def validate_user_and_get_roles(
     user_id: str,
     email: str,

@@ -21,6 +21,7 @@ from app.jwt_validator import (
 )
 from app.firestore_service import (
     validate_user_and_get_roles,
+    update_onboarding_pdh_role,
     FirestoreServiceError,
 )
 from app.firebase_client import get_auth
@@ -104,20 +105,19 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         user_data = validate_user_and_get_roles(user_id, email, use_cache=False)
         logger.info(f"Firestore query completed in {int((time.perf_counter() - t) * 1000)} ms")
         db_pdh_role = user_data.get('pdh_role')
-        if token_pdh_role and db_pdh_role and token_pdh_role != db_pdh_role:
-            logger.warning(
-                "Token PDH role mismatch for user_id=%s token_role=%s db_role=%s",
+        if token_pdh_role and token_pdh_role != db_pdh_role:
+            logger.info(
+                "Token PDH role differs from onboarding. Updating onboarding for user_id=%s token_role=%s db_role=%s",
                 user_id,
                 token_pdh_role,
                 db_pdh_role,
             )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"Token role ({token_pdh_role}) does not match onboarding role "
-                    f"({db_pdh_role})"
-                ),
+            update_onboarding_pdh_role(
+                user_id=user_id,
+                email=user_data.get('email', '') or email,
+                new_pdh_role=token_pdh_role,
             )
+            user_data = validate_user_and_get_roles(user_id, email, use_cache=False)
         
         logger.info(f"Generating Firebase custom token for user_id: {user_id}")
         # Log project_id so we can confirm token audience matches client (must be pdh-v2)
