@@ -4,7 +4,6 @@ import 'dart:async'; // For Timer
 import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/backend_auth_service.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/widgets/floating_circles_particle_animation.dart';
@@ -75,6 +74,7 @@ class _PersonalDevelopmentHubScreenState
   void initState() {
     super.initState();
     employeeDashboardLightModeNotifier.value = false;
+    _resetAuthStateForLanding();
 
     // Initialize bounce animation
     _bounceController = AnimationController(
@@ -141,6 +141,17 @@ class _PersonalDevelopmentHubScreenState
     });
   }
 
+  Future<void> _resetAuthStateForLanding() async {
+    try {
+      // Ensure landing never auto-routes from a stale session.
+      RoleService.instance.clearCache();
+      RoleService.instance.clearRoleOverride();
+      if (FirebaseAuth.instance.currentUser != null) {
+        await FirebaseAuth.instance.signOut();
+      }
+    } catch (e) {}
+  }
+
   bool _isTokenThemeLight(dynamic tokenTheme) {
     final raw = tokenTheme?.toString().trim().toLowerCase() ?? '';
     return raw == 'light';
@@ -175,14 +186,10 @@ class _PersonalDevelopmentHubScreenState
       _bounceController.reset();
       _bounceController.forward();
 
-      debugPrint('Landing screen: Starting token check...');
-
       // Step A: Extract token from URL or use manual token
       final token = manualToken ?? await TokenAuthService.extractTokenFromUrl();
 
       if (token == null || token.isEmpty) {
-        debugPrint('Landing screen: No token found in URL');
-
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
@@ -190,7 +197,7 @@ class _PersonalDevelopmentHubScreenState
           });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('No login token found. Please open the app from your login link.'),
+              content: Text('Cant login right now, please try to login again from KhonoBuzz.'),
               backgroundColor: Color(0xFFC10D00),
             ),
           );
@@ -198,7 +205,6 @@ class _PersonalDevelopmentHubScreenState
         return;
       }
 
-      debugPrint('Landing screen: Token found in URL, starting validation...');
       // Fresh token login should not inherit cached role from a prior session.
       RoleService.instance.clearCache();
 
@@ -219,7 +225,6 @@ class _PersonalDevelopmentHubScreenState
           .validateTokenWithBackend(token);
 
       if (validationResponse == null) {
-        debugPrint('Landing screen: Token validation failed');
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
@@ -236,7 +241,6 @@ class _PersonalDevelopmentHubScreenState
       final tokenTheme = validationResponse['theme'];
 
       if (firebaseTokenRaw == null || firebaseTokenRaw.isEmpty) {
-        debugPrint('Landing screen: No firebase_token in response');
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
@@ -256,22 +260,9 @@ class _PersonalDevelopmentHubScreenState
       }
       firebaseToken = firebaseToken.trim();
 
-      debugPrint(
-        'Landing screen: Firebase token extracted (length: ${firebaseToken.length})',
-      );
-      debugPrint(
-        'Landing screen: Token preview - first 50 chars: ${firebaseToken.substring(0, firebaseToken.length > 50 ? 50 : firebaseToken.length)}...',
-      );
-
       // Validate token format (should be a JWT with 3 parts)
       final tokenParts = firebaseToken.split('.');
       if (tokenParts.length != 3) {
-        debugPrint(
-          'Landing screen: Invalid Firebase token format - expected 3 parts, got ${tokenParts.length}',
-        );
-        debugPrint(
-          'Landing screen: Token parts: ${tokenParts.map((p) => p.length).join(", ")}',
-        );
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
@@ -280,10 +271,6 @@ class _PersonalDevelopmentHubScreenState
         }
         return;
       }
-
-      debugPrint(
-        'Landing screen: Token format valid - 3 parts with lengths: ${tokenParts.map((p) => p.length).join(", ")}',
-      );
 
       // Extract PDH role from roles list (backend returns e.g. PDH - Employee, PDH - Manager, PDH - Admin)
       String? pdhRole;
@@ -306,7 +293,6 @@ class _PersonalDevelopmentHubScreenState
       }
 
       if (pdhRole == null) {
-        debugPrint('Landing screen: No PDH role found');
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
@@ -320,12 +306,6 @@ class _PersonalDevelopmentHubScreenState
       await _applyThemeBeforeLogin(tokenTheme);
 
       // Step C: Sign in using Firebase custom token (config from backend /firebase-config or firebase_options)
-      final opts = Firebase.app().options;
-      debugPrint('Landing screen: Firebase projectId: ${opts.projectId}, calling signInWithCustomToken...');
-      final origin = web_origin.getWebOrigin();
-      if (origin != null && origin.isNotEmpty) {
-        debugPrint('Landing screen: Add this HTTP referrer in Google Cloud (Browser key): $origin/*');
-      }
       try {
         final userCredential = await FirebaseAuth.instance
             .signInWithCustomToken(firebaseToken);
@@ -355,9 +335,7 @@ class _PersonalDevelopmentHubScreenState
                   'tokenAuthenticated': true,
                   'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
                 }, SetOptions(merge: true));
-          } catch (e) {
-            debugPrint('Landing screen: Firestore write failed: $e');
-          }
+          } catch (e) {}
 
           RoleService.instance.setRoleOverride(internalRole);
 
@@ -380,7 +358,6 @@ class _PersonalDevelopmentHubScreenState
           }
         }
       } catch (e) {
-        debugPrint('Landing screen: Error signing in with custom token: $e');
         if (mounted && e is FirebaseAuthException) {
           if (e.code == 'custom-token-mismatch') {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -396,13 +373,6 @@ class _PersonalDevelopmentHubScreenState
           } else if (e.code == 'api-key-not-valid' ||
               (e.message != null && e.message!.toLowerCase().contains('api-key-not-valid'))) {
             final origin = web_origin.getWebOrigin();
-            final referrerTip = origin != null && origin.isNotEmpty
-                ? ' Add this HTTP referrer in Browser key: $origin/*'
-                : '';
-            debugPrint(
-              'Landing screen: Fix "API key not valid": In Google Cloud (project pdh-v2) '
-              'enable Identity Toolkit API and in Browser key add HTTP referrer(s).$referrerTip',
-            );
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
@@ -426,7 +396,6 @@ class _PersonalDevelopmentHubScreenState
         });
       }
     } catch (e) {
-      debugPrint('Landing screen: Error checking token: $e');
       if (mounted) {
         setState(() {
           _isCheckingToken = false;
@@ -476,66 +445,20 @@ class _PersonalDevelopmentHubScreenState
   /// Navigate to appropriate dashboard based on role
   void _navigateToDashboard(String pdhRole) {
     if (!mounted) {
-      debugPrint('Landing screen: Cannot navigate - widget not mounted');
       return;
     }
 
-    debugPrint(
-      'Landing screen: _navigateToDashboard called with role: $pdhRole',
-    );
-
     try {
       if (pdhRole == 'PDH - Employee') {
-        debugPrint('Landing screen: Navigating to employee dashboard...');
-        Navigator.pushReplacementNamed(context, '/employee_dashboard')
-            .then(
-              (_) => debugPrint(
-                'Landing screen: Navigation to employee dashboard completed',
-              ),
-            )
-            .catchError(
-              (e) => debugPrint('Landing screen: Navigation error: $e'),
-            );
+        Navigator.pushReplacementNamed(context, '/employee_dashboard');
       } else if (pdhRole == 'PDH - Admin') {
-        debugPrint('Landing screen: Navigating to admin dashboard...');
-        Navigator.pushReplacementNamed(context, '/admin_dashboard')
-            .then(
-              (_) => debugPrint(
-                'Landing screen: Navigation to admin dashboard completed',
-              ),
-            )
-            .catchError(
-              (e) => debugPrint('Landing screen: Navigation error: $e'),
-            );
+        Navigator.pushReplacementNamed(context, '/admin_dashboard');
       } else if (pdhRole == 'PDH - Manager') {
-        debugPrint('Landing screen: Navigating to manager dashboard...');
-        Navigator.pushReplacementNamed(context, '/manager_portal')
-            .then(
-              (_) => debugPrint(
-                'Landing screen: Navigation to manager dashboard completed',
-              ),
-            )
-            .catchError(
-              (e) => debugPrint('Landing screen: Navigation error: $e'),
-            );
+        Navigator.pushReplacementNamed(context, '/manager_portal');
       } else {
-        debugPrint(
-          'Landing screen: Unknown role: $pdhRole, defaulting to employee dashboard',
-        );
-        Navigator.pushReplacementNamed(context, '/employee_dashboard')
-            .then(
-              (_) => debugPrint(
-                'Landing screen: Navigation to employee dashboard completed',
-              ),
-            )
-            .catchError(
-              (e) => debugPrint('Landing screen: Navigation error: $e'),
-            );
+        Navigator.pushReplacementNamed(context, '/employee_dashboard');
       }
-    } catch (e) {
-      debugPrint('Landing screen: Error during navigation: $e');
-      debugPrint('Landing screen: Stack trace: ${StackTrace.current}');
-    }
+    } catch (e) {}
   }
 
   @override
@@ -681,7 +604,7 @@ class _PersonalDevelopmentHubScreenState
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Getting started...',
+                        'Logging in...',
                         style: TextStyle(
                           color: _isLightMode ? Colors.black : Colors.white,
                           fontSize: 14,
