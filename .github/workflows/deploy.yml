@@ -32,7 +32,10 @@ jobs:
     if: >-
       ${{
         github.event_name != 'workflow_run' ||
-        github.event.workflow_run.conclusion == 'success'
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push'
+        )
       }}
     name: Flutter CI, web build, Render deploy
     runs-on: ubuntu-latest
