@@ -70,6 +70,8 @@ class _PersonalDevelopmentHubScreenState
   String get _backgroundAsset =>
       _isLightMode ? 'assets/light_mode_bg.png' : 'assets/khono_bg.png';
 
+  void _swallowError(Object _) {}
+
   @override
   void initState() {
     super.initState();
@@ -149,7 +151,9 @@ class _PersonalDevelopmentHubScreenState
       if (FirebaseAuth.instance.currentUser != null) {
         await FirebaseAuth.instance.signOut();
       }
-    } catch (e) {}
+    } catch (e) {
+      _swallowError(e);
+    }
   }
 
   bool _isTokenThemeLight(dynamic tokenTheme) {
@@ -335,7 +339,9 @@ class _PersonalDevelopmentHubScreenState
                   'tokenAuthenticated': true,
                   'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
                 }, SetOptions(merge: true));
-          } catch (e) {}
+          } catch (e) {
+            _swallowError(e);
+          }
 
           RoleService.instance.setRoleOverride(internalRole);
 
@@ -458,7 +464,9 @@ class _PersonalDevelopmentHubScreenState
       } else {
         Navigator.pushReplacementNamed(context, '/employee_dashboard');
       }
-    } catch (e) {}
+    } catch (e) {
+      _swallowError(e);
+    }
   }
 
   @override
