@@ -1,7 +1,17 @@
 {
-  "version": "2026.04.AB11.SIT",
-  "generated_at": "2026-04-01T11:07:48Z",
+  "version": "2026.04.AB13.SIT",
+  "generated_at": "2026-04-01T11:15:30Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "Refactor deployment workflows: simplify conditions for triggering deploy actions and streamline branch checks for consistency across jobs.",
+      "timestamp": "2026-04-01T13:14:27+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "chore: update daily commits data [2026-04-01] [skip ci]",
+      "timestamp": "2026-04-01T11:07:48Z"
+    },
     {
       "author": "Nathi2266",
       "message": "Implement PDH role extraction and resolution: add functions to determine primary PDH role from onboarding data and extract PDH role from JWT token, updating user validation and landing screen logic accordingly.",
@@ -58,6 +68,6 @@
       "timestamp": "2026-04-01T10:36:12+02:00"
     }
   ],
-  "total_commits": 11,
+  "total_commits": 13,
   "date_range": "2026-04-01"
 }
