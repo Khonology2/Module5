@@ -752,7 +752,7 @@ class _ManagerProgressVisualsContentState
                         ? (_isAdminManagerView
                               ? 'Manager Progress Analytics'
                               : 'Team Progress Analytics')
-                        : 'My Progress Overview',
+                        : (_isAdminManagerView ? 'My Progress (Admin)' : 'My Progress Overview'),
                     style: AppTypography.heading2.copyWith(
                       color: AppColors.textPrimary,
                     ),
@@ -860,6 +860,9 @@ class _ManagerProgressVisualsContentState
   }
 
   Widget _buildMyProgressView() {
+    if (_isAdminManagerView) {
+      return _buildAdminMyProgressAnalyticsView();
+    }
     return StreamBuilder<List<ManagerActivity>>(
       stream: _managerActivitiesStream,
       initialData: _cachedManagerActivities.isNotEmpty
@@ -924,6 +927,193 @@ class _ManagerProgressVisualsContentState
           ],
         );
       },
+    );
+  }
+
+  Widget _buildAdminMyProgressAnalyticsView() {
+    return StreamBuilder<List<EmployeeData>>(
+      stream: _teamStream,
+      initialData: (_cachedTeamKey == _teamStreamKey) ? _cachedTeamEmployees : null,
+      builder: (context, teamSnapshot) {
+        final incoming = teamSnapshot.data;
+        final hasPlaceholderBatch =
+            incoming != null && incoming.isNotEmpty && incoming.every((e) => e.isPlaceholder);
+
+        // Only treat non-placeholder emissions as "real" (placeholders have no goals/metrics).
+        if (incoming != null && incoming.isNotEmpty && !hasPlaceholderBatch) {
+          _lastEnrichedTeamEmployees = incoming;
+          _cachedTeamKey = _teamStreamKey;
+          _cachedTeamEmployees = incoming;
+        }
+
+        if (teamSnapshot.hasError) {
+          return _buildErrorState(teamSnapshot.error.toString());
+        }
+
+        final employees = (!hasPlaceholderBatch && incoming != null)
+            ? incoming
+            : (_lastEnrichedTeamEmployees.isNotEmpty
+                ? _lastEnrichedTeamEmployees
+                : (_cachedTeamKey == _teamStreamKey
+                    ? _cachedTeamEmployees
+                    : (incoming ?? const [])));
+
+        final noEnrichedCache = _lastEnrichedTeamEmployees.isEmpty &&
+            (_cachedTeamKey != _teamStreamKey || _cachedTeamEmployees.isEmpty);
+
+        if (employees.isEmpty || (hasPlaceholderBatch && noEnrichedCache)) {
+          return _buildTeamProgressSkeleton();
+        }
+
+        final metrics = _calculateTeamMetrics(employees);
+        final goalStatusCounts = _calculateGoalStatusDistribution(employees);
+        final engagementByDay = _calculateEngagementByWeekday(employees);
+        final categoryProgress = _calculateGoalCategoryProgress(employees);
+        final trendFuture = _getTeamTrendFuture(employees);
+
+        return FutureBuilder<_TrendSeries>(
+          future: trendFuture,
+          builder: (context, trendSnapshot) {
+            final effectiveSeries = trendSnapshot.hasError
+                ? _buildFallbackTrendFromGoals(employees)
+                : (trendSnapshot.data ?? _buildFallbackTrendFromGoals(employees));
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildAdminSeparator(),
+                _buildAdminSectionTitle('Manager Progress Trend  📈'),
+                _buildTeamProgressTrendSection(
+                  effectiveSeries,
+                  showHeader: false,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _buildAdminGoalStatusEngagementHeaders(),
+                _buildGoalStatusAndEngagementRow(
+                  goalStatusCounts,
+                  engagementByDay,
+                  metrics,
+                  showHeaders: false,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _buildAdminSectionTitle('Manager Ranking         🏆'),
+                _buildTeamPerformanceRankingSection(
+                  employees,
+                  showHeader: false,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _buildAdminSectionTitle('Manager Growth          📉'),
+                _buildManagerGrowthIndicator(effectiveSeries.points),
+                const SizedBox(height: AppSpacing.xl),
+                _buildAdminSectionTitle(
+                  'Smart Insights          🤖',
+                  withTrailingLine: false,
+                ),
+                _buildAiInsightPanel(
+                  metrics: metrics,
+                  goalStatusCounts: goalStatusCounts,
+                  engagementByDay: engagementByDay,
+                  categoryProgress: categoryProgress,
+                  trendPoints: effectiveSeries.points,
+                  includeTrendSummary: false,
+                  showHeader: false,
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAdminSeparator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Divider(
+        color: Colors.white.withValues(alpha: 0.25),
+        thickness: 1,
+        height: 1,
+      ),
+    );
+  }
+
+  Widget _buildAdminSectionTitle(
+    String title, {
+    bool withTrailingLine = true,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: AppTypography.heading4.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        if (withTrailingLine) _buildAdminSeparator(),
+      ],
+    );
+  }
+
+  Widget _buildAdminGoalStatusEngagementHeaders() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Manager Goal Status     🍩',
+          style: AppTypography.heading4.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Manager Engagement      📊',
+          style: AppTypography.heading4.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        _buildAdminSeparator(),
+      ],
+    );
+  }
+
+  Widget _buildManagerGrowthIndicator(List<double> trendPoints) {
+    final deltaPct = _calculateTrendDeltaPercent(trendPoints);
+    final bool hasEnoughTrend = trendPoints.length >= 2;
+
+    final status = !hasEnoughTrend
+        ? 'Not enough trend data'
+        : (deltaPct > 0 ? 'Improving' : (deltaPct < 0 ? 'Declining' : 'Stagnant'));
+
+    final statusColor = deltaPct > 0
+        ? AppColors.successColor
+        : (deltaPct < 0 ? AppColors.dangerColor : AppColors.infoColor);
+
+    final deltaText = !hasEnoughTrend || deltaPct == 0 ? '' : '${deltaPct > 0 ? '+' : '-'}${deltaPct.abs()}%';
+
+    return _buildSectionCard(
+      title: 'Manager Growth',
+      showHeader: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$status${deltaText.isNotEmpty ? ' $deltaText' : ''}',
+            style: AppTypography.heading4.copyWith(
+              color: statusColor,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Based on average goal completion across managers.',
+            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2531,10 +2721,14 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildTeamProgressTrendSection(_TrendSeries series) {
+  Widget _buildTeamProgressTrendSection(
+    _TrendSeries series, {
+    bool showHeader = true,
+  }) {
     if (series.points.isEmpty) {
       return _buildSectionCard(
         title: 'Team Progress Trend',
+        showHeader: showHeader,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Text(
@@ -2548,6 +2742,7 @@ class _ManagerProgressVisualsContentState
     }
     return _buildSectionCard(
       title: 'Team Progress Trend',
+      showHeader: showHeader,
       child: SizedBox(
         height: 180,
         width: double.infinity,
@@ -2917,6 +3112,7 @@ class _ManagerProgressVisualsContentState
     Map<String, int> goalStatusCounts,
     List<int> engagementByDay,
     TeamMetrics metrics,
+    {bool showHeaders = true}
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2926,23 +3122,33 @@ class _ManagerProgressVisualsContentState
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildGoalStatusDonut(goalStatusCounts),
+                  _buildGoalStatusDonut(
+                    goalStatusCounts,
+                    showHeader: showHeaders,
+                  ),
                   const SizedBox(height: AppSpacing.lg),
                   _buildTeamEngagementChart(
                     engagementByDay,
                     metrics.totalEmployees,
+                    showHeader: showHeaders,
                   ),
                 ],
               )
             : Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: _buildGoalStatusDonut(goalStatusCounts)),
+                  Expanded(
+                    child: _buildGoalStatusDonut(
+                      goalStatusCounts,
+                      showHeader: showHeaders,
+                    ),
+                  ),
                   const SizedBox(width: AppSpacing.lg),
                   Expanded(
                     child: _buildTeamEngagementChart(
                       engagementByDay,
                       metrics.totalEmployees,
+                      showHeader: showHeaders,
                     ),
                   ),
                 ],
@@ -2951,11 +3157,15 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildGoalStatusDonut(Map<String, int> counts) {
+  Widget _buildGoalStatusDonut(
+    Map<String, int> counts, {
+    bool showHeader = true,
+  }) {
     final total = counts['completed']! + counts['onTrack']! + counts['atRisk']! + counts['overdue']!;
     if (total == 0) {
       return _buildSectionCard(
         title: 'Goal Status',
+        showHeader: showHeader,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Center(
@@ -2982,6 +3192,7 @@ class _ManagerProgressVisualsContentState
 
     return _buildSectionCard(
       title: 'Goal Status',
+      showHeader: showHeader,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Row(
@@ -3032,6 +3243,7 @@ class _ManagerProgressVisualsContentState
   Widget _buildTeamEngagementChart(
     List<int> engagementByDay,
     int totalEmployees,
+    {bool showHeader = true}
   ) {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
     final maxVal = engagementByDay.isEmpty ? 1 : engagementByDay.reduce((a, b) => a > b ? a : b);
@@ -3041,6 +3253,7 @@ class _ManagerProgressVisualsContentState
       title: _isAdminManagerView
           ? 'Manager Engagement (Active Managers)'
           : 'Team Engagement (Active Members)',
+      showHeader: showHeader,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.lg),
         child: Column(
@@ -3090,7 +3303,10 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildTeamPerformanceRankingSection(List<EmployeeData> employees) {
+  Widget _buildTeamPerformanceRankingSection(
+    List<EmployeeData> employees, {
+    bool showHeader = true,
+  }) {
     final sorted = List<EmployeeData>.from(employees)
       ..sort((a, b) => _averageProgressForEmployee(b).compareTo(_averageProgressForEmployee(a)));
     final bool showAll = _rankingDisplayMode == 'all';
@@ -3101,6 +3317,7 @@ class _ManagerProgressVisualsContentState
       title: _isAdminManagerView
           ? 'Manager Performance Ranking'
           : 'Team Performance Ranking',
+      showHeader: showHeader,
       child: sorted.isEmpty
           ? Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
@@ -3255,6 +3472,8 @@ class _ManagerProgressVisualsContentState
     required List<int> engagementByDay,
     required List<_CategoryProgressItem> categoryProgress,
     required List<double> trendPoints,
+    bool includeTrendSummary = true,
+    bool showHeader = true,
   }) {
     final trendDelta = _calculateTrendDeltaPercent(trendPoints);
     final trendDirection = trendDelta > 0
@@ -3285,32 +3504,34 @@ class _ManagerProgressVisualsContentState
       title: 'Smart Insight',
       icon: Icons.auto_awesome,
       iconColor: AppColors.infoColor,
+      showHeader: showHeader,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.successColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.successColor.withValues(alpha: 0.35)),
-            ),
-            child: Text(
-              trendDirection == 'stayed flat'
-                  ? (_isAdminManagerView
-                        ? 'Manager progress stayed flat this month.'
-                        : 'Team progress stayed flat this month.')
-                  : (_isAdminManagerView
-                        ? 'Manager progress $trendDirection by ${trendDelta.abs()}% this month.'
-                        : 'Team progress $trendDirection by ${trendDelta.abs()}% this month.'),
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
+          if (includeTrendSummary)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.successColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.successColor.withValues(alpha: 0.35)),
+              ),
+              child: Text(
+                trendDirection == 'stayed flat'
+                    ? (_isAdminManagerView
+                          ? 'Manager progress stayed flat this month.'
+                          : 'Team progress stayed flat this month.')
+                    : (_isAdminManagerView
+                          ? 'Manager progress $trendDirection by ${trendDelta.abs()}% this month.'
+                          : 'Team progress $trendDirection by ${trendDelta.abs()}% this month.'),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
+          if (includeTrendSummary) const SizedBox(height: AppSpacing.md),
           Text(
             'However:',
             style: AppTypography.bodyMedium.copyWith(
@@ -3396,6 +3617,7 @@ class _ManagerProgressVisualsContentState
     Widget? child,
     IconData? icon,
     Color? iconColor,
+    bool showHeader = true,
   }) {
     return Container(
       width: double.infinity,
@@ -3408,20 +3630,21 @@ class _ManagerProgressVisualsContentState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 20, color: iconColor ?? AppColors.textSecondary),
-                const SizedBox(width: 8),
+          if (showHeader)
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20, color: iconColor ?? AppColors.textSecondary),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  title,
+                  style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+                ),
               ],
-              Text(
-                title,
-                style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
-              ),
-            ],
-          ),
+            ),
           if (child != null) ...[
-            const SizedBox(height: AppSpacing.md),
+            if (showHeader) const SizedBox(height: AppSpacing.md),
             child,
           ],
         ],
