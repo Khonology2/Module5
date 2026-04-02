@@ -988,14 +988,169 @@ class _ManagerProgressVisualsContentState
               totalActivities: summary.total,
             ),
             const SizedBox(height: AppSpacing.xl),
+            _buildAdminSectionTitle('Recent Activity Trend'),
+            _buildRecentActivityTrend(activities),
+            const SizedBox(height: AppSpacing.xl),
             _buildAdminSectionTitle(
-              'Recent Progress / Updates',
+              'Latest Actions',
               withTrailingLine: false,
             ),
-            _buildRecentManagerActionsCollapsible(activities),
+            _buildLatestActionsList(activities),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildRecentActivityTrend(List<ManagerActivity> activities) {
+    // Show a compact "last N days" trend inside the currently selected period.
+    final days = currentTimeFilter == TimeFilter.week ? 7 : 14;
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day).subtract(Duration(days: days - 1));
+
+    final counts = List<int>.filled(days, 0);
+    for (final a in activities) {
+      final dt = a.createdAt;
+      final dayStart = DateTime(dt.year, dt.month, dt.day);
+      final idx = dayStart.difference(start).inDays;
+      if (idx >= 0 && idx < days) counts[idx] += 1;
+    }
+
+    final maxVal = counts.reduce((a, b) => a > b ? a : b);
+    final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
+
+    return _buildSectionCard(
+      title: 'Recent Activity Trend',
+      showHeader: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.md,
+          horizontal: AppSpacing.lg,
+        ),
+        child: Column(
+          children: List.generate(days, (i) {
+            final day = start.add(Duration(days: i));
+            final label = '${day.month.toString().padLeft(2, '0')}/${day.day.toString().padLeft(2, '0')}';
+            final v = counts[i];
+            final w = maxBar > 0 ? (v / maxBar) : 0.0;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 44,
+                    child: Text(
+                      label,
+                      style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      height: 18,
+                      alignment: Alignment.centerLeft,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: FractionallySizedBox(
+                        widthFactor: w,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.activeColor,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    v.toString(),
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLatestActionsList(List<ManagerActivity> activities) {
+    if (activities.isEmpty) {
+      return _buildSectionCard(
+        title: 'Latest Actions',
+        showHeader: false,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Text(
+            'No actions yet in this period.',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    final visible = activities.take(5).toList(growable: false);
+    return _buildSectionCard(
+      title: 'Latest Actions',
+      showHeader: false,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          children: [
+            ...visible.map(
+              (a) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.only(top: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.activeColor,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            a.title,
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            a.description,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _formatLastActivity(a.createdAt),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
