@@ -54,6 +54,8 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   String? error;
   UserProfile? _cachedProfile;
   static UserProfile? _globalCachedProfile;
+  /// Until true, avoid picking manager vs employee branch before [RoleService] has resolved.
+  bool _roleWarmForBranch = false;
   bool get _isAdminManagerView => widget.forAdminOversight;
   String get _populationSingular => _isAdminManagerView ? 'Manager' : 'Employee';
   String get _populationPlural => _isAdminManagerView ? 'Managers' : 'Employees';
@@ -61,8 +63,16 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   @override
   void initState() {
     super.initState();
-    // Ensure role is loaded before building
-    RoleService.instance.ensureRoleLoaded();
+    if (widget.forAdminOversight ||
+        widget.forManagerGwMenu ||
+        RoleService.instance.cachedRole != null) {
+      _roleWarmForBranch = true;
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await RoleService.instance.ensureRoleLoaded();
+        if (mounted) setState(() => _roleWarmForBranch = true);
+      });
+    }
     // Populate daily progress snapshots used by "View Trend" charts.
     // This was previously only triggered on Alerts & Nudges screen load.
     AlertService.checkAndCreateGoalAlerts();
@@ -128,6 +138,8 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
   Future<void> _loadUserData() async {
     try {
+      await RoleService.instance.ensureRoleLoaded();
+
       // Only trigger the full-screen "loading" state if we truly have nothing to render yet.
       if (mounted && _cachedProfile == null && userProfile == null) {
         setState(() {
@@ -157,6 +169,17 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
   bool get isManager => userProfile?.role == 'manager';
 
+  /// Avoids flashing employee progress visuals when the user is a manager/admin but
+  /// the profile snapshot has not caught up yet.
+  bool get _useManagerProgressVisuals {
+    if (widget.forAdminOversight) return true;
+    final r = (userProfile?.role ?? '').trim().toLowerCase();
+    if (r == 'manager' || r == 'admin') return true;
+    final cached = RoleService.instance.cachedRole?.trim().toLowerCase();
+    if (cached == 'manager' || cached == 'admin') return true;
+    return false;
+  }
+
   Stream<UserProfile?> _getUserProfileStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
@@ -171,6 +194,22 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_roleWarmForBranch) {
+      return Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+          ),
+        ),
+      );
+    }
+
     return StreamBuilder<UserProfile?>(
       stream: _getUserProfileStream(),
       initialData:
@@ -249,10 +288,13 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
             onRefresh: () async {
               setState(() {});
             },
-            child: (widget.forAdminOversight || isManager)
+            child: (_useManagerProgressVisuals)
                 ? (widget.forManagerGwMenu
                       ? EmployeeProgressVisualsContent(userProfile: userProfile!)
                       : ManagerProgressVisualsContent(
+                          key: ValueKey<String>(
+                            'pv_${userProfile!.uid}_a${widget.forAdminOversight}_m${widget.selectedManagerId ?? ''}',
+                          ),
                           userProfile: userProfile!,
                           forAdminOversight: widget.forAdminOversight,
                           selectedManagerId: widget.selectedManagerId,
@@ -662,10 +704,10 @@ class _ManagerProgressVisualsContentState
   Future<_TrendSeries>? _teamTrendFuture;
   List<EmployeeData> _lastEnrichedTeamEmployees = const [];
 
-  // In-memory caches to avoid an entry-time "blank loading" state.
-  static List<ManagerActivity> _cachedManagerActivities = const [];
-  static String _cachedTeamKey = '';
-  static List<EmployeeData> _cachedTeamEmployees = const [];
+  // Per-screen-instance caches only (static caches caused stale admin/manager flashes).
+  List<ManagerActivity> _cachedManagerActivities = const [];
+  String _cachedTeamKey = '';
+  List<EmployeeData> _cachedTeamEmployees = const [];
   bool get _isAdminManagerView => widget.forAdminOversight;
   String get _populationPlural => _isAdminManagerView ? 'Managers' : 'Employees';
 
@@ -778,8 +820,6 @@ class _ManagerProgressVisualsContentState
   Widget _buildTeamProgressView() {
     return StreamBuilder<List<EmployeeData>>(
       stream: _teamStream,
-      initialData:
-          (_cachedTeamKey == _teamStreamKey) ? _cachedTeamEmployees : null,
       builder: (context, teamSnapshot) {
         final incoming = teamSnapshot.data;
         final hasPlaceholderBatch =
@@ -870,8 +910,6 @@ class _ManagerProgressVisualsContentState
   Widget _buildSupervisionStyleMyProgressView() {
     return StreamBuilder<List<ManagerActivity>>(
       stream: _managerActivitiesStream,
-      initialData:
-          _cachedManagerActivities.isNotEmpty ? _cachedManagerActivities : null,
       builder: (context, activitySnapshot) {
         if (activitySnapshot.hasError) {
           return _buildErrorState(activitySnapshot.error.toString());
@@ -2744,7 +2782,7 @@ class _ManagerProgressVisualsContentState
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
 
-    return Stream.periodic(const Duration(seconds: 5)).asyncMap((_) async {
+    Future<List<ManagerActivity>> loadFilteredActivities() async {
       final activities = <ManagerActivity>[];
       final seenActivityIds = <String>{}; // Track to avoid duplicates
 
@@ -3110,6 +3148,18 @@ class _ManagerProgressVisualsContentState
         return !ts.isBefore(range.start) && ts.isBefore(range.endExclusive);
       }).toList(growable: false);
       return filtered;
+    }
+
+    return Stream<List<ManagerActivity>>.multi((controller) async {
+      while (!controller.isClosed) {
+        try {
+          controller.add(await loadFilteredActivities());
+        } catch (e, st) {
+          if (!controller.isClosed) controller.addError(e, st);
+        }
+        if (controller.isClosed) break;
+        await Future.delayed(const Duration(seconds: 5));
+      }
     });
   }
 
