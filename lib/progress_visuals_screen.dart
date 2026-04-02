@@ -647,6 +647,7 @@ class _ManagerProgressVisualsContentState
   TimeFilter currentTimeFilter = TimeFilter.month;
   ProgressViewType currentViewType = ProgressViewType.myProgress;
   String _rankingDisplayMode = 'top3';
+  String _adminWeeklyPatternMode = 'bars'; // 'bars' | 'heatmap'
   bool _hasAppliedDefaultView = false;
   // Keep a stable focus anchor so we don't leave focus on a disposed widget
   // when swapping between "Team" and "My Progress" subtrees (web can crash on this).
@@ -986,7 +987,10 @@ class _ManagerProgressVisualsContentState
             ),
             const SizedBox(height: AppSpacing.xl),
             _buildAdminSectionTitle('My Weekly Activity Pattern'),
-            _buildMyWeeklyPatternWeekdayBars(byDay: byDay),
+            _buildMyWeeklyPatternSection(
+              activities: activities,
+              byDay: byDay,
+            ),
             const SizedBox(height: AppSpacing.xl),
             _buildAdminSectionTitle('Recent Activity Trend'),
             _buildRecentActivityTrend(activities),
@@ -1399,6 +1403,224 @@ class _ManagerProgressVisualsContentState
               ),
             );
           }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMyWeeklyPatternSection({
+    required List<ManagerActivity> activities,
+    required List<int> byDay,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _patternModeChip(
+                  label: 'Bars',
+                  value: 'bars',
+                ),
+                _patternModeChip(
+                  label: 'Heatmap',
+                  value: 'heatmap',
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _adminWeeklyPatternMode == 'heatmap'
+            ? _buildMyWeeklyPatternHeatmap(activities: activities)
+            : _buildMyWeeklyPatternWeekdayBars(byDay: byDay),
+      ],
+    );
+  }
+
+  Widget _patternModeChip({
+    required String label,
+    required String value,
+  }) {
+    final selected = _adminWeeklyPatternMode == value;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _adminWeeklyPatternMode = value;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.activeColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.bodySmall.copyWith(
+            color: selected ? Colors.white : AppColors.textPrimary,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMyWeeklyPatternHeatmap({
+    required List<ManagerActivity> activities,
+  }) {
+    // Mon–Fri rows, hour-block columns (9am–4pm).
+    const rowLabels = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    const hourLabels = <String>[
+      '9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm',
+    ];
+    const startHour = 9;
+    const endHourInclusive = 16; // 4pm
+    const cols = 8;
+
+    final grid = List<List<int>>.generate(5, (_) => List<int>.filled(cols, 0));
+    for (final a in activities) {
+      final dt = a.createdAt;
+      final weekday = dt.weekday; // 1..7
+      if (weekday < 1 || weekday > 5) continue; // Mon–Fri only
+      final hour = dt.hour;
+      if (hour < startHour || hour > endHourInclusive) continue;
+      final col = hour - startHour;
+      if (col < 0 || col >= cols) continue;
+      grid[weekday - 1][col] += 1;
+    }
+
+    int maxVal = 0;
+    for (final row in grid) {
+      for (final v in row) {
+        if (v > maxVal) maxVal = v;
+      }
+    }
+    final maxD = maxVal < 1 ? 1.0 : maxVal.toDouble();
+
+    Color cellColor(int v) {
+      if (v <= 0) return Colors.white.withValues(alpha: 0.05);
+      final t = (v / maxD).clamp(0.0, 1.0);
+      // Stronger contrast at mid/high values.
+      final alpha = 0.18 + (t * 0.62);
+      return AppColors.activeColor.withValues(alpha: alpha);
+    }
+
+    return _buildSectionCard(
+      title: 'My Weekly Activity Pattern',
+      showHeader: false,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Column labels
+            Row(
+              children: [
+                const SizedBox(width: 44),
+                ...List.generate(cols, (i) {
+                  return Expanded(
+                    child: Center(
+                      child: Text(
+                        hourLabels[i],
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Grid
+            ...List.generate(5, (r) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 44,
+                      child: Text(
+                        rowLabels[r],
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    ...List.generate(cols, (c) {
+                      final v = grid[r][c];
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: Container(
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: cellColor(v),
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.08),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 10),
+            // Legend
+            Row(
+              children: [
+                Text(
+                  'Key:',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ...List.generate(5, (i) {
+                  final t = i / 4;
+                  final alpha = 0.05 + (t * 0.75);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Container(
+                      width: 18,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: AppColors.activeColor.withValues(alpha: alpha),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+                const Spacer(),
+                Text(
+                  maxVal > 0 ? 'Max $maxVal' : 'No data',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
