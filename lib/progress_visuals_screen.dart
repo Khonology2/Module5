@@ -979,23 +979,17 @@ class _ManagerProgressVisualsContentState
               summary.meetings,
             ),
             const SizedBox(height: AppSpacing.xl),
-            _buildAdminSectionTitle('My Activity Breakdown'),
-            _buildMyActivityTypeDonut(summary),
+            _buildAdminSectionTitle('My Activity Breakdown & Log'),
+            _buildMyBreakdownAndLog(
+              summary: summary,
+              activities: activities,
+            ),
             const SizedBox(height: AppSpacing.xl),
             _buildAdminSectionTitle('My Weekly Activity Pattern'),
-            _buildMyActivityByDayChart(
-              byDay: byDay,
-              totalActivities: summary.total,
-            ),
+            _buildMyWeeklyPatternWeekdayBars(byDay: byDay),
             const SizedBox(height: AppSpacing.xl),
             _buildAdminSectionTitle('Recent Activity Trend'),
             _buildRecentActivityTrend(activities),
-            const SizedBox(height: AppSpacing.xl),
-            _buildAdminSectionTitle(
-              'Latest Actions',
-              withTrailingLine: false,
-            ),
-            _buildLatestActionsList(activities),
           ],
         );
       },
@@ -1149,6 +1143,262 @@ class _ManagerProgressVisualsContentState
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMyBreakdownAndLog({
+    required _ManagerActivitySummary summary,
+    required List<ManagerActivity> activities,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 820;
+
+        final donut = _buildMyActivityTypeDonut(summary);
+        final log = _buildCuratedCategorizedLog(activities);
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              donut,
+              const SizedBox(height: AppSpacing.lg),
+              log,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: donut),
+            const SizedBox(width: AppSpacing.lg),
+            Expanded(child: log),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCuratedCategorizedLog(List<ManagerActivity> activities) {
+    if (activities.isEmpty) {
+      return _buildSectionCard(
+        title: 'Curated log',
+        showHeader: false,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Text(
+            'No actions yet in this period.',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    final visible = activities.take(6).toList(growable: false);
+
+    return _buildSectionCard(
+      title: 'Curated log',
+      showHeader: false,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Curated, categorized log',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ...visible.map(
+              (a) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      size: 18,
+                      color: AppColors.successColor.withValues(alpha: 0.9),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _adminLogPrimaryText(a),
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: _adminLogTags(a),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _formatLastActivity(a.createdAt),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _adminLogPrimaryText(ManagerActivity a) {
+    final who = (a.employeeName ?? '').trim();
+    switch (a.type) {
+      case ManagerActivityType.approval:
+        return who.isNotEmpty ? 'Approved goal for $who' : 'Approved a goal';
+      case ManagerActivityType.nudge:
+        return who.isNotEmpty ? 'Sent nudge to $who' : 'Sent a nudge';
+      case ManagerActivityType.replan:
+        return who.isNotEmpty
+            ? 'Helped $who replan a goal'
+            : 'Helped replan a goal';
+      case ManagerActivityType.meeting:
+        return who.isNotEmpty ? 'Scheduled 1:1 with $who' : 'Scheduled a 1:1';
+      case ManagerActivityType.checkIn:
+        return 'Completed a check-in';
+    }
+  }
+
+  List<Widget> _adminLogTags(ManagerActivity a) {
+    final typeLabel = switch (a.type) {
+      ManagerActivityType.approval => 'Approval',
+      ManagerActivityType.nudge => 'Nudge',
+      ManagerActivityType.replan => 'Replan',
+      ManagerActivityType.meeting => 'Meeting',
+      ManagerActivityType.checkIn => 'Check-in',
+    };
+
+    final typeColor = switch (a.type) {
+      ManagerActivityType.approval => AppColors.successColor,
+      ManagerActivityType.nudge => AppColors.infoColor,
+      ManagerActivityType.replan => AppColors.warningColor,
+      ManagerActivityType.meeting => AppColors.activeColor,
+      ManagerActivityType.checkIn => AppColors.textSecondary,
+    };
+
+    final tags = <Widget>[
+      _pillTag(typeLabel, typeColor),
+    ];
+
+    final details = a.metadata ?? const <String, dynamic>{};
+    final rawKpa =
+        (details['kpa'] ?? details['area'] ?? details['domain'])?.toString();
+    if (rawKpa != null && rawKpa.trim().isNotEmpty) {
+      tags.add(_pillTag(rawKpa.trim(), AppColors.textSecondary));
+    }
+
+    if (!a.isCompleted) {
+      tags.add(_pillTag('Pending', AppColors.warningColor));
+    }
+
+    return tags;
+  }
+
+  Widget _pillTag(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.bodySmall.copyWith(
+          color: color == AppColors.textSecondary ? AppColors.textSecondary : color,
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMyWeeklyPatternWeekdayBars({required List<int> byDay}) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    final safe = byDay.length >= 5
+        ? byDay
+        : (List<int>.from(byDay)..addAll(List<int>.filled(5 - byDay.length, 0)));
+    final maxVal = safe.reduce((a, b) => a > b ? a : b);
+    final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
+
+    return _buildSectionCard(
+      title: 'My Weekly Activity Pattern',
+      showHeader: false,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: List.generate(5, (i) {
+            final v = safe[i];
+            final h = (v / maxBar).clamp(0.0, 1.0);
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: i == 4 ? 0 : 10),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      v.toString(),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 84,
+                      alignment: Alignment.bottomCenter,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                      ),
+                      child: FractionallySizedBox(
+                        heightFactor: h,
+                        widthFactor: 1,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.activeColor.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      days[i],
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
         ),
       ),
     );
