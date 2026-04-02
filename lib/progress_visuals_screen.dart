@@ -968,6 +968,8 @@ class _ManagerProgressVisualsContentState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildAdminSeparator(),
+            _buildMyProgressActivityFilters(),
+            const SizedBox(height: AppSpacing.lg),
             _buildAdminSectionTitle('My Activity Summary'),
             _buildManagerProgressMetrics(
               summary.total,
@@ -1856,6 +1858,60 @@ class _ManagerProgressVisualsContentState
     });
   }
 
+  Widget _buildMyProgressActivityFilters() {
+    return Wrap(
+      spacing: AppSpacing.md,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<TimeFilter>(
+              value: currentTimeFilter,
+              isExpanded: false,
+              dropdownColor: AppColors.backgroundColor,
+              icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+              items: TimeFilter.values
+                  .where((t) => t != TimeFilter.today && t != TimeFilter.year)
+                  .map(
+                    (t) => DropdownMenuItem<TimeFilter>(
+                      value: t,
+                      child: Text(
+                        t.name[0].toUpperCase() + t.name.substring(1),
+                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() {
+                  currentTimeFilter = v;
+                  // Clear cached activities so UI doesn't show stale period counts
+                  // while the periodic stream fetches the next batch.
+                  _cachedManagerActivities = const [];
+                  // Keep team stream in sync for when the user switches to Team view.
+                  _rebuildTeamStream();
+                });
+              },
+            ),
+          ),
+        ),
+        Text(
+          'Showing: ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)}',
+          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+        ),
+      ],
+    );
+  }
+
   _ManagerActivitySummary _summarizeManagerActivities(
     List<ManagerActivity> activities,
   ) {
@@ -2551,7 +2607,14 @@ class _ManagerProgressVisualsContentState
         developer.log('Error fetching manager activities: $e');
       }
 
-      return activities;
+      // Apply the currently selected time filter so "My Progress" analytics
+      // (summary + weekly pattern) reflect the same period.
+      final range = _currentPeriodRange(currentTimeFilter);
+      final filtered = activities.where((a) {
+        final ts = a.createdAt;
+        return !ts.isBefore(range.start) && ts.isBefore(range.endExclusive);
+      }).toList(growable: false);
+      return filtered;
     });
   }
 
