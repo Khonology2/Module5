@@ -988,12 +988,10 @@ class _ManagerProgressVisualsContentState
                   showHeader: false,
                 ),
                 const SizedBox(height: AppSpacing.xl),
-                _buildAdminGoalStatusEngagementHeaders(),
-                _buildGoalStatusAndEngagementRow(
-                  goalStatusCounts,
-                  engagementByDay,
-                  metrics,
-                  showHeaders: false,
+                _buildAdminGoalStatusAndEngagementSection(
+                  goalStatusCounts: goalStatusCounts,
+                  engagementByDay: engagementByDay,
+                  metrics: metrics,
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 _buildAdminSectionTitle('Manager Ranking'),
@@ -1056,43 +1054,121 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildAdminGoalStatusEngagementHeaders() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Manager Goal Status',
-          style: AppTypography.heading4.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          'Manager Engagement',
-          style: AppTypography.heading4.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        _buildAdminSeparator(),
-      ],
+  Widget _buildAdminGoalStatusAndEngagementSection({
+    required Map<String, int> goalStatusCounts,
+    required List<int> engagementByDay,
+    required TeamMetrics metrics,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final isNarrow = width < 600;
+
+        final goalStatusBlock = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Manager Goal Status',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _buildGoalStatusDonut(
+              goalStatusCounts,
+              showHeader: false,
+            ),
+          ],
+        );
+
+        final engagementBlock = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Manager Engagement',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _buildTeamEngagementChart(
+              engagementByDay,
+              metrics.totalEmployees,
+              showHeader: false,
+            ),
+          ],
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildAdminSeparator(),
+            if (isNarrow) ...[
+              goalStatusBlock,
+              const SizedBox(height: AppSpacing.xl),
+              engagementBlock,
+            ] else ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: goalStatusBlock),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(child: engagementBlock),
+                ],
+              ),
+            ],
+            const SizedBox(height: AppSpacing.sm),
+            _buildAdminSeparator(),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildManagerGrowthIndicator(List<double> trendPoints) {
-    final deltaPct = _calculateTrendDeltaPercent(trendPoints);
-    final bool hasEnoughTrend = trendPoints.length >= 2;
+    final bool hasEnoughTrend = trendPoints.length >= 3;
 
-    final status = !hasEnoughTrend
+    double? slope;
+    if (hasEnoughTrend) {
+      // Least squares slope over the whole series (x=0..n-1, y=progress).
+      final n = trendPoints.length;
+      double sumX = 0;
+      double sumY = 0;
+      double sumXY = 0;
+      double sumXX = 0;
+      for (int i = 0; i < n; i++) {
+        final x = i.toDouble();
+        final y = trendPoints[i];
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumXX += x * x;
+      }
+      final denom = (n * sumXX) - (sumX * sumX);
+      if (denom.abs() > 0.00001) {
+        slope = ((n * sumXY) - (sumX * sumY)) / denom;
+      }
+    }
+
+    // Threshold is in "progress points per bucket" (bucket = chart step).
+    const stagnantThreshold = 0.35;
+    final status = !hasEnoughTrend || slope == null
         ? 'Not enough trend data'
-        : (deltaPct > 0 ? 'Improving' : (deltaPct < 0 ? 'Declining' : 'Stagnant'));
+        : (slope > stagnantThreshold
+              ? 'Improving'
+              : (slope < -stagnantThreshold ? 'Declining' : 'Stagnant'));
 
-    final statusColor = deltaPct > 0
-        ? AppColors.successColor
-        : (deltaPct < 0 ? AppColors.dangerColor : AppColors.infoColor);
+    final statusColor = !hasEnoughTrend || slope == null
+        ? AppColors.textSecondary
+        : (status == 'Improving'
+              ? AppColors.successColor
+              : (status == 'Declining' ? AppColors.dangerColor : AppColors.infoColor));
 
-    final deltaText = !hasEnoughTrend || deltaPct == 0 ? '' : '${deltaPct > 0 ? '+' : '-'}${deltaPct.abs()}%';
+    final slopeText = !hasEnoughTrend || slope == null
+        ? ''
+        : '(${slope >= 0 ? '+' : ''}${slope.toStringAsFixed(2)} pts/step)';
 
     return _buildSectionCard(
       title: 'Manager Growth',
@@ -1101,7 +1177,7 @@ class _ManagerProgressVisualsContentState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$status${deltaText.isNotEmpty ? ' $deltaText' : ''}',
+            '$status${slopeText.isNotEmpty ? ' $slopeText' : ''}',
             style: AppTypography.heading4.copyWith(
               color: statusColor,
               fontWeight: FontWeight.w900,
@@ -3170,7 +3246,7 @@ class _ManagerProgressVisualsContentState
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Center(
             child: Text(
-              'No goals in this period',
+              _isAdminManagerView ? 'No manager goals in this period' : 'No goals in this period',
               style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
             ),
           ),
