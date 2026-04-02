@@ -862,83 +862,12 @@ class _ManagerProgressVisualsContentState
   }
 
   Widget _buildMyProgressView() {
-    if (_isAdminManagerView) {
-      return _buildAdminSupervisionMyProgressView();
-    }
-    return StreamBuilder<List<ManagerActivity>>(
-      stream: _managerActivitiesStream,
-      initialData: _cachedManagerActivities.isNotEmpty
-          ? _cachedManagerActivities
-          : null,
-      builder: (context, activitySnapshot) {
-        if (activitySnapshot.hasError) {
-          return _buildErrorState(activitySnapshot.error.toString());
-        }
-
-        final activities = activitySnapshot.data ?? [];
-        if (activities.isNotEmpty) {
-          _cachedManagerActivities = activities;
-        }
-
-        // If we don't have any cached activities yet, show skeleton cards rather than
-        // blocking the entire screen with a spinner.
-        final isStillLoading =
-            (activitySnapshot.connectionState == ConnectionState.waiting ||
-                activitySnapshot.connectionState == ConnectionState.none) &&
-            _cachedManagerActivities.isEmpty &&
-            activities.isEmpty;
-        if (isStillLoading) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildMyProgressActivityFilters(),
-              const SizedBox(height: AppSpacing.lg),
-              _buildManagerProgressMetricsLoading(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildManagerBadgesSummary(),
-            ],
-          );
-        }
-
-        if (activities.isEmpty) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildMyProgressActivityFilters(),
-              const SizedBox(height: AppSpacing.lg),
-              _buildNoManagerActivitiesState(),
-              const SizedBox(height: AppSpacing.lg),
-              _buildManagerBadgesSummary(),
-            ],
-          );
-        }
-
-        final summary = _summarizeManagerActivities(activities);
-        _maybeEvaluateManagerBadges();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildMyProgressActivityFilters(),
-            const SizedBox(height: AppSpacing.lg),
-            _buildManagerProgressMetrics(
-              summary.total,
-              summary.nudges,
-              summary.approvals,
-              summary.replans,
-              summary.meetings,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            _buildManagerBadgesSummary(),
-            const SizedBox(height: AppSpacing.xl),
-            _buildRecentManagerActionsCollapsible(activities),
-          ],
-        );
-      },
-    );
+    return _buildSupervisionStyleMyProgressView();
   }
 
-  Widget _buildAdminSupervisionMyProgressView() {
+  /// Activity dashboard shared by managers and admin oversight (same layout).
+  /// Data always comes from [_managerActivitiesStream] for the signed-in user.
+  Widget _buildSupervisionStyleMyProgressView() {
     return StreamBuilder<List<ManagerActivity>>(
       stream: _managerActivitiesStream,
       initialData:
@@ -956,17 +885,25 @@ class _ManagerProgressVisualsContentState
         final isStillLoading =
             (activitySnapshot.connectionState == ConnectionState.waiting ||
                 activitySnapshot.connectionState == ConnectionState.none) &&
-                _cachedManagerActivities.isEmpty &&
-                activities.isEmpty;
+            _cachedManagerActivities.isEmpty &&
+            activities.isEmpty;
 
         if (isStillLoading) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildAdminSeparator(),
+              _buildMyProgressActivityFilters(),
+              const SizedBox(height: AppSpacing.lg),
               _buildManagerProgressMetricsLoading(),
               const SizedBox(height: AppSpacing.xl),
+              if (!_isAdminManagerView) _buildManagerBadgesSummary(),
             ],
           );
+        }
+
+        if (activities.isNotEmpty) {
+          _maybeEvaluateManagerBadges();
         }
 
         final summary = _summarizeManagerActivities(activities);
@@ -1001,6 +938,10 @@ class _ManagerProgressVisualsContentState
             const SizedBox(height: AppSpacing.xl),
             _buildAdminSectionTitle('Recent Activity Trend'),
             _buildRecentActivityTrend(activities),
+            if (!_isAdminManagerView) ...[
+              const SizedBox(height: AppSpacing.xl),
+              _buildManagerBadgesSummary(),
+            ],
           ],
         );
       },
@@ -1077,83 +1018,6 @@ class _ManagerProgressVisualsContentState
               ),
             );
           }),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLatestActionsList(List<ManagerActivity> activities) {
-    if (activities.isEmpty) {
-      return _buildSectionCard(
-        title: 'Latest Actions',
-        showHeader: false,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Text(
-            'No actions yet in this period.',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-          ),
-        ),
-      );
-    }
-
-    final visible = activities.take(5).toList(growable: false);
-    return _buildSectionCard(
-      title: 'Latest Actions',
-      showHeader: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          children: [
-            ...visible.map(
-              (a) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.only(top: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.activeColor,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            a.title,
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            a.description,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      _formatLastActivity(a.createdAt),
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -2471,90 +2335,6 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildRecentManagerActionsCollapsible(
-    List<ManagerActivity> activities,
-  ) {
-    final visible = activities.take(8).toList();
-    final remaining = (activities.length - visible.length).clamp(0, 999999);
-
-    final subtitleText = activities.isEmpty
-        ? 'No actions yet'
-        : 'Tap to view your most recent actions (${visible.length} of ${activities.length})';
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          dividerColor: Colors.transparent,
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-        ),
-        child: ExpansionTile(
-          key: const PageStorageKey<String>('recent_manager_actions'),
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          iconColor: AppColors.activeColor,
-          collapsedIconColor: AppColors.activeColor,
-          title: Text(
-            'Recent manager actions',
-            style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
-          subtitle: Text(
-            subtitleText,
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          children: [
-            const SizedBox(height: AppSpacing.sm),
-            ...visible.map(
-              (activity) => Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: _buildManagerActivityCard(activity),
-              ),
-            ),
-            if (remaining > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.xs),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '+$remaining more actions',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.activeColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pushReplacementNamed(
-                          context,
-                          '/manager_review_team_dashboard',
-                        );
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.activeColor,
-                      ),
-                      child: const Text('View all'),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _maybeEvaluateManagerBadges() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -3461,176 +3241,6 @@ class _ManagerProgressVisualsContentState
         ],
       ],
     );
-  }
-
-  Widget _buildManagerActivityCard(ManagerActivity activity) {
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
-    IconData typeIcon;
-
-    // Determine color and icon based on activity type
-    switch (activity.type) {
-      case ManagerActivityType.nudge:
-        statusColor = AppColors.infoColor;
-        typeIcon = Icons.send;
-        break;
-      case ManagerActivityType.approval:
-        statusColor = AppColors.successColor;
-        typeIcon = Icons.check_circle;
-        break;
-      case ManagerActivityType.replan:
-        statusColor = AppColors.warningColor;
-        typeIcon = Icons.update;
-        break;
-      case ManagerActivityType.meeting:
-        statusColor = AppColors.activeColor;
-        typeIcon = Icons.calendar_today;
-        break;
-      case ManagerActivityType.checkIn:
-        statusColor = AppColors.activeColor;
-        typeIcon = Icons.person_search;
-        break;
-    }
-
-    if (activity.isCompleted) {
-      statusIcon = Icons.check_circle;
-      statusText = 'Completed';
-    } else if (activity.scheduledFor != null) {
-      statusIcon = Icons.schedule;
-      statusText = 'Scheduled';
-    } else {
-      statusIcon = Icons.pending;
-      statusText = 'Pending';
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(typeIcon, color: statusColor, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      activity.title,
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (activity.employeeName != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'With: ${activity.employeeName}',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(statusIcon, color: statusColor, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      statusText,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (activity.description.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              activity.description,
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.access_time, size: 14, color: AppColors.textSecondary),
-              const SizedBox(width: 4),
-              Text(
-                activity.isCompleted
-                    ? 'Completed: ${_formatDate(activity.createdAt)}'
-                    : activity.scheduledFor != null
-                    ? 'Scheduled: ${_formatDate(activity.scheduledFor!)}'
-                    : 'Created: ${_formatDate(activity.createdAt)}',
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNoManagerActivitiesState() {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        children: [
-          Icon(Icons.work_outline, size: 64, color: AppColors.textSecondary),
-          const SizedBox(height: 16),
-          Text(
-            'No activities yet',
-            style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Start managing your team by sending nudges, approving goals, and helping with replans',
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
   }
 
   Map<String, dynamic> _calculateNudgeAnalytics(List<EmployeeData> employees) {
