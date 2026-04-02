@@ -644,7 +644,8 @@ class _InteractiveTeamTrendChartState extends State<_InteractiveTeamTrendChart> 
 
 class _ManagerProgressVisualsContentState
     extends State<ManagerProgressVisualsContent> {
-  TimeFilter currentTimeFilter = TimeFilter.month;
+  /// Same default as admin oversight: rolling last 7 days (see [_currentPeriodRange]).
+  TimeFilter currentTimeFilter = TimeFilter.week;
   ProgressViewType currentViewType = ProgressViewType.myProgress;
   String _rankingDisplayMode = 'top3';
   String _adminWeeklyPatternMode = 'bars'; // 'bars' | 'heatmap'
@@ -672,10 +673,6 @@ class _ManagerProgressVisualsContentState
   void initState() {
     super.initState();
     _ensureDefaultManagerView();
-    // Admin "My Progress" is activity analytics: default to Week (rolling last 7 days through today).
-    if (widget.forAdminOversight) {
-      currentTimeFilter = TimeFilter.week;
-    }
     // Cache the stream so expanding/collapsing UI doesn't recreate it (which causes a reload spinner).
     _managerActivitiesStream = _getManagerActivitiesStream();
     _rebuildTeamStream();
@@ -894,6 +891,8 @@ class _ManagerProgressVisualsContentState
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildMyProgressActivityFilters(),
+              const SizedBox(height: AppSpacing.lg),
               _buildManagerProgressMetricsLoading(),
               const SizedBox(height: AppSpacing.xl),
               _buildManagerBadgesSummary(),
@@ -905,6 +904,8 @@ class _ManagerProgressVisualsContentState
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildMyProgressActivityFilters(),
+              const SizedBox(height: AppSpacing.lg),
               _buildNoManagerActivitiesState(),
               const SizedBox(height: AppSpacing.lg),
               _buildManagerBadgesSummary(),
@@ -918,6 +919,8 @@ class _ManagerProgressVisualsContentState
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildMyProgressActivityFilters(),
+            const SizedBox(height: AppSpacing.lg),
             _buildManagerProgressMetrics(
               summary.total,
               summary.nudges,
@@ -1971,11 +1974,10 @@ class _ManagerProgressVisualsContentState
   }
 
   Future<_TrendSeries> _getUserTrendFuture(String uid) async {
-    final range = _historicalFilterRange(currentTimeFilter);
+    final range = _currentPeriodRange(currentTimeFilter);
     final sinceKey =
         '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
-    final untilKey =
-        '${range.endExclusive.year}-${range.endExclusive.month.toString().padLeft(2, '0')}-${range.endExclusive.day.toString().padLeft(2, '0')}';
+    final untilKey = _goalDailyProgressExclusiveUpperDateKey(range);
 
     final query = FirebaseFirestore.instance
         .collection('goal_daily_progress')
@@ -3776,7 +3778,7 @@ class _ManagerProgressVisualsContentState
 
   TeamMetrics _calculateTeamMetrics(List<EmployeeData> employees) {
     final now = DateTime.now();
-    final range = _historicalFilterRange(currentTimeFilter);
+    final range = _currentPeriodRange(currentTimeFilter);
 
     int activeCount = 0;
     int onTrackCount = 0;
@@ -3835,7 +3837,7 @@ class _ManagerProgressVisualsContentState
   }
 
   List<Goal> _goalsForCurrentFilter(EmployeeData employee) {
-    final range = _historicalFilterRange(currentTimeFilter);
+    final range = _currentPeriodRange(currentTimeFilter);
     return employee.goals
         .where((g) => !g.createdAt.isBefore(range.start))
         .where((g) => g.createdAt.isBefore(range.endExclusive))
@@ -3879,7 +3881,7 @@ class _ManagerProgressVisualsContentState
   /// Unique active employees per weekday (Mon..Fri) within the selected filter window.
   List<int> _calculateEngagementByWeekday(List<EmployeeData> employees) {
     final activeByDay = List<Set<String>>.generate(5, (_) => <String>{});
-    final range = _historicalFilterRange(currentTimeFilter);
+    final range = _currentPeriodRange(currentTimeFilter);
 
     for (final emp in employees) {
       for (final act in emp.recentActivities) {
@@ -4025,7 +4027,7 @@ class _ManagerProgressVisualsContentState
           ),
         ),
         Text(
-          'Trend: Previous ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)} + Now',
+          'Trend: ${_myProgressPeriodFilterLabel(currentTimeFilter)} + Now',
           style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
         ),
       ],
@@ -4085,44 +4087,6 @@ class _ManagerProgressVisualsContentState
     return _teamTrendFuture!;
   }
 
-  _DateRange _historicalFilterRange(TimeFilter filter) {
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    switch (filter) {
-      case TimeFilter.today:
-        return _DateRange(
-          start: todayStart,
-          endExclusive: todayStart.add(const Duration(days: 1)),
-        );
-      case TimeFilter.week:
-        // Previous full business week window (Mon -> next Mon).
-        final thisWeekStart = todayStart.subtract(Duration(days: now.weekday - 1));
-        final lastWeekStart = thisWeekStart.subtract(const Duration(days: 7));
-        return _DateRange(start: lastWeekStart, endExclusive: thisWeekStart);
-      case TimeFilter.month:
-        // Previous full month.
-        final thisMonthStart = DateTime(now.year, now.month, 1);
-        final lastMonthStart = DateTime(thisMonthStart.year, thisMonthStart.month - 1, 1);
-        return _DateRange(start: lastMonthStart, endExclusive: thisMonthStart);
-      case TimeFilter.quarter:
-        // Previous full quarter.
-        final thisQuarterStartMonth = ((now.month - 1) ~/ 3) * 3 + 1;
-        final thisQuarterStart = DateTime(now.year, thisQuarterStartMonth, 1);
-        final lastQuarterStart = DateTime(
-          thisQuarterStart.year,
-          thisQuarterStart.month - 3,
-          1,
-        );
-        return _DateRange(start: lastQuarterStart, endExclusive: thisQuarterStart);
-      case TimeFilter.year:
-        final thisYearStart = DateTime(now.year, 1, 1);
-        return _DateRange(
-          start: DateTime(now.year - 1, 1, 1),
-          endExclusive: thisYearStart,
-        );
-    }
-  }
-
   _DateRange _currentPeriodRange(TimeFilter filter) {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
@@ -4161,6 +4125,18 @@ class _ManagerProgressVisualsContentState
     }
   }
 
+  /// Upper bound for `where('date', isLessThan: …)` on `goal_daily_progress` so
+  /// `YYYY-MM-DD` values include the last calendar day of [_currentPeriodRange].
+  String _goalDailyProgressExclusiveUpperDateKey(_DateRange range) {
+    final lastInclusive = DateTime(
+      range.endExclusive.year,
+      range.endExclusive.month,
+      range.endExclusive.day,
+    );
+    final nextDay = lastInclusive.add(const Duration(days: 1));
+    return '${nextDay.year}-${nextDay.month.toString().padLeft(2, '0')}-${nextDay.day.toString().padLeft(2, '0')}';
+  }
+
   Future<_TrendSeries> _fetchTeamTrendPointsFromSnapshots(
     List<EmployeeData> employees,
   ) async {
@@ -4173,11 +4149,10 @@ class _ManagerProgressVisualsContentState
       return const _TrendSeries(points: <double>[], labels: <String>[]);
     }
 
-    final range = _historicalFilterRange(currentTimeFilter);
+    final range = _currentPeriodRange(currentTimeFilter);
     final sinceKey =
         '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
-    final untilKey =
-        '${range.endExclusive.year}-${range.endExclusive.month.toString().padLeft(2, '0')}-${range.endExclusive.day.toString().padLeft(2, '0')}';
+    final untilKey = _goalDailyProgressExclusiveUpperDateKey(range);
 
     final Map<String, List<double>> byDate = <String, List<double>>{};
 
