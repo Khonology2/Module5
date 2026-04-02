@@ -861,7 +861,7 @@ class _ManagerProgressVisualsContentState
 
   Widget _buildMyProgressView() {
     if (_isAdminManagerView) {
-      return _buildAdminMyProgressAnalyticsView();
+      return _buildAdminPersonalMyProgressView();
     }
     return StreamBuilder<List<ManagerActivity>>(
       stream: _managerActivitiesStream,
@@ -930,97 +930,435 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildAdminMyProgressAnalyticsView() {
-    return StreamBuilder<List<EmployeeData>>(
-      stream: _teamStream,
-      initialData: (_cachedTeamKey == _teamStreamKey) ? _cachedTeamEmployees : null,
-      builder: (context, teamSnapshot) {
-        final incoming = teamSnapshot.data;
-        final hasPlaceholderBatch =
-            incoming != null && incoming.isNotEmpty && incoming.every((e) => e.isPlaceholder);
+  Widget _buildAdminPersonalMyProgressView() {
+    final admin = FirebaseAuth.instance.currentUser;
+    if (admin == null) {
+      return _buildErrorState('Not signed in');
+    }
 
-        // Only treat non-placeholder emissions as "real" (placeholders have no goals/metrics).
-        if (incoming != null && incoming.isNotEmpty && !hasPlaceholderBatch) {
-          _lastEnrichedTeamEmployees = incoming;
-          _cachedTeamKey = _teamStreamKey;
-          _cachedTeamEmployees = incoming;
+    return StreamBuilder<List<Goal>>(
+      stream: _getGoalsStreamForUser(admin.uid),
+      builder: (context, goalsSnapshot) {
+        if (goalsSnapshot.hasError) {
+          return _buildErrorState(goalsSnapshot.error.toString());
         }
 
-        if (teamSnapshot.hasError) {
-          return _buildErrorState(teamSnapshot.error.toString());
-        }
+        final goals = goalsSnapshot.data ?? const <Goal>[];
+        final approvedGoals = goals
+            .where((g) => g.approvalStatus == GoalApprovalStatus.approved)
+            .toList(growable: false);
 
-        final employees = (!hasPlaceholderBatch && incoming != null)
-            ? incoming
-            : (_lastEnrichedTeamEmployees.isNotEmpty
-                ? _lastEnrichedTeamEmployees
-                : (_cachedTeamKey == _teamStreamKey
-                    ? _cachedTeamEmployees
-                    : (incoming ?? const [])));
+        final statusCounts = _calculateGoalStatusForGoals(approvedGoals);
+        final categoryProgress =
+            _calculateCategoryProgressForGoals(approvedGoals);
 
-        final noEnrichedCache = _lastEnrichedTeamEmployees.isEmpty &&
-            (_cachedTeamKey != _teamStreamKey || _cachedTeamEmployees.isEmpty);
-
-        if (employees.isEmpty || (hasPlaceholderBatch && noEnrichedCache)) {
-          return _buildTeamProgressSkeleton();
-        }
-
-        final metrics = _calculateTeamMetrics(employees);
-        final goalStatusCounts = _calculateGoalStatusDistribution(employees);
-        final engagementByDay = _calculateEngagementByWeekday(employees);
-        final categoryProgress = _calculateGoalCategoryProgress(employees);
-        final trendFuture = _getTeamTrendFuture(employees);
-
+        final trendFuture = _getUserTrendFuture(admin.uid);
         return FutureBuilder<_TrendSeries>(
           future: trendFuture,
           builder: (context, trendSnapshot) {
-            final effectiveSeries = trendSnapshot.hasError
-                ? _buildFallbackTrendFromGoals(employees)
-                : (trendSnapshot.data ?? _buildFallbackTrendFromGoals(employees));
+            final series = trendSnapshot.data ??
+                _buildFallbackUserTrendFromGoals(approvedGoals);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildAdminSeparator(),
-                _buildAdminSectionTitle('Manager Progress Trend'),
+                _buildAdminPersonalTimeFilter(),
+                const SizedBox(height: AppSpacing.lg),
+                _buildAdminSectionTitle('My Progress Trend'),
                 _buildTeamProgressTrendSection(
-                  effectiveSeries,
+                  series,
                   showHeader: false,
                 ),
                 const SizedBox(height: AppSpacing.xl),
-                _buildAdminGoalStatusAndEngagementSection(
-                  goalStatusCounts: goalStatusCounts,
-                  engagementByDay: engagementByDay,
-                  metrics: metrics,
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                _buildAdminSectionTitle('Manager Ranking'),
-                _buildTeamPerformanceRankingSection(
-                  employees,
+                _buildAdminSectionTitle('My Goal Status'),
+                _buildGoalStatusDonut(
+                  statusCounts,
                   showHeader: false,
                 ),
                 const SizedBox(height: AppSpacing.xl),
-                _buildAdminSectionTitle('Manager Growth'),
-                _buildManagerGrowthIndicator(effectiveSeries.points),
+                _buildAdminSectionTitle('Goal Category Progress'),
+                _buildGoalCategoryProgressSection(categoryProgress),
+                const SizedBox(height: AppSpacing.xl),
+                _buildAdminSectionTitle('My Activity Summary'),
+                _buildAdminActivitySummaryCard(approvedGoals),
                 const SizedBox(height: AppSpacing.xl),
                 _buildAdminSectionTitle(
-                  'Smart Insights',
+                  'Personal Insights',
                   withTrailingLine: false,
                 ),
-                _buildAiInsightPanel(
-                  metrics: metrics,
-                  goalStatusCounts: goalStatusCounts,
-                  engagementByDay: engagementByDay,
+                _buildAdminPersonalInsights(
+                  goals: approvedGoals,
+                  statusCounts: statusCounts,
                   categoryProgress: categoryProgress,
-                  trendPoints: effectiveSeries.points,
-                  includeTrendSummary: false,
-                  showHeader: false,
+                  trendPoints: series.points,
                 ),
+                const SizedBox(height: AppSpacing.xl),
+                _buildAdminSectionTitle(
+                  'Recent Progress / Updates',
+                  withTrailingLine: false,
+                ),
+                _buildRecentGoalsUpdates(approvedGoals),
               ],
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildAdminPersonalTimeFilter() {
+    return Wrap(
+      spacing: AppSpacing.md,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<TimeFilter>(
+              value: currentTimeFilter,
+              dropdownColor: AppColors.backgroundColor,
+              icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+              items: TimeFilter.values
+                  .where((t) => t != TimeFilter.today && t != TimeFilter.year)
+                  .map(
+                    (t) => DropdownMenuItem<TimeFilter>(
+                      value: t,
+                      child: Text(
+                        t.name[0].toUpperCase() + t.name.substring(1),
+                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() {
+                  currentTimeFilter = v;
+                  // Keep team stream in sync so switching back to "Team"
+                  // uses the same selected time filter.
+                  _rebuildTeamStream();
+                });
+              },
+            ),
+          ),
+        ),
+        Text(
+          'Period: ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)}',
+          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+        ),
+      ],
+    );
+  }
+
+  Stream<List<Goal>> _getGoalsStreamForUser(String uid) {
+    return FirebaseFirestore.instance
+        .collection('goals')
+        .where('userId', isEqualTo: uid)
+        .snapshots()
+        .map((snapshot) {
+          final goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return goals;
+        });
+  }
+
+  Map<String, int> _calculateGoalStatusForGoals(List<Goal> goals) {
+    final now = DateTime.now();
+    int completed = 0;
+    int onTrack = 0;
+    int atRisk = 0;
+    int overdue = 0;
+
+    for (final g in goals) {
+      final isCompleted = g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged;
+      if (isCompleted) {
+        completed++;
+        continue;
+      }
+      if (g.targetDate.isBefore(now)) {
+        overdue++;
+        continue;
+      }
+      if (g.progress >= 70) {
+        onTrack++;
+      } else if (g.progress >= 40) {
+        atRisk++;
+      } else {
+        atRisk++;
+      }
+    }
+
+    return <String, int>{
+      'completed': completed,
+      'onTrack': onTrack,
+      'atRisk': atRisk,
+      'overdue': overdue,
+    };
+  }
+
+  List<_CategoryProgressItem> _calculateCategoryProgressForGoals(List<Goal> goals) {
+    final sums = <GoalCategory, List<double>>{};
+    for (final c in GoalCategory.values) {
+      sums[c] = <double>[];
+    }
+    for (final g in goals) {
+      sums[g.category]!.add(g.progress.toDouble());
+    }
+    final labels = <GoalCategory, String>{
+      GoalCategory.personal: 'Personal',
+      GoalCategory.work: 'Work',
+      GoalCategory.health: 'Health',
+      GoalCategory.learning: 'Learning',
+    };
+    return GoalCategory.values.map((c) {
+      final values = sums[c]!;
+      final avg = values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
+      return _CategoryProgressItem(label: labels[c] ?? c.name, progress: avg.clamp(0.0, 100.0));
+    }).toList(growable: false);
+  }
+
+  Future<_TrendSeries> _getUserTrendFuture(String uid) async {
+    final range = _historicalFilterRange(currentTimeFilter);
+    final sinceKey =
+        '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
+    final untilKey =
+        '${range.endExclusive.year}-${range.endExclusive.month.toString().padLeft(2, '0')}-${range.endExclusive.day.toString().padLeft(2, '0')}';
+
+    final query = FirebaseFirestore.instance
+        .collection('goal_daily_progress')
+        .where('userId', isEqualTo: uid)
+        .where('date', isGreaterThanOrEqualTo: sinceKey)
+        .where('date', isLessThan: untilKey)
+        .limit(2000);
+
+    final snapshot = await query.get();
+    final Map<String, List<double>> byDate = <String, List<double>>{};
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final dateKey = (data['date'] ?? '').toString();
+      if (dateKey.isEmpty) continue;
+      final progress = (data['progress'] as num?)?.toDouble();
+      if (progress == null) continue;
+      byDate.putIfAbsent(dateKey, () => <double>[]).add(progress.clamp(0.0, 100.0));
+    }
+
+    if (byDate.isEmpty) {
+      return const _TrendSeries(points: <double>[], labels: <String>[]);
+    }
+
+    final dates = byDate.keys.toList()..sort();
+    final dailySeries = dates.map((d) {
+      final values = byDate[d]!;
+      final sum = values.fold<double>(0, (a, b) => a + b);
+      return MapEntry(d, (sum / values.length).clamp(0.0, 100.0));
+    }).toList(growable: false);
+
+    switch (currentTimeFilter) {
+      case TimeFilter.week:
+        return _buildWeeklySeries(dailySeries);
+      case TimeFilter.month:
+        return _buildMonthlySeries(dailySeries);
+      case TimeFilter.quarter:
+        return _buildQuarterlySeries(dailySeries);
+      case TimeFilter.year:
+        return _buildYearlySeries(dailySeries);
+      case TimeFilter.today:
+        return _TrendSeries(
+          points: dailySeries.map((e) => e.value).toList(growable: false),
+          labels: dailySeries.map((e) => e.key.substring(5)).toList(growable: false),
+        );
+    }
+  }
+
+  _TrendSeries _buildFallbackUserTrendFromGoals(List<Goal> goals) {
+    final avg = goals.isEmpty
+        ? 0.0
+        : goals.map((g) => g.progress).fold<double>(0, (a, b) => a + b) / goals.length;
+    final points = currentTimeFilter == TimeFilter.week
+        ? <double>[
+            (avg * 0.88).clamp(0.0, 100.0),
+            (avg * 0.92).clamp(0.0, 100.0),
+            (avg * 0.96).clamp(0.0, 100.0),
+            (avg * 0.98).clamp(0.0, 100.0),
+            avg.clamp(0.0, 100.0),
+          ]
+        : <double>[
+            (avg * 0.72).clamp(0.0, 100.0),
+            (avg * 0.81).clamp(0.0, 100.0),
+            (avg * 0.88).clamp(0.0, 100.0),
+            avg.clamp(0.0, 100.0),
+          ];
+    final labels = _fallbackLabelsForFilter(points.length);
+    return _TrendSeries(points: points, labels: labels);
+  }
+
+  Widget _buildAdminActivitySummaryCard(List<Goal> goals) {
+    final now = DateTime.now();
+    final overdue = goals.where((g) => g.status != GoalStatus.completed && g.targetDate.isBefore(now)).length;
+    final completed = goals.where((g) => g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged).length;
+    final active = goals.where((g) => g.status != GoalStatus.completed && g.status != GoalStatus.acknowledged).length;
+    final avg = goals.isEmpty ? 0.0 : goals.map((g) => g.progress).fold<double>(0, (a, b) => a + b) / goals.length;
+
+    return _buildSectionCard(
+      title: 'My Activity Summary',
+      showHeader: false,
+      child: goals.isEmpty
+          ? Text(
+              'No personal goals found. Admins typically monitor manager goals using the Team view.',
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Active Goals',
+                    value: active.toString(),
+                    icon: Icons.track_changes,
+                    color: AppColors.activeColor,
+                    subtitle: 'In progress',
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Completed',
+                    value: completed.toString(),
+                    icon: Icons.check_circle_outline,
+                    color: AppColors.successColor,
+                    subtitle: 'Achieved',
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Overdue',
+                    value: overdue.toString(),
+                    icon: Icons.warning_amber_rounded,
+                    color: AppColors.dangerColor,
+                    subtitle: 'Needs attention',
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Average',
+                    value: '${avg.toStringAsFixed(0)}%',
+                    icon: Icons.trending_up,
+                    color: avg >= 70
+                        ? AppColors.successColor
+                        : avg >= 40
+                            ? AppColors.warningColor
+                            : AppColors.dangerColor,
+                    subtitle: 'Progress',
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildAdminPersonalInsights({
+    required List<Goal> goals,
+    required Map<String, int> statusCounts,
+    required List<_CategoryProgressItem> categoryProgress,
+    required List<double> trendPoints,
+  }) {
+    if (goals.isEmpty) {
+      return _buildSectionCard(
+        title: 'Personal Insights',
+        showHeader: false,
+        child: Text(
+          'No personal goal data to generate insights. Use Team view to monitor managers.',
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+        ),
+      );
+    }
+
+    final overdue = statusCounts['overdue'] ?? 0;
+    final trendDelta = _calculateTrendDeltaPercent(trendPoints);
+    _CategoryProgressItem? lowestCategory;
+    if (categoryProgress.isNotEmpty) {
+      lowestCategory = categoryProgress.reduce((a, b) => a.progress <= b.progress ? a : b);
+    }
+
+    final trendMsg = trendDelta > 0
+        ? 'Your progress is improving compared to the previous step (+${trendDelta.abs()}%).'
+        : trendDelta < 0
+            ? 'Your progress is declining compared to the previous step (-${trendDelta.abs()}%).'
+            : 'Your progress is steady compared to the previous step.';
+
+    return _buildSectionCard(
+      title: 'Personal Insights',
+      showHeader: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            trendMsg,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '- $overdue overdue goal${overdue == 1 ? '' : 's'} need attention',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+          Text(
+            '- Lowest category progress: ${lowestCategory?.label ?? 'N/A'}'
+            '${lowestCategory != null ? ' (${lowestCategory.progress.toStringAsFixed(0)}%)' : ''}',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+          Text(
+            '- Focus on one small update today to maintain consistency.',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentGoalsUpdates(List<Goal> goals) {
+    if (goals.isEmpty) {
+      return _buildSectionCard(
+        title: 'Recent Progress / Updates',
+        showHeader: false,
+        child: Text(
+          'No recent updates yet.',
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+        ),
+      );
+    }
+
+    final visible = goals.take(6).toList(growable: false);
+    return _buildSectionCard(
+      title: 'Recent Progress / Updates',
+      showHeader: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...visible.map(
+            (g) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildGoalRow(g),
+            ),
+          ),
+          if (goals.length > visible.length)
+            Text(
+              '+${goals.length - visible.length} more goals',
+              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+            ),
+        ],
+      ),
     );
   }
 
