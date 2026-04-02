@@ -861,7 +861,7 @@ class _ManagerProgressVisualsContentState
 
   Widget _buildMyProgressView() {
     if (_isAdminManagerView) {
-      return _buildAdminPersonalMyProgressView();
+      return _buildAdminSupervisionMyProgressView();
     }
     return StreamBuilder<List<ManagerActivity>>(
       stream: _managerActivitiesStream,
@@ -930,80 +930,210 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildAdminPersonalMyProgressView() {
-    final admin = FirebaseAuth.instance.currentUser;
-    if (admin == null) {
-      return _buildErrorState('Not signed in');
-    }
-
-    return StreamBuilder<List<Goal>>(
-      stream: _getGoalsStreamForUser(admin.uid),
-      builder: (context, goalsSnapshot) {
-        if (goalsSnapshot.hasError) {
-          return _buildErrorState(goalsSnapshot.error.toString());
+  Widget _buildAdminSupervisionMyProgressView() {
+    return StreamBuilder<List<ManagerActivity>>(
+      stream: _managerActivitiesStream,
+      initialData:
+          _cachedManagerActivities.isNotEmpty ? _cachedManagerActivities : null,
+      builder: (context, activitySnapshot) {
+        if (activitySnapshot.hasError) {
+          return _buildErrorState(activitySnapshot.error.toString());
         }
 
-        final goals = goalsSnapshot.data ?? const <Goal>[];
-        final approvedGoals = goals
-            .where((g) => g.approvalStatus == GoalApprovalStatus.approved)
-            .toList(growable: false);
+        final activities = activitySnapshot.data ?? const <ManagerActivity>[];
+        if (activities.isNotEmpty) {
+          _cachedManagerActivities = activities;
+        }
 
-        final statusCounts = _calculateGoalStatusForGoals(approvedGoals);
-        final categoryProgress =
-            _calculateCategoryProgressForGoals(approvedGoals);
+        final isStillLoading =
+            (activitySnapshot.connectionState == ConnectionState.waiting ||
+                activitySnapshot.connectionState == ConnectionState.none) &&
+                _cachedManagerActivities.isEmpty &&
+                activities.isEmpty;
 
-        final trendFuture = _getUserTrendFuture(admin.uid);
-        return FutureBuilder<_TrendSeries>(
-          future: trendFuture,
-          builder: (context, trendSnapshot) {
-            final series = trendSnapshot.data ??
-                _buildFallbackUserTrendFromGoals(approvedGoals);
+        if (isStillLoading) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildManagerProgressMetricsLoading(),
+              const SizedBox(height: AppSpacing.xl),
+            ],
+          );
+        }
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildAdminSeparator(),
-                _buildAdminPersonalTimeFilter(),
-                const SizedBox(height: AppSpacing.lg),
-                _buildAdminSectionTitle('My Progress Trend'),
-                _buildTeamProgressTrendSection(
-                  series,
-                  showHeader: false,
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                _buildAdminSectionTitle('My Goal Status'),
-                _buildGoalStatusDonut(
-                  statusCounts,
-                  showHeader: false,
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                _buildAdminSectionTitle('Goal Category Progress'),
-                _buildGoalCategoryProgressSection(categoryProgress),
-                const SizedBox(height: AppSpacing.xl),
-                _buildAdminSectionTitle('My Activity Summary'),
-                _buildAdminActivitySummaryCard(approvedGoals),
-                const SizedBox(height: AppSpacing.xl),
-                _buildAdminSectionTitle(
-                  'Personal Insights',
-                  withTrailingLine: false,
-                ),
-                _buildAdminPersonalInsights(
-                  goals: approvedGoals,
-                  statusCounts: statusCounts,
-                  categoryProgress: categoryProgress,
-                  trendPoints: series.points,
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                _buildAdminSectionTitle(
-                  'Recent Progress / Updates',
-                  withTrailingLine: false,
-                ),
-                _buildRecentGoalsUpdates(approvedGoals),
-              ],
-            );
-          },
+        final summary = _summarizeManagerActivities(activities);
+        final byDay = _calculateMyActivityByWeekday(activities);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildAdminSeparator(),
+            _buildAdminSectionTitle('My Activity Summary'),
+            _buildManagerProgressMetrics(
+              summary.total,
+              summary.nudges,
+              summary.approvals,
+              summary.replans,
+              summary.meetings,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            _buildAdminSectionTitle('My Activity Breakdown'),
+            _buildMyActivityTypeDonut(summary),
+            const SizedBox(height: AppSpacing.xl),
+            _buildAdminSectionTitle('My Weekly Activity Pattern'),
+            _buildMyActivityByDayChart(
+              byDay: byDay,
+              totalActivities: summary.total,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            _buildAdminSectionTitle(
+              'Recent Progress / Updates',
+              withTrailingLine: false,
+            ),
+            _buildRecentManagerActionsCollapsible(activities),
+          ],
         );
       },
+    );
+  }
+
+  List<int> _calculateMyActivityByWeekday(List<ManagerActivity> activities) {
+    // Monday..Friday buckets.
+    final buckets = List<int>.filled(5, 0);
+    for (final a in activities) {
+      final w = a.createdAt.weekday; // 1=Mon..7=Sun
+      if (w >= 1 && w <= 5) {
+        buckets[w - 1] += 1;
+      }
+    }
+    return buckets;
+  }
+
+  Widget _buildMyActivityTypeDonut(_ManagerActivitySummary summary) {
+    final total = summary.total;
+    if (total <= 0) {
+      return _buildSectionCard(
+        title: 'My Activity Breakdown',
+        showHeader: false,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Text(
+            'No activity yet in this period.',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    double pct(int n) => (n / total).clamp(0.0, 1.0);
+
+    final segments = <_DonutSegment>[
+      _DonutSegment('Nudges', pct(summary.nudges), AppColors.infoColor),
+      _DonutSegment('Approvals', pct(summary.approvals), AppColors.successColor),
+      _DonutSegment('Replans', pct(summary.replans), AppColors.warningColor),
+      _DonutSegment('Meetings', pct(summary.meetings), AppColors.activeColor),
+    ];
+
+    int p(int n) => total == 0 ? 0 : (100 * n / total).round();
+
+    return _buildSectionCard(
+      title: 'My Activity Breakdown',
+      showHeader: false,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 110,
+              height: 110,
+              child: CustomPaint(
+                painter: _DonutChartPainter(segments: segments),
+                size: const Size(110, 110),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.lg),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _donutLegendRow('Nudges', p(summary.nudges), AppColors.infoColor),
+                  _donutLegendRow('Approvals', p(summary.approvals), AppColors.successColor),
+                  _donutLegendRow('Replans', p(summary.replans), AppColors.warningColor),
+                  _donutLegendRow('Meetings', p(summary.meetings), AppColors.activeColor),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMyActivityByDayChart({
+    required List<int> byDay,
+    required int totalActivities,
+  }) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    final maxVal = byDay.isEmpty ? 1 : byDay.reduce((a, b) => a > b ? a : b);
+    final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
+
+    return _buildSectionCard(
+      title: 'My Weekly Activity Pattern',
+      showHeader: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.md,
+          horizontal: AppSpacing.lg,
+        ),
+        child: Column(
+          children: List.generate(5, (i) {
+            final v = i < byDay.length ? byDay[i] : 0;
+            final w = maxBar > 0 ? (v / maxBar) : 0.0;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 32,
+                    child: Text(
+                      days[i],
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      height: 20,
+                      alignment: Alignment.centerLeft,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: FractionallySizedBox(
+                        widthFactor: w,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.activeColor,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$v/$totalActivities',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
+      ),
     );
   }
 
