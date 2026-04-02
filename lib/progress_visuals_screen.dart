@@ -672,6 +672,10 @@ class _ManagerProgressVisualsContentState
   void initState() {
     super.initState();
     _ensureDefaultManagerView();
+    // Admin "My Progress" is activity analytics: default to Week (rolling last 7 days through today).
+    if (widget.forAdminOversight) {
+      currentTimeFilter = TimeFilter.week;
+    }
     // Cache the stream so expanding/collapsing UI doesn't recreate it (which causes a reload spinner).
     _managerActivitiesStream = _getManagerActivitiesStream();
     _rebuildTeamStream();
@@ -1478,39 +1482,71 @@ class _ManagerProgressVisualsContentState
   Widget _buildMyWeeklyPatternHeatmap({
     required List<ManagerActivity> activities,
   }) {
-    // Mon–Fri rows, hour-block columns (9am–4pm).
+    // Mon–Fri rows, week columns — same layout as the original hour-block heatmap,
+    // but each cell is the activity count for that calendar day (no hour buckets).
     const rowLabels = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-    const hourLabels = <String>[
-      '9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm',
-    ];
-    const startHour = 9;
-    const endHourInclusive = 16; // 4pm
-    const cols = 8;
 
-    final grid = List<List<int>>.generate(5, (_) => List<int>.filled(cols, 0));
+    final range = _currentPeriodRange(currentTimeFilter);
+    final startDay = DateTime(range.start.year, range.start.month, range.start.day);
+    final lastDayInclusive = DateTime(
+      range.endExclusive.year,
+      range.endExclusive.month,
+      range.endExclusive.day,
+    );
+
+    bool dayInPeriod(DateTime d) {
+      final dn = DateTime(d.year, d.month, d.day);
+      return !dn.isBefore(startDay) && !dn.isAfter(lastDayInclusive);
+    }
+
+    final firstMonday = startDay.subtract(Duration(days: startDay.weekday - 1));
+    final lastMonday = lastDayInclusive.subtract(Duration(days: lastDayInclusive.weekday - 1));
+    final colMondays = <DateTime>[];
+    for (var m = firstMonday; !m.isAfter(lastMonday); m = m.add(const Duration(days: 7))) {
+      colMondays.add(m);
+    }
+    if (colMondays.isEmpty) {
+      colMondays.add(firstMonday);
+    }
+
+    final nc = colMondays.length;
+    final grid = List<List<int>>.generate(5, (_) => List<int>.filled(nc, 0));
+
+    final Map<int, int> countsByDayKey = <int, int>{};
     for (final a in activities) {
       final dt = a.createdAt;
-      final weekday = dt.weekday; // 1..7
-      if (weekday < 1 || weekday > 5) continue; // Mon–Fri only
-      final hour = dt.hour;
-      if (hour < startHour || hour > endHourInclusive) continue;
-      final col = hour - startHour;
-      if (col < 0 || col >= cols) continue;
-      grid[weekday - 1][col] += 1;
+      final day = DateTime(dt.year, dt.month, dt.day);
+      final key = day.millisecondsSinceEpoch;
+      countsByDayKey[key] = (countsByDayKey[key] ?? 0) + 1;
+    }
+
+    for (int c = 0; c < nc; c++) {
+      for (int r = 0; r < 5; r++) {
+        final date = colMondays[c].add(Duration(days: r));
+        if (!dayInPeriod(date)) {
+          grid[r][c] = 0;
+          continue;
+        }
+        final key = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
+        grid[r][c] = countsByDayKey[key] ?? 0;
+      }
     }
 
     int maxVal = 0;
-    for (final row in grid) {
-      for (final v in row) {
+    for (int c = 0; c < nc; c++) {
+      for (int r = 0; r < 5; r++) {
+        final date = colMondays[c].add(Duration(days: r));
+        if (!dayInPeriod(date)) continue;
+        final v = grid[r][c];
         if (v > maxVal) maxVal = v;
       }
     }
     final maxD = maxVal < 1 ? 1.0 : maxVal.toDouble();
 
-    Color cellColor(int v) {
+    Color cellColor(int v, {required bool active}) {
+      if (!active) return Colors.white.withValues(alpha: 0.05);
       if (v <= 0) return Colors.white.withValues(alpha: 0.05);
       final t = (v / maxD).clamp(0.0, 1.0);
-      // Stronger contrast at mid/high values.
       final alpha = 0.18 + (t * 0.62);
       return AppColors.activeColor.withValues(alpha: alpha);
     }
@@ -1523,66 +1559,80 @@ class _ManagerProgressVisualsContentState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Column labels
-            Row(
-              children: [
-                const SizedBox(width: 44),
-                ...List.generate(cols, (i) {
-                  return Expanded(
-                    child: Center(
-                      child: Text(
-                        hourLabels[i],
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
-            const SizedBox(height: 10),
-            // Grid
-            ...List.generate(5, (r) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 44,
-                      child: Text(
-                        rowLabels[r],
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    ...List.generate(cols, (c) {
-                      final v = grid[r][c];
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                          child: Container(
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: cellColor(v),
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.08),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(width: 44),
+                      ...List.generate(nc, (c) {
+                        final mon = colMondays[c];
+                        return SizedBox(
+                          width: 52,
+                          child: Center(
+                            child: Text(
+                              _heatmapWeekColumnLabel(mon),
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                                fontSize: 10,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ...List.generate(5, (r) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 44,
+                            child: Text(
+                              rowLabels[r],
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              );
-            }),
+                          ...List.generate(nc, (c) {
+                            final date = colMondays[c].add(Duration(days: r));
+                            final inP = dayInPeriod(date);
+                            final v = grid[r][c];
+                            return SizedBox(
+                              width: 52,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 3),
+                                child: Container(
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    color: cellColor(v, active: inP),
+                                    borderRadius: BorderRadius.circular(5),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.08),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
             const SizedBox(height: 10),
-            // Legend
             Row(
               children: [
                 Text(
@@ -1624,6 +1674,26 @@ class _ManagerProgressVisualsContentState
         ),
       ),
     );
+  }
+
+  /// Short label for week columns in the activity heatmap (Mon of that week).
+  String _heatmapWeekColumnLabel(DateTime date) {
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final m = months[(date.month - 1).clamp(0, 11)];
+    return '$m ${date.day}';
   }
 
   List<int> _calculateMyActivityByWeekday(List<ManagerActivity> activities) {
@@ -1810,11 +1880,27 @@ class _ManagerProgressVisualsContentState
           ),
         ),
         Text(
-          'Period: ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)}',
+          _myProgressPeriodFilterLabel(currentTimeFilter),
           style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
         ),
       ],
     );
+  }
+
+  /// Human-readable range for "My Progress" filters (matches [_currentPeriodRange]).
+  String _myProgressPeriodFilterLabel(TimeFilter filter) {
+    switch (filter) {
+      case TimeFilter.today:
+        return 'Today (through now)';
+      case TimeFilter.week:
+        return 'Last 7 days (through now)';
+      case TimeFilter.month:
+        return 'This month (through now)';
+      case TimeFilter.quarter:
+        return 'This quarter (through now)';
+      case TimeFilter.year:
+        return 'This year (through now)';
+    }
   }
 
   Stream<List<Goal>> _getGoalsStreamForUser(String uid) {
@@ -2532,7 +2618,7 @@ class _ManagerProgressVisualsContentState
           ),
         ),
         Text(
-          'Showing: ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)}',
+          _myProgressPeriodFilterLabel(currentTimeFilter),
           style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
         ),
       ],
@@ -4047,9 +4133,10 @@ class _ManagerProgressVisualsContentState
           endExclusive: now.add(const Duration(milliseconds: 1)),
         );
       case TimeFilter.week:
-        final thisWeekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+        // Rolling last 7 days including today (not Mon–Sun partial week).
+        final start = todayStart.subtract(const Duration(days: 6));
         return _DateRange(
-          start: thisWeekStart,
+          start: start,
           endExclusive: now.add(const Duration(milliseconds: 1)),
         );
       case TimeFilter.month:
