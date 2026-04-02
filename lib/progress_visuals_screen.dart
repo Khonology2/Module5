@@ -982,7 +982,7 @@ class _ManagerProgressVisualsContentState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildAdminSeparator(),
-                _buildAdminSectionTitle('Manager Progress Trend  📈'),
+                _buildAdminSectionTitle('Manager Progress Trend'),
                 _buildTeamProgressTrendSection(
                   effectiveSeries,
                   showHeader: false,
@@ -996,17 +996,17 @@ class _ManagerProgressVisualsContentState
                   showHeaders: false,
                 ),
                 const SizedBox(height: AppSpacing.xl),
-                _buildAdminSectionTitle('Manager Ranking         🏆'),
+                _buildAdminSectionTitle('Manager Ranking'),
                 _buildTeamPerformanceRankingSection(
                   employees,
                   showHeader: false,
                 ),
                 const SizedBox(height: AppSpacing.xl),
-                _buildAdminSectionTitle('Manager Growth          📉'),
+                _buildAdminSectionTitle('Manager Growth'),
                 _buildManagerGrowthIndicator(effectiveSeries.points),
                 const SizedBox(height: AppSpacing.xl),
                 _buildAdminSectionTitle(
-                  'Smart Insights          🤖',
+                  'Smart Insights',
                   withTrailingLine: false,
                 ),
                 _buildAiInsightPanel(
@@ -1061,7 +1061,7 @@ class _ManagerProgressVisualsContentState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Manager Goal Status     🍩',
+          'Manager Goal Status',
           style: AppTypography.heading4.copyWith(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.w800,
@@ -1069,7 +1069,7 @@ class _ManagerProgressVisualsContentState
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'Manager Engagement      📊',
+          'Manager Engagement',
           style: AppTypography.heading4.copyWith(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.w800,
