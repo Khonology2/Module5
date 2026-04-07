@@ -174,7 +174,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
     // TEMPORARILY DISABLE ACTION ROUTE FILTER
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
-    if (!isAdminOversight && alert.actionRoute == _managerWorkspaceAlertsRoute) {
+    if (!isAdminOversight &&
+        alert.actionRoute == _managerWorkspaceAlertsRoute) {
       developer.log('Alert routed to manager workspace: ${alert.actionRoute}');
       // Temporarily allow these alerts for debugging
       // return false;
@@ -198,25 +199,18 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     }
 
     // Context switcher logic:
-    // - Inbox (active): Show unread messages AND pending approval requests (even if read)
-    // - Archived: Show read messages AND completed approval actions (approved/rejected)
+    // - Inbox: show all alerts except finalized goal decisions.
+    // - Archived: show finalized goal decisions only (approved/rejected).
     if (_showArchived) {
-      // In archived view, show:
-      // 1. All read messages (except pending approvals)
-      // 2. Approved and rejected goals (regardless of read status)
-      return (alert.isRead && alert.type != AlertType.goalApprovalRequested) ||
+      // Archive is goal history only.
+      final result =
           (alert.type == AlertType.goalApprovalApproved) ||
           (alert.type == AlertType.goalApprovalRejected);
     } else {
-      // In inbox view, show:
-      // 1. All unread messages
-      // 2. Pending approval requests (even if read) - so manager doesn't miss them
-      // 3. BUT NOT approved or rejected goals - those should be in archived
+      // Keep everything else in Inbox, including meeting-related alerts.
       final result =
-          ((alert.type != AlertType.goalApprovalApproved &&
-                  alert.type != AlertType.goalApprovalRejected) &&
-              !alert.isRead) ||
-          (alert.type == AlertType.goalApprovalRequested);
+          alert.type != AlertType.goalApprovalApproved &&
+          alert.type != AlertType.goalApprovalRejected;
       developer.log('Inbox view result for alert ${alert.id}: $result');
       return result;
     }
@@ -293,9 +287,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       return;
     }
 
-    Navigator.pushNamed(context, '/admin_portal', arguments: {
-      'initialRoute': '/admin_dashboard',
-    });
+    Navigator.pushNamed(
+      context,
+      '/admin_portal',
+      arguments: {'initialRoute': '/admin_dashboard'},
+    );
   }
 
   String? _normalizeGoalId(dynamic raw) {
@@ -393,9 +389,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         .trim();
     if (badgeId.isEmpty) {
       if (widget.forAdminOversight) {
-        Navigator.pushNamed(context, '/admin_portal', arguments: {
-          'initialRoute': '/admin_badges_points',
-        });
+        Navigator.pushNamed(
+          context,
+          '/admin_portal',
+          arguments: {'initialRoute': '/admin_badges_points'},
+        );
       } else {
         Navigator.pushNamed(
           context,
@@ -440,9 +438,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
     if (!mounted) return;
     if (widget.forAdminOversight) {
-      Navigator.pushNamed(context, '/admin_portal', arguments: {
-        'initialRoute': '/admin_badges_points',
-      });
+      Navigator.pushNamed(
+        context,
+        '/admin_portal',
+        arguments: {'initialRoute': '/admin_badges_points'},
+      );
       return;
     }
     Navigator.push(
@@ -1684,9 +1684,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   onPressed: () {
                     _navigateInboxByAlertRoute(
                       '/manager_review_team_dashboard',
-                      arguments: {
-                        'goalId': alert.relatedGoalId,
-                      },
+                      arguments: {'goalId': alert.relatedGoalId},
                     );
                   },
                   icon: const Icon(Icons.flag_outlined),
@@ -1702,9 +1700,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     if (alert.relatedGoalId != null) {
                       _navigateInboxByAlertRoute(
                         '/manager_review_team_dashboard',
-                        arguments: {
-                          'goalId': alert.relatedGoalId,
-                        },
+                        arguments: {'goalId': alert.relatedGoalId},
                       );
                     }
                   },
@@ -1769,9 +1765,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       if (alert.relatedGoalId != null) {
                         _navigateInboxByAlertRoute(
                           '/manager_review_team_dashboard',
-                          arguments: {
-                            'goalId': alert.relatedGoalId,
-                          },
+                          arguments: {'goalId': alert.relatedGoalId},
                         );
                       }
                     } else if (actionLower.contains('leaderboard')) {
