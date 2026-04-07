@@ -126,6 +126,12 @@ class OneOnOneMeetingService {
   static Future<void> employeeAccept({
     required String meetingId,
   }) async {
+    await acceptMeeting(meetingId: meetingId);
+  }
+
+  static Future<void> acceptMeeting({
+    required String meetingId,
+  }) async {
     await FirestoreSafe.updateDoc(_col.doc(meetingId), {
       'status': OneOnOneMeetingStatus.accepted.name,
       'waitingOn': OneOnOneWaitingOn.none.name,
