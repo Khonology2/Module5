@@ -234,6 +234,82 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     }
   }
 
+  /// Manager-only routes in alert [actionRoute] hit [RoleGate] and show "Access restricted"
+  /// for admins. Map them to [AdminPortalScreen] sidebar routes (`initialRoute`).
+  String? _mapInboxRouteToAdminInitialRoute(String route) {
+    switch (route) {
+      case '/manager_badges_points':
+      case '/badges_points':
+      case '/manager_gw_menu_badges':
+        return '/admin_badges_points';
+      case '/progress_visuals':
+      case '/manager_gw_menu_progress':
+        return '/admin_progress_visuals';
+      case '/manager_leaderboard':
+      case '/leaderboard':
+      case '/manager_gw_menu_leaderboard':
+        return '/org_leaderboard';
+      case '/manager_review_team_dashboard':
+        return '/admin_team_review';
+      case '/manager_alerts_nudges':
+        return '/admin_team_alerts_nudges';
+      case '/team_challenges_seasons':
+      case '/season_challenges':
+      case '/manager_gw_menu_season_challenges':
+        return '/admin_team_challenges';
+      case '/repository_audit':
+      case '/manager_gw_menu_repository':
+        return '/admin_repository_audit';
+      case '/manager_inbox':
+      case '/alerts_nudges':
+      case '/manager_gw_menu_alerts':
+        return '/admin_inbox';
+      case '/dashboard':
+      case '/manager_gw_menu_dashboard':
+        return '/admin_dashboard';
+      case '/manager_profile':
+        return '/admin_profile';
+      case '/settings':
+        return '/admin_settings';
+      default:
+        if (route.startsWith('/admin_')) {
+          return route;
+        }
+        return null;
+    }
+  }
+
+  /// Navigates from inbox actions. Managers use raw routes; admins use [AdminPortalScreen].
+  void _navigateInboxByAlertRoute(String route, {Object? arguments}) {
+    if (!widget.forAdminOversight) {
+      Navigator.pushNamed(context, route, arguments: arguments);
+      return;
+    }
+
+    if (route == '/org_leaderboard' ||
+        route == '/admin_inbox' ||
+        route == '/admin_portal' ||
+        route == '/admin_dashboard' ||
+        route == '/manager_oversight') {
+      Navigator.pushNamed(context, route, arguments: arguments);
+      return;
+    }
+
+    final initial = _mapInboxRouteToAdminInitialRoute(route);
+    if (initial != null) {
+      final merged = <String, dynamic>{'initialRoute': initial};
+      if (arguments is Map<String, dynamic>) {
+        merged.addAll(arguments);
+      }
+      Navigator.pushNamed(context, '/admin_portal', arguments: merged);
+      return;
+    }
+
+    Navigator.pushNamed(context, '/admin_portal', arguments: {
+      'initialRoute': '/admin_dashboard',
+    });
+  }
+
   String? _normalizeGoalId(dynamic raw) {
     final s = raw?.toString().trim();
     if (s == null || s.isEmpty) return null;
@@ -328,11 +404,17 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         .toString()
         .trim();
     if (badgeId.isEmpty) {
-      Navigator.pushNamed(
-        context,
-        '/manager_portal',
-        arguments: {'initialRoute': '/manager_badges_points'},
-      );
+      if (widget.forAdminOversight) {
+        Navigator.pushNamed(context, '/admin_portal', arguments: {
+          'initialRoute': '/admin_badges_points',
+        });
+      } else {
+        Navigator.pushNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': '/manager_badges_points'},
+        );
+      }
       return;
     }
 
@@ -369,6 +451,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         badge_model.BadgeCategory.leadership;
 
     if (!mounted) return;
+    if (widget.forAdminOversight) {
+      Navigator.pushNamed(context, '/admin_portal', arguments: {
+        'initialRoute': '/admin_badges_points',
+      });
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1642,11 +1730,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   alert.relatedGoalId!.isNotEmpty) ...[
                 TextButton.icon(
                   onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/manager_portal',
+                    _navigateInboxByAlertRoute(
+                      '/manager_review_team_dashboard',
                       arguments: {
-                        'initialRoute': '/manager_review_team_dashboard',
                         'goalId': alert.relatedGoalId,
                       },
                     );
@@ -1662,11 +1748,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 TextButton.icon(
                   onPressed: () {
                     if (alert.relatedGoalId != null) {
-                      Navigator.pushNamed(
-                        context,
-                        '/manager_portal',
+                      _navigateInboxByAlertRoute(
+                        '/manager_review_team_dashboard',
                         arguments: {
-                          'initialRoute': '/manager_review_team_dashboard',
                           'goalId': alert.relatedGoalId,
                         },
                       );
@@ -1715,7 +1799,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       args = {'goalId': alert.relatedGoalId};
                     }
 
-                    Navigator.pushNamed(context, route, arguments: args);
+                    _navigateInboxByAlertRoute(route, arguments: args);
                   },
                   icon: const Icon(Icons.open_in_new),
                   label: Text(alert.actionText!),
@@ -1727,28 +1811,18 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     final actionLower = alert.actionText!.toLowerCase();
                     if (actionLower.contains('badge') ||
                         actionLower.contains('achievement')) {
-                      Navigator.pushNamed(
-                        context,
-                        '/manager_portal',
-                        arguments: {'initialRoute': '/manager_badges_points'},
-                      );
+                      _navigateInboxByAlertRoute('/manager_badges_points');
                     } else if (actionLower.contains('goal')) {
                       if (alert.relatedGoalId != null) {
-                        Navigator.pushNamed(
-                          context,
-                          '/manager_portal',
+                        _navigateInboxByAlertRoute(
+                          '/manager_review_team_dashboard',
                           arguments: {
-                            'initialRoute': '/manager_review_team_dashboard',
                             'goalId': alert.relatedGoalId,
                           },
                         );
                       }
                     } else if (actionLower.contains('leaderboard')) {
-                      Navigator.pushNamed(
-                        context,
-                        '/manager_portal',
-                        arguments: {'initialRoute': '/manager_leaderboard'},
-                      );
+                      _navigateInboxByAlertRoute('/manager_leaderboard');
                     }
                   },
                   child: Text(alert.actionText!),
