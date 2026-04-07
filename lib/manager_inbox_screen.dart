@@ -178,15 +178,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     //   return false;
     // }
 
-    // Admin inbox should reflect all personal alerts addressed to the admin
-    // account so the inbox list matches the notifications-bell unread count.
-    if (widget.forAdminOversight) {
-      return true;
-    }
+    final isAdminOversight = widget.forAdminOversight;
 
     // TEMPORARILY DISABLE ACTION ROUTE FILTER
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
-    if (alert.actionRoute == _managerWorkspaceAlertsRoute) {
+    if (!isAdminOversight && alert.actionRoute == _managerWorkspaceAlertsRoute) {
       developer.log('Alert routed to manager workspace: ${alert.actionRoute}');
       // Temporarily allow these alerts for debugging
       // return false;
@@ -194,7 +190,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
     // TEMPORARILY DISABLE EMPLOYEE PERSONA FILTER
     // Suppress employee-persona cards in manager inbox.
-    if (_isEmployeePersonaAlertType(alert.type)) {
+    if (!isAdminOversight && _isEmployeePersonaAlertType(alert.type)) {
       developer.log(
         'Employee persona alert type (temporarily allowed): ${alert.type}',
       );
@@ -203,7 +199,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     }
 
     // Keep only manager-scoped overdue alerts.
-    if (alert.type == AlertType.goalOverdue &&
+    if (!isAdminOversight &&
+        alert.type == AlertType.goalOverdue &&
         !_isManagerScopedGoalOverdue(alert)) {
       developer.log('Filtered out: goal overdue but not manager-scoped');
       return false;
@@ -511,9 +508,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   void initState() {
     super.initState();
     _redirectIfManager();
-    // Run migration for existing approved goals
+    // Run migration for existing finalized goals (approved/rejected)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      AlertService.migrateExistingApprovedGoalAlerts();
+      AlertService.migrateExistingFinalizedGoalAlerts();
     });
   }
 
@@ -1341,10 +1338,16 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       a.type != AlertType.goalApprovalRequested;
                 }).toList();
               } else if (_typeFilter == 'approval_request') {
-                // Approvals: only goal approval requests
-                items = items
-                    .where((a) => a.type == AlertType.goalApprovalRequested)
-                    .toList();
+                // Approvals:
+                // - Inbox: pending approval requests.
+                // - Archived: finalized approval decisions (approved/rejected).
+                items = items.where((a) {
+                  if (_showArchived) {
+                    return a.type == AlertType.goalApprovalApproved ||
+                        a.type == AlertType.goalApprovalRejected;
+                  }
+                  return a.type == AlertType.goalApprovalRequested;
+                }).toList();
               } else if (_typeFilter == 'nudge') {
                 // Nudges: only manager nudge alerts (nudge feedback is added in the nudge UI branch)
                 items = items
