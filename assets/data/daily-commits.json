@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.BB5.SIT",
-  "generated_at": "2026-04-07T10:01:05Z",
+  "version": "2026.04.BB4.SIT",
+  "generated_at": "2026-04-07T10:36:17Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -23,6 +23,6 @@
       "timestamp": "2026-04-07T10:46:18+02:00"
     }
   ],
-  "total_commits": 5,
+  "total_commits": 4,
   "date_range": "2026-04-07"
 }
