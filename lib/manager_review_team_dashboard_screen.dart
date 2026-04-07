@@ -18,11 +18,17 @@ class ManagerReviewTeamDashboardScreen extends StatefulWidget {
   final bool forAdminOversight;
   /// When set with [forAdminOversight], show data for this manager only.
   final String? selectedManagerId;
+  /// Optional deep-link target user to open the 1:1 sheet for.
+  final String? initialEmployeeId;
+  /// Optional deep-link meeting id paired with [initialEmployeeId].
+  final String? initialMeetingId;
 
   const ManagerReviewTeamDashboardScreen({
     super.key,
     this.forAdminOversight = false,
     this.selectedManagerId,
+    this.initialEmployeeId,
+    this.initialMeetingId,
   });
 
   @override
@@ -55,6 +61,14 @@ class _ManagerReviewTeamDashboardScreenState
   @override
   void initState() {
     super.initState();
+    final initialEmployeeId = widget.initialEmployeeId?.trim();
+    if (initialEmployeeId != null && initialEmployeeId.isNotEmpty) {
+      _initialEmployeeId = initialEmployeeId;
+      final initialMeetingId = widget.initialMeetingId?.trim();
+      if (initialMeetingId != null && initialMeetingId.isNotEmpty) {
+        _initialMeetingId = initialMeetingId;
+      }
+    }
     _rebuildStreams();
   }
 

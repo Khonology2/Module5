@@ -30,6 +30,8 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   bool _didInitFromArgs = false;
   /// When set, admin oversight screens show data for this manager (Manager Workspace Oversight).
   String? _selectedManagerId;
+  String? _initialReviewEmployeeId;
+  String? _initialReviewMeetingId;
 
   Widget _getBodyWidget() {
     if (_currentRoute == '/admin_dashboard') {
@@ -56,6 +58,8 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
     if (_currentRoute == '/admin_team_review') {
       return AdminTeamReviewScreen(
         selectedManagerId: _selectedManagerId,
+        initialEmployeeId: _initialReviewEmployeeId,
+        initialMeetingId: _initialReviewMeetingId,
       );
     }
     if (_currentRoute == '/admin_progress_visuals') {
@@ -107,6 +111,20 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
         final initial = args['initialRoute'] as String?;
         if (initial != null && initial.isNotEmpty) {
           _currentRoute = initial;
+        }
+        final selectedManagerRaw =
+            args['selectedManagerId'] ?? args['employeeId'];
+        final selectedManager = selectedManagerRaw?.toString().trim();
+        if (selectedManager != null && selectedManager.isNotEmpty) {
+          _selectedManagerId = selectedManager;
+        }
+        final meetingId = args['meetingId']?.toString().trim();
+        if (meetingId != null && meetingId.isNotEmpty) {
+          _initialReviewMeetingId = meetingId;
+        }
+        final employeeId = args['employeeId']?.toString().trim();
+        if (employeeId != null && employeeId.isNotEmpty) {
+          _initialReviewEmployeeId = employeeId;
         }
       }
       if (_currentRoute == '/admin_dashboard') {
