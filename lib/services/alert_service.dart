@@ -1369,6 +1369,16 @@ class AlertService {
       developer.log(
         'Marked ${alerts.docs.length} goal approval alert(s) as read and changed to approved for userId: $userId, goalId: $goalId',
       );
+
+      // Debug: Log the alert types being updated
+      for (final doc in alerts.docs) {
+        final alertData = doc.data();
+        final currentType = alertData['type'];
+        final newType = 'goalApprovalApproved';
+        developer.log(
+          'Updating alert ${doc.id}: type $currentType -> $newType',
+        );
+      }
     } catch (e) {
       developer.log('Error marking goal approval alerts as read: $e');
     }

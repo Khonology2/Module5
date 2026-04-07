@@ -166,8 +166,17 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   bool _isManagerInboxRelevantAlert(Alert alert, String managerId) {
+    // Debug: Log alert processing
+    developer.log(
+      'Processing alert: ${alert.id}, type: ${alert.type}, isRead: ${alert.isRead}, userId: ${alert.userId}, managerId: $managerId, showArchived: $_showArchived',
+    );
+
+    // TEMPORARILY DISABLE USER ID FILTER TO SEE ALL ALERTS
     // Defensive scope: manager inbox should only show alerts addressed to manager.
-    if (alert.userId != managerId) return false;
+    // if (alert.userId != managerId) {
+    //   developer.log('Filtered out: alert.userId != managerId');
+    //   return false;
+    // }
 
     // Admin inbox should reflect all personal alerts addressed to the admin
     // account so the inbox list matches the notifications-bell unread count.
@@ -175,15 +184,28 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       return true;
     }
 
+    // TEMPORARILY DISABLE ACTION ROUTE FILTER
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
-    if (alert.actionRoute == _managerWorkspaceAlertsRoute) return false;
+    if (alert.actionRoute == _managerWorkspaceAlertsRoute) {
+      developer.log('Alert routed to manager workspace: ${alert.actionRoute}');
+      // Temporarily allow these alerts for debugging
+      // return false;
+    }
 
+    // TEMPORARILY DISABLE EMPLOYEE PERSONA FILTER
     // Suppress employee-persona cards in manager inbox.
-    if (_isEmployeePersonaAlertType(alert.type)) return false;
+    if (_isEmployeePersonaAlertType(alert.type)) {
+      developer.log(
+        'Employee persona alert type (temporarily allowed): ${alert.type}',
+      );
+      // Temporarily allow these alerts for debugging
+      // return false;
+    }
 
     // Keep only manager-scoped overdue alerts.
     if (alert.type == AlertType.goalOverdue &&
         !_isManagerScopedGoalOverdue(alert)) {
+      developer.log('Filtered out: goal overdue but not manager-scoped');
       return false;
     }
 
@@ -194,15 +216,21 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       // In archived view, show:
       // 1. All read messages (except pending approvals)
       // 2. Approved and rejected goals (regardless of read status)
-      return (alert.isRead && alert.type != AlertType.goalApprovalRequested) ||
+      final result =
+          (alert.isRead && alert.type != AlertType.goalApprovalRequested) ||
           (alert.type == AlertType.goalApprovalApproved) ||
           (alert.type == AlertType.goalApprovalRejected);
+      developer.log('Archived view result for alert ${alert.id}: $result');
+      return result;
     } else {
       // In inbox view, show:
       // 1. All unread messages
       // 2. Pending approval requests (even if read) - so manager doesn't miss them
       // 3. BUT NOT approved or rejected goals - those should be in archived
-      return (!alert.isRead) || (alert.type == AlertType.goalApprovalRequested);
+      final result =
+          (!alert.isRead) || (alert.type == AlertType.goalApprovalRequested);
+      developer.log('Inbox view result for alert ${alert.id}: $result');
+      return result;
     }
   }
 
@@ -1206,6 +1234,36 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                   : const Icon(Icons.mark_email_read_outlined),
                               label: const Text('Mark all as read'),
                             ),
+                          // TEMPORARY DEBUG BUTTON
+                          IconButton(
+                            onPressed: () async {
+                              final user = FirebaseAuth.instance.currentUser;
+                              if (user == null) return;
+
+                              // Create a test alert
+                              await AlertService.createGeneralAlert(
+                                userId: user.uid,
+                                type: AlertType.goalApprovalRequested,
+                                title: 'Test Goal Approval',
+                                message: 'This is a test goal approval request',
+                                priority: AlertPriority.medium,
+                                actionRoute: '/manager_inbox',
+                                actionData: {'goalId': 'test-goal-id'},
+                                fromUserName: 'Debug System',
+                              );
+
+                              await _showCenterNotice(
+                                this.context,
+                                'Test alert created',
+                              );
+                              if (!mounted) return;
+                            },
+                            icon: const Icon(
+                              Icons.add_alert,
+                              color: Colors.white,
+                            ),
+                            tooltip: 'Create Test Alert',
+                          ),
                         ],
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -1239,12 +1297,18 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 );
               }
               var items = snapshot.data ?? const <Alert>[];
+              developer.log('Total alerts fetched: ${items.length}');
+
               items = items
                   .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
                   .toList();
 
+              developer.log('Alerts after manager filtering: ${items.length}');
+
               if (_unreadOnly && !_showArchived) {
-                items = items.where((a) => !a.isRead).toList();
+                // TEMPORARILY DISABLE UNREAD FILTER TO SEE ALL ALERTS
+                // items = items.where((a) => !a.isRead).toList();
+                developer.log('Unread filter disabled for debugging');
               }
               if (_priorityFilter != null) {
                 items = items
