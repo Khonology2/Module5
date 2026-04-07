@@ -221,6 +221,7 @@ class AlertService {
     required String meetingId,
     DateTime? acceptedStartDateTime,
     DateTime? acceptedEndDateTime,
+    String? actionRouteOverride,
   }) async {
     final employeeName = await _displayNameForUser(employeeId);
     String when = '';
@@ -242,7 +243,7 @@ class AlertService {
       title: '1:1 Accepted',
       message: '$employeeName accepted your 1:1 request$when.',
       actionText: 'View',
-      actionRoute: '/manager_inbox',
+      actionRoute: actionRouteOverride ?? '/manager_inbox',
       actionData: {'meetingId': meetingId},
       createdAt: DateTime.now(),
       fromUserId: employeeId,
@@ -259,6 +260,7 @@ class AlertService {
     required String meetingId,
     required DateTime proposedStartDateTime,
     required DateTime proposedEndDateTime,
+    String? actionRouteOverride,
   }) async {
     final employeeName = await _displayNameForUser(employeeId);
     final when = _formatMeetingRange(
@@ -277,7 +279,7 @@ class AlertService {
       title: '1:1 Rescheduled',
       message: '$employeeName suggested a new time: $when.',
       actionText: 'Review',
-      actionRoute: '/manager_inbox',
+      actionRoute: actionRouteOverride ?? '/manager_inbox',
       actionData: {
         'meetingId': meetingId,
         'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
