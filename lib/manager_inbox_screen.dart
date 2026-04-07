@@ -1725,7 +1725,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     Object? args;
 
                     // Deep-link 1:1 meeting alerts into the Review Team Dashboard.
-                    if (route == '/manager_review_team_dashboard') {
+                    if (route == '/manager_review_team_dashboard' ||
+                        route == '/admin_team_review') {
                       final data =
                           alert.actionData ?? const <String, dynamic>{};
                       final meetingId = data['meetingId']?.toString().trim();
