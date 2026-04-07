@@ -1862,6 +1862,14 @@ class _ManagerReviewTeamDashboardScreenState
     }
 
     final agendaController = TextEditingController();
+    final hasActiveThread = existing != null &&
+        existing.status != OneOnOneMeetingStatus.cancelled &&
+        existing.status != OneOnOneMeetingStatus.accepted;
+    final shouldRespondNow =
+        hasActiveThread && existing.waitingOn == OneOnOneWaitingOn.manager;
+    final canAcceptNow = shouldRespondNow &&
+        (existing.status == OneOnOneMeetingStatus.proposed ||
+            existing.status == OneOnOneMeetingStatus.rescheduled);
 
     showModalBottomSheet<void>(
       context: context,
@@ -1904,7 +1912,9 @@ class _ManagerReviewTeamDashboardScreenState
               ],
               const SizedBox(height: 8),
               Text(
-                'Start with intent. You can request first, or propose a time.',
+                shouldRespondNow
+                    ? 'This thread needs your response. Accept or propose a different time.'
+                    : 'Start with intent. You can request first, or propose a time.',
                 style: AppTypography.bodySmall.copyWith(color: Colors.white70),
               ),
               const SizedBox(height: 12),
@@ -1919,50 +1929,88 @@ class _ManagerReviewTeamDashboardScreenState
                 maxLines: 3,
               ),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      if (existing != null &&
-                          existing.status != OneOnOneMeetingStatus.cancelled &&
-                          existing.status != OneOnOneMeetingStatus.accepted) {
+              if (!hasActiveThread) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        await ManagerRealtimeService.requestOneOnOne(
+                          employeeId: employee.profile.uid,
+                          agenda: agendaController.text.trim(),
+                          recipientActionRoute: widget.forAdminOversight
+                              ? '/manager_gw_menu_alerts'
+                              : null,
+                        );
+                        if (!mounted) return;
+                        Navigator.pop(sheetContext);
                         await _showCenterNotice(
                           context,
-                          'There is already an active 1:1 thread for this employee. Propose a time instead.',
+                          'Request sent to ${employee.profile.displayName}.',
                         );
-                        return;
+                      } catch (e) {
+                        if (!mounted) return;
+                        await _showCenterNotice(
+                          context,
+                          'Error requesting 1:1: $e',
+                        );
                       }
-                      await ManagerRealtimeService.requestOneOnOne(
-                        employeeId: employee.profile.uid,
-                        agenda: agendaController.text.trim(),
-                        recipientActionRoute: widget.forAdminOversight
-                            ? '/manager_gw_menu_alerts'
-                            : null,
-                      );
-                      if (!mounted) return;
-                      Navigator.pop(sheetContext);
-                      await _showCenterNotice(
-                        context,
-                        'Request sent to ${employee.profile.displayName}.',
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      await _showCenterNotice(
-                        context,
-                        'Error requesting 1:1: $e',
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC10D00),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC10D00),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Request a 1:1'),
                   ),
-                  child: const Text('Request a 1:1'),
                 ),
-              ),
-              const SizedBox(height: 10),
+                const SizedBox(height: 10),
+              ],
+              if (canAcceptNow) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        await OneOnOneMeetingService.acceptMeeting(
+                          meetingId: existing!.meetingId,
+                        );
+                        if (managerId != null) {
+                          await AlertService.createOneOnOneAcceptedAlertToManager(
+                            managerId: employee.profile.uid,
+                            employeeId: managerId,
+                            meetingId: existing.meetingId,
+                            acceptedStartDateTime: existing.proposedStartDateTime,
+                            acceptedEndDateTime: existing.proposedEndDateTime,
+                            actionRouteOverride: widget.forAdminOversight
+                                ? '/manager_gw_menu_alerts'
+                                : null,
+                          );
+                        }
+                        if (!mounted) return;
+                        Navigator.pop(sheetContext);
+                        await _showCenterNotice(
+                          context,
+                          'Meeting time accepted.',
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        await _showCenterNotice(
+                          context,
+                          'Error accepting meeting: $e',
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.successColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Accept proposed time'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
@@ -2077,7 +2125,9 @@ class _ManagerReviewTeamDashboardScreenState
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  child: const Text('Propose a time'),
+                  child: Text(
+                    shouldRespondNow ? 'Suggest a different time' : 'Propose a time',
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
