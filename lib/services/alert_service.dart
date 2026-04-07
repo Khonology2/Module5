@@ -1110,7 +1110,10 @@ class AlertService {
     }
   }
 
-  static Stream<List<Alert>> getUserAlertsStream(String userId) {
+  static Stream<List<Alert>> getUserAlertsStream(
+    String userId, {
+    int? maxItems = 50,
+  }) {
     return FirestoreSafe.stream(
       _firestore
           .collection('alerts')
@@ -1169,7 +1172,10 @@ class AlertService {
           }
         }
 
-        return deduped.take(50).toList();
+        if (maxItems != null && maxItems > 0) {
+          return deduped.take(maxItems).toList();
+        }
+        return deduped;
       } catch (e) {
         developer.log('Error processing alerts: $e');
         return <Alert>[];
