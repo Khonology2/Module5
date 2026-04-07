@@ -16,6 +16,7 @@ import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/audit_entry.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdh/services/cloudinary_service.dart';
+import 'package:pdh/goal_detail_screen.dart';
 // Drawer removed in favor of persistent sidebar
 
 class MyPdpScreen extends StatefulWidget {
@@ -1380,12 +1381,34 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    goal.title,
-                    style: TextStyle(
-                      color: _pdpFg(light),
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  child: InkWell(
+                    onTap: goal.approvalStatus == GoalApprovalStatus.approved
+                        ? () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    GoalDetailScreen(goal: goal),
+                              ),
+                            );
+                          }
+                        : null,
+                    child: Text(
+                      goal.title,
+                      style: TextStyle(
+                        color:
+                            goal.approvalStatus == GoalApprovalStatus.approved
+                            ? (light
+                                  ? const Color(0xFF1976D2)
+                                  : const Color(0xFF64B5F6))
+                            : _pdpFg(light),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        decoration:
+                            goal.approvalStatus == GoalApprovalStatus.approved
+                            ? TextDecoration.underline
+                            : null,
+                      ),
                     ),
                   ),
                 ),
