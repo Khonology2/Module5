@@ -225,7 +225,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       // 2. Pending approval requests (even if read) - so manager doesn't miss them
       // 3. BUT NOT approved or rejected goals - those should be in archived
       final result =
-          (!alert.isRead) || (alert.type == AlertType.goalApprovalRequested);
+          ((alert.type != AlertType.goalApprovalApproved &&
+                  alert.type != AlertType.goalApprovalRejected) &&
+              !alert.isRead) ||
+          (alert.type == AlertType.goalApprovalRequested);
       developer.log('Inbox view result for alert ${alert.id}: $result');
       return result;
     }
@@ -1282,7 +1285,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             ),
           ),
           child: StreamBuilder<List<Alert>>(
-            stream: AlertService.getUserAlertsStream(user.uid),
+            stream: AlertService.getUserAlertsStream(user.uid, maxItems: null),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
