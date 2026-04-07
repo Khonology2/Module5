@@ -1717,8 +1717,19 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               else if (alert.actionText != null && alert.actionRoute != null)
                 TextButton.icon(
                   onPressed: () {
-                    final route = alert.actionRoute!;
+                    String route = alert.actionRoute!;
                     Object? args;
+
+                    // Backward-compat: older admin meeting alerts pointed to inbox.
+                    // Route those to Team Review so "Review" opens actionable UI.
+                    if (widget.forAdminOversight &&
+                        (alert.type == AlertType.oneOnOneRequested ||
+                            alert.type == AlertType.oneOnOneProposed ||
+                            alert.type == AlertType.oneOnOneAccepted ||
+                            alert.type == AlertType.oneOnOneRescheduled) &&
+                        route == '/admin_inbox') {
+                      route = '/admin_team_review';
+                    }
 
                     // Deep-link 1:1 meeting alerts into the Review Team Dashboard.
                     if (route == '/manager_review_team_dashboard' ||

@@ -861,7 +861,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         meetingId: m.meetingId,
         acceptedStartDateTime: m.proposedStartDateTime,
         acceptedEndDateTime: m.proposedEndDateTime,
-        actionRouteOverride: widget.forManagerGwMenu ? '/admin_inbox' : null,
+        actionRouteOverride: widget.forManagerGwMenu
+            ? '/admin_team_review'
+            : null,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -937,7 +939,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         meetingId: m.meetingId,
         proposedStartDateTime: proposedStart,
         proposedEndDateTime: proposedEnd,
-        actionRouteOverride: widget.forManagerGwMenu ? '/admin_inbox' : null,
+        actionRouteOverride: widget.forManagerGwMenu
+            ? '/admin_team_review'
+            : null,
       );
 
       if (!mounted) return;
