@@ -1870,6 +1870,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   Future<void> _handleAlertNavigation(Alert alert) async {
     final navigator = Navigator.of(context);
 
+    if (_isOneOnOneAlertType(alert.type)) {
+      await _openOneOnOneFromAlert(alert);
+      return;
+    }
+
     if (alert.type == AlertType.badgeEarned) {
       final opened = await _openBadgeFromAlert(alert);
       if (opened) return;
@@ -2047,6 +2052,134 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         ),
       );
     }
+  }
+
+  bool _isOneOnOneAlertType(AlertType type) {
+    switch (type) {
+      case AlertType.oneOnOneRequested:
+      case AlertType.oneOnOneProposed:
+      case AlertType.oneOnOneAccepted:
+      case AlertType.oneOnOneRescheduled:
+      case AlertType.oneOnOneCancelled:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  Future<void> _openOneOnOneFromAlert(Alert alert) async {
+    final meetingId = alert.actionData?['meetingId']?.toString().trim();
+    if (meetingId == null || meetingId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No meeting linked to this alert.')),
+      );
+      return;
+    }
+
+    final meeting = await OneOnOneMeetingService.getMeeting(meetingId);
+    if (meeting == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Meeting not found.')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    final waitingOnEmployee = meeting.waitingOn == OneOnOneWaitingOn.employee;
+    final canAccept = waitingOnEmployee &&
+        (meeting.status == OneOnOneMeetingStatus.proposed ||
+            meeting.status == OneOnOneMeetingStatus.rescheduled);
+    final canAcknowledge =
+        waitingOnEmployee && meeting.status == OneOnOneMeetingStatus.requested;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: _AlertsChrome.cardFill,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Respond to 1:1',
+                  style: AppTypography.heading4.copyWith(color: _AlertsChrome.fg),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Status: ${meeting.status.name} (waiting on: ${meeting.waitingOn.name})',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: _AlertsChrome.muted,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (canAccept)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        await _acceptMeeting(meeting);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Accept proposed time'),
+                    ),
+                  ),
+                if (canAcknowledge) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        await _ackRequest(meeting);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Acknowledge'),
+                    ),
+                  ),
+                ],
+                if (waitingOnEmployee) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        await _suggestNewTime(meeting);
+                      },
+                      child: Text(
+                        meeting.status == OneOnOneMeetingStatus.requested
+                            ? 'Suggest a time'
+                            : 'Suggest a different time',
+                      ),
+                    ),
+                  ),
+                ] else
+                  Text(
+                    'No response required from you right now.',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: _AlertsChrome.muted,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   badge_model.BadgeCategory? _employeeCategoryFromName(String? raw) {
