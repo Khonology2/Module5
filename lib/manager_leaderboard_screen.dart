@@ -20,9 +20,9 @@ class ManagerLeaderboardScreen extends StatefulWidget {
 class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
     with SingleTickerProviderStateMixin {
   LeaderboardMetric _metric = LeaderboardMetric.points;
-  List<EmployeeData> _lastManagers = const [];
-  late final Stream<List<EmployeeData>> _managerStream;
-  Future<List<EmployeeData>>? _managerFuture;
+  List<EmployeeData> _lastEmployees = const [];
+  late final Stream<List<EmployeeData>> _employeeStream;
+  Future<List<EmployeeData>>? _employeeFuture;
   late final AnimationController _topHoverController;
   bool _isTopHovered = false;
 
@@ -37,12 +37,12 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
     _topHoverController.repeat(reverse: true);
     // IMPORTANT: Cache the stream instance so StreamBuilder doesn't resubscribe
     // on every rebuild (which can destabilize Firestore listeners on web).
-    _managerStream = ManagerRealtimeService.getManagersDataStream(
+    _employeeStream = ManagerRealtimeService.getTeamDataStream(
       timeFilter: TimeFilter.month,
     );
     // On web, prefer one-time fetches to avoid Firestore Web listener instability.
     if (kIsWeb) {
-      _managerFuture = ManagerRealtimeService.getManagersDataStream(
+      _employeeFuture = ManagerRealtimeService.getTeamDataStream(
         timeFilter: TimeFilter.month,
       ).first;
     }
@@ -61,12 +61,12 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
         Icon(Icons.trending_up_outlined, color: AppColors.textSecondary),
         SizedBox(height: 8),
         Text(
-          'No managers found',
+          'No employees found',
           style: TextStyle(color: AppColors.textSecondary),
         ),
         SizedBox(height: 4),
         Text(
-          'If some managers are missing, verify their user profiles exist in Firestore `users` and their role is set to manager.',
+          'If some employees are missing, verify their user profiles exist in Firestore `users` and their role is set to employee.',
           style: TextStyle(color: AppColors.textMuted, fontSize: 12),
         ),
       ],
@@ -103,7 +103,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
 
     if (kIsWeb) {
       content = FutureBuilder<List<EmployeeData>>(
-        future: _managerFuture,
+        future: _employeeFuture,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
@@ -128,8 +128,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                   ElevatedButton.icon(
                     onPressed: () {
                       setState(() {
-                        _managerFuture = ManagerRealtimeService
-                            .getManagersDataStream(
+                        _employeeFuture = ManagerRealtimeService
+                            .getTeamDataStream(
                               timeFilter: TimeFilter.month,
                             )
                             .first;
@@ -147,7 +147,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
             );
           }
 
-          final team = snapshot.data ?? _lastManagers;
+          final team = snapshot.data ?? _lastEmployees;
 
           // Sort by metric
           team.sort((a, b) {
@@ -167,7 +167,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
             }
           });
 
-          if (team.isNotEmpty) _lastManagers = team;
+          if (team.isNotEmpty) _lastEmployees = team;
 
           if (team.isEmpty) {
             return ListView(
@@ -180,8 +180,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                       tooltip: 'Refresh',
                       onPressed: () {
                         setState(() {
-                          _managerFuture = ManagerRealtimeService
-                              .getManagersDataStream(
+                          _employeeFuture = ManagerRealtimeService
+                              .getTeamDataStream(
                                 timeFilter: TimeFilter.month,
                               )
                               .first;
@@ -214,8 +214,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                     tooltip: 'Refresh',
                     onPressed: () {
                       setState(() {
-                        _managerFuture = ManagerRealtimeService
-                            .getManagersDataStream(
+                        _employeeFuture = ManagerRealtimeService
+                            .getTeamDataStream(
                               timeFilter: TimeFilter.month,
                             )
                             .first;
@@ -243,7 +243,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
       );
     } else {
       content = StreamBuilder<List<EmployeeData>>(
-        stream: _managerStream,
+        stream: _employeeStream,
         builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
@@ -270,7 +270,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
         }
 
         // Prefer live data, otherwise show last cached team to avoid spinners
-        final team = snapshot.data ?? _lastManagers;
+        final team = snapshot.data ?? _lastEmployees;
 
         // Sort by metric
         team.sort((a, b) {
@@ -292,7 +292,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
 
         // Update cache when we have any data
         if (team.isNotEmpty) {
-          _lastManagers = team;
+          _lastEmployees = team;
         }
 
         if (team.isEmpty &&
@@ -399,7 +399,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Top Managers',
+            'Top Employees',
             style: AppTypography.heading2.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 4),
