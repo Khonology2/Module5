@@ -48,6 +48,42 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
     }
   }
 
+  int _badgeCount(EmployeeData e) {
+    final v2 = e.profile.badgesV2.length;
+    if (v2 > 0) return v2;
+    return e.profile.badges.length;
+  }
+
+  Widget _buildInlineStatChip({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.45), width: 0.7),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 3),
+          Text(
+            text,
+            style: AppTypography.bodySmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _topHoverController.dispose();
@@ -620,18 +656,11 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
   }
 
   Widget _buildListItem(EmployeeData e, {required int rank}) {
-    String rightText = '';
-    switch (_metric) {
-      case LeaderboardMetric.points:
-        rightText = '${e.totalPoints} pts';
-        break;
-      case LeaderboardMetric.streaks:
-        rightText = '${e.streakDays} day streak';
-        break;
-      case LeaderboardMetric.progress:
-        rightText = '${e.avgProgress.toStringAsFixed(1)}%';
-        break;
-    }
+    final metricText = switch (_metric) {
+      LeaderboardMetric.points => '${e.totalPoints} pts',
+      LeaderboardMetric.streaks => '${e.streakDays} day streak',
+      LeaderboardMetric.progress => '${e.avgProgress.toStringAsFixed(1)}%',
+    };
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -693,14 +722,32 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                   e.profile.department,
                   style: const TextStyle(color: Colors.white60, fontSize: 12),
                 ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 3,
+                  children: [
+                    _buildInlineStatChip(
+                      icon: Icons.stars,
+                      text: '${e.totalPoints} pts',
+                      color: AppColors.warningColor,
+                    ),
+                    _buildInlineStatChip(
+                      icon: Icons.workspace_premium,
+                      text: '${_badgeCount(e)}',
+                      color: AppColors.activeColor,
+                    ),
+                    if (_metric != LeaderboardMetric.points)
+                      _buildInlineStatChip(
+                        icon: _metric == LeaderboardMetric.streaks
+                            ? Icons.local_fire_department
+                            : Icons.trending_up,
+                        text: metricText,
+                        color: Colors.white70,
+                      ),
+                  ],
+                ),
               ],
-            ),
-          ),
-          Text(
-            rightText,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
             ),
           ),
         ],
