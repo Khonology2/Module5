@@ -861,6 +861,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   }
 
   // Compact oval section to present a badge rarity group entry point
+  // ignore: unused_element
   Widget _buildRarityOvalSection({
     // ignore: unused_element
     required String title,
