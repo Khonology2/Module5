@@ -25,11 +25,12 @@ class EmployeeProfileScreen extends StatefulWidget {
 }
 
 class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
-  static const Color _kDarkCard = Color(0xFF3D3F40);
+  // Match employee dashboard opacity (0x99 for 60% opacity)
+  static const Color _kDarkCard = Color(0x993D3D40);
 
   bool get _light => employeeDashboardLightModeNotifier.value;
   Color get _fg => _light ? const Color(0xFF000000) : Colors.white;
-  Color get _cardFill => _light ? const Color(0xFFFFFFFF) : _kDarkCard;
+  Color get _cardFill => _light ? const Color(0x99FFFFFF) : _kDarkCard;
   Color get _border =>
       _light ? const Color(0x33000000) : Colors.white.withOpacity(0.2);
 
@@ -222,10 +223,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: _fg),
-                  ),
+                  child: Text('Cancel', style: TextStyle(color: _fg)),
                 ),
                 TextButton(
                   onPressed: () {
@@ -294,7 +292,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       _ProfileAssistQuestion(
         id: 'longGoals',
         prompt: 'What longer-term goal are you working toward (12–24 months)?',
-        helper: 'Describe the role, capability, or impact you’re building toward.',
+        helper:
+            'Describe the role, capability, or impact you’re building toward.',
         placeholder:
             'e.g., "Grow into a senior engineer who can lead end-to-end delivery."',
         controller: _longGoalsController,
@@ -305,7 +304,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         prompt: 'What are your current projects or focus areas (optional)?',
         helper:
             'List key initiatives, responsibilities, or priorities you’re currently working on.',
-        placeholder: 'e.g., "API migration, onboarding improvements, support queue."',
+        placeholder:
+            'e.g., "API migration, onboarding improvements, support queue."',
         controller: _currentProjectsController,
         maxLines: 4,
       ),
@@ -769,7 +769,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       // Update Firebase Auth user photoURL for global usage
       await user.updatePhotoURL(cloudinaryUrl);
       await user.reload();
-      
+
       // Try to save profile, only show success if save succeeded
       final saveSuccess = await _saveProfile(showDialog: false);
       if (saveSuccess && mounted) {
@@ -818,7 +818,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                         message.toLowerCase().contains('failed')
                     ? Icons.error_outline
                     : Icons.check_circle_outline,
-                color: title?.toLowerCase().contains('error') == true ||
+                color:
+                    title?.toLowerCase().contains('error') == true ||
                         message.toLowerCase().contains('failed')
                     ? const Color(0xFFC10D00)
                     : Colors.green,
@@ -945,8 +946,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
 
     try {
       // Convert empty string to null for profilePhotoUrl
-      final profilePhotoUrlValue = (_profilePhotoUrl?.isEmpty ?? true) 
-          ? null 
+      final profilePhotoUrlValue = (_profilePhotoUrl?.isEmpty ?? true)
+          ? null
           : _profilePhotoUrl;
 
       // ignore: avoid_print
@@ -973,11 +974,11 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       );
 
       await DatabaseService.updateUserProfile(updatedProfile);
-      
+
       // Clear the profile cache to ensure fresh data on next fetch
       final cache = PerformanceCacheService();
       cache.clearAll();
-      
+
       await _loadUserProfile();
       if (showDialog) {
         _showProfileSavedDialog(
@@ -1420,7 +1421,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: _isAiHelpingProfile ? null : _runAiProfileHelper,
+                      onPressed: _isAiHelpingProfile
+                          ? null
+                          : _runAiProfileHelper,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFC10D00),
                         foregroundColor: Colors.white,
@@ -1448,7 +1451,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                       maxLines: 3,
                     ),
                     const SizedBox(height: 24),
-                    _buildInputLabel('Current Projects / Focus Areas (optional)'),
+                    _buildInputLabel(
+                      'Current Projects / Focus Areas (optional)',
+                    ),
                     _buildInputField(
                       controller: _currentProjectsController,
                       hintText: 'Share your current projects...',

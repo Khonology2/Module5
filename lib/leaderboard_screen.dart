@@ -29,9 +29,10 @@ class _LeaderboardChrome {
   _LeaderboardChrome._();
 
   static bool get light => employeeDashboardLightModeNotifier.value;
-  static const Color _darkCard = Color(0xFF3D3F40);
+  // Match employee dashboard opacity (0x99 for 60% opacity)
+  static const Color _darkCard = Color(0x993D3D40);
 
-  static Color get cardFill => light ? const Color(0xFFFFFFFF) : _darkCard;
+  static Color get cardFill => light ? const Color(0x99FFFFFF) : _darkCard;
   static Color get border =>
       light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
   static Color get fg => light ? const Color(0xFF000000) : Colors.white;
@@ -228,10 +229,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   Future<List<Map<String, dynamic>>> _computeLeaderboardFromCache() async {
     if (widget.forAdminOversight) {
-      return _processLeaderboardData(
-        _cachedUserDocs,
-        forAdminOversight: true,
-      );
+      return _processLeaderboardData(_cachedUserDocs, forAdminOversight: true);
     }
     await _ensureOnboardingFetched();
     final onboardingDocs = _cachedOnboardingUsers.map((userData) {
@@ -808,15 +806,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 : _LeaderboardChrome.cardFill,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? AppColors.activeColor : _LeaderboardChrome.border,
+              color: isSelected
+                  ? AppColors.activeColor
+                  : _LeaderboardChrome.border,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected
-                  ? Colors.white
-                  : _LeaderboardChrome.fg,
+              color: isSelected ? Colors.white : _LeaderboardChrome.fg,
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
@@ -1218,7 +1216,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         'userId': currentUserId,
         'name': _currentUser!.displayName,
         'points': _currentUser!.totalPoints,
-          'badges': _currentUser!.badgesV2.length,
+        'badges': _currentUser!.badgesV2.length,
         'department': _currentUser!.department,
       },
     );
@@ -1387,10 +1385,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                           width: 12,
                           height: 12,
                           child: Image.asset(
-                          'assets/Office_Workplace/Offices.png',
+                            'assets/Office_Workplace/Offices.png',
                             fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const SizedBox.shrink(),
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox.shrink(),
                           ),
                         ),
                       ),
@@ -1501,7 +1499,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                   const SizedBox(height: 4),
                   Text(
                     '1. Go to Profile Settings\n2. Enable "Leaderboard Participation"',
-                    style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 11),
+                    style: TextStyle(
+                      color: _LeaderboardChrome.fg,
+                      fontSize: 11,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -1525,7 +1526,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       child: Center(
         child: Column(
           children: [
-            const Icon(Icons.error_outline, color: AppColors.dangerColor, size: 48),
+            const Icon(
+              Icons.error_outline,
+              color: AppColors.dangerColor,
+              size: 48,
+            ),
             const SizedBox(height: 12),
             Text(
               'Error loading leaderboard',
@@ -1674,10 +1679,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             backgroundColor: _LeaderboardChrome.cardFill,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: BorderSide(
-                color: _LeaderboardChrome.border,
-                width: 1,
-              ),
+              side: BorderSide(color: _LeaderboardChrome.border, width: 1),
             ),
             title: Row(
               children: [
