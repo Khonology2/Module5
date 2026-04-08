@@ -448,8 +448,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
                               // Filter: hide overdue goal alerts in this view
                               final filtered = alerts.where((a) {
-                                if (a.type == AlertType.goalOverdue)
+                                if (a.type == AlertType.goalOverdue) {
                                   return false;
+                                }
                                 if (widget.forManagerGwMenu &&
                                     _isManagerSideAlertForGw(a)) {
                                   return false;
