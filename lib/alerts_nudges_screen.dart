@@ -33,23 +33,19 @@ class _AlertsChrome {
   _AlertsChrome._();
 
   /// Dark card surface aligned with dashboard tiles (`#3D3F40`).
-  static const Color _darkCard = Color(0xFF3D3F40);
+  // Match employee dashboard opacity (0x99 for 60% opacity)
+  static const Color _darkCard = Color(0x993D3D40);
 
   static bool get light => employeeDashboardLightModeNotifier.value;
-  static Color get fg =>
-      light ? const Color(0xFF000000) : Colors.white;
-  static Color get muted =>
-      light ? const Color(0xFF666666) : Colors.white70;
-  static Color get cardFill =>
-      light ? const Color(0xFFFFFFFF) : _darkCard;
-  static Color get cardFillSoft =>
-      light ? const Color(0xFFF5F5F5) : _darkCard;
+  static Color get fg => light ? const Color(0xFF000000) : Colors.white;
+  static Color get muted => light ? const Color(0xFF666666) : Colors.white70;
+  static Color get cardFill => light ? const Color(0x99FFFFFF) : _darkCard;
+  static Color get cardFillSoft => light ? const Color(0xFFF5F5F5) : _darkCard;
   static Color get borderH =>
       light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
   static Color get borderH15 =>
       light ? const Color(0x25000000) : Colors.white.withValues(alpha: 0.15);
-  static Color get inputFill =>
-      light ? const Color(0xFFF5F5F5) : _darkCard;
+  static Color get inputFill => light ? const Color(0xFFF5F5F5) : _darkCard;
 }
 
 class AlertsNudgesScreen extends StatefulWidget {
@@ -100,6 +96,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return false;
     }
   }
+
   List<OneOnOneMeeting>? _cachedMeetings;
   final Map<String, String> _userNameCache = {};
   static const Duration _defaultMeetingDuration = Duration(hours: 1);
@@ -245,7 +242,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   }
 
   String _workspaceDashboardRoute() {
-    return widget.forManagerGwMenu ? '/manager_gw_menu_dashboard' : '/employee_dashboard';
+    return widget.forManagerGwMenu
+        ? '/manager_gw_menu_dashboard'
+        : '/employee_dashboard';
   }
 
   String _resolveActionRouteForWorkspace(String route) {
@@ -289,13 +288,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     }
     final tutorialParams = tutorialService.getTutorialParams();
 
-    final sidebarItems = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+    final sidebarItems =
+        widget.forManagerGwMenu && widget.managerGwMenuRoute != null
         ? SidebarConfig.managerItems
         : SidebarConfig.employeeItems;
     final routeName =
         widget.forManagerGwMenu && widget.managerGwMenuRoute != null
-            ? widget.managerGwMenuRoute!
-            : '/alerts_nudges';
+        ? widget.managerGwMenuRoute!
+        : '/alerts_nudges';
     return AppScaffold(
       title: 'Alerts & Nudges',
       showAppBar: false,
@@ -339,12 +339,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 data: Theme.of(context).copyWith(
                   outlinedButtonTheme: OutlinedButtonThemeData(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          light ? const Color(0xFF1F2840) : Colors.white70,
+                      foregroundColor: light
+                          ? const Color(0xFF1F2840)
+                          : Colors.white70,
                       side: BorderSide(
-                        color: light
-                            ? const Color(0x66000000)
-                            : Colors.white54,
+                        color: light ? const Color(0x66000000) : Colors.white54,
                       ),
                     ),
                   ),
@@ -353,153 +352,168 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   padding: AppSpacing.screenPadding,
                   physics: const AlwaysScrollableScrollPhysics(),
                   child: StreamBuilder<String?>(
-            stream: RoleService.instance.roleStream(),
-            initialData: RoleService.instance.cachedRole ?? 'employee',
-            builder: (context, roleSnapshot) {
-              // role stream is observed to ensure auth context is alive; defaulting prevents spinners
-              // Role is available via roleSnapshot.data or cachedRole if needed
+                    stream: RoleService.instance.roleStream(),
+                    initialData: RoleService.instance.cachedRole ?? 'employee',
+                    builder: (context, roleSnapshot) {
+                      // role stream is observed to ensure auth context is alive; defaulting prevents spinners
+                      // Role is available via roleSnapshot.data or cachedRole if needed
 
-              final user = FirebaseAuth.instance.currentUser;
-              if (user == null) {
-                return Center(
-                  child: Text(
-                    'Please sign in to view alerts',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: _AlertsChrome.muted,
-                    ),
-                  ),
-                );
-              }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  StreamBuilder<List<Alert>>(
-                    stream: AlertService.getUserAlertsStream(user.uid),
-                    initialData: _cachedAlerts,
-                    builder: (context, alertsSnapshot) {
-                      final streamedAlerts = alertsSnapshot.data;
-                      // Update cache when fresh data arrives
-                      if (streamedAlerts != null &&
-                          streamedAlerts != _cachedAlerts) {
-                        _cachedAlerts = streamedAlerts;
-                      }
-
-                      // Prefer cached alerts to avoid spinner on transient errors
-                      if (alertsSnapshot.hasError && _cachedAlerts == null) {
-                        final errorMessage = alertsSnapshot.error.toString();
-
-                        // Check if it's a permission error
-                        if (errorMessage.contains('permission-denied') ||
-                            errorMessage.contains(
-                              'Missing or insufficient permissions',
-                            )) {
-                          return _buildPermissionErrorState();
-                        }
-
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user == null) {
                         return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                size: 48,
-                                color: AppColors.dangerColor,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Error loading alerts',
-                                style: AppTypography.heading4.copyWith(
-                                  color: _AlertsChrome.fg,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Please try again later',
-                                style: AppTypography.bodyMedium.copyWith(
-                                  color: _AlertsChrome.muted,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      final alerts = streamedAlerts ?? _cachedAlerts ?? [];
-
-                      if (alerts.isEmpty &&
-                          alertsSnapshot.connectionState ==
-                              ConnectionState.waiting &&
-                          _cachedAlerts == null) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.activeColor,
+                          child: Text(
+                            'Please sign in to view alerts',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: _AlertsChrome.muted,
                             ),
                           ),
                         );
                       }
 
-                      // Filter: hide overdue goal alerts in this view
-                      final filtered = alerts.where((a) {
-                        if (a.type == AlertType.goalOverdue) return false;
-                        if (widget.forManagerGwMenu &&
-                            _isManagerSideAlertForGw(a)) {
-                          return false;
-                        }
-                        return true;
-                      }).toList();
-
                       return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _buildAlertSummary(filtered),
-                          const SizedBox(height: AppSpacing.lg),
-                          _buildPredictiveRiskAlerts(),
-                          const SizedBox(height: AppSpacing.lg),
-                          _buildOneOnOneMeetingsSection(employeeId: user.uid),
-                          const SizedBox(height: AppSpacing.lg),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Recent Alerts',
-                                style: AppTypography.heading3.copyWith(
-                                  color: _AlertsChrome.fg,
-                                ),
-                              ),
-                              ElevatedButton.icon(
-                                onPressed: () =>
-                                    _showAIChatAssistant(context, filtered),
-                                icon: const Icon(
-                                  Icons.chat_bubble_outline,
-                                  size: 18,
-                                ),
-                                label: const Text('AI Assistant'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.activeColor,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
+                          StreamBuilder<List<Alert>>(
+                            stream: AlertService.getUserAlertsStream(user.uid),
+                            initialData: _cachedAlerts,
+                            builder: (context, alertsSnapshot) {
+                              final streamedAlerts = alertsSnapshot.data;
+                              // Update cache when fresh data arrives
+                              if (streamedAlerts != null &&
+                                  streamedAlerts != _cachedAlerts) {
+                                _cachedAlerts = streamedAlerts;
+                              }
+
+                              // Prefer cached alerts to avoid spinner on transient errors
+                              if (alertsSnapshot.hasError &&
+                                  _cachedAlerts == null) {
+                                final errorMessage = alertsSnapshot.error
+                                    .toString();
+
+                                // Check if it's a permission error
+                                if (errorMessage.contains(
+                                      'permission-denied',
+                                    ) ||
+                                    errorMessage.contains(
+                                      'Missing or insufficient permissions',
+                                    )) {
+                                  return _buildPermissionErrorState();
+                                }
+
+                                return Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.error_outline,
+                                        size: 48,
+                                        color: AppColors.dangerColor,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Error loading alerts',
+                                        style: AppTypography.heading4.copyWith(
+                                          color: _AlertsChrome.fg,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Please try again later',
+                                        style: AppTypography.bodyMedium
+                                            .copyWith(
+                                              color: _AlertsChrome.muted,
+                                            ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
                                   ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(28),
+                                );
+                              }
+
+                              final alerts =
+                                  streamedAlerts ?? _cachedAlerts ?? [];
+
+                              if (alerts.isEmpty &&
+                                  alertsSnapshot.connectionState ==
+                                      ConnectionState.waiting &&
+                                  _cachedAlerts == null) {
+                                return const Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.activeColor,
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ],
+                                );
+                              }
+
+                              // Filter: hide overdue goal alerts in this view
+                              final filtered = alerts.where((a) {
+                                if (a.type == AlertType.goalOverdue)
+                                  return false;
+                                if (widget.forManagerGwMenu &&
+                                    _isManagerSideAlertForGw(a)) {
+                                  return false;
+                                }
+                                return true;
+                              }).toList();
+
+                              return Column(
+                                children: [
+                                  _buildAlertSummary(filtered),
+                                  const SizedBox(height: AppSpacing.lg),
+                                  _buildPredictiveRiskAlerts(),
+                                  const SizedBox(height: AppSpacing.lg),
+                                  _buildOneOnOneMeetingsSection(
+                                    employeeId: user.uid,
+                                  ),
+                                  const SizedBox(height: AppSpacing.lg),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Recent Alerts',
+                                        style: AppTypography.heading3.copyWith(
+                                          color: _AlertsChrome.fg,
+                                        ),
+                                      ),
+                                      ElevatedButton.icon(
+                                        onPressed: () => _showAIChatAssistant(
+                                          context,
+                                          filtered,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.chat_bubble_outline,
+                                          size: 18,
+                                        ),
+                                        label: const Text('AI Assistant'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              AppColors.activeColor,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              28,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: AppSpacing.md),
+                                  _buildAlertsList(filtered),
+                                ],
+                              );
+                            },
                           ),
-                          const SizedBox(height: AppSpacing.md),
-                          _buildAlertsList(filtered),
                         ],
                       );
                     },
                   ),
-                ],
-              );
-            },
-          ),
                 ),
               ),
             ),
@@ -1113,9 +1127,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               const SizedBox(width: 8),
               Text(
                 'Predictive Risk Alerts',
-                style: AppTypography.heading4.copyWith(
-                  color: _AlertsChrome.fg,
-                ),
+                style: AppTypography.heading4.copyWith(color: _AlertsChrome.fg),
               ),
               const Spacer(),
               TextButton.icon(
@@ -1309,17 +1321,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.notifications_none,
-            size: 48,
-            color: _AlertsChrome.muted,
-          ),
+          Icon(Icons.notifications_none, size: 48, color: _AlertsChrome.muted),
           const SizedBox(height: 16),
           Text(
             'No Alerts Yet',
-            style: AppTypography.heading4.copyWith(
-              color: _AlertsChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: _AlertsChrome.fg),
           ),
           const SizedBox(height: 8),
           Text(
@@ -2315,9 +2321,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           const SizedBox(height: 16),
           Text(
             'Alerts Setup Required',
-            style: AppTypography.heading4.copyWith(
-              color: _AlertsChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: _AlertsChrome.fg),
           ),
           const SizedBox(height: 8),
           Text(
@@ -2984,9 +2988,11 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
     // Keep hover feel, but do not change background in dark mode.
     final Color strokeColor = light
         ? (_isHovered
-            ? widget.color.withValues(alpha: 0.45)
-            : const Color(0x33000000))
-        : (_isHovered ? widget.color.withValues(alpha: 0.5) : _AlertsChrome.borderH);
+              ? widget.color.withValues(alpha: 0.45)
+              : const Color(0x33000000))
+        : (_isHovered
+              ? widget.color.withValues(alpha: 0.5)
+              : _AlertsChrome.borderH);
 
     final List<BoxShadow>? shadows = light
         ? [
@@ -3010,10 +3016,7 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
         decoration: BoxDecoration(
           color: fillColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: strokeColor,
-            width: _isHovered ? 2 : 1,
-          ),
+          border: Border.all(color: strokeColor, width: _isHovered ? 2 : 1),
           boxShadow: shadows,
         ),
         child: Transform.translate(
@@ -3059,17 +3062,11 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.notifications_none,
-            size: 48,
-            color: _AlertsChrome.muted,
-          ),
+          Icon(Icons.notifications_none, size: 48, color: _AlertsChrome.muted),
           const SizedBox(height: 16),
           Text(
             'No Alerts Yet',
-            style: AppTypography.heading4.copyWith(
-              color: _AlertsChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: _AlertsChrome.fg),
           ),
           const SizedBox(height: 8),
           Text(

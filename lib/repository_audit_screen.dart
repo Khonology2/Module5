@@ -39,9 +39,10 @@ class _RepoAuditChrome {
   _RepoAuditChrome._();
 
   static bool get light => employeeDashboardLightModeNotifier.value;
-  static const Color _darkCard = Color(0xFF3D3F40);
+  // Match employee dashboard opacity (0x99 for 60% opacity)
+  static const Color _darkCard = Color(0x993D3D40);
 
-  static Color get cardFill => light ? const Color(0xFFFFFFFF) : _darkCard;
+  static Color get cardFill => light ? const Color(0x99FFFFFF) : _darkCard;
   static Color get border =>
       light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
   static Color get fg => light ? const Color(0xFF000000) : Colors.white;
@@ -57,10 +58,7 @@ class RepositoryAuditScreen extends StatefulWidget {
   /// When true, admin is viewing; show only manager-scoped audit data (no employees).
   final bool forAdminOversight;
 
-  const RepositoryAuditScreen({
-    super.key,
-    this.forAdminOversight = false,
-  });
+  const RepositoryAuditScreen({super.key, this.forAdminOversight = false});
 
   @override
   State<RepositoryAuditScreen> createState() => _RepositoryAuditScreenState();
@@ -547,9 +545,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         Expanded(
           child: Text(
             'Completed Goals Archive',
-            style: AppTypography.heading4.copyWith(
-              color: _RepoAuditChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: _RepoAuditChrome.fg),
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),
