@@ -165,38 +165,70 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         msg.contains('review and decide next step');
   }
 
-  bool _isManagerInboxRelevantAlert(Alert alert, String managerId) {
-    // Debug: Log alert processing
-    developer.log(
-      'Processing alert: ${alert.id}, type: ${alert.type}, isRead: ${alert.isRead}, userId: ${alert.userId}, managerId: $managerId, showArchived: $_showArchived',
-    );
+  DateTime? _meetingEndFromAlert(Alert alert) {
+    final data = alert.actionData;
+    if (data == null || data.isEmpty) return null;
 
-    // TEMPORARILY DISABLE USER ID FILTER TO SEE ALL ALERTS
-    // Defensive scope: manager inbox should only show alerts addressed to manager.
-    // if (alert.userId != managerId) {
-    //   developer.log('Filtered out: alert.userId != managerId');
-    //   return false;
-    // }
+    DateTime? parse(dynamic value) {
+      if (value == null) return null;
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      if (value is int) {
+        // Accept both seconds and milliseconds epoch.
+        if (value > 1000000000000) {
+          return DateTime.fromMillisecondsSinceEpoch(value);
+        }
+        if (value > 1000000000) {
+          return DateTime.fromMillisecondsSinceEpoch(value * 1000);
+        }
+      }
+      if (value is String) return DateTime.tryParse(value);
+      return null;
+    }
+
+    // Prefer explicit accepted/proposed end times.
+    final acceptedEnd = parse(data['acceptedEndDateTime']);
+    if (acceptedEnd != null) return acceptedEnd;
+
+    final proposedEnd = parse(data['proposedEndDateTime']);
+    if (proposedEnd != null) return proposedEnd;
+
+    // Legacy fallback: if only a single start time exists, assume 60-minute meeting.
+    final start =
+        parse(data['acceptedStartDateTime']) ??
+        parse(data['proposedStartDateTime']) ??
+        parse(data['proposedDateTime']);
+    if (start != null) {
+      return start.add(const Duration(minutes: 60));
+    }
+    return null;
+  }
+
+  bool _shouldArchiveMeetingAlert(Alert alert) {
+    // "Agreed by both parties" is represented by accepted status alert type.
+    if (alert.type != AlertType.oneOnOneAccepted) return false;
+    final meetingEnd = _meetingEndFromAlert(alert);
+    if (meetingEnd == null) return false;
+    return DateTime.now().isAfter(meetingEnd);
+  }
+
+  bool _isManagerInboxRelevantAlert(Alert alert, String managerId) {
+    // Defensive scope: inbox should only show alerts addressed to current user.
+    if (alert.userId != managerId) {
+      return false;
+    }
 
     final isAdminOversight = widget.forAdminOversight;
 
-    // TEMPORARILY DISABLE ACTION ROUTE FILTER
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
     if (!isAdminOversight &&
         alert.actionRoute == _managerWorkspaceAlertsRoute) {
-      developer.log('Alert routed to manager workspace: ${alert.actionRoute}');
-      // Temporarily allow these alerts for debugging
-      // return false;
+      return false;
     }
 
-    // TEMPORARILY DISABLE EMPLOYEE PERSONA FILTER
     // Suppress employee-persona cards in manager inbox.
     if (!isAdminOversight && _isEmployeePersonaAlertType(alert.type)) {
-      developer.log(
-        'Employee persona alert type (temporarily allowed): ${alert.type}',
-      );
-      // Temporarily allow these alerts for debugging
-      // return false;
+      return false;
     }
 
     // Keep only manager-scoped overdue alerts.
@@ -212,18 +244,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     // - Archived: show finalized goal decisions only (approved/rejected).
     if (_showArchived) {
       // Archive is goal history only.
-      final result =
-          (alert.type == AlertType.goalApprovalApproved) ||
-          (alert.type == AlertType.goalApprovalRejected);
-      developer.log('Archived view result for alert ${alert.id}: $result');
-      return result;
+      return (alert.type == AlertType.goalApprovalApproved) ||
+          (alert.type == AlertType.goalApprovalRejected) ||
+          _shouldArchiveMeetingAlert(alert);
     } else {
-      // Keep everything else in Inbox, including meeting-related alerts.
-      final result =
-          alert.type != AlertType.goalApprovalApproved &&
+      // Keep everything else in Inbox, including meeting alerts,
+      // until an accepted meeting has actually passed.
+      if (_shouldArchiveMeetingAlert(alert)) return false;
+      return alert.type != AlertType.goalApprovalApproved &&
           alert.type != AlertType.goalApprovalRejected;
-      developer.log('Inbox view result for alert ${alert.id}: $result');
-      return result;
     }
   }
 
@@ -1305,9 +1334,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               developer.log('Alerts after manager filtering: ${items.length}');
 
               if (_unreadOnly && !_showArchived) {
-                // TEMPORARILY DISABLE UNREAD FILTER TO SEE ALL ALERTS
-                // items = items.where((a) => !a.isRead).toList();
-                developer.log('Unread filter disabled for debugging');
+                items = items.where((a) => !a.isRead).toList();
               }
               if (_priorityFilter != null) {
                 items = items
