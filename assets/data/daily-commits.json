@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.BB13.SIT",
-  "generated_at": "2026-04-07T12:57:23Z",
+  "version": "2026.04.AC5.SIT",
+  "generated_at": "2026-04-08T10:48:51Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -13,51 +13,6 @@
       "timestamp": "2026-03-26T09:59:41+02:00"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature - mplement handling for one-on-one alerts, allowing users to respond to meeting requests with options to accept, acknowledge, or suggest new times based on meeting status.",
-      "timestamp": "2026-04-07T14:56:27+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature: mplement response handling for active 1:1 meeting threads, allowing managers to accept or propose times based on meeting status.",
-      "timestamp": "2026-04-07T14:49:26+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Update action route logic for manager oversight and adjust alert action routes in alerts and manager inbox screens.",
-      "timestamp": "2026-04-07T14:32:19+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - Refactor alert filtering logic and improve code formatting in manager inbox screen. Adjusted comments",
-      "timestamp": "2026-04-07T14:03:10+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - Add initial employee and meeting ID support for admin team review and dashboard screens.",
-      "timestamp": "2026-04-07T13:47:05+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Add functionality for starting 1:1 meetings with admins and update alert action routes based on user role.",
-      "timestamp": "2026-04-07T13:39:14+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Enhance alert filtering logic and update user alerts stream to support customizable item limits.",
-      "timestamp": "2026-04-07T13:23:21+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Clean up color getter methods and improve code formatting in alerts_nudges_screen.dart",
-      "timestamp": "2026-04-07T13:12:27+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - Refactor alert handling for goal approvals and rejections.",
-      "timestamp": "2026-04-07T12:54:08+02:00"
-    },
-    {
       "author": "BhutSipho",
       "message": "Feat: Status Badges Implement For Goals",
       "timestamp": "2026-04-07T11:56:26+02:00"
@@ -66,8 +21,13 @@
       "author": "BhutSipho",
       "message": "Feat:Enable Navigation from PDP Goals to Milestone Details",
       "timestamp": "2026-04-07T10:46:18+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature -  Update AdminBadgesPointsScreen to utilize forAdminSelf flag and adjust navigation and display logic in ManagerBadgesPointsScreen for admin oversight.",
+      "timestamp": "2026-04-08T12:48:01+02:00"
     }
   ],
-  "total_commits": 13,
-  "date_range": "2026-04-07"
+  "total_commits": 5,
+  "date_range": "2026-04-08"
 }
