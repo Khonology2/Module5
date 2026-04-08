@@ -19,8 +19,9 @@ class ManagerLeaderboardScreen extends StatefulWidget {
 
 class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   LeaderboardMetric _metric = LeaderboardMetric.points;
+  bool _isAllTime = true;
   List<EmployeeData> _lastEmployees = const [];
-  late final Stream<List<EmployeeData>> _employeeStream;
+  late Stream<List<EmployeeData>> _employeeStream;
   Future<List<EmployeeData>>? _employeeFuture;
   late final AnimationController _topHoverController;
   bool _isTopHovered = false;
@@ -29,16 +30,27 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
-    // IMPORTANT: Cache the stream instance so StreamBuilder doesn't resubscribe
-    // on every rebuild (which can destabilize Firestore listeners on web).
-    _employeeStream = ManagerRealtimeService.getTeamDataStream(
-      timeFilter: TimeFilter.month,
+    _topHoverController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
     );
-    // On web, prefer one-time fetches to avoid Firestore Web listener instability.
+    _topHoverController.repeat(reverse: true);
+    _reloadLeaderboardSource();
+  }
+
+  TimeFilter get _selectedTimeFilter =>
+      _isAllTime ? TimeFilter.year : TimeFilter.month;
+
+  void _reloadLeaderboardSource() {
+    // Cache stream instance so StreamBuilder doesn't resubscribe every rebuild.
+    _employeeStream = ManagerRealtimeService.getTeamDataStream(
+      timeFilter: _selectedTimeFilter,
+    );
+    // On web, prefer one-time fetches to avoid listener instability.
     if (kIsWeb) {
       _employeeFuture = ManagerRealtimeService.getTeamDataStream(
-        timeFilter: TimeFilter.month,
-      );
+        timeFilter: _selectedTimeFilter,
+      ).first;
     }
   }
 
@@ -160,7 +172,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                       setState(() {
                         _employeeFuture = ManagerRealtimeService
                             .getTeamDataStream(
-                              timeFilter: TimeFilter.month,
+                              timeFilter: _selectedTimeFilter,
                             )
                             .first;
                       });
@@ -205,14 +217,14 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
               children: [
                 Row(
                   children: [
-                    Expanded(child: _buildHeaderWithFilters()),
+                    Expanded(child: _buildHeader()),
                     IconButton(
                       tooltip: 'Refresh',
                       onPressed: () {
                         setState(() {
                           _employeeFuture = ManagerRealtimeService
                               .getTeamDataStream(
-                                timeFilter: TimeFilter.month,
+                                timeFilter: _selectedTimeFilter,
                               )
                               .first;
                         });
@@ -225,6 +237,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                _buildFiltersBar(),
+                const SizedBox(height: 12),
                 _buildEmptyState(),
               ],
             );
@@ -239,14 +253,14 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
             children: [
               Row(
                 children: [
-                  Expanded(child: _buildHeaderWithFilters()),
+                  Expanded(child: _buildHeader()),
                   IconButton(
                     tooltip: 'Refresh',
                     onPressed: () {
                       setState(() {
                         _employeeFuture = ManagerRealtimeService
                             .getTeamDataStream(
-                              timeFilter: TimeFilter.month,
+                              timeFilter: _selectedTimeFilter,
                             )
                             .first;
                       });
@@ -259,6 +273,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+              _buildFiltersBar(),
+              const SizedBox(height: 12),
               if (top.isNotEmpty) _buildPodium(top),
               const SizedBox(height: 16),
               ...rest.asMap().entries.map((entry) {
@@ -330,8 +346,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _buildHeaderWithFilters(),
+              _buildHeader(),
               const SizedBox(height: 16),
+              _buildFiltersBar(),
+              const SizedBox(height: 12),
               _buildEmptyState(),
             ],
           );
@@ -341,8 +359,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
             children: [
-              _buildHeaderWithFilters(),
+              _buildHeader(),
               const SizedBox(height: 16),
+              _buildFiltersBar(),
+              const SizedBox(height: 12),
               _buildEmptyState(),
             ],
           );
@@ -355,8 +375,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           children: [
-            _buildHeaderWithFilters(),
+            _buildHeader(),
             const SizedBox(height: 16),
+            _buildFiltersBar(),
+            const SizedBox(height: 12),
             if (top.isNotEmpty) _buildPodium(top),
             const SizedBox(height: 16),
             ...rest.asMap().entries.map((entry) {
@@ -376,25 +398,60 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      body: DashboardThemedBackground(child: content),
+      backgroundColor: AppColors.backgroundColor,
+      appBar: AppBar(
+        backgroundColor: AppColors.backgroundColor,
+        title: Text(
+          'Leaderboard',
+          style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+        ),
+        centerTitle: false,
+      ),
+      body: content,
     );
   }
 
-  Widget _buildHeaderWithFilters() {
-    Widget metricChip(String label, LeaderboardMetric metric) {
-      final selected = _metric == metric;
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Leaderboard',
+            style: AppTypography.heading2.copyWith(color: Colors.white),
+          ),
+          Row(
+            children: [
+              const Icon(Icons.circle, color: AppColors.successColor, size: 10),
+              const SizedBox(width: 6),
+              Text(
+                'Live',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.successColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFiltersBar() {
+    Widget filterChip(String label, bool selected, VoidCallback onTap) {
       return GestureDetector(
-        onTap: () => setState(() => _metric = metric),
+        onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          margin: const EdgeInsets.only(right: 8),
           decoration: BoxDecoration(
-            color: selected
-                ? AppColors.activeColor
-                : DashboardChrome.cardFill,
+            color: selected ? AppColors.activeColor : AppColors.elevatedBackground,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: selected ? AppColors.activeColor : DashboardChrome.border,
@@ -413,33 +470,43 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: DashboardChrome.cardFill,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: DashboardChrome.border),
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Top Employees',
-            style: AppTypography.heading2.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Switch metrics to compare different dimensions of impact.',
-            style: AppTypography.bodySmall.copyWith(color: Colors.white70),
-          ),
-          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              metricChip('Points', LeaderboardMetric.points),
-              metricChip('Streaks', LeaderboardMetric.streaks),
-              metricChip('Progress', LeaderboardMetric.progress),
+              filterChip('This month', !_isAllTime, () {
+                setState(() {
+                  _isAllTime = false;
+                  _reloadLeaderboardSource();
+                });
+              }),
+              filterChip('All time', _isAllTime, () {
+                setState(() {
+                  _isAllTime = true;
+                  _reloadLeaderboardSource();
+                });
+              }),
+              filterChip('Points', _metric == LeaderboardMetric.points, () {
+                setState(() => _metric = LeaderboardMetric.points);
+              }),
+              filterChip('Streaks', _metric == LeaderboardMetric.streaks, () {
+                setState(() => _metric = LeaderboardMetric.streaks);
+              }),
             ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Active filters: ${_isAllTime ? 'allTime' : 'thisMonth'}, ${_metric == LeaderboardMetric.points ? 'points' : 'streaks'}',
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
           ),
         ],
       ),
