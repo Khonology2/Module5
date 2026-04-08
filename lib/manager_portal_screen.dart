@@ -111,7 +111,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           forManagerGwMenu: true,
         );
       case '/manager_gw_menu_leaderboard':
-        return const ManagerLeaderboardScreen(embedded: true);
+        return const ManagerLeaderboardScreen(
+          embedded: true,
+          compareManagers: true,
+        );
       case '/manager_gw_menu_badges':
         return const BadgesPointsScreen(
           embedded: true,
