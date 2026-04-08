@@ -10,7 +10,12 @@ enum LeaderboardMetric { points, streaks, progress }
 
 class ManagerLeaderboardScreen extends StatefulWidget {
   final bool embedded;
-  const ManagerLeaderboardScreen({super.key, this.embedded = false});
+  final bool compareManagers;
+  const ManagerLeaderboardScreen({
+    super.key,
+    this.embedded = false,
+    this.compareManagers = false,
+  });
 
   @override
   State<ManagerLeaderboardScreen> createState() =>
@@ -43,14 +48,23 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
   void _reloadLeaderboardSource() {
     // Cache stream instance so StreamBuilder doesn't resubscribe every rebuild.
-    _employeeStream = ManagerRealtimeService.getTeamDataStream(
-      timeFilter: _selectedTimeFilter,
-    );
+    _employeeStream = widget.compareManagers
+        ? ManagerRealtimeService.getManagersDataStream(
+            timeFilter: _selectedTimeFilter,
+          )
+        : ManagerRealtimeService.getTeamDataStream(
+            timeFilter: _selectedTimeFilter,
+          );
     // On web, prefer one-time fetches to avoid listener instability.
     if (kIsWeb) {
-      _employeeFuture = ManagerRealtimeService.getTeamDataStream(
-        timeFilter: _selectedTimeFilter,
-      ).first;
+      _employeeFuture = (widget.compareManagers
+              ? ManagerRealtimeService.getManagersDataStream(
+                  timeFilter: _selectedTimeFilter,
+                )
+              : ManagerRealtimeService.getTeamDataStream(
+                  timeFilter: _selectedTimeFilter,
+                ))
+          .first;
     }
   }
 
@@ -100,15 +114,17 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.trending_up_outlined, color: DashboardChrome.fg),
-        const SizedBox(height: 8),
+        Icon(Icons.trending_up_outlined, color: AppColors.textSecondary),
+        SizedBox(height: 8),
         Text(
-          'No employees found',
+          widget.compareManagers ? 'No managers found' : 'No employees found',
           style: TextStyle(color: AppColors.textSecondary),
         ),
         const SizedBox(height: 4),
         Text(
-          'If some employees are missing, verify their user profiles exist in Firestore `users` and their role is set to employee.',
+          widget.compareManagers
+              ? 'If some managers are missing, verify their user profiles exist in Firestore `users` and their role is set to manager.'
+              : 'If some employees are missing, verify their user profiles exist in Firestore `users` and their role is set to employee.',
           style: TextStyle(color: AppColors.textMuted, fontSize: 12),
         ),
       ],
