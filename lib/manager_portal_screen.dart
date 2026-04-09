@@ -40,6 +40,7 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
+
   /// Incremented each time we navigate to manager_alerts_nudges so the screen loads fresh data.
   int _alertsScreenKey = 0;
 
@@ -182,6 +183,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   @override
+  void dispose() {
+    // Cancel any pending operations
+    _shouldShowTutorial = false;
+    _currentTutorialStep = 0;
+
+    // Clean up tutorial keys
+    _sidebarTutorialKeys.clear();
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!_didInitFromArgs) {
       final args = ModalRoute.of(context)?.settings.arguments;
@@ -225,17 +238,14 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                               Colors.white.withValues(alpha: 0.2),
                               Colors.white.withValues(alpha: 0.08),
                             ]
-                          : const [
-                              Color(0x880A0F1F),
-                              Color(0x88040610),
-                            ],
+                          : const [Color(0x880A0F1F), Color(0x88040610)],
                       stops: light ? null : const [0.0, 1.0],
                     ),
                   ),
                   child: Row(
                     children: [
                       ResponsiveSidebar(
-                        items: SidebarConfig.managerItems,
+                        items: SidebarConfig.getItemsForCurrentWorkspace(),
                         onNavigate: _onNavigate,
                         currentRouteName: _currentRoute,
                         onLogout: _onLogout,
@@ -250,8 +260,9 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                         onTutorialNext: _shouldShowTutorial
                             ? _moveToNextTutorialStep
                             : null,
-                        onTutorialSkip:
-                            _shouldShowTutorial ? _skipTutorial : null,
+                        onTutorialSkip: _shouldShowTutorial
+                            ? _skipTutorial
+                            : null,
                       ),
                       Expanded(child: _getBodyWidget()),
                     ],

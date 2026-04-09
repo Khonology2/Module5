@@ -11,6 +11,9 @@ import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/workspace_context_switcher.dart';
+import 'package:pdh/services/workspace_context_service.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
 
 /// Light palette for the nav rail (white panel, black labels), driven by
 /// [employeeDashboardLightModeNotifier] with the employee dashboard light toggle.
@@ -27,7 +30,8 @@ class _SidebarLightMode extends InheritedWidget {
   }
 
   @override
-  bool updateShouldNotify(_SidebarLightMode oldWidget) => light != oldWidget.light;
+  bool updateShouldNotify(_SidebarLightMode oldWidget) =>
+      light != oldWidget.light;
 }
 
 class ResponsiveSidebar extends StatefulWidget {
@@ -60,6 +64,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   final ScrollController _scrollController = ScrollController();
   int? _previousTutorialStep;
   bool _isProfileIncomplete = false;
+  final WorkspaceContextService _workspaceService = WorkspaceContextService();
+  List<SidebarItem> _currentItems = [];
 
   // Use design system colors
   static const Color backgroundColor = AppColors.backgroundColor;
@@ -69,6 +75,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     super.initState();
     _previousTutorialStep = widget.tutorialStepIndex;
     _checkProfileCompletion();
+    _workspaceService.addListener(_onWorkspaceChanged);
+    _updateItems();
   }
 
   Future<void> _checkProfileCompletion({bool bypassCache = false}) async {
@@ -96,7 +104,20 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   void dispose() {
     _scrollController.dispose();
     _previousTutorialStep = null; // Clear the tutorial step reference
+    _workspaceService.removeListener(_onWorkspaceChanged);
     super.dispose();
+  }
+
+  void _onWorkspaceChanged() {
+    if (mounted) {
+      setState(() {
+        _updateItems();
+      });
+    }
+  }
+
+  void _updateItems() {
+    _currentItems = SidebarConfig.getItemsForCurrentWorkspace();
   }
 
   @override
@@ -184,11 +205,14 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   // [_SidebarLightMode], so inherited lookup would always be false.
                   _buildHeader(context, effectiveCollapsed, sidebarLight),
                   const SizedBox(height: AppSpacing.xs),
+                  // Workspace Context Switcher
+                  const WorkspaceContextSwitcher(),
+                  const SizedBox(height: AppSpacing.sm),
                   Expanded(
                     child: ListView(
                       controller: _scrollController,
                       padding: AppSpacing.sidebarContentPadding,
-                      children: widget.items.asMap().entries.map((entry) {
+                      children: _currentItems.asMap().entries.map((entry) {
                         final index = entry.key;
                         final it = entry.value;
                         // Check if this is the My Profile route and profile is incomplete
@@ -208,8 +232,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                             tutorialKey:
                                 widget.sidebarTutorialKeys != null &&
                                     index < widget.sidebarTutorialKeys!.length
-                                    ? widget.sidebarTutorialKeys![index]
-                                    : null,
+                                ? widget.sidebarTutorialKeys![index]
+                                : null,
                             showTutorial:
                                 widget.tutorialStepIndex != null &&
                                 widget.tutorialStepIndex == index,
@@ -318,13 +342,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     );
   }
 
-  Widget _buildHeader(
-    BuildContext context,
-    bool collapsed,
-    bool sidebarLight,
-  ) {
-    final Color textColor =
-        sidebarLight ? const Color(0xFF000000) : AppColors.textPrimary;
+  Widget _buildHeader(BuildContext context, bool collapsed, bool sidebarLight) {
+    final Color textColor = sidebarLight
+        ? const Color(0xFF000000)
+        : AppColors.textPrimary;
 
     // Expanded header needs room for logo + welcome text (fixed height was causing
     // RenderFlex overflow on web when text wrapped to two lines).
@@ -709,8 +730,9 @@ class _NavTileState extends State<_NavTile> {
     final Color labelColor = isSelected
         ? Colors.white
         : (sidebarLight ? const Color(0xFF000000) : AppColors.textPrimary);
-    final Color hoverFill =
-        sidebarLight ? const Color(0xFFE8E8E8) : AppColors.hoverColor;
+    final Color hoverFill = sidebarLight
+        ? const Color(0xFFE8E8E8)
+        : AppColors.hoverColor;
 
     Widget navTileContent = Padding(
       padding: widget.isChild
@@ -801,10 +823,11 @@ class _NavTileState extends State<_NavTile> {
                             Flexible(
                               child: Text(
                                 label,
-                                style: (isSelected
-                                        ? AppTypography.navigationActive
-                                        : AppTypography.navigation)
-                                    .copyWith(color: labelColor),
+                                style:
+                                    (isSelected
+                                            ? AppTypography.navigationActive
+                                            : AppTypography.navigation)
+                                        .copyWith(color: labelColor),
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
                                 softWrap: false,

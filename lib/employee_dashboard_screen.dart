@@ -31,8 +31,10 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 /// Employee dashboard card surface (requested #3D3D40; user note had a typo).
 const Color _kDashboardCardBg = Color(0xFF3D3D40);
 const Color _kPointsAccent = Color(0xFF6CA510);
+
 /// All dashboard copy uses solid white for clarity on dark cards.
 const Color _kDashboardText = Color(0xFFFFFFFF);
+
 /// Quick Actions tile hover fill (mockup solid red).
 const Color _kQuickActionHoverRed = Color(0xFFC10D00);
 
@@ -80,16 +82,8 @@ String _dashBellAssetPath(BuildContext context) {
 }
 
 /// KPI / row badge images: show assets as-is (no tint) so red badge art stays visible in light mode.
-Widget _dashDashboardAsset(
-  String assetPath, {
-  double size = 48,
-}) {
-  return Image.asset(
-    assetPath,
-    width: size,
-    height: size,
-    fit: BoxFit.contain,
-  );
+Widget _dashDashboardAsset(String assetPath, {double size = 48}) {
+  return Image.asset(assetPath, width: size, height: size, fit: BoxFit.contain);
 }
 
 Widget _quickActionLeadingIcon(
@@ -121,8 +115,10 @@ class EmployeeDashboardScreen extends StatefulWidget {
   /// When true, use manager sidebar and [managerGwMenuRoute] (for manager Goal Workspace menu).
   final bool forManagerGwMenu;
   final String? managerGwMenuRoute;
+
   /// When true, only build content (no AppScaffold/sidebar); for use inside ManagerPortalScreen.
   final bool embedded;
+
   /// When true, admin is viewing; data for [selectedManagerId] if set.
   final bool forAdminOversight;
   final String? selectedManagerId;
@@ -373,7 +369,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     if (!mounted || !_shouldShowTutorial) return;
 
     // Total steps = sidebar items + collapse toggle
-    final totalSteps = (widget.forManagerGwMenu
+    final totalSteps =
+        (widget.forManagerGwMenu
             ? SidebarConfig.managerItems.length
             : SidebarConfig.employeeItems.length) +
         1;
@@ -732,13 +729,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         ? tutorialService.onTutorialSkip
         : (_shouldShowTutorial ? _skipTutorial : null);
 
-    final sidebarItems = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+    final sidebarItems =
+        widget.forManagerGwMenu && widget.managerGwMenuRoute != null
         ? SidebarConfig.managerItems
-        : SidebarConfig.employeeItems;
+        : SidebarConfig.getItemsForCurrentWorkspace();
     final routeName =
         widget.forManagerGwMenu && widget.managerGwMenuRoute != null
-            ? widget.managerGwMenuRoute!
-            : '/employee_dashboard';
+        ? widget.managerGwMenuRoute!
+        : '/employee_dashboard';
     return AppScaffold(
       title: 'Employee Dashboard',
       showAppBar: false,
@@ -747,9 +745,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       currentRouteName: routeName,
       topRightAction: const Row(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          NotificationsBell(),
-        ],
+        children: [NotificationsBell()],
       ),
       tutorialStepIndex: tutorialStep,
       sidebarTutorialKeys: tutorialKeys,
@@ -790,96 +786,99 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   return StreamBuilder<List<Goal>>(
                     stream: _userGoalsStream,
                     builder: (context, goalsSnapshot) {
-                  // Use any available data while streams connect to avoid showing a spinner
-                  // Always prefer stream data, but fall back to cached data if streams fail
-                  // This prevents flashing of error messages when streams temporarily fail
-                  final effectiveProfile = profileSnapshot.data ??
-                      userProfile ??
-                      _fallbackUserProfileFromAuth();
-                  final effectiveGoals = goalsSnapshot.data ?? userGoals;
+                      // Use any available data while streams connect to avoid showing a spinner
+                      // Always prefer stream data, but fall back to cached data if streams fail
+                      // This prevents flashing of error messages when streams temporarily fail
+                      final effectiveProfile =
+                          profileSnapshot.data ??
+                          userProfile ??
+                          _fallbackUserProfileFromAuth();
+                      final effectiveGoals = goalsSnapshot.data ?? userGoals;
 
-                  // Log errors but don't block the dashboard from showing
-                  if (profileSnapshot.hasError || goalsSnapshot.hasError) {
-                    final error = profileSnapshot.error ?? goalsSnapshot.error;
-                    developer.log(
-                      'Dashboard stream error (showing dashboard anyway): $error',
-                      name: 'EmployeeDashboardScreen',
-                      error: error,
-                    );
-                  }
+                      // Log errors but don't block the dashboard from showing
+                      if (profileSnapshot.hasError || goalsSnapshot.hasError) {
+                        final error =
+                            profileSnapshot.error ?? goalsSnapshot.error;
+                        developer.log(
+                          'Dashboard stream error (showing dashboard anyway): $error',
+                          name: 'EmployeeDashboardScreen',
+                          error: error,
+                        );
+                      }
 
-                  // If we have no profile data at all, show loading spinner
-                  if (effectiveProfile == null && _effectiveUserId != null) {
-                    final timedOut =
-                        _initialProfileLoadWatch.elapsed >
-                        const Duration(seconds: 12);
-                    if (timedOut) {
-                      return _buildLoadTimeout(
-                        message:
-                            'We couldn’t load your profile. This is usually caused by a connection issue or missing Firestore permissions.',
-                      );
-                    }
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.activeColor,
-                        ),
-                      ),
-                    );
-                  }
-
-                  // Update local state with latest (or fallback) data
-                  userProfile = effectiveProfile;
-                  userGoals = List<Goal>.from(effectiveGoals);
-                  // We have data; stop the timeout watch.
-                  if (_initialProfileLoadWatch.isRunning) {
-                    _initialProfileLoadWatch.stop();
-                  }
-
-                  return RefreshIndicator(
-                    onRefresh: () async {
-                      setState(() {}); // Trigger rebuild to restart streams
-                    },
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: SingleChildScrollView(
-                            padding: AppSpacing.screenPadding,
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildDashboardHeader(),
-                                const SizedBox(height: AppSpacing.lg),
-                                _buildQuickStats(),
-                                const SizedBox(height: AppSpacing.lg),
-                                _buildMotivationRecentAndQuickActionsRow(),
-                                const SizedBox(height: AppSpacing.lg),
-                                _buildSeasonAndTopPerformersRow(),
-                              ],
+                      // If we have no profile data at all, show loading spinner
+                      if (effectiveProfile == null &&
+                          _effectiveUserId != null) {
+                        final timedOut =
+                            _initialProfileLoadWatch.elapsed >
+                            const Duration(seconds: 12);
+                        if (timedOut) {
+                          return _buildLoadTimeout(
+                            message:
+                                'We couldn’t load your profile. This is usually caused by a connection issue or missing Firestore permissions.',
+                          );
+                        }
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.activeColor,
                             ),
                           ),
-                        ),
-                        SafeArea(
-                          top: false,
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              left: AppSpacing.xxl,
-                              right: AppSpacing.xxl,
-                              bottom: AppSpacing.md,
-                            ),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: VersionControlWidget(
-                                textColor: _dashFg(context),
-                                hoverColor: _dashFg(context),
+                        );
+                      }
+
+                      // Update local state with latest (or fallback) data
+                      userProfile = effectiveProfile;
+                      userGoals = List<Goal>.from(effectiveGoals);
+                      // We have data; stop the timeout watch.
+                      if (_initialProfileLoadWatch.isRunning) {
+                        _initialProfileLoadWatch.stop();
+                      }
+
+                      return RefreshIndicator(
+                        onRefresh: () async {
+                          setState(() {}); // Trigger rebuild to restart streams
+                        },
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: AppSpacing.screenPadding,
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildDashboardHeader(),
+                                    const SizedBox(height: AppSpacing.lg),
+                                    _buildQuickStats(),
+                                    const SizedBox(height: AppSpacing.lg),
+                                    _buildMotivationRecentAndQuickActionsRow(),
+                                    const SizedBox(height: AppSpacing.lg),
+                                    _buildSeasonAndTopPerformersRow(),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
+                            SafeArea(
+                              top: false,
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                  left: AppSpacing.xxl,
+                                  right: AppSpacing.xxl,
+                                  bottom: AppSpacing.md,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: VersionControlWidget(
+                                    textColor: _dashFg(context),
+                                    hoverColor: _dashFg(context),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  );
+                      );
                     },
                   );
                 },
@@ -973,11 +972,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   ? Image.network(
                       photoUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        Icons.person,
-                        color: _dashFg(context),
-                        size: 36,
-                      ),
+                      errorBuilder: (context, error, stackTrace) =>
+                          Icon(Icons.person, color: _dashFg(context), size: 36),
                     )
                   : Icon(Icons.person, color: _dashFg(context), size: 36),
             ),
@@ -989,12 +985,16 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               children: [
                 Text(
                   '$greeting, $userName!',
-                  style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+                  style: AppTypography.heading4.copyWith(
+                    color: _dashFg(context),
+                  ),
                 ),
                 const SizedBox(height: 5),
                 Text(
                   motivationalMessage,
-                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: _dashFg(context),
+                  ),
                 ),
                 if (userProfile?.badgesV2.isNotEmpty == true) ...[
                   const SizedBox(height: 8),
@@ -1138,12 +1138,16 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               children: [
                 Text(
                   'Daily Motivation',
-                  style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+                  style: AppTypography.heading4.copyWith(
+                    color: _dashFg(context),
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _getDailyMotivation(),
-                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: _dashFg(context),
+                  ),
                 ),
               ],
             ),
@@ -1396,11 +1400,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               ),
             ],
           ),
-          Divider(
-            height: 1,
-            thickness: 1,
-            color: _dashDivider(context),
-          ),
+          Divider(height: 1, thickness: 1, color: _dashDivider(context)),
           const SizedBox(height: AppSpacing.md),
           if (recentGoals.isEmpty)
             Center(
@@ -1408,7 +1408,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Text(
                   'No recent activity',
-                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: _dashFg(context),
+                  ),
                 ),
               ),
             )
@@ -1562,12 +1564,16 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 children: [
                   Text(
                     'Quick Actions',
-                    style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+                    style: AppTypography.heading4.copyWith(
+                      color: _dashFg(context),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Additional description can be included if required.',
-                    style: AppTypography.bodySmall.copyWith(color: _dashFg(context)),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: _dashFg(context),
+                    ),
                   ),
                 ],
               ),
@@ -1736,7 +1742,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               if (seasons.isEmpty) {
                 return Text(
                   'No active season progress yet.',
-                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: _dashFg(context),
+                  ),
                 );
               }
               return Column(
@@ -1797,7 +1805,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       totalMilestones += challenge.milestones.length;
       for (final milestone in challenge.milestones) {
         final key = '${challenge.id}.${milestone.id}';
-        final status = participation.milestoneProgress[key] ??
+        final status =
+            participation.milestoneProgress[key] ??
             participation.milestoneProgress[milestone.id];
         if (status == MilestoneStatus.completed) {
           completed++;
@@ -1834,31 +1843,45 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           const SizedBox(height: AppSpacing.md),
           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: FirestoreSafe.stream(
-              FirebaseFirestore.instance.collection('users').limit(250).snapshots(),
+              FirebaseFirestore.instance
+                  .collection('users')
+                  .limit(250)
+                  .snapshots(),
             ),
             builder: (context, snapshot) {
               final docs = snapshot.data?.docs ?? const [];
-              final rows = docs
-                  .map((d) => d.data())
-                  .where((u) {
-                    final role = (u['role'] ?? 'employee').toString().toLowerCase();
-                    final optIn = u['leaderboardOptin'] == true ||
-                        u['leaderboardParticipation'] == true;
-                    return role == 'employee' && optIn;
-                  })
-                  .map((u) => {
-                        'name': (u['displayName'] ?? 'Employee').toString(),
-                        'points': (u['totalPoints'] is num)
-                            ? (u['totalPoints'] as num).toInt()
-                            : int.tryParse('${u['totalPoints'] ?? 0}') ?? 0,
+              final rows =
+                  docs
+                      .map((d) => d.data())
+                      .where((u) {
+                        final role = (u['role'] ?? 'employee')
+                            .toString()
+                            .toLowerCase();
+                        final optIn =
+                            u['leaderboardOptin'] == true ||
+                            u['leaderboardParticipation'] == true;
+                        return role == 'employee' && optIn;
                       })
-                  .toList()
-                ..sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
+                      .map(
+                        (u) => {
+                          'name': (u['displayName'] ?? 'Employee').toString(),
+                          'points': (u['totalPoints'] is num)
+                              ? (u['totalPoints'] as num).toInt()
+                              : int.tryParse('${u['totalPoints'] ?? 0}') ?? 0,
+                        },
+                      )
+                      .toList()
+                    ..sort(
+                      (a, b) =>
+                          (b['points'] as int).compareTo(a['points'] as int),
+                    );
               final top = rows.take(3).toList();
               if (top.isEmpty) {
                 return Text(
                   'No top performers yet.',
-                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: _dashFg(context),
+                  ),
                 );
               }
               return Column(
@@ -1895,8 +1918,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                             ),
                           ),
                           Container(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: _kPointsAccent.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(999),
@@ -1975,7 +2000,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Text(
                   'No active goals',
-                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: _dashFg(context),
+                  ),
                 ),
               ),
             )
@@ -2086,8 +2113,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               value: progress,
               label: '${goal.progress}% Complete',
               labelColor: _dashFg(context),
-              backgroundColor:
-                  _dashIsLight() ? const Color(0x33000000) : null,
+              backgroundColor: _dashIsLight() ? const Color(0x33000000) : null,
             ),
           ],
         ),
@@ -2120,13 +2146,17 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               children: [
                 Text(
                   'Still loading…',
-                  style: AppTypography.heading4.copyWith(color: _dashFg(context)),
+                  style: AppTypography.heading4.copyWith(
+                    color: _dashFg(context),
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   message,
-                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: _dashFg(context),
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
@@ -2161,8 +2191,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                         }
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor:
-                            _dashIsLight() ? const Color(0xFF000000) : Colors.white,
+                        foregroundColor: _dashIsLight()
+                            ? const Color(0xFF000000)
+                            : Colors.white,
                         side: BorderSide(
                           color: _dashIsLight()
                               ? const Color(0x33000000)
@@ -2177,7 +2208,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   const SizedBox(height: 10),
                   Text(
                     error!,
-                    style: AppTypography.caption.copyWith(color: _dashFg(context)),
+                    style: AppTypography.caption.copyWith(
+                      color: _dashFg(context),
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],

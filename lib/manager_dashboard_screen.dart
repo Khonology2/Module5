@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
-import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_components.dart';
-import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/utils/firestore_safe.dart';
@@ -15,8 +13,11 @@ import 'package:pdh/models/season.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:intl/intl.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
+import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
@@ -26,6 +27,7 @@ class ManagerDashboardScreen extends StatefulWidget {
 
   /// When true, admin is viewing this screen; data shows managers (not employees).
   final bool forAdminOversight;
+
   /// When set with [forAdminOversight], show data for this manager only (future use).
   final String? selectedManagerId;
 
@@ -42,6 +44,7 @@ class ManagerDashboardScreen extends StatefulWidget {
 
 class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
+  final WorkspaceContextService _workspaceService = WorkspaceContextService();
   String _managerName = 'Manager';
   late Stream<List<EmployeeData>> _employeesStream;
   String? _currentProfilePhotoUrl;
@@ -62,11 +65,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       _redirectIfManagerStandalone();
     }
     _loadManagerName();
-    if (widget.forAdminOversight) {
-      _employeesStream = ManagerRealtimeService.getManagersDataStream();
-    } else {
-      _employeesStream = _realtime.employeesStream();
-    }
+
+    // Initialize workspace context if not already set
+    _workspaceService.initializeFromRole();
+
+    _workspaceService.addListener(_onWorkspaceChanged);
+    _updateDataStream();
     _employeesLoadWatch
       ..reset()
       ..start();
@@ -95,6 +99,119 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           _checkTutorial();
         }
       });
+    }
+  }
+
+  @override
+  void dispose() {
+    _workspaceService.removeListener(_onWorkspaceChanged);
+    super.dispose();
+  }
+
+  void _onWorkspaceChanged() {
+    if (mounted) {
+      setState(() {
+        _updateDataStream();
+        _employeesLoadWatch
+          ..reset()
+          ..start();
+      });
+
+      // Force immediate refresh of all workspace-dependent widgets
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+    }
+  }
+
+  void _updateDataStream() {
+    if (widget.forAdminOversight) {
+      _employeesStream = ManagerRealtimeService.getManagersDataStream();
+    } else if (_workspaceService.isMyWorkspace) {
+      // Personal workspace - show personal data
+      _employeesStream = _getPersonalDataStream();
+    } else {
+      // Manager workspace - show team data
+      _employeesStream = _realtime.employeesStream();
+    }
+  }
+
+  Stream<List<EmployeeData>> _getPersonalDataStream() async* {
+    // For personal workspace, return stream with only the manager's data
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // Get actual user profile data
+      final profile = await DatabaseService.getUserProfile(user.uid);
+
+      // Get actual goals for this user
+      final goals = await DatabaseService.getUserGoals(user.uid);
+
+      yield [
+        EmployeeData(
+          profile: profile,
+          goals: goals,
+          recentActivities: [],
+          recentAlerts: [],
+          completedGoalsCount: goals
+              .where((g) => g.status == GoalStatus.completed)
+              .length,
+          overdueGoalsCount: goals
+              .where(
+                (g) =>
+                    g.status == GoalStatus.inProgress &&
+                    g.targetDate.isBefore(DateTime.now()),
+              )
+              .length,
+          totalPoints: profile.totalPoints,
+          lastActivity: DateTime.now(),
+          avgProgress: goals.isNotEmpty
+              ? goals.map((g) => g.progress).reduce((a, b) => a + b) /
+                    goals.length
+              : 0.0,
+          streakDays: await StreakService.getCurrentStreak(user.uid),
+          status: EmployeeStatus.onTrack,
+          weeklyActivityCount: 0,
+          engagementScore: goals.isNotEmpty
+              ? (goals.where((g) => g.status == GoalStatus.completed).length /
+                        goals.length) *
+                    100.0
+              : 0.0,
+          motivationLevel: 'medium',
+        ),
+      ];
+    } catch (e) {
+      // Fallback to basic data if there's an error
+      yield [
+        EmployeeData(
+          profile: UserProfile(
+            uid: user.uid,
+            displayName: _managerName,
+            email: user.email ?? '',
+            totalPoints: 0,
+            level: 1,
+            badges: [],
+            role: 'manager',
+            profilePhotoUrl: _currentProfilePhotoUrl,
+          ),
+          goals: [],
+          recentActivities: [],
+          recentAlerts: [],
+          completedGoalsCount: 0,
+          overdueGoalsCount: 0,
+          totalPoints: 0,
+          lastActivity: DateTime.now(),
+          avgProgress: 0.0,
+          streakDays: 0, // Will be calculated when user has streak data
+          status: EmployeeStatus.onTrack,
+          weeklyActivityCount: 0,
+          engagementScore: 0.0, // No goals = no engagement
+          motivationLevel: 'medium',
+        ),
+      ];
     }
   }
 
@@ -275,106 +392,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     }
   }
 
-  void _moveToNextTutorialStep() {
-    if (!mounted || !_shouldShowTutorial) return;
-
-    if (_currentTutorialStep < SidebarConfig.managerItems.length - 1) {
-      setState(() {
-        _currentTutorialStep++;
-      });
-
-      // Trigger showcase for next step
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted && _shouldShowTutorial) {
-          try {
-            final keyContext =
-                _sidebarTutorialKeys[_currentTutorialStep].currentContext;
-            if (keyContext != null) {
-              ShowCaseWidget.of(
-                context,
-              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
-              developer.log(
-                'Started showcase for step $_currentTutorialStep',
-                name: 'ManagerDashboardScreen',
-              );
-            } else {
-              developer.log(
-                'Key not attached for step $_currentTutorialStep, retrying...',
-                name: 'ManagerDashboardScreen',
-              );
-              // Retry
-              Future.delayed(const Duration(milliseconds: 500), () {
-                if (mounted && _shouldShowTutorial) {
-                  try {
-                    ShowCaseWidget.of(context).startShowCase([
-                      _sidebarTutorialKeys[_currentTutorialStep],
-                    ]);
-                  } catch (e) {
-                    developer.log(
-                      'Retry failed: $e',
-                      name: 'ManagerDashboardScreen',
-                    );
-                  }
-                }
-              });
-            }
-          } catch (e) {
-            developer.log(
-              'Could not start showcase for step $_currentTutorialStep: $e',
-              name: 'ManagerDashboardScreen',
-              error: e,
-            );
-          }
-        }
-      });
-    } else {
-      // Tutorial complete
-      _completeTutorial();
-    }
-  }
-
-  Future<void> _completeTutorial() async {
-    developer.log(
-      'Completing manager sidebar tutorial',
-      name: 'ManagerDashboardScreen',
-    );
-    await ManagerTutorialService.instance.markTutorialCompleted();
-
-    if (mounted) {
-      setState(() {
-        _shouldShowTutorial = false;
-        _currentTutorialStep = 0;
-      });
-    }
-  }
-
-  Future<void> _skipTutorial() async {
-    developer.log(
-      'Skipping manager sidebar tutorial',
-      name: 'ManagerDashboardScreen',
-    );
-
-    // Dismiss the current showcase overlay
-    try {
-      ShowCaseWidget.of(context).dismiss();
-    } catch (e) {
-      developer.log(
-        'Error dismissing showcase: $e',
-        name: 'ManagerDashboardScreen',
-      );
-    }
-
-    // Mark tutorial as completed
-    await ManagerTutorialService.instance.markTutorialCompleted();
-
-    if (mounted) {
-      setState(() {
-        _shouldShowTutorial = false;
-        _currentTutorialStep = 0;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final content = SingleChildScrollView(
@@ -388,8 +405,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             );
           }
           if (!employeesSnap.hasData) {
-            final timedOut = _employeesLoadWatch.elapsed >
-                const Duration(seconds: 12);
+            final timedOut =
+                _employeesLoadWatch.elapsed > const Duration(seconds: 12);
             if (timedOut) {
               return Center(
                 child: ConstrainedBox(
@@ -422,7 +439,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                               ElevatedButton(
                                 onPressed: () {
                                   setState(() {
-                                    _employeesStream = _realtime.employeesStream();
+                                    _employeesStream = _realtime
+                                        .employeesStream();
                                     _employeesLoadWatch
                                       ..reset()
                                       ..start();
@@ -495,15 +513,28 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               const SizedBox(height: AppSpacing.xl),
               _buildQuickActions(),
               const SizedBox(height: AppSpacing.xl),
-              _buildKpis(metrics, employees),
-              const SizedBox(height: AppSpacing.xl),
-              _buildTeamHealth(metrics, employees),
-              const SizedBox(height: AppSpacing.xl),
-              _buildActivitySummary(employees),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSeasonProgressAlerts(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildTopTwoPerformers(employees),
+              // Show context-specific widgets
+              if (_workspaceService.isMyWorkspace) ...[
+                _buildPersonalKpis(metrics, employees),
+                const SizedBox(height: AppSpacing.xl),
+                _buildPersonalGoals(),
+                const SizedBox(height: AppSpacing.xl),
+                _buildPersonalMilestones(),
+                const SizedBox(height: AppSpacing.xl),
+                _buildPersonalActivitySummary(employees),
+              ] else ...[
+                _buildTeamKpis(metrics, employees),
+                const SizedBox(height: AppSpacing.xl),
+                _buildTeamHealth(metrics, employees),
+                const SizedBox(height: AppSpacing.xl),
+                _buildPendingApprovals(),
+                const SizedBox(height: AppSpacing.xl),
+                _buildTeamActivitySummary(employees),
+                const SizedBox(height: AppSpacing.xl),
+                _buildSeasonProgressAlerts(),
+                const SizedBox(height: AppSpacing.xl),
+                _buildTopTwoPerformers(employees),
+              ],
               const SizedBox(height: AppSpacing.xxl),
             ],
           );
@@ -525,50 +556,16 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       );
     }
 
-    return AppScaffold(
-      title: '',
-      showAppBar: false,
-      items: SidebarConfig.managerItems,
-      currentRouteName: '/dashboard',
-      tutorialStepIndex: _shouldShowTutorial ? _currentTutorialStep : null,
-      sidebarTutorialKeys:
-          _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-          ? _sidebarTutorialKeys
-          : null,
-      onTutorialNext: _shouldShowTutorial ? _moveToNextTutorialStep : null,
-      onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
-      onNavigate: (route) {
-        // Keep manager navigation inside the portal so moved sidebar items
-        // always load the correct content (e.g. Review Team).
-        Navigator.pushReplacementNamed(
-          context,
-          '/manager_portal',
-          arguments: {'initialRoute': route},
-        );
-      },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await AuthService().signOut();
-        if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-        }
-      },
-      content: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/khono_bg.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
-            child: content,
-          ),
-        ],
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/khono_bg.png'),
+          fit: BoxFit.cover,
+        ),
       ),
+      child: content,
     );
   }
 
@@ -583,6 +580,300 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       ),
       child: child,
     );
+  }
+
+  // Personal workspace widgets
+  Widget _buildPersonalKpis(TeamMetrics metrics, List<EmployeeData> employees) {
+    return _buildKpis(metrics, employees);
+  }
+
+  Widget _buildPersonalGoals() {
+    return StreamBuilder<List<Goal>>(
+      stream: DatabaseService.getUserGoalsStream(
+        FirebaseAuth.instance.currentUser?.uid ?? '',
+      ),
+      builder: (context, goalsSnap) {
+        final goals = goalsSnap.data ?? [];
+        final activeGoals = goals
+            .where((g) => g.status != GoalStatus.completed)
+            .length;
+        final completedGoals = goals
+            .where((g) => g.status == GoalStatus.completed)
+            .length;
+
+        return _card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Personal Goals',
+                style: AppTypography.heading4.copyWith(color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildGoalStat(
+                      'Active Goals',
+                      activeGoals.toString(),
+                      Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildGoalStat(
+                      'Completed',
+                      completedGoals.toString(),
+                      Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/my_pdp');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.activeColor,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('View Personal Goals'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGoalStat(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: AppTypography.heading3.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: Colors.white.withValues(alpha: 0.8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalMilestones() {
+    return StreamBuilder<List<Goal>>(
+      stream: DatabaseService.getUserGoalsStream(
+        FirebaseAuth.instance.currentUser?.uid ?? '',
+      ),
+      builder: (context, goalsSnap) {
+        final goals = goalsSnap.data ?? [];
+        final completedGoals = goals.where(
+          (g) => g.status == GoalStatus.completed,
+        );
+        final recentMilestones = completedGoals.take(3).toList();
+
+        return _card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Personal Milestones',
+                style: AppTypography.heading4.copyWith(color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+              if (recentMilestones.isEmpty) ...[
+                Text(
+                  'No milestones yet. Complete your goals to see achievements here!',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/my_pdp');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Create Your First Goal'),
+                ),
+              ] else ...[
+                ...recentMilestones.map(
+                  (goal) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 4,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  goal.title,
+                                  style: AppTypography.bodyMedium.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Completed on ${DateFormat('MMM dd, yyyy').format(goal.approvedAt ?? DateTime.now())}',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPersonalActivitySummary(List<EmployeeData> employees) {
+    return _buildActivitySummary(employees);
+  }
+
+  // Manager workspace widgets
+  Widget _buildTeamKpis(TeamMetrics metrics, List<EmployeeData> employees) {
+    return _buildKpis(metrics, employees);
+  }
+
+  Widget _buildPendingApprovals() {
+    return StreamBuilder<List<EmployeeData>>(
+      stream: _realtime.employeesStream(),
+      builder: (context, employeesSnap) {
+        final employees = employeesSnap.data ?? [];
+        final pendingApprovals = employees.where((emp) {
+          return emp.goals.any(
+            (goal) => goal.approvalStatus == GoalApprovalStatus.pending,
+          );
+        }).length;
+
+        return _card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Pending Approvals',
+                style: AppTypography.heading4.copyWith(color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildApprovalStat(
+                      'Goals Pending',
+                      pendingApprovals.toString(),
+                      Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildApprovalStat(
+                      'Team Members',
+                      employees.length.toString(),
+                      Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (pendingApprovals > 0) ...[
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/pending_approvals');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Review Pending Approvals'),
+                ),
+              ] else ...[
+                Text(
+                  'No pending approvals at this time',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildApprovalStat(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: AppTypography.heading3.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: Colors.white.withValues(alpha: 0.8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamActivitySummary(List<EmployeeData> employees) {
+    return _buildActivitySummary(employees);
   }
 
   Widget _buildWelcomeCard() {
