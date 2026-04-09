@@ -580,7 +580,7 @@ class _MyAppState extends State<MyApp> {
                     title: 'Leaderboard',
                     currentRouteName: '/manager_gw_menu_leaderboard',
                     items: SidebarConfig.managerItems,
-                    body: const LeaderboardScreen(),
+                    body: const ManagerLeaderboardScreen(embedded: true),
                   ),
                 ),
                 '/manager_gw_menu_badges': (context) => RoleGate(

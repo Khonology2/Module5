@@ -203,9 +203,11 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         // so newly earned badges can be celebrated when the user opens Badges & Points.
         await BadgeCelebrationService.ensureBaselineInitialized(
           user.uid,
-          scope: currentRole == 'manager' ? 'manager' : 'employee',
+          scope: (currentRole == 'manager' || currentRole == 'admin')
+              ? 'manager'
+              : 'employee',
         );
-        if (currentRole == 'manager') {
+        if (currentRole == 'manager' || currentRole == 'admin') {
           await BadgeService.checkAndAwardBadges(user.uid);
         }
         await BadgeService.checkAndAwardBadgesV2(user.uid);

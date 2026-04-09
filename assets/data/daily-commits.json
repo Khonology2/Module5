@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.AC6.SIT",
-  "generated_at": "2026-04-08T14:29:15Z",
+  "version": "2026.04.AD5.SIT",
+  "generated_at": "2026-04-09T08:12:31Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -8,31 +8,26 @@
       "timestamp": "2026-02-24T06:19:19Z"
     },
     {
+      "author": "Nathi2266",
+      "message": "feat: update asset paths and implement light/dark mode support across multiple screens",
+      "timestamp": "2026-03-26T09:59:41+02:00"
+    },
+    {
+      "author": "BhutSipho",
+      "message": "Feat: Status Badges Implement For Goals",
+      "timestamp": "2026-04-07T11:56:26+02:00"
+    },
+    {
+      "author": "BhutSipho",
+      "message": "Feat:Enable Navigation from PDP Goals to Milestone Details",
+      "timestamp": "2026-04-07T10:46:18+02:00"
+    },
+    {
       "author": "Thembelihle",
-      "message": "fix: update package versions and SHA256 checksums in pubspec.lock",
-      "timestamp": "2026-03-27T12:08:31+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Fix: Approved Not Appearing On Inbox",
-      "timestamp": "2026-03-30T11:26:39+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "feat: implement manager inbox context switcher for archived messages",
-      "timestamp": "2026-03-30T08:35:54+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "Feature - Standardized card opacity across all screens (0x99) for light/dark modes to match the employee dashboard and ensured privacy settings are handled within the updated settings screen.",
-      "timestamp": "2026-04-08T16:28:32+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "Feature - Standardized card opacity across all screens (0x99) for light/dark modes to match the employee dashboard and ensured privacy settings are handled within the updated settings screen.",
-      "timestamp": "2026-04-08T15:02:11+02:00"
+      "message": "Feature - Enhance badge tracking error handling in ManagerAlertsNudgesScreen and ManagerEmployeeDetailScreen to ensure primary actions are not affected by badge tracking failures, improving user experience and logging for debugging.",
+      "timestamp": "2026-04-09T10:11:42+02:00"
     }
   ],
-  "total_commits": 6,
-  "date_range": "2026-04-08"
+  "total_commits": 5,
+  "date_range": "2026-04-09"
 }
