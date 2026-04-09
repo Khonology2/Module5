@@ -67,6 +67,17 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   final TextEditingController _longGoalsController = TextEditingController();
   final TextEditingController _badgeNameController = TextEditingController();
 
+  // Focus nodes for proper focus management
+  final FocusNode _fullNameFocusNode = FocusNode();
+  final FocusNode _workEmailFocusNode = FocusNode();
+  final FocusNode _skillsInputFocusNode = FocusNode();
+  final FocusNode _developmentInputFocusNode = FocusNode();
+  final FocusNode _careerAspirationsFocusNode = FocusNode();
+  final FocusNode _currentProjectsFocusNode = FocusNode();
+  final FocusNode _shortGoalsFocusNode = FocusNode();
+  final FocusNode _longGoalsFocusNode = FocusNode();
+  final FocusNode _badgeNameFocusNode = FocusNode();
+
   // AI profile helper controllers (used in the question sheet)
   final TextEditingController _aiSkillsController = TextEditingController();
   final TextEditingController _aiDevelopmentAreasController =
@@ -94,6 +105,35 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   void initState() {
     super.initState();
     _loadUserProfile();
+  }
+
+  @override
+  void dispose() {
+    // Dispose focus nodes
+    _fullNameFocusNode.dispose();
+    _workEmailFocusNode.dispose();
+    _skillsInputFocusNode.dispose();
+    _developmentInputFocusNode.dispose();
+    _careerAspirationsFocusNode.dispose();
+    _currentProjectsFocusNode.dispose();
+    _shortGoalsFocusNode.dispose();
+    _longGoalsFocusNode.dispose();
+    _badgeNameFocusNode.dispose();
+
+    // Dispose controllers
+    _fullNameController.dispose();
+    _workEmailController.dispose();
+    _skillsInputController.dispose();
+    _developmentInputController.dispose();
+    _careerAspirationsController.dispose();
+    _currentProjectsController.dispose();
+    _shortGoalsController.dispose();
+    _longGoalsController.dispose();
+    _badgeNameController.dispose();
+    _aiSkillsController.dispose();
+    _aiDevelopmentAreasController.dispose();
+
+    super.dispose();
   }
 
   Future<void> _removeProfilePhoto() async {
@@ -238,22 +278,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _fullNameController.dispose();
-    _workEmailController.dispose();
-    _skillsInputController.dispose();
-    _developmentInputController.dispose();
-    _careerAspirationsController.dispose();
-    _currentProjectsController.dispose();
-    _shortGoalsController.dispose();
-    _longGoalsController.dispose();
-    _badgeNameController.dispose();
-    _aiSkillsController.dispose();
-    _aiDevelopmentAreasController.dispose();
-    super.dispose();
-  }
-
   void _mergeTagValues(List<String> target, List<String> additions) {
     for (final value in additions) {
       final cleaned = value.trim();
@@ -285,7 +309,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       _ProfileAssistQuestion(
         id: 'longGoals',
         prompt: 'What longer-term goal are you working toward (12–24 months)?',
-        helper: 'Describe the role, capability, or impact you’re building toward.',
+        helper:
+            'Describe the role, capability, or impact you’re building toward.',
         placeholder:
             'e.g., "Grow into a senior engineer who can lead end-to-end delivery."',
         controller: _longGoalsController,
@@ -296,7 +321,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         prompt: 'What are your current projects or focus areas (optional)?',
         helper:
             'List key initiatives, responsibilities, or priorities you’re currently working on.',
-        placeholder: 'e.g., "API migration, onboarding improvements, support queue."',
+        placeholder:
+            'e.g., "API migration, onboarding improvements, support queue."',
         controller: _currentProjectsController,
         maxLines: 4,
       ),
@@ -760,7 +786,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       // Update Firebase Auth user photoURL for global usage
       await user.updatePhotoURL(cloudinaryUrl);
       await user.reload();
-      
+
       // Try to save profile, only show success if save succeeded
       final saveSuccess = await _saveProfile(showDialog: false);
       if (saveSuccess && mounted) {
@@ -809,7 +835,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                         message.toLowerCase().contains('failed')
                     ? Icons.error_outline
                     : Icons.check_circle_outline,
-                color: title?.toLowerCase().contains('error') == true ||
+                color:
+                    title?.toLowerCase().contains('error') == true ||
                         message.toLowerCase().contains('failed')
                     ? const Color(0xFFC10D00)
                     : Colors.green,
@@ -936,8 +963,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
 
     try {
       // Convert empty string to null for profilePhotoUrl
-      final profilePhotoUrlValue = (_profilePhotoUrl?.isEmpty ?? true) 
-          ? null 
+      final profilePhotoUrlValue = (_profilePhotoUrl?.isEmpty ?? true)
+          ? null
           : _profilePhotoUrl;
 
       // ignore: avoid_print
@@ -964,11 +991,11 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       );
 
       await DatabaseService.updateUserProfile(updatedProfile);
-      
+
       // Clear the profile cache to ensure fresh data on next fetch
       final cache = PerformanceCacheService();
       cache.clearAll();
-      
+
       await _loadUserProfile();
       if (showDialog) {
         _showProfileSavedDialog(
@@ -1034,6 +1061,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     int maxLines = 1,
     TextInputAction? textInputAction,
     void Function(String)? onSubmitted,
+    FocusNode? focusNode,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1043,6 +1071,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       ),
       child: TextFormField(
         controller: controller,
+        focusNode: focusNode,
         readOnly: readOnly,
         keyboardType: keyboardType,
         maxLines: maxLines,
@@ -1217,6 +1246,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         // Input field for adding new tags
         _buildInputField(
           controller: controller,
+          focusNode: controller == _skillsInputController
+              ? _skillsInputFocusNode
+              : _developmentInputFocusNode,
           hintText: hintText,
           keyboardType: TextInputType.text,
           textInputAction: TextInputAction.done,
@@ -1335,6 +1367,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Full Name'),
                     _buildInputField(
                       controller: _fullNameController,
+                      focusNode: _fullNameFocusNode,
                       hintText: 'Enter your full name',
                     ),
                     const SizedBox(height: 24),
@@ -1347,6 +1380,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Email Address'),
                     _buildInputField(
                       controller: _workEmailController,
+                      focusNode: _workEmailFocusNode,
                       hintText: 'you@company.com',
                       keyboardType: TextInputType.emailAddress,
                     ),
@@ -1413,7 +1447,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: _isAiHelpingProfile ? null : _runAiProfileHelper,
+                      onPressed: _isAiHelpingProfile
+                          ? null
+                          : _runAiProfileHelper,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFC10D00),
                         foregroundColor: Colors.white,
@@ -1437,13 +1473,17 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Career Aspirations / Future Role'),
                     _buildInputField(
                       controller: _careerAspirationsController,
+                      focusNode: _careerAspirationsFocusNode,
                       hintText: 'Describe where you see yourself...',
                       maxLines: 3,
                     ),
                     const SizedBox(height: 24),
-                    _buildInputLabel('Current Projects / Focus Areas (optional)'),
+                    _buildInputLabel(
+                      'Current Projects / Focus Areas (optional)',
+                    ),
                     _buildInputField(
                       controller: _currentProjectsController,
+                      focusNode: _currentProjectsFocusNode,
                       hintText: 'Share your current projects...',
                       maxLines: 3,
                     ),
@@ -1522,6 +1562,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Short-Term Goals (next 3–6 months)'),
                     _buildInputField(
                       controller: _shortGoalsController,
+                      focusNode: _shortGoalsFocusNode,
                       hintText: 'Describe your short-term goals...',
                       maxLines: 2,
                     ),
@@ -1529,6 +1570,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Long-Term Goals (1–3 years)'),
                     _buildInputField(
                       controller: _longGoalsController,
+                      focusNode: _longGoalsFocusNode,
                       hintText: 'Describe your long-term goals...',
                       maxLines: 2,
                     ),
@@ -1639,6 +1681,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Preferred Badge Display Name'),
                     _buildInputField(
                       controller: _badgeNameController,
+                      focusNode: _badgeNameFocusNode,
                       hintText: 'e.g., Super Coder',
                     ),
                     const SizedBox(height: 24),
@@ -1730,7 +1773,10 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   Widget build(BuildContext context) {
     if (widget.embedded) {
       // When embedded in MainLayout, return just the content without Scaffold/AppBar/background
-      return _buildProfileContent();
+      return Focus(
+        debugLabel: 'EmployeeProfileScreen',
+        child: _buildProfileContent(),
+      );
     }
 
     // Standalone mode with full Scaffold
@@ -1738,11 +1784,17 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      body: AppComponents.backgroundWithImage(
-        imagePath: 'assets/khono_bg.png',
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
-          child: _buildProfileContent(),
+      body: Focus(
+        debugLabel: 'EmployeeProfileScreen',
+        child: AppComponents.backgroundWithImage(
+          imagePath: 'assets/khono_bg.png',
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 64.0,
+            ),
+            child: _buildProfileContent(),
+          ),
         ),
       ),
     );
