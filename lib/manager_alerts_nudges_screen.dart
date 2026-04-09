@@ -25,8 +25,10 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerAlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
+
   /// When true, admin is viewing; show managers only (no employees).
   final bool forAdminOversight;
+
   /// When set with [forAdminOversight], show data for this manager only.
   final String? selectedManagerId;
 
@@ -272,14 +274,22 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
       final manager = FirebaseAuth.instance.currentUser;
       if (manager != null) {
-        await ManagerBadgeEvaluator.logReplanHelped(
-          managerId: manager.uid,
-          goalId: goalId,
-          note: (note != null && note.isNotEmpty)
-              ? 'Rescheduled: $note'
-              : 'Rescheduled from Team Alerts',
-        );
-        await ManagerBadgeEvaluator.evaluate(manager.uid);
+        try {
+          await ManagerBadgeEvaluator.logReplanHelped(
+            managerId: manager.uid,
+            goalId: goalId,
+            note: (note != null && note.isNotEmpty)
+                ? 'Rescheduled: $note'
+                : 'Rescheduled from Team Alerts',
+          );
+          await ManagerBadgeEvaluator.evaluate(manager.uid);
+        } catch (badgeError) {
+          // Keep action success even if badge tracking is blocked by rules.
+          developer.log(
+            'Badge tracking failed after team-alerts reschedule: $badgeError',
+            name: 'ManagerAlertsNudgesScreen',
+          );
+        }
       }
 
       if (context.mounted) {
@@ -493,7 +503,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         }
       },
       content: StreamBuilder<List<EmployeeData>>(
-        key: ValueKey('team_data_stream_${widget.forAdminOversight}_${widget.selectedManagerId}'),
+        key: ValueKey(
+          'team_data_stream_${widget.forAdminOversight}_${widget.selectedManagerId}',
+        ),
         stream: widget.forAdminOversight
             ? ManagerRealtimeService.getManagersDataStreamForAdmin(
                 selectedManagerId: widget.selectedManagerId,
@@ -534,7 +546,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           }
 
           final incoming = snapshot.data;
-          final hasPlaceholderBatch = incoming != null &&
+          final hasPlaceholderBatch =
+              incoming != null &&
               incoming.isNotEmpty &&
               incoming.every((e) => e.isPlaceholder);
 
@@ -550,8 +563,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           // If we only have placeholders and no enriched cache yet,
           // still show employees immediately (for stats/alerts), but
           // rely on the subsequent enriched payload to refine data.
-          final employees =
-              hasPlaceholderBatch ? incoming : (snapshot.data ?? _lastEmployees);
+          final employees = hasPlaceholderBatch
+              ? incoming
+              : (snapshot.data ?? _lastEmployees);
 
           if ((employees.isEmpty) &&
               snapshot.connectionState == ConnectionState.waiting) {
@@ -732,8 +746,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         final managerScopedAlerts = widget.forAdminOversight
             ? <Alert>[]
             : allAlerts
-                .where((a) => _shouldShowInManagerWorkspace(a, manager.uid))
-                .toList();
+                  .where((a) => _shouldShowInManagerWorkspace(a, manager.uid))
+                  .toList();
         developer.log('Loaded ${allAlerts.length} alerts', name: 'TeamAlerts');
 
         try {
@@ -755,8 +769,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             final alerts = e.recentAlerts;
             if (alerts.isEmpty) continue;
             for (final a in alerts) {
-              if (widget.forAdminOversight &&
-                  !_isAdminOversightTeamAlert(a)) {
+              if (widget.forAdminOversight && !_isAdminOversightTeamAlert(a)) {
                 continue;
               }
               if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
@@ -883,7 +896,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   employeesById,
                   AppColors.warningColor,
                   sectionKey: 'performance',
-                  isExpanded: _supervisionSectionExpanded['performance'] ??
+                  isExpanded:
+                      _supervisionSectionExpanded['performance'] ??
                       criticalIssues.isEmpty,
                   onToggleExpand: () {
                     setState(() {
@@ -910,7 +924,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   employeesById,
                   AppColors.successColor,
                   sectionKey: 'monitoring',
-                  isExpanded: _supervisionSectionExpanded['monitoring'] ??
+                  isExpanded:
+                      _supervisionSectionExpanded['monitoring'] ??
                       (criticalIssues.isEmpty && performanceConcerns.isEmpty),
                   onToggleExpand: () {
                     setState(() {
@@ -943,10 +958,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             ),
           );
         } catch (e, stack) {
-          developer.log(
-            'Manager Alerts content error: $e',
-            name: 'TeamAlerts',
-          );
+          developer.log('Manager Alerts content error: $e', name: 'TeamAlerts');
           developer.log('Stack: $stack', name: 'TeamAlerts');
           return SliverFillRemaining(
             hasScrollBody: false,
@@ -1046,8 +1058,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 DashboardChrome.fg,
                 null,
                 subtitle: 'Overall score',
-                imageAsset:
-                    'assets/Team_Meeting/Meeting_Red Badge_White.png',
+                imageAsset: 'assets/Team_Meeting/Meeting_Red Badge_White.png',
               ),
             ),
           ],
@@ -1716,7 +1727,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     if (_alertTypeFilter == null) {
       // All Issues: sort by priority first (urgent first), then by date
       filtered.sort((a, b) {
-        final p = priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!);
+        final p = priorityOrder[a.priority]!.compareTo(
+          priorityOrder[b.priority]!,
+        );
         if (p != 0) return p;
         switch (_sortBy) {
           case 'oldest':
@@ -1735,8 +1748,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           break;
         case 'priority':
           filtered.sort(
-            (a, b) =>
-                priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!),
+            (a, b) => priorityOrder[a.priority]!.compareTo(
+              priorityOrder[b.priority]!,
+            ),
           );
           break;
         case 'newest':
@@ -1884,11 +1898,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               ),
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: alertColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: alertColor.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: alertColor.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     alert.priority.name.toUpperCase(),
@@ -1931,7 +1950,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.access_time, size: 16, color: DashboardChrome.fg),
+                    Icon(
+                      Icons.access_time,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
@@ -1970,7 +1993,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               CircleAvatar(
                 radius: 20,
                 backgroundColor: alertColor.withValues(alpha: 0.2),
-                child: Icon(Icons.notifications_active, color: alertColor, size: 20),
+                child: Icon(
+                  Icons.notifications_active,
+                  color: alertColor,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2038,7 +2065,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (alert.actionRoute != null && alert.actionRoute!.trim().isNotEmpty)
+              if (alert.actionRoute != null &&
+                  alert.actionRoute!.trim().isNotEmpty)
                 TextButton.icon(
                   onPressed: () {
                     Navigator.pushNamed(
@@ -2149,8 +2177,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            ManagerEmployeeDetailScreen(employee: employee),
+        builder: (context) => ManagerEmployeeDetailScreen(employee: employee),
       ),
     );
   }
@@ -2469,12 +2496,20 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
       final manager = FirebaseAuth.instance.currentUser;
       if (manager != null) {
-        await ManagerBadgeEvaluator.logReplanHelped(
-          managerId: manager.uid,
-          goalId: goalId,
-          note: 'Extended deadline from Team Alerts',
-        );
-        await ManagerBadgeEvaluator.evaluate(manager.uid);
+        try {
+          await ManagerBadgeEvaluator.logReplanHelped(
+            managerId: manager.uid,
+            goalId: goalId,
+            note: 'Extended deadline from Team Alerts',
+          );
+          await ManagerBadgeEvaluator.evaluate(manager.uid);
+        } catch (badgeError) {
+          // Keep action success even if badge tracking is blocked by rules.
+          developer.log(
+            'Badge tracking failed after team-alerts extend: $badgeError',
+            name: 'ManagerAlertsNudgesScreen',
+          );
+        }
       }
 
       if (context.mounted) {
