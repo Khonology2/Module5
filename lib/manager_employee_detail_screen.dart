@@ -579,12 +579,20 @@ class _ManagerEmployeeDetailScreenState
 
       final manager = FirebaseAuth.instance.currentUser;
       if (manager != null) {
-        await ManagerBadgeEvaluator.logReplanHelped(
-          managerId: manager.uid,
-          goalId: goal.id,
-          note: 'Extended deadline',
-        );
-        await ManagerBadgeEvaluator.evaluate(manager.uid);
+        try {
+          await ManagerBadgeEvaluator.logReplanHelped(
+            managerId: manager.uid,
+            goalId: goal.id,
+            note: 'Extended deadline',
+          );
+          await ManagerBadgeEvaluator.evaluate(manager.uid);
+        } catch (badgeError) {
+          // Do not fail the primary action when badge tracking is denied.
+          developer.log(
+            'Badge tracking failed after extend: $badgeError',
+            name: 'ManagerEmployeeDetailScreen',
+          );
+        }
       }
 
       if (mounted) {
@@ -664,14 +672,22 @@ class _ManagerEmployeeDetailScreenState
 
       final manager = FirebaseAuth.instance.currentUser;
       if (manager != null) {
-        await ManagerBadgeEvaluator.logReplanHelped(
-          managerId: manager.uid,
-          goalId: goal.id,
-          note: (note != null && note.isNotEmpty)
-              ? 'Rescheduled: $note'
-              : 'Rescheduled',
-        );
-        await ManagerBadgeEvaluator.evaluate(manager.uid);
+        try {
+          await ManagerBadgeEvaluator.logReplanHelped(
+            managerId: manager.uid,
+            goalId: goal.id,
+            note: (note != null && note.isNotEmpty)
+                ? 'Rescheduled: $note'
+                : 'Rescheduled',
+          );
+          await ManagerBadgeEvaluator.evaluate(manager.uid);
+        } catch (badgeError) {
+          // Do not fail the primary action when badge tracking is denied.
+          developer.log(
+            'Badge tracking failed after reschedule: $badgeError',
+            name: 'ManagerEmployeeDetailScreen',
+          );
+        }
       }
 
       if (mounted) {
