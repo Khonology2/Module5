@@ -6,15 +6,21 @@ class AdminTeamReviewScreen extends StatelessWidget {
   const AdminTeamReviewScreen({
     super.key,
     this.selectedManagerId,
+    this.initialEmployeeId,
+    this.initialMeetingId,
   });
 
   final String? selectedManagerId;
+  final String? initialEmployeeId;
+  final String? initialMeetingId;
 
   @override
   Widget build(BuildContext context) {
     return ManagerReviewTeamDashboardScreen(
       forAdminOversight: true,
       selectedManagerId: selectedManagerId,
+      initialEmployeeId: initialEmployeeId,
+      initialMeetingId: initialMeetingId,
     );
   }
 }
