@@ -18,6 +18,7 @@ import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/audit_entry.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdh/services/cloudinary_service.dart';
+import 'package:pdh/goal_detail_screen.dart';
 // Drawer removed in favor of persistent sidebar
 
 class MyPdpScreen extends StatefulWidget {
@@ -108,16 +109,74 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
 }
 
 // PDP chrome matches [EmployeeDashboardScreen] light/dark (shared notifier).
-/// Dark card surface aligned with dashboard tiles (`#3D3F40`).
-const Color _kPdpDarkCard = Color(0xFF3D3F40);
+/// Dark card surface aligned with dashboard tiles (`#3D3D40`).
+// Match employee dashboard opacity (0x99 for 60% opacity)
+const Color _kPdpDarkCard = Color(0x993D3D40);
 
 Color _pdpFg(bool light) => light ? const Color(0xFF000000) : Colors.white;
 Color _pdpMuted(bool light) => light ? const Color(0xFF555555) : Colors.white70;
-Color _pdpCardBg(bool light) => light ? const Color(0xFFFFFFFF) : _kPdpDarkCard;
+Color _pdpCardBg(bool light) => light ? const Color(0x99FFFFFF) : _kPdpDarkCard;
 Color _pdpCardBorder(bool light) =>
     light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
 Color _pdpEvidenceInnerBg(bool light) =>
-    light ? const Color(0xFFF2F2F2) : const Color(0xFF2A3441);
+    light ? const Color(0xFFF2F2F2) : const Color(0xFF2A3411);
+
+// Status badge helper methods (mirrored from GoalDetailScreen)
+Color _getGoalStatusColor(GoalStatus status) {
+  switch (status) {
+    case GoalStatus.notStarted:
+      return AppColors.textSecondary;
+    case GoalStatus.inProgress:
+      return AppColors.activeColor;
+    case GoalStatus.completed:
+      return AppColors.successColor;
+    case GoalStatus.acknowledged:
+      return AppColors.successColor;
+    case GoalStatus.paused:
+      return AppColors.textSecondary;
+    case GoalStatus.burnout:
+      return AppColors.dangerColor;
+  }
+}
+
+String _getGoalStatusText(GoalStatus status) {
+  switch (status) {
+    case GoalStatus.notStarted:
+      return 'NOT STARTED';
+    case GoalStatus.inProgress:
+      return 'IN PROGRESS';
+    case GoalStatus.completed:
+      return 'COMPLETED';
+    case GoalStatus.acknowledged:
+      return 'ACKNOWLEDGED';
+    case GoalStatus.paused:
+      return 'PAUSED';
+    case GoalStatus.burnout:
+      return 'BURNOUT';
+  }
+}
+
+String _getApprovalStatusText(GoalApprovalStatus approvalStatus) {
+  switch (approvalStatus) {
+    case GoalApprovalStatus.pending:
+      return 'PENDING APPROVAL';
+    case GoalApprovalStatus.approved:
+      return 'APPROVED';
+    case GoalApprovalStatus.rejected:
+      return 'REJECTED';
+  }
+}
+
+Color _getApprovalStatusColor(GoalApprovalStatus approvalStatus) {
+  switch (approvalStatus) {
+    case GoalApprovalStatus.pending:
+      return AppColors.warningColor;
+    case GoalApprovalStatus.approved:
+      return AppColors.successColor;
+    case GoalApprovalStatus.rejected:
+      return AppColors.dangerColor;
+  }
+}
 
 class _MyPdpScreenState extends State<MyPdpScreen>
     with SingleTickerProviderStateMixin {
@@ -1394,18 +1453,72 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    goal.title,
-                    style: TextStyle(
-                      color: _pdpFg(light),
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  child: InkWell(
+                    onTap: goal.approvalStatus == GoalApprovalStatus.approved
+                        ? () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    GoalDetailScreen(goal: goal),
+                              ),
+                            );
+                          }
+                        : null,
+                    child: Text(
+                      goal.title,
+                      style: TextStyle(
+                        color:
+                            goal.approvalStatus == GoalApprovalStatus.approved
+                            ? (light
+                                  ? const Color(0xFF1976D2)
+                                  : const Color(0xFF64B5F6))
+                            : _pdpFg(light),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        decoration:
+                            goal.approvalStatus == GoalApprovalStatus.approved
+                            ? TextDecoration.underline
+                            : null,
+                      ),
                     ),
                   ),
                 ),
-                Text(
-                  '${goal.progress}%',
-                  style: TextStyle(color: _pdpMuted(light)),
+                const SizedBox(width: 8),
+                // Status badge - show approval status for pending/rejected, goal status for approved
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: goal.approvalStatus == GoalApprovalStatus.approved
+                        ? _getGoalStatusColor(
+                            goal.status,
+                          ).withValues(alpha: 0.2)
+                        : _getApprovalStatusColor(
+                            goal.approvalStatus,
+                          ).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: goal.approvalStatus == GoalApprovalStatus.approved
+                          ? _getGoalStatusColor(goal.status)
+                          : _getApprovalStatusColor(goal.approvalStatus),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    goal.approvalStatus == GoalApprovalStatus.approved
+                        ? _getGoalStatusText(goal.status)
+                        : _getApprovalStatusText(goal.approvalStatus),
+                    style: TextStyle(
+                      color: goal.approvalStatus == GoalApprovalStatus.approved
+                          ? _getGoalStatusColor(goal.status)
+                          : _getApprovalStatusColor(goal.approvalStatus),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1416,7 +1529,22 @@ class _MyPdpScreenState extends State<MyPdpScreen>
               color: const Color(0xFFC10D00),
               minHeight: 6,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
+            // Progress percentage below progress bar
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  '${goal.progress}%',
+                  style: TextStyle(
+                    color: _pdpMuted(light),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
 
             // Show attached evidence if any
             if (goal.evidence.isNotEmpty) ...[

@@ -35,9 +35,10 @@ class _ProgressChrome {
   static bool get light => employeeDashboardLightModeNotifier.value;
 
   // Dark widgets must be solid #3D3F40, light widgets solid white.
-  static const Color _darkCard = Color(0xFF3D3F40);
+  // Match employee dashboard opacity (0x99 for 60% opacity)
+  static const Color _darkCard = Color(0x993D3D40);
 
-  static Color get cardFill => light ? Colors.white : _darkCard;
+  static Color get cardFill => light ? const Color(0x99FFFFFF) : _darkCard;
   static Color get border =>
       light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
 
@@ -55,11 +56,14 @@ class _ProgressChrome {
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
+
   /// When true, render the employee-style progress visuals even for manager users.
   /// This is used by the Manager GW (dropdown) menu.
   final bool forManagerGwMenu;
+
   /// When true, admin is viewing; show managers only (no employees).
   final bool forAdminOversight;
+
   /// When set with [forAdminOversight], show data for this manager only.
   final String? selectedManagerId;
 
@@ -81,9 +85,6 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   String? error;
   UserProfile? _cachedProfile;
   static UserProfile? _globalCachedProfile;
-  bool get _isAdminManagerView => widget.forAdminOversight;
-  String get _populationSingular => _isAdminManagerView ? 'Manager' : 'Employee';
-  String get _populationPlural => _isAdminManagerView ? 'Managers' : 'Employees';
 
   @override
   void initState() {
@@ -112,10 +113,9 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
     if (user == null) return;
     final role = RoleService.instance.cachedRole ?? 'employee';
     final email = (user.email ?? '').trim();
-    final displayName =
-        (user.displayName ?? '').trim().isNotEmpty
-            ? user.displayName!.trim()
-            : (email.isNotEmpty ? email.split('@').first : 'User');
+    final displayName = (user.displayName ?? '').trim().isNotEmpty
+        ? user.displayName!.trim()
+        : (email.isNotEmpty ? email.split('@').first : 'User');
 
     final placeholder = UserProfile(
       uid: user.uid,
@@ -289,7 +289,9 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
                           forAdminOversight: widget.forAdminOversight,
                           selectedManagerId: widget.selectedManagerId,
                         )
-                      : EmployeeProgressVisualsContent(userProfile: userProfile!),
+                      : EmployeeProgressVisualsContent(
+                          userProfile: userProfile!,
+                        ),
                 ),
               ),
             );
@@ -466,7 +468,9 @@ class _TeamProgressLineChartPainter extends CustomPainter {
     final minY = 0.0;
 
     // Grid + Y-axis labels (0, 25, 50, 75, 100)
-    final gridPaint = Paint()..color = gridColor..strokeWidth = 1;
+    final gridPaint = Paint()
+      ..color = gridColor
+      ..strokeWidth = 1;
     for (int i = 0; i <= 4; i++) {
       final y = topPad + h - (h * (i / 4));
       canvas.drawLine(
@@ -490,7 +494,10 @@ class _TeamProgressLineChartPainter extends CustomPainter {
     final pts = <Offset>[];
     for (var i = 0; i < data.length; i++) {
       final x = leftPad + (w * (i / (data.length - 1).clamp(1, data.length)));
-      final y = topPad + h - (h * ((data[i].clamp(minY, maxY) - minY) / (maxY - minY)));
+      final y =
+          topPad +
+          h -
+          (h * ((data[i].clamp(minY, maxY) - minY) / (maxY - minY)));
       pts.add(Offset(x, y));
     }
     if (pts.length >= 2) {
@@ -508,7 +515,9 @@ class _TeamProgressLineChartPainter extends CustomPainter {
     }
 
     // Point markers
-    final pointPaint = Paint()..color = lineColor..style = PaintingStyle.fill;
+    final pointPaint = Paint()
+      ..color = lineColor
+      ..style = PaintingStyle.fill;
     for (int i = 0; i < pts.length; i++) {
       final p = pts[i];
       canvas.drawCircle(p, 3.2, pointPaint);
@@ -533,7 +542,10 @@ class _TeamProgressLineChartPainter extends CustomPainter {
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      tp.paint(canvas, Offset(pts[i].dx - tp.width / 2, size.height - bottomPad + 8));
+      tp.paint(
+        canvas,
+        Offset(pts[i].dx - tp.width / 2, size.height - bottomPad + 8),
+      );
     }
   }
 
@@ -562,7 +574,8 @@ class _InteractiveTeamTrendChart extends StatefulWidget {
       _InteractiveTeamTrendChartState();
 }
 
-class _InteractiveTeamTrendChartState extends State<_InteractiveTeamTrendChart> {
+class _InteractiveTeamTrendChartState
+    extends State<_InteractiveTeamTrendChart> {
   int? _hoveredIndex;
   Offset? _hoveredPoint;
 
@@ -581,7 +594,9 @@ class _InteractiveTeamTrendChartState extends State<_InteractiveTeamTrendChart> 
     return List<Offset>.generate(data.length, (i) {
       final x = _leftPad + (w * (i / (data.length - 1).clamp(1, data.length)));
       final y =
-          _topPad + h - (h * ((data[i].clamp(minY, maxY) - minY) / (maxY - minY)));
+          _topPad +
+          h -
+          (h * ((data[i].clamp(minY, maxY) - minY) / (maxY - minY)));
       return Offset(x, y);
     }, growable: false);
   }
@@ -682,11 +697,12 @@ class _ManagerProgressVisualsContentState
   TimeFilter currentTimeFilter = TimeFilter.month;
   ProgressViewType currentViewType = ProgressViewType.myProgress;
   String _rankingDisplayMode = 'top3';
-  String _adminWeeklyPatternMode = 'bars'; // 'bars' | 'heatmap'
   bool _hasAppliedDefaultView = false;
   // Keep a stable focus anchor so we don't leave focus on a disposed widget
   // when swapping between "Team" and "My Progress" subtrees (web can crash on this).
-  final FocusNode _stableFocusNode = FocusNode(debugLabel: 'ManagerProgressVisuals');
+  final FocusNode _stableFocusNode = FocusNode(
+    debugLabel: 'ManagerProgressVisuals',
+  );
   DateTime? _lastBadgeEval;
   static const Duration _badgeEvalCooldown = Duration(minutes: 5);
   late final Stream<List<ManagerActivity>> _managerActivitiesStream;
@@ -700,17 +716,11 @@ class _ManagerProgressVisualsContentState
   static List<ManagerActivity> _cachedManagerActivities = const [];
   static String _cachedTeamKey = '';
   static List<EmployeeData> _cachedTeamEmployees = const [];
-  bool get _isAdminManagerView => widget.forAdminOversight;
-  String get _populationPlural => _isAdminManagerView ? 'Managers' : 'Employees';
 
   @override
   void initState() {
     super.initState();
     _ensureDefaultManagerView();
-    // Admin "My Progress" is activity analytics: default to Week (rolling last 7 days through today).
-    if (widget.forAdminOversight) {
-      currentTimeFilter = TimeFilter.week;
-    }
     // Cache the stream so expanding/collapsing UI doesn't recreate it (which causes a reload spinner).
     _managerActivitiesStream = _getManagerActivitiesStream();
     _rebuildTeamStream();
@@ -789,10 +799,8 @@ class _ManagerProgressVisualsContentState
                 Expanded(
                   child: Text(
                     currentViewType == ProgressViewType.team
-                        ? (_isAdminManagerView
-                              ? 'Manager Progress Analytics'
-                              : 'Team Progress Analytics')
-                        : (_isAdminManagerView ? 'My Progress (Admin)' : 'My Progress Overview'),
+                        ? 'Team Progress Analytics'
+                        : 'My Progress Overview',
                     style: AppTypography.heading2.copyWith(
                       color: AppColors.textPrimary,
                     ),
@@ -816,8 +824,9 @@ class _ManagerProgressVisualsContentState
   Widget _buildTeamProgressView() {
     return StreamBuilder<List<EmployeeData>>(
       stream: _teamStream,
-      initialData:
-          (_cachedTeamKey == _teamStreamKey) ? _cachedTeamEmployees : null,
+      initialData: (_cachedTeamKey == _teamStreamKey)
+          ? _cachedTeamEmployees
+          : null,
       builder: (context, teamSnapshot) {
         final incoming = teamSnapshot.data;
         final hasPlaceholderBatch =
@@ -836,14 +845,13 @@ class _ManagerProgressVisualsContentState
           return _buildErrorState(teamSnapshot.error.toString());
         }
 
-        final employees =
-            (!hasPlaceholderBatch && incoming != null)
-                ? incoming
-                : (_lastEnrichedTeamEmployees.isNotEmpty
-                      ? _lastEnrichedTeamEmployees
-                      : (_cachedTeamKey == _teamStreamKey
-                            ? _cachedTeamEmployees
-                            : (incoming ?? const [])));
+        final employees = (!hasPlaceholderBatch && incoming != null)
+            ? incoming
+            : (_lastEnrichedTeamEmployees.isNotEmpty
+                  ? _lastEnrichedTeamEmployees
+                  : (_cachedTeamKey == _teamStreamKey
+                        ? _cachedTeamEmployees
+                        : (incoming ?? const [])));
 
         // If we're still warming up (or only have placeholders), show a lightweight skeleton
         // instead of a full-screen spinner.
@@ -865,7 +873,8 @@ class _ManagerProgressVisualsContentState
           builder: (context, trendSnapshot) {
             final effectiveSeries = trendSnapshot.hasError
                 ? _buildFallbackTrendFromGoals(employees)
-                : (trendSnapshot.data ?? _buildFallbackTrendFromGoals(employees));
+                : (trendSnapshot.data ??
+                      _buildFallbackTrendFromGoals(employees));
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -900,9 +909,6 @@ class _ManagerProgressVisualsContentState
   }
 
   Widget _buildMyProgressView() {
-    if (_isAdminManagerView) {
-      return _buildAdminSupervisionMyProgressView();
-    }
     return StreamBuilder<List<ManagerActivity>>(
       stream: _managerActivitiesStream,
       initialData: _cachedManagerActivities.isNotEmpty
@@ -967,1447 +973,6 @@ class _ManagerProgressVisualsContentState
           ],
         );
       },
-    );
-  }
-
-  Widget _buildAdminSupervisionMyProgressView() {
-    return StreamBuilder<List<ManagerActivity>>(
-      stream: _managerActivitiesStream,
-      initialData:
-          _cachedManagerActivities.isNotEmpty ? _cachedManagerActivities : null,
-      builder: (context, activitySnapshot) {
-        if (activitySnapshot.hasError) {
-          return _buildErrorState(activitySnapshot.error.toString());
-        }
-
-        final activities = activitySnapshot.data ?? const <ManagerActivity>[];
-        if (activities.isNotEmpty) {
-          _cachedManagerActivities = activities;
-        }
-
-        final isStillLoading =
-            (activitySnapshot.connectionState == ConnectionState.waiting ||
-                activitySnapshot.connectionState == ConnectionState.none) &&
-                _cachedManagerActivities.isEmpty &&
-                activities.isEmpty;
-
-        if (isStillLoading) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildManagerProgressMetricsLoading(),
-              const SizedBox(height: AppSpacing.xl),
-            ],
-          );
-        }
-
-        final summary = _summarizeManagerActivities(activities);
-        final byDay = _calculateMyActivityByWeekday(activities);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildAdminSeparator(),
-            _buildMyProgressActivityFilters(),
-            const SizedBox(height: AppSpacing.lg),
-            _buildAdminSectionTitle('My Activity Summary'),
-            _buildManagerProgressMetrics(
-              summary.total,
-              summary.nudges,
-              summary.approvals,
-              summary.replans,
-              summary.meetings,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            _buildAdminSectionTitle('My Activity Breakdown & Log'),
-            _buildMyBreakdownAndLog(
-              summary: summary,
-              activities: activities,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            _buildAdminSectionTitle('My Weekly Activity Pattern'),
-            _buildMyWeeklyPatternSection(
-              activities: activities,
-              byDay: byDay,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            _buildAdminSectionTitle('Recent Activity Trend'),
-            _buildRecentActivityTrend(activities),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildRecentActivityTrend(List<ManagerActivity> activities) {
-    // Show a compact "last N days" trend inside the currently selected period.
-    final days = currentTimeFilter == TimeFilter.week ? 7 : 14;
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day).subtract(Duration(days: days - 1));
-
-    final counts = List<int>.filled(days, 0);
-    for (final a in activities) {
-      final dt = a.createdAt;
-      final dayStart = DateTime(dt.year, dt.month, dt.day);
-      final idx = dayStart.difference(start).inDays;
-      if (idx >= 0 && idx < days) counts[idx] += 1;
-    }
-
-    final maxVal = counts.reduce((a, b) => a > b ? a : b);
-    final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
-
-    return _buildSectionCard(
-      title: 'Recent Activity Trend',
-      showHeader: false,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: AppSpacing.md,
-          horizontal: AppSpacing.lg,
-        ),
-        child: Column(
-          children: List.generate(days, (i) {
-            final day = start.add(Duration(days: i));
-            final label = '${day.month.toString().padLeft(2, '0')}/${day.day.toString().padLeft(2, '0')}';
-            final v = counts[i];
-            final w = maxBar > 0 ? (v / maxBar) : 0.0;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 44,
-                    child: Text(
-                      label,
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      height: 18,
-                      alignment: Alignment.centerLeft,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: FractionallySizedBox(
-                        widthFactor: w,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.activeColor,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    v.toString(),
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLatestActionsList(List<ManagerActivity> activities) {
-    if (activities.isEmpty) {
-      return _buildSectionCard(
-        title: 'Latest Actions',
-        showHeader: false,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Text(
-            'No actions yet in this period.',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-          ),
-        ),
-      );
-    }
-
-    final visible = activities.take(5).toList(growable: false);
-    return _buildSectionCard(
-      title: 'Latest Actions',
-      showHeader: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          children: [
-            ...visible.map(
-              (a) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.only(top: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.activeColor,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            a.title,
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            a.description,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      _formatLastActivity(a.createdAt),
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMyBreakdownAndLog({
-    required _ManagerActivitySummary summary,
-    required List<ManagerActivity> activities,
-  }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 820;
-
-        final donut = _buildMyActivityTypeDonut(summary);
-        final log = _buildCuratedCategorizedLog(activities);
-
-        if (isNarrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              donut,
-              const SizedBox(height: AppSpacing.lg),
-              log,
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: donut),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(child: log),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildCuratedCategorizedLog(List<ManagerActivity> activities) {
-    if (activities.isEmpty) {
-      return _buildSectionCard(
-        title: 'Curated log',
-        showHeader: false,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Text(
-            'No actions yet in this period.',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-          ),
-        ),
-      );
-    }
-
-    final visible = activities.take(6).toList(growable: false);
-
-    return _buildSectionCard(
-      title: 'Curated log',
-      showHeader: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Curated, categorized log',
-              style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 10),
-            ...visible.map(
-              (a) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.check_circle,
-                      size: 18,
-                      color: AppColors.successColor.withValues(alpha: 0.9),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _adminLogPrimaryText(a),
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: _adminLogTags(a),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      _formatLastActivity(a.createdAt),
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _adminLogPrimaryText(ManagerActivity a) {
-    final who = (a.employeeName ?? '').trim();
-    switch (a.type) {
-      case ManagerActivityType.approval:
-        return who.isNotEmpty ? 'Approved goal for $who' : 'Approved a goal';
-      case ManagerActivityType.nudge:
-        return who.isNotEmpty ? 'Sent nudge to $who' : 'Sent a nudge';
-      case ManagerActivityType.replan:
-        return who.isNotEmpty
-            ? 'Helped $who replan a goal'
-            : 'Helped replan a goal';
-      case ManagerActivityType.meeting:
-        return who.isNotEmpty ? 'Scheduled 1:1 with $who' : 'Scheduled a 1:1';
-      case ManagerActivityType.checkIn:
-        return 'Completed a check-in';
-    }
-  }
-
-  List<Widget> _adminLogTags(ManagerActivity a) {
-    final typeLabel = switch (a.type) {
-      ManagerActivityType.approval => 'Approval',
-      ManagerActivityType.nudge => 'Nudge',
-      ManagerActivityType.replan => 'Replan',
-      ManagerActivityType.meeting => 'Meeting',
-      ManagerActivityType.checkIn => 'Check-in',
-    };
-
-    final typeColor = switch (a.type) {
-      ManagerActivityType.approval => AppColors.successColor,
-      ManagerActivityType.nudge => AppColors.infoColor,
-      ManagerActivityType.replan => AppColors.warningColor,
-      ManagerActivityType.meeting => AppColors.activeColor,
-      ManagerActivityType.checkIn => AppColors.textSecondary,
-    };
-
-    final tags = <Widget>[
-      _pillTag(typeLabel, typeColor),
-    ];
-
-    final details = a.metadata ?? const <String, dynamic>{};
-    final rawKpa =
-        (details['kpa'] ?? details['area'] ?? details['domain'])?.toString();
-    if (rawKpa != null && rawKpa.trim().isNotEmpty) {
-      tags.add(_pillTag(rawKpa.trim(), AppColors.textSecondary));
-    }
-
-    if (!a.isCompleted) {
-      tags.add(_pillTag('Pending', AppColors.warningColor));
-    }
-
-    return tags;
-  }
-
-  Widget _pillTag(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Text(
-        label,
-        style: AppTypography.bodySmall.copyWith(
-          color: color == AppColors.textSecondary ? AppColors.textSecondary : color,
-          fontWeight: FontWeight.w600,
-          fontSize: 11,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMyWeeklyPatternWeekdayBars({required List<int> byDay}) {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-    final safe = byDay.length >= 5
-        ? byDay
-        : (List<int>.from(byDay)..addAll(List<int>.filled(5 - byDay.length, 0)));
-    final maxVal = safe.reduce((a, b) => a > b ? a : b);
-    final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
-
-    return _buildSectionCard(
-      title: 'My Weekly Activity Pattern',
-      showHeader: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: List.generate(5, (i) {
-            final v = safe[i];
-            final h = (v / maxBar).clamp(0.0, 1.0);
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(right: i == 4 ? 0 : 10),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text(
-                      v.toString(),
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      height: 84,
-                      alignment: Alignment.bottomCenter,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                      ),
-                      child: FractionallySizedBox(
-                        heightFactor: h,
-                        widthFactor: 1,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.activeColor.withValues(alpha: 0.85),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      days[i],
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMyWeeklyPatternSection({
-    required List<ManagerActivity> activities,
-    required List<int> byDay,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _patternModeChip(
-                  label: 'Bars',
-                  value: 'bars',
-                ),
-                _patternModeChip(
-                  label: 'Heatmap',
-                  value: 'heatmap',
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        _adminWeeklyPatternMode == 'heatmap'
-            ? _buildMyWeeklyPatternHeatmap(activities: activities)
-            : _buildMyWeeklyPatternWeekdayBars(byDay: byDay),
-      ],
-    );
-  }
-
-  Widget _patternModeChip({
-    required String label,
-    required String value,
-  }) {
-    final selected = _adminWeeklyPatternMode == value;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _adminWeeklyPatternMode = value;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.activeColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          style: AppTypography.bodySmall.copyWith(
-            color: selected ? Colors.white : AppColors.textPrimary,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMyWeeklyPatternHeatmap({
-    required List<ManagerActivity> activities,
-  }) {
-    // Mon–Fri rows, week columns — same layout as the original hour-block heatmap,
-    // but each cell is the activity count for that calendar day (no hour buckets).
-    const rowLabels = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-
-    final range = _currentPeriodRange(currentTimeFilter);
-    final startDay = DateTime(range.start.year, range.start.month, range.start.day);
-    final lastDayInclusive = DateTime(
-      range.endExclusive.year,
-      range.endExclusive.month,
-      range.endExclusive.day,
-    );
-
-    bool dayInPeriod(DateTime d) {
-      final dn = DateTime(d.year, d.month, d.day);
-      return !dn.isBefore(startDay) && !dn.isAfter(lastDayInclusive);
-    }
-
-    final firstMonday = startDay.subtract(Duration(days: startDay.weekday - 1));
-    final lastMonday = lastDayInclusive.subtract(Duration(days: lastDayInclusive.weekday - 1));
-    final colMondays = <DateTime>[];
-    for (var m = firstMonday; !m.isAfter(lastMonday); m = m.add(const Duration(days: 7))) {
-      colMondays.add(m);
-    }
-    if (colMondays.isEmpty) {
-      colMondays.add(firstMonday);
-    }
-
-    final nc = colMondays.length;
-    final grid = List<List<int>>.generate(5, (_) => List<int>.filled(nc, 0));
-
-    final Map<int, int> countsByDayKey = <int, int>{};
-    for (final a in activities) {
-      final dt = a.createdAt;
-      final day = DateTime(dt.year, dt.month, dt.day);
-      final key = day.millisecondsSinceEpoch;
-      countsByDayKey[key] = (countsByDayKey[key] ?? 0) + 1;
-    }
-
-    for (int c = 0; c < nc; c++) {
-      for (int r = 0; r < 5; r++) {
-        final date = colMondays[c].add(Duration(days: r));
-        if (!dayInPeriod(date)) {
-          grid[r][c] = 0;
-          continue;
-        }
-        final key = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
-        grid[r][c] = countsByDayKey[key] ?? 0;
-      }
-    }
-
-    int maxVal = 0;
-    for (int c = 0; c < nc; c++) {
-      for (int r = 0; r < 5; r++) {
-        final date = colMondays[c].add(Duration(days: r));
-        if (!dayInPeriod(date)) continue;
-        final v = grid[r][c];
-        if (v > maxVal) maxVal = v;
-      }
-    }
-    final maxD = maxVal < 1 ? 1.0 : maxVal.toDouble();
-
-    Color cellColor(int v, {required bool active}) {
-      if (!active) return Colors.white.withValues(alpha: 0.05);
-      if (v <= 0) return Colors.white.withValues(alpha: 0.05);
-      final t = (v / maxD).clamp(0.0, 1.0);
-      final alpha = 0.18 + (t * 0.62);
-      return AppColors.activeColor.withValues(alpha: alpha);
-    }
-
-    return _buildSectionCard(
-      title: 'My Weekly Activity Pattern',
-      showHeader: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(width: 44),
-                      ...List.generate(nc, (c) {
-                        final mon = colMondays[c];
-                        return SizedBox(
-                          width: 52,
-                          child: Center(
-                            child: Text(
-                              _heatmapWeekColumnLabel(mon),
-                              style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
-                                fontSize: 10,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  ...List.generate(5, (r) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 44,
-                            child: Text(
-                              rowLabels[r],
-                              style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          ...List.generate(nc, (c) {
-                            final date = colMondays[c].add(Duration(days: r));
-                            final inP = dayInPeriod(date);
-                            final v = grid[r][c];
-                            return SizedBox(
-                              width: 52,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 3),
-                                child: Container(
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    color: cellColor(v, active: inP),
-                                    borderRadius: BorderRadius.circular(5),
-                                    border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.08),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Text(
-                  'Key:',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                ...List.generate(5, (i) {
-                  final t = i / 4;
-                  final alpha = 0.05 + (t * 0.75);
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Container(
-                      width: 18,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: AppColors.activeColor.withValues(alpha: alpha),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.08),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-                const Spacer(),
-                Text(
-                  maxVal > 0 ? 'Max $maxVal' : 'No data',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Short label for week columns in the activity heatmap (Mon of that week).
-  String _heatmapWeekColumnLabel(DateTime date) {
-    const months = <String>[
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final m = months[(date.month - 1).clamp(0, 11)];
-    return '$m ${date.day}';
-  }
-
-  List<int> _calculateMyActivityByWeekday(List<ManagerActivity> activities) {
-    // Monday..Friday buckets.
-    final buckets = List<int>.filled(5, 0);
-    for (final a in activities) {
-      final w = a.createdAt.weekday; // 1=Mon..7=Sun
-      if (w >= 1 && w <= 5) {
-        buckets[w - 1] += 1;
-      }
-    }
-    return buckets;
-  }
-
-  Widget _buildMyActivityTypeDonut(_ManagerActivitySummary summary) {
-    final total = summary.total;
-    if (total <= 0) {
-      return _buildSectionCard(
-        title: 'My Activity Breakdown',
-        showHeader: false,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Text(
-            'No activity yet in this period.',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-          ),
-        ),
-      );
-    }
-
-    double pct(int n) => (n / total).clamp(0.0, 1.0);
-
-    final segments = <_DonutSegment>[
-      _DonutSegment('Nudges', pct(summary.nudges), AppColors.infoColor),
-      _DonutSegment('Approvals', pct(summary.approvals), AppColors.successColor),
-      _DonutSegment('Replans', pct(summary.replans), AppColors.warningColor),
-      _DonutSegment('Meetings', pct(summary.meetings), AppColors.activeColor),
-    ];
-
-    int p(int n) => total == 0 ? 0 : (100 * n / total).round();
-
-    return _buildSectionCard(
-      title: 'My Activity Breakdown',
-      showHeader: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 110,
-              height: 110,
-              child: CustomPaint(
-                painter: _DonutChartPainter(segments: segments),
-                size: const Size(110, 110),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _donutLegendRow('Nudges', p(summary.nudges), AppColors.infoColor),
-                  _donutLegendRow('Approvals', p(summary.approvals), AppColors.successColor),
-                  _donutLegendRow('Replans', p(summary.replans), AppColors.warningColor),
-                  _donutLegendRow('Meetings', p(summary.meetings), AppColors.activeColor),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMyActivityByDayChart({
-    required List<int> byDay,
-    required int totalActivities,
-  }) {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-    final maxVal = byDay.isEmpty ? 1 : byDay.reduce((a, b) => a > b ? a : b);
-    final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
-
-    return _buildSectionCard(
-      title: 'My Weekly Activity Pattern',
-      showHeader: false,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: AppSpacing.md,
-          horizontal: AppSpacing.lg,
-        ),
-        child: Column(
-          children: List.generate(5, (i) {
-            final v = i < byDay.length ? byDay[i] : 0;
-            final w = maxBar > 0 ? (v / maxBar) : 0.0;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 32,
-                    child: Text(
-                      days[i],
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      height: 20,
-                      alignment: Alignment.centerLeft,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: FractionallySizedBox(
-                        widthFactor: w,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.activeColor,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '$v/$totalActivities',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAdminPersonalTimeFilter() {
-    return Wrap(
-      spacing: AppSpacing.md,
-      runSpacing: AppSpacing.sm,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<TimeFilter>(
-              value: currentTimeFilter,
-              dropdownColor: AppColors.backgroundColor,
-              icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-              items: TimeFilter.values
-                  .where((t) => t != TimeFilter.today && t != TimeFilter.year)
-                  .map(
-                    (t) => DropdownMenuItem<TimeFilter>(
-                      value: t,
-                      child: Text(
-                        t.name[0].toUpperCase() + t.name.substring(1),
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() {
-                  currentTimeFilter = v;
-                  // Keep team stream in sync so switching back to "Team"
-                  // uses the same selected time filter.
-                  _rebuildTeamStream();
-                });
-              },
-            ),
-          ),
-        ),
-        Text(
-          _myProgressPeriodFilterLabel(currentTimeFilter),
-          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-        ),
-      ],
-    );
-  }
-
-  /// Human-readable range for "My Progress" filters (matches [_currentPeriodRange]).
-  String _myProgressPeriodFilterLabel(TimeFilter filter) {
-    switch (filter) {
-      case TimeFilter.today:
-        return 'Today (through now)';
-      case TimeFilter.week:
-        return 'Last 7 days (through now)';
-      case TimeFilter.month:
-        return 'This month (through now)';
-      case TimeFilter.quarter:
-        return 'This quarter (through now)';
-      case TimeFilter.year:
-        return 'This year (through now)';
-    }
-  }
-
-  Stream<List<Goal>> _getGoalsStreamForUser(String uid) {
-    return FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: uid)
-        .snapshots()
-        .map((snapshot) {
-          final goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
-          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return goals;
-        });
-  }
-
-  Map<String, int> _calculateGoalStatusForGoals(List<Goal> goals) {
-    final now = DateTime.now();
-    int completed = 0;
-    int onTrack = 0;
-    int atRisk = 0;
-    int overdue = 0;
-
-    for (final g in goals) {
-      final isCompleted = g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged;
-      if (isCompleted) {
-        completed++;
-        continue;
-      }
-      if (g.targetDate.isBefore(now)) {
-        overdue++;
-        continue;
-      }
-      if (g.progress >= 70) {
-        onTrack++;
-      } else if (g.progress >= 40) {
-        atRisk++;
-      } else {
-        atRisk++;
-      }
-    }
-
-    return <String, int>{
-      'completed': completed,
-      'onTrack': onTrack,
-      'atRisk': atRisk,
-      'overdue': overdue,
-    };
-  }
-
-  List<_CategoryProgressItem> _calculateCategoryProgressForGoals(List<Goal> goals) {
-    final sums = <GoalCategory, List<double>>{};
-    for (final c in GoalCategory.values) {
-      sums[c] = <double>[];
-    }
-    for (final g in goals) {
-      sums[g.category]!.add(g.progress.toDouble());
-    }
-    final labels = <GoalCategory, String>{
-      GoalCategory.personal: 'Personal',
-      GoalCategory.work: 'Work',
-      GoalCategory.health: 'Health',
-      GoalCategory.learning: 'Learning',
-    };
-    return GoalCategory.values.map((c) {
-      final values = sums[c]!;
-      final avg = values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
-      return _CategoryProgressItem(label: labels[c] ?? c.name, progress: avg.clamp(0.0, 100.0));
-    }).toList(growable: false);
-  }
-
-  Future<_TrendSeries> _getUserTrendFuture(String uid) async {
-    final range = _historicalFilterRange(currentTimeFilter);
-    final sinceKey =
-        '${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${range.start.day.toString().padLeft(2, '0')}';
-    final untilKey =
-        '${range.endExclusive.year}-${range.endExclusive.month.toString().padLeft(2, '0')}-${range.endExclusive.day.toString().padLeft(2, '0')}';
-
-    final query = FirebaseFirestore.instance
-        .collection('goal_daily_progress')
-        .where('userId', isEqualTo: uid)
-        .where('date', isGreaterThanOrEqualTo: sinceKey)
-        .where('date', isLessThan: untilKey)
-        .limit(2000);
-
-    final snapshot = await query.get();
-    final Map<String, List<double>> byDate = <String, List<double>>{};
-    for (final doc in snapshot.docs) {
-      final data = doc.data();
-      final dateKey = (data['date'] ?? '').toString();
-      if (dateKey.isEmpty) continue;
-      final progress = (data['progress'] as num?)?.toDouble();
-      if (progress == null) continue;
-      byDate.putIfAbsent(dateKey, () => <double>[]).add(progress.clamp(0.0, 100.0));
-    }
-
-    if (byDate.isEmpty) {
-      return const _TrendSeries(points: <double>[], labels: <String>[]);
-    }
-
-    final dates = byDate.keys.toList()..sort();
-    final dailySeries = dates.map((d) {
-      final values = byDate[d]!;
-      final sum = values.fold<double>(0, (a, b) => a + b);
-      return MapEntry(d, (sum / values.length).clamp(0.0, 100.0));
-    }).toList(growable: false);
-
-    switch (currentTimeFilter) {
-      case TimeFilter.week:
-        return _buildWeeklySeries(dailySeries);
-      case TimeFilter.month:
-        return _buildMonthlySeries(dailySeries);
-      case TimeFilter.quarter:
-        return _buildQuarterlySeries(dailySeries);
-      case TimeFilter.year:
-        return _buildYearlySeries(dailySeries);
-      case TimeFilter.today:
-        return _TrendSeries(
-          points: dailySeries.map((e) => e.value).toList(growable: false),
-          labels: dailySeries.map((e) => e.key.substring(5)).toList(growable: false),
-        );
-    }
-  }
-
-  _TrendSeries _buildFallbackUserTrendFromGoals(List<Goal> goals) {
-    final avg = goals.isEmpty
-        ? 0.0
-        : goals.map((g) => g.progress).fold<double>(0, (a, b) => a + b) / goals.length;
-    final points = currentTimeFilter == TimeFilter.week
-        ? <double>[
-            (avg * 0.88).clamp(0.0, 100.0),
-            (avg * 0.92).clamp(0.0, 100.0),
-            (avg * 0.96).clamp(0.0, 100.0),
-            (avg * 0.98).clamp(0.0, 100.0),
-            avg.clamp(0.0, 100.0),
-          ]
-        : <double>[
-            (avg * 0.72).clamp(0.0, 100.0),
-            (avg * 0.81).clamp(0.0, 100.0),
-            (avg * 0.88).clamp(0.0, 100.0),
-            avg.clamp(0.0, 100.0),
-          ];
-    final labels = _fallbackLabelsForFilter(points.length);
-    return _TrendSeries(points: points, labels: labels);
-  }
-
-  Widget _buildAdminActivitySummaryCard(List<Goal> goals) {
-    final now = DateTime.now();
-    final overdue = goals.where((g) => g.status != GoalStatus.completed && g.targetDate.isBefore(now)).length;
-    final completed = goals.where((g) => g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged).length;
-    final active = goals.where((g) => g.status != GoalStatus.completed && g.status != GoalStatus.acknowledged).length;
-    final avg = goals.isEmpty ? 0.0 : goals.map((g) => g.progress).fold<double>(0, (a, b) => a + b) / goals.length;
-
-    return _buildSectionCard(
-      title: 'My Activity Summary',
-      showHeader: false,
-      child: goals.isEmpty
-          ? Text(
-              'No personal goals found. Admins typically monitor manager goals using the Team view.',
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-            )
-          : Row(
-              children: [
-                Expanded(
-                  child: _buildMetricCard(
-                    title: 'Active Goals',
-                    value: active.toString(),
-                    icon: Icons.track_changes,
-                    color: AppColors.activeColor,
-                    subtitle: 'In progress',
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _buildMetricCard(
-                    title: 'Completed',
-                    value: completed.toString(),
-                    icon: Icons.check_circle_outline,
-                    color: AppColors.successColor,
-                    subtitle: 'Achieved',
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _buildMetricCard(
-                    title: 'Overdue',
-                    value: overdue.toString(),
-                    icon: Icons.warning_amber_rounded,
-                    color: AppColors.dangerColor,
-                    subtitle: 'Needs attention',
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _buildMetricCard(
-                    title: 'Average',
-                    value: '${avg.toStringAsFixed(0)}%',
-                    icon: Icons.trending_up,
-                    color: avg >= 70
-                        ? AppColors.successColor
-                        : avg >= 40
-                            ? AppColors.warningColor
-                            : AppColors.dangerColor,
-                    subtitle: 'Progress',
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildAdminPersonalInsights({
-    required List<Goal> goals,
-    required Map<String, int> statusCounts,
-    required List<_CategoryProgressItem> categoryProgress,
-    required List<double> trendPoints,
-  }) {
-    if (goals.isEmpty) {
-      return _buildSectionCard(
-        title: 'Personal Insights',
-        showHeader: false,
-        child: Text(
-          'No personal goal data to generate insights. Use Team view to monitor managers.',
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-        ),
-      );
-    }
-
-    final overdue = statusCounts['overdue'] ?? 0;
-    final trendDelta = _calculateTrendDeltaPercent(trendPoints);
-    _CategoryProgressItem? lowestCategory;
-    if (categoryProgress.isNotEmpty) {
-      lowestCategory = categoryProgress.reduce((a, b) => a.progress <= b.progress ? a : b);
-    }
-
-    final trendMsg = trendDelta > 0
-        ? 'Your progress is improving compared to the previous step (+${trendDelta.abs()}%).'
-        : trendDelta < 0
-            ? 'Your progress is declining compared to the previous step (-${trendDelta.abs()}%).'
-            : 'Your progress is steady compared to the previous step.';
-
-    return _buildSectionCard(
-      title: 'Personal Insights',
-      showHeader: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            trendMsg,
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            '- $overdue overdue goal${overdue == 1 ? '' : 's'} need attention',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-          ),
-          Text(
-            '- Lowest category progress: ${lowestCategory?.label ?? 'N/A'}'
-            '${lowestCategory != null ? ' (${lowestCategory.progress.toStringAsFixed(0)}%)' : ''}',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-          ),
-          Text(
-            '- Focus on one small update today to maintain consistency.',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecentGoalsUpdates(List<Goal> goals) {
-    if (goals.isEmpty) {
-      return _buildSectionCard(
-        title: 'Recent Progress / Updates',
-        showHeader: false,
-        child: Text(
-          'No recent updates yet.',
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-        ),
-      );
-    }
-
-    final visible = goals.take(6).toList(growable: false);
-    return _buildSectionCard(
-      title: 'Recent Progress / Updates',
-      showHeader: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ...visible.map(
-            (g) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _buildGoalRow(g),
-            ),
-          ),
-          if (goals.length > visible.length)
-            Text(
-              '+${goals.length - visible.length} more goals',
-              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAdminSeparator() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Divider(
-        color: Colors.white.withValues(alpha: 0.25),
-        thickness: 1,
-        height: 1,
-      ),
-    );
-  }
-
-  Widget _buildAdminSectionTitle(
-    String title, {
-    bool withTrailingLine = true,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: AppTypography.heading4.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        if (withTrailingLine) _buildAdminSeparator(),
-      ],
-    );
-  }
-
-  Widget _buildAdminGoalStatusAndEngagementSection({
-    required Map<String, int> goalStatusCounts,
-    required List<int> engagementByDay,
-    required TeamMetrics metrics,
-  }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final isNarrow = width < 600;
-
-        final goalStatusBlock = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Manager Goal Status',
-              style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _buildGoalStatusDonut(
-              goalStatusCounts,
-              showHeader: false,
-            ),
-          ],
-        );
-
-        final engagementBlock = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Manager Engagement',
-              style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _buildTeamEngagementChart(
-              engagementByDay,
-              metrics.totalEmployees,
-              showHeader: false,
-            ),
-          ],
-        );
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildAdminSeparator(),
-            if (isNarrow) ...[
-              goalStatusBlock,
-              const SizedBox(height: AppSpacing.xl),
-              engagementBlock,
-            ] else ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: goalStatusBlock),
-                  const SizedBox(width: AppSpacing.lg),
-                  Expanded(child: engagementBlock),
-                ],
-              ),
-            ],
-            const SizedBox(height: AppSpacing.sm),
-            _buildAdminSeparator(),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildManagerGrowthIndicator(List<double> trendPoints) {
-    final bool hasEnoughTrend = trendPoints.length >= 3;
-
-    double? slope;
-    if (hasEnoughTrend) {
-      // Least squares slope over the whole series (x=0..n-1, y=progress).
-      final n = trendPoints.length;
-      double sumX = 0;
-      double sumY = 0;
-      double sumXY = 0;
-      double sumXX = 0;
-      for (int i = 0; i < n; i++) {
-        final x = i.toDouble();
-        final y = trendPoints[i];
-        sumX += x;
-        sumY += y;
-        sumXY += x * y;
-        sumXX += x * x;
-      }
-      final denom = (n * sumXX) - (sumX * sumX);
-      if (denom.abs() > 0.00001) {
-        slope = ((n * sumXY) - (sumX * sumY)) / denom;
-      }
-    }
-
-    // Threshold is in "progress points per bucket" (bucket = chart step).
-    const stagnantThreshold = 0.35;
-    final status = !hasEnoughTrend || slope == null
-        ? 'Not enough trend data'
-        : (slope > stagnantThreshold
-              ? 'Improving'
-              : (slope < -stagnantThreshold ? 'Declining' : 'Stagnant'));
-
-    final statusColor = !hasEnoughTrend || slope == null
-        ? AppColors.textSecondary
-        : (status == 'Improving'
-              ? AppColors.successColor
-              : (status == 'Declining' ? AppColors.dangerColor : AppColors.infoColor));
-
-    final slopeText = !hasEnoughTrend || slope == null
-        ? ''
-        : '(${slope >= 0 ? '+' : ''}${slope.toStringAsFixed(2)} pts/step)';
-
-    return _buildSectionCard(
-      title: 'Manager Growth',
-      showHeader: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$status${slopeText.isNotEmpty ? ' $slopeText' : ''}',
-            style: AppTypography.heading4.copyWith(
-              color: statusColor,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Based on average goal completion across managers.',
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
     );
   }
 
@@ -2493,7 +1058,7 @@ class _ManagerProgressVisualsContentState
         ),
         const SizedBox(height: AppSpacing.md),
         _buildMetricCard(
-          title: 'Active $_populationPlural',
+          title: 'Active Employees',
           value: '...',
           icon: Icons.online_prediction,
           color: AppColors.infoColor,
@@ -2604,60 +1169,6 @@ class _ManagerProgressVisualsContentState
         developer.log('Manager badge evaluate failed: $e');
       }
     });
-  }
-
-  Widget _buildMyProgressActivityFilters() {
-    return Wrap(
-      spacing: AppSpacing.md,
-      runSpacing: AppSpacing.sm,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<TimeFilter>(
-              value: currentTimeFilter,
-              isExpanded: false,
-              dropdownColor: AppColors.backgroundColor,
-              icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-              items: TimeFilter.values
-                  .where((t) => t != TimeFilter.today && t != TimeFilter.year)
-                  .map(
-                    (t) => DropdownMenuItem<TimeFilter>(
-                      value: t,
-                      child: Text(
-                        t.name[0].toUpperCase() + t.name.substring(1),
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() {
-                  currentTimeFilter = v;
-                  // Clear cached activities so UI doesn't show stale period counts
-                  // while the periodic stream fetches the next batch.
-                  _cachedManagerActivities = const [];
-                  // Keep team stream in sync for when the user switches to Team view.
-                  _rebuildTeamStream();
-                });
-              },
-            ),
-          ),
-        ),
-        Text(
-          _myProgressPeriodFilterLabel(currentTimeFilter),
-          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-        ),
-      ],
-    );
   }
 
   _ManagerActivitySummary _summarizeManagerActivities(
@@ -3355,14 +1866,7 @@ class _ManagerProgressVisualsContentState
         developer.log('Error fetching manager activities: $e');
       }
 
-      // Apply the currently selected time filter so "My Progress" analytics
-      // (summary + weekly pattern) reflect the same period.
-      final range = _currentPeriodRange(currentTimeFilter);
-      final filtered = activities.where((a) {
-        final ts = a.createdAt;
-        return !ts.isBefore(range.start) && ts.isBefore(range.endExclusive);
-      }).toList(growable: false);
-      return filtered;
+      return activities;
     });
   }
 
@@ -3829,7 +2333,8 @@ class _ManagerProgressVisualsContentState
 
       final goals = _goalsForCurrentFilter(employee);
       for (final g in goals) {
-        if (g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged) {
+        if (g.status == GoalStatus.completed ||
+            g.status == GoalStatus.acknowledged) {
           continue;
         }
         if (g.targetDate.isBefore(now)) {
@@ -3843,7 +2348,11 @@ class _ManagerProgressVisualsContentState
 
       totalPoints += employee.totalPoints;
       totalGoalsCompleted += goals
-          .where((g) => g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged)
+          .where(
+            (g) =>
+                g.status == GoalStatus.completed ||
+                g.status == GoalStatus.acknowledged,
+          )
           .length;
       totalProgress += _averageProgressForEmployee(employee);
     }
@@ -3880,18 +2389,24 @@ class _ManagerProgressVisualsContentState
   double _averageProgressForEmployee(EmployeeData employee) {
     final goals = _goalsForCurrentFilter(employee);
     if (goals.isEmpty) return 0.0;
-    final sum = goals.fold<double>(0.0, (acc, g) => acc + g.progress.toDouble());
+    final sum = goals.fold<double>(
+      0.0,
+      (acc, g) => acc + g.progress.toDouble(),
+    );
     return (sum / goals.length).clamp(0.0, 100.0);
   }
 
   /// Goal status distribution for donut chart (counts).
-  Map<String, int> _calculateGoalStatusDistribution(List<EmployeeData> employees) {
+  Map<String, int> _calculateGoalStatusDistribution(
+    List<EmployeeData> employees,
+  ) {
     int completed = 0, onTrack = 0, atRisk = 0, overdue = 0;
     final now = DateTime.now();
 
     for (final emp in employees) {
       for (final g in _goalsForCurrentFilter(emp)) {
-        if (g.status == GoalStatus.completed || g.status == GoalStatus.acknowledged) {
+        if (g.status == GoalStatus.completed ||
+            g.status == GoalStatus.acknowledged) {
           completed++;
         } else if (g.targetDate.isBefore(now)) {
           overdue++;
@@ -3933,41 +2448,51 @@ class _ManagerProgressVisualsContentState
   }
 
   /// Needs attention: overdue goals, inactive days, missed milestone.
-  List<_NeedsAttentionItem> _buildNeedsAttentionList(List<EmployeeData> employees) {
+  List<_NeedsAttentionItem> _buildNeedsAttentionList(
+    List<EmployeeData> employees,
+  ) {
     final now = DateTime.now();
     final list = <_NeedsAttentionItem>[];
 
     for (final emp in employees) {
       if (emp.overdueGoalsCount > 0) {
-        list.add(_NeedsAttentionItem(
-          employeeName: emp.profile.displayName.isNotEmpty
-              ? emp.profile.displayName
-              : emp.profile.email.split('@').first,
-          reason: '${emp.overdueGoalsCount} overdue goal${emp.overdueGoalsCount == 1 ? '' : 's'}',
-          actionType: _NeedsAttentionAction.view,
-          employee: emp,
-        ));
+        list.add(
+          _NeedsAttentionItem(
+            employeeName: emp.profile.displayName.isNotEmpty
+                ? emp.profile.displayName
+                : emp.profile.email.split('@').first,
+            reason:
+                '${emp.overdueGoalsCount} overdue goal${emp.overdueGoalsCount == 1 ? '' : 's'}',
+            actionType: _NeedsAttentionAction.view,
+            employee: emp,
+          ),
+        );
       }
       final inactiveDays = now.difference(emp.lastActivity).inDays;
       if (inactiveDays >= 7 && emp.overdueGoalsCount == 0) {
-        list.add(_NeedsAttentionItem(
-          employeeName: emp.profile.displayName.isNotEmpty
-              ? emp.profile.displayName
-              : emp.profile.email.split('@').first,
-          reason: 'inactive for $inactiveDays days',
-          actionType: _NeedsAttentionAction.nudge,
-          employee: emp,
-        ));
+        list.add(
+          _NeedsAttentionItem(
+            employeeName: emp.profile.displayName.isNotEmpty
+                ? emp.profile.displayName
+                : emp.profile.email.split('@').first,
+            reason: 'inactive for $inactiveDays days',
+            actionType: _NeedsAttentionAction.nudge,
+            employee: emp,
+          ),
+        );
       }
-      if (emp.status == EmployeeStatus.atRisk && list.every((e) => e.employee != emp)) {
-        list.add(_NeedsAttentionItem(
-          employeeName: emp.profile.displayName.isNotEmpty
-              ? emp.profile.displayName
-              : emp.profile.email.split('@').first,
-          reason: 'at risk — review goals',
-          actionType: _NeedsAttentionAction.review,
-          employee: emp,
-        ));
+      if (emp.status == EmployeeStatus.atRisk &&
+          list.every((e) => e.employee != emp)) {
+        list.add(
+          _NeedsAttentionItem(
+            employeeName: emp.profile.displayName.isNotEmpty
+                ? emp.profile.displayName
+                : emp.profile.email.split('@').first,
+            reason: 'at risk — review goals',
+            actionType: _NeedsAttentionAction.review,
+            employee: emp,
+          ),
+        );
       }
     }
 
@@ -3975,7 +2500,9 @@ class _ManagerProgressVisualsContentState
   }
 
   /// Average progress per goal category (personal, work, health, learning).
-  List<_CategoryProgressItem> _calculateGoalCategoryProgress(List<EmployeeData> employees) {
+  List<_CategoryProgressItem> _calculateGoalCategoryProgress(
+    List<EmployeeData> employees,
+  ) {
     final sums = <GoalCategory, List<double>>{};
     for (final c in GoalCategory.values) {
       sums[c] = [];
@@ -3997,7 +2524,9 @@ class _ManagerProgressVisualsContentState
 
     return GoalCategory.values.map((c) {
       final values = sums[c]!;
-      final avg = values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
+      final avg = values.isEmpty
+          ? 0.0
+          : values.reduce((a, b) => a + b) / values.length;
       return _CategoryProgressItem(
         label: labels[c] ?? c.name,
         progress: avg.clamp(0.0, 100.0),
@@ -4024,17 +2553,26 @@ class _ManagerProgressVisualsContentState
               value: currentTimeFilter,
               isExpanded: false,
               dropdownColor: AppColors.backgroundColor,
-              icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+              icon: const Icon(
+                Icons.arrow_drop_down,
+                color: AppColors.textPrimary,
+              ),
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
               items: TimeFilter.values
                   .where((t) => t != TimeFilter.today && t != TimeFilter.year)
-                  .map((t) => DropdownMenuItem<TimeFilter>(
-                        value: t,
-                        child: Text(
-                          t.name[0].toUpperCase() + t.name.substring(1),
-                          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                  .map(
+                    (t) => DropdownMenuItem<TimeFilter>(
+                      value: t,
+                      child: Text(
+                        t.name[0].toUpperCase() + t.name.substring(1),
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
                         ),
-                      ))
+                      ),
+                    ),
+                  )
                   .toList(),
               onChanged: (TimeFilter? v) {
                 if (v == null) return;
@@ -4048,10 +2586,16 @@ class _ManagerProgressVisualsContentState
         ),
         TextButton.icon(
           onPressed: () => _exportTeamReport(),
-          icon: const Icon(Icons.download, size: 18, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.download,
+            size: 18,
+            color: AppColors.textPrimary,
+          ),
           label: Text(
             'Export Report',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
           ),
           style: TextButton.styleFrom(
             backgroundColor: Colors.black.withValues(alpha: 0.4),
@@ -4061,7 +2605,9 @@ class _ManagerProgressVisualsContentState
         ),
         Text(
           'Trend: Previous ${currentTimeFilter.name[0].toUpperCase()}${currentTimeFilter.name.substring(1)} + Now',
-          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
       ],
     );
@@ -4076,14 +2622,10 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildTeamProgressTrendSection(
-    _TrendSeries series, {
-    bool showHeader = true,
-  }) {
+  Widget _buildTeamProgressTrendSection(_TrendSeries series) {
     if (series.points.isEmpty) {
       return _buildSectionCard(
         title: 'Team Progress Trend',
-        showHeader: showHeader,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Text(
@@ -4097,7 +2639,6 @@ class _ManagerProgressVisualsContentState
     }
     return _buildSectionCard(
       title: 'Team Progress Trend',
-      showHeader: showHeader,
       child: SizedBox(
         height: 180,
         width: double.infinity,
@@ -4131,13 +2672,19 @@ class _ManagerProgressVisualsContentState
         );
       case TimeFilter.week:
         // Previous full business week window (Mon -> next Mon).
-        final thisWeekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+        final thisWeekStart = todayStart.subtract(
+          Duration(days: now.weekday - 1),
+        );
         final lastWeekStart = thisWeekStart.subtract(const Duration(days: 7));
         return _DateRange(start: lastWeekStart, endExclusive: thisWeekStart);
       case TimeFilter.month:
         // Previous full month.
         final thisMonthStart = DateTime(now.year, now.month, 1);
-        final lastMonthStart = DateTime(thisMonthStart.year, thisMonthStart.month - 1, 1);
+        final lastMonthStart = DateTime(
+          thisMonthStart.year,
+          thisMonthStart.month - 1,
+          1,
+        );
         return _DateRange(start: lastMonthStart, endExclusive: thisMonthStart);
       case TimeFilter.quarter:
         // Previous full quarter.
@@ -4148,7 +2695,10 @@ class _ManagerProgressVisualsContentState
           thisQuarterStart.month - 3,
           1,
         );
-        return _DateRange(start: lastQuarterStart, endExclusive: thisQuarterStart);
+        return _DateRange(
+          start: lastQuarterStart,
+          endExclusive: thisQuarterStart,
+        );
       case TimeFilter.year:
         final thisYearStart = DateTime(now.year, 1, 1);
         return _DateRange(
@@ -4168,10 +2718,11 @@ class _ManagerProgressVisualsContentState
           endExclusive: now.add(const Duration(milliseconds: 1)),
         );
       case TimeFilter.week:
-        // Rolling last 7 days including today (not Mon–Sun partial week).
-        final start = todayStart.subtract(const Duration(days: 6));
+        final thisWeekStart = todayStart.subtract(
+          Duration(days: now.weekday - 1),
+        );
         return _DateRange(
-          start: start,
+          start: thisWeekStart,
           endExclusive: now.add(const Duration(milliseconds: 1)),
         );
       case TimeFilter.month:
@@ -4203,7 +2754,10 @@ class _ManagerProgressVisualsContentState
       return const _TrendSeries(points: <double>[], labels: <String>[]);
     }
 
-    final userIds = employees.map((e) => e.profile.uid).where((id) => id.isNotEmpty).toList();
+    final userIds = employees
+        .map((e) => e.profile.uid)
+        .where((id) => id.isNotEmpty)
+        .toList();
     if (userIds.isEmpty) {
       return const _TrendSeries(points: <double>[], labels: <String>[]);
     }
@@ -4233,7 +2787,9 @@ class _ManagerProgressVisualsContentState
         if (dateKey.isEmpty) continue;
         final progress = (data['progress'] as num?)?.toDouble();
         if (progress == null) continue;
-        byDate.putIfAbsent(dateKey, () => <double>[]).add(progress.clamp(0.0, 100.0));
+        byDate
+            .putIfAbsent(dateKey, () => <double>[])
+            .add(progress.clamp(0.0, 100.0));
       }
     }
 
@@ -4242,11 +2798,13 @@ class _ManagerProgressVisualsContentState
     }
 
     final dates = byDate.keys.toList()..sort();
-    final dailySeries = dates.map((d) {
-      final values = byDate[d]!;
-      final sum = values.fold<double>(0, (a, b) => a + b);
-      return MapEntry(d, (sum / values.length).clamp(0.0, 100.0));
-    }).toList(growable: false);
+    final dailySeries = dates
+        .map((d) {
+          final values = byDate[d]!;
+          final sum = values.fold<double>(0, (a, b) => a + b);
+          return MapEntry(d, (sum / values.length).clamp(0.0, 100.0));
+        })
+        .toList(growable: false);
 
     switch (currentTimeFilter) {
       case TimeFilter.week:
@@ -4258,17 +2816,28 @@ class _ManagerProgressVisualsContentState
       case TimeFilter.year:
         return _appendNowPoint(_buildYearlySeries(dailySeries), employees);
       case TimeFilter.today:
-        return _appendNowPoint(_TrendSeries(
-          points: dailySeries.map((e) => e.value).toList(growable: false),
-          labels: dailySeries.map((e) => e.key.substring(5)).toList(growable: false),
-        ), employees);
+        return _appendNowPoint(
+          _TrendSeries(
+            points: dailySeries.map((e) => e.value).toList(growable: false),
+            labels: dailySeries
+                .map((e) => e.key.substring(5))
+                .toList(growable: false),
+          ),
+          employees,
+        );
     }
   }
 
-  _TrendSeries _appendNowPoint(_TrendSeries base, List<EmployeeData> employees) {
+  _TrendSeries _appendNowPoint(
+    _TrendSeries base,
+    List<EmployeeData> employees,
+  ) {
     final nowValue = _currentAverageProgress(employees);
     if (base.points.isEmpty) {
-      return _TrendSeries(points: <double>[nowValue], labels: const <String>['Now']);
+      return _TrendSeries(
+        points: <double>[nowValue],
+        labels: const <String>['Now'],
+      );
     }
     final points = List<double>.from(base.points)..add(nowValue);
     final labels = List<String>.from(base.labels)..add('Now');
@@ -4329,7 +2898,9 @@ class _ManagerProgressVisualsContentState
 
   _TrendSeries _buildWeeklySeries(List<MapEntry<String, double>> dailySeries) {
     const labels = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-    final byLabel = <String, List<double>>{for (final l in labels) l: <double>[]};
+    final byLabel = <String, List<double>>{
+      for (final l in labels) l: <double>[],
+    };
     for (final e in dailySeries) {
       final dt = DateTime.tryParse(e.key);
       if (dt == null) continue;
@@ -4338,33 +2909,44 @@ class _ManagerProgressVisualsContentState
         byLabel[labels[idx]]!.add(e.value);
       }
     }
-    final points = labels.map((l) {
-      final values = byLabel[l]!;
-      if (values.isEmpty) return 0.0;
-      return values.reduce((a, b) => a + b) / values.length;
-    }).toList(growable: false);
+    final points = labels
+        .map((l) {
+          final values = byLabel[l]!;
+          if (values.isEmpty) return 0.0;
+          return values.reduce((a, b) => a + b) / values.length;
+        })
+        .toList(growable: false);
     return _TrendSeries(points: points, labels: labels);
   }
 
   _TrendSeries _buildMonthlySeries(List<MapEntry<String, double>> dailySeries) {
-    final buckets = <List<double>>[<double>[], <double>[], <double>[], <double>[]];
+    final buckets = <List<double>>[
+      <double>[],
+      <double>[],
+      <double>[],
+      <double>[],
+    ];
     for (final e in dailySeries) {
       final dt = DateTime.tryParse(e.key);
       if (dt == null) continue;
       final bucket = ((dt.day - 1) / 8).floor().clamp(0, 3);
       buckets[bucket].add(e.value);
     }
-    final points = buckets.map((values) {
-      if (values.isEmpty) return 0.0;
-      return values.reduce((a, b) => a + b) / values.length;
-    }).toList(growable: false);
+    final points = buckets
+        .map((values) {
+          if (values.isEmpty) return 0.0;
+          return values.reduce((a, b) => a + b) / values.length;
+        })
+        .toList(growable: false);
     return _TrendSeries(
       points: points,
       labels: const <String>['W1', 'W2', 'W3', 'W4'],
     );
   }
 
-  _TrendSeries _buildQuarterlySeries(List<MapEntry<String, double>> dailySeries) {
+  _TrendSeries _buildQuarterlySeries(
+    List<MapEntry<String, double>> dailySeries,
+  ) {
     final buckets = <List<double>>[<double>[], <double>[], <double>[]];
     for (final e in dailySeries) {
       final dt = DateTime.tryParse(e.key);
@@ -4372,10 +2954,12 @@ class _ManagerProgressVisualsContentState
       final monthBucket = ((dt.month - 1) % 3).clamp(0, 2);
       buckets[monthBucket].add(e.value);
     }
-    final points = buckets.map((values) {
-      if (values.isEmpty) return 0.0;
-      return values.reduce((a, b) => a + b) / values.length;
-    }).toList(growable: false);
+    final points = buckets
+        .map((values) {
+          if (values.isEmpty) return 0.0;
+          return values.reduce((a, b) => a + b) / values.length;
+        })
+        .toList(growable: false);
     return _TrendSeries(
       points: points,
       labels: const <String>['M1', 'M2', 'M3'],
@@ -4384,8 +2968,18 @@ class _ManagerProgressVisualsContentState
 
   _TrendSeries _buildYearlySeries(List<MapEntry<String, double>> dailySeries) {
     const monthLabels = <String>[
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final buckets = List<List<double>>.generate(12, (_) => <double>[]);
     for (final e in dailySeries) {
@@ -4393,10 +2987,12 @@ class _ManagerProgressVisualsContentState
       if (dt == null) continue;
       buckets[dt.month - 1].add(e.value);
     }
-    final points = buckets.map((values) {
-      if (values.isEmpty) return 0.0;
-      return values.reduce((a, b) => a + b) / values.length;
-    }).toList(growable: false);
+    final points = buckets
+        .map((values) {
+          if (values.isEmpty) return 0.0;
+          return values.reduce((a, b) => a + b) / values.length;
+        })
+        .toList(growable: false);
     return _TrendSeries(points: points, labels: monthLabels);
   }
 
@@ -4415,17 +3011,32 @@ class _ManagerProgressVisualsContentState
         return List<String>.generate(c, (i) => 'M${i + 1}', growable: false);
       case TimeFilter.year:
         const months = <String>[
-          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
         ];
-        return months.take(count <= 0 ? months.length : count).toList(growable: false);
+        return months
+            .take(count <= 0 ? months.length : count)
+            .toList(growable: false);
       case TimeFilter.today:
         final c = count <= 0 ? 1 : count;
         return List<String>.generate(c, (i) => 'P${i + 1}', growable: false);
     }
   }
 
-  List<double> _buildTrendPoints(TeamMetrics metrics, List<EmployeeData> employees) {
+  List<double> _buildTrendPoints(
+    TeamMetrics metrics,
+    List<EmployeeData> employees,
+  ) {
     // Fallback trend when no historical snapshots are available yet.
     final avg = metrics.avgTeamProgress.clamp(0.0, 100.0);
     if (currentTimeFilter == TimeFilter.week) {
@@ -4468,7 +3079,6 @@ class _ManagerProgressVisualsContentState
     Map<String, int> goalStatusCounts,
     List<int> engagementByDay,
     TeamMetrics metrics,
-    {bool showHeaders = true}
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -4478,33 +3088,23 @@ class _ManagerProgressVisualsContentState
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildGoalStatusDonut(
-                    goalStatusCounts,
-                    showHeader: showHeaders,
-                  ),
+                  _buildGoalStatusDonut(goalStatusCounts),
                   const SizedBox(height: AppSpacing.lg),
                   _buildTeamEngagementChart(
                     engagementByDay,
                     metrics.totalEmployees,
-                    showHeader: showHeaders,
                   ),
                 ],
               )
             : Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _buildGoalStatusDonut(
-                      goalStatusCounts,
-                      showHeader: showHeaders,
-                    ),
-                  ),
+                  Expanded(child: _buildGoalStatusDonut(goalStatusCounts)),
                   const SizedBox(width: AppSpacing.lg),
                   Expanded(
                     child: _buildTeamEngagementChart(
                       engagementByDay,
                       metrics.totalEmployees,
-                      showHeader: showHeaders,
                     ),
                   ),
                 ],
@@ -4513,21 +3113,23 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildGoalStatusDonut(
-    Map<String, int> counts, {
-    bool showHeader = true,
-  }) {
-    final total = counts['completed']! + counts['onTrack']! + counts['atRisk']! + counts['overdue']!;
+  Widget _buildGoalStatusDonut(Map<String, int> counts) {
+    final total =
+        counts['completed']! +
+        counts['onTrack']! +
+        counts['atRisk']! +
+        counts['overdue']!;
     if (total == 0) {
       return _buildSectionCard(
         title: 'Goal Status',
-        showHeader: showHeader,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Center(
             child: Text(
-              _isAdminManagerView ? 'No manager goals in this period' : 'No goals in this period',
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              'No goals in this period',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
         ),
@@ -4548,7 +3150,6 @@ class _ManagerProgressVisualsContentState
 
     return _buildSectionCard(
       title: 'Goal Status',
-      showHeader: showHeader,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Row(
@@ -4567,7 +3168,11 @@ class _ManagerProgressVisualsContentState
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _donutLegendRow('Completed', completedPct, AppColors.successColor),
+                  _donutLegendRow(
+                    'Completed',
+                    completedPct,
+                    AppColors.successColor,
+                  ),
                   _donutLegendRow('On Track', onTrackPct, AppColors.infoColor),
                   _donutLegendRow('At Risk', atRiskPct, AppColors.warningColor),
                   _donutLegendRow('Overdue', overduePct, AppColors.dangerColor),
@@ -4585,11 +3190,17 @@ class _ManagerProgressVisualsContentState
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
-          Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
           const SizedBox(width: 8),
           Text(
             '$label $pct%',
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
@@ -4599,19 +3210,20 @@ class _ManagerProgressVisualsContentState
   Widget _buildTeamEngagementChart(
     List<int> engagementByDay,
     int totalEmployees,
-    {bool showHeader = true}
   ) {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-    final maxVal = engagementByDay.isEmpty ? 1 : engagementByDay.reduce((a, b) => a > b ? a : b);
+    final maxVal = engagementByDay.isEmpty
+        ? 1
+        : engagementByDay.reduce((a, b) => a > b ? a : b);
     final maxBar = maxVal < 1 ? 1.0 : maxVal.toDouble();
 
     return _buildSectionCard(
-      title: _isAdminManagerView
-          ? 'Manager Engagement (Active Managers)'
-          : 'Team Engagement (Active Members)',
-      showHeader: showHeader,
+      title: 'Team Engagement (Active Members)',
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.md,
+          horizontal: AppSpacing.lg,
+        ),
         child: Column(
           children: List.generate(5, (i) {
             final w = maxBar > 0 ? (engagementByDay[i] / maxBar) : 0.0;
@@ -4623,7 +3235,9 @@ class _ManagerProgressVisualsContentState
                     width: 32,
                     child: Text(
                       days[i],
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
                   Expanded(
@@ -4648,7 +3262,9 @@ class _ManagerProgressVisualsContentState
                   const SizedBox(width: 8),
                   Text(
                     '${engagementByDay[i]}/$totalEmployees',
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -4659,27 +3275,28 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildTeamPerformanceRankingSection(
-    List<EmployeeData> employees, {
-    bool showHeader = true,
-  }) {
+  Widget _buildTeamPerformanceRankingSection(List<EmployeeData> employees) {
     final sorted = List<EmployeeData>.from(employees)
-      ..sort((a, b) => _averageProgressForEmployee(b).compareTo(_averageProgressForEmployee(a)));
+      ..sort(
+        (a, b) => _averageProgressForEmployee(
+          b,
+        ).compareTo(_averageProgressForEmployee(a)),
+      );
     final bool showAll = _rankingDisplayMode == 'all';
-    final List<EmployeeData> visibleEmployees =
-        showAll ? sorted : sorted.take(3).toList();
+    final List<EmployeeData> visibleEmployees = showAll
+        ? sorted
+        : sorted.take(3).toList();
 
     return _buildSectionCard(
-      title: _isAdminManagerView
-          ? 'Manager Performance Ranking'
-          : 'Team Performance Ranking',
-      showHeader: showHeader,
+      title: 'Team Performance Ranking',
       child: sorted.isEmpty
           ? Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Text(
-                _isAdminManagerView ? 'No managers' : 'No team members',
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                'No team members',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             )
           : Column(
@@ -4688,21 +3305,34 @@ class _ManagerProgressVisualsContentState
                 Align(
                   alignment: Alignment.centerRight,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                      ),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _rankingDisplayMode,
                         dropdownColor: AppColors.backgroundColor,
-                        icon: const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
-                        style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary),
+                        icon: const Icon(
+                          Icons.arrow_drop_down,
+                          color: AppColors.textPrimary,
+                        ),
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
                         items: const [
                           DropdownMenuItem(value: 'top3', child: Text('Top 3')),
-                          DropdownMenuItem(value: 'all', child: Text('Show all')),
+                          DropdownMenuItem(
+                            value: 'all',
+                            child: Text('Show all'),
+                          ),
                         ],
                         onChanged: (value) {
                           if (value == null) return;
@@ -4732,7 +3362,9 @@ class _ManagerProgressVisualsContentState
                           width: 100,
                           child: Text(
                             name,
-                            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -4741,8 +3373,12 @@ class _ManagerProgressVisualsContentState
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                             child: LinearProgressIndicator(
                               value: (progress / 100).clamp(0.0, 1.0),
-                              backgroundColor: Colors.white.withValues(alpha: 0.15),
-                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.15,
+                              ),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppColors.activeColor,
+                              ),
                               minHeight: 8,
                               borderRadius: BorderRadius.circular(4),
                             ),
@@ -4763,8 +3399,10 @@ class _ManagerProgressVisualsContentState
                 if (!showAll && sorted.length > 3) ...[
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    '+${sorted.length - 3} more ${_populationPlural.toLowerCase()}',
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                    '+${sorted.length - 3} more employees',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ],
@@ -4782,7 +3420,9 @@ class _ManagerProgressVisualsContentState
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Text(
                 'No items needing attention',
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             )
           : ListView.separated(
@@ -4797,7 +3437,9 @@ class _ManagerProgressVisualsContentState
                     Expanded(
                       child: Text(
                         '${item.employeeName} — ${item.reason}',
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                     if (item.actionType == _NeedsAttentionAction.view)
@@ -4807,7 +3449,8 @@ class _ManagerProgressVisualsContentState
                       ),
                     if (item.actionType == _NeedsAttentionAction.nudge)
                       TextButton(
-                        onPressed: () => _sendNudgeToEmployee(item.employeeName),
+                        onPressed: () =>
+                            _sendNudgeToEmployee(item.employeeName),
                         child: const Text('Send Nudge'),
                       ),
                     if (item.actionType == _NeedsAttentionAction.review)
@@ -4828,8 +3471,6 @@ class _ManagerProgressVisualsContentState
     required List<int> engagementByDay,
     required List<_CategoryProgressItem> categoryProgress,
     required List<double> trendPoints,
-    bool includeTrendSummary = true,
-    bool showHeader = true,
   }) {
     final trendDelta = _calculateTrendDeltaPercent(trendPoints);
     final trendDirection = trendDelta > 0
@@ -4838,7 +3479,13 @@ class _ManagerProgressVisualsContentState
         ? 'decreased'
         : 'stayed flat';
     final int overdueGoals = goalStatusCounts['overdue'] ?? 0;
-    const weekdayLabels = <String>['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const weekdayLabels = <String>[
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+    ];
 
     int lowestDayIndex = 0;
     if (engagementByDay.isNotEmpty) {
@@ -4860,34 +3507,30 @@ class _ManagerProgressVisualsContentState
       title: 'Smart Insight',
       icon: Icons.auto_awesome,
       iconColor: AppColors.infoColor,
-      showHeader: showHeader,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (includeTrendSummary)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.successColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.successColor.withValues(alpha: 0.35)),
-              ),
-              child: Text(
-                trendDirection == 'stayed flat'
-                    ? (_isAdminManagerView
-                          ? 'Manager progress stayed flat this month.'
-                          : 'Team progress stayed flat this month.')
-                    : (_isAdminManagerView
-                          ? 'Manager progress $trendDirection by ${trendDelta.abs()}% this month.'
-                          : 'Team progress $trendDirection by ${trendDelta.abs()}% this month.'),
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.successColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.successColor.withValues(alpha: 0.35),
               ),
             ),
-          if (includeTrendSummary) const SizedBox(height: AppSpacing.md),
+            child: Text(
+              trendDirection == 'stayed flat'
+                  ? 'Team progress stayed flat this month.'
+                  : 'Team progress $trendDirection by ${trendDelta.abs()}% this month.',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
           Text(
             'However:',
             style: AppTypography.bodyMedium.copyWith(
@@ -4898,23 +3541,31 @@ class _ManagerProgressVisualsContentState
           const SizedBox(height: AppSpacing.sm),
           Text(
             '- $overdueGoals overdue goal${overdueGoals == 1 ? '' : 's'} need attention',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
           ),
           Text(
             '- Engagement is lowest on ${weekdayLabels[lowestDayIndex]}',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
           ),
           Text(
             '- ${lowestCategory?.label ?? 'Category'} goals have the lowest completion'
             '${lowestCategory != null ? ' (${lowestCategory.progress.toStringAsFixed(0)}%)' : ''}',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildGoalCategoryProgressSection(List<_CategoryProgressItem> categoryProgress) {
+  Widget _buildGoalCategoryProgressSection(
+    List<_CategoryProgressItem> categoryProgress,
+  ) {
     return _buildSectionCard(
       title: 'Goal Category Progress',
       child: categoryProgress.isEmpty
@@ -4922,7 +3573,9 @@ class _ManagerProgressVisualsContentState
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Text(
                 'No category data',
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             )
           : ListView.separated(
@@ -4938,7 +3591,9 @@ class _ManagerProgressVisualsContentState
                       width: 140,
                       child: Text(
                         item.label,
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                     Expanded(
@@ -4947,7 +3602,9 @@ class _ManagerProgressVisualsContentState
                         child: LinearProgressIndicator(
                           value: (item.progress / 100).clamp(0.0, 1.0),
                           backgroundColor: Colors.white.withValues(alpha: 0.15),
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.activeColor,
+                          ),
                           minHeight: 8,
                           borderRadius: BorderRadius.circular(4),
                         ),
@@ -4973,7 +3630,6 @@ class _ManagerProgressVisualsContentState
     Widget? child,
     IconData? icon,
     Color? iconColor,
-    bool showHeader = true,
   }) {
     return Container(
       width: double.infinity,
@@ -4986,23 +3642,21 @@ class _ManagerProgressVisualsContentState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (showHeader)
-            Row(
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 20, color: iconColor ?? _ProgressChrome.fg),
-                  const SizedBox(width: 8),
-                ],
-                Text(
-                  title,
-                  style: AppTypography.heading4.copyWith(color: _ProgressChrome.fg),
-                ),
+          Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20, color: iconColor ?? _ProgressChrome.fg),
+                const SizedBox(width: 8),
               ],
-            ),
-          if (child != null) ...[
-            if (showHeader) const SizedBox(height: AppSpacing.md),
-            child,
-          ],
+              Text(
+                title,
+                style: AppTypography.heading4.copyWith(
+                  color: _ProgressChrome.fg,
+                ),
+              ),
+            ],
+          ),
+          if (child != null) ...[const SizedBox(height: AppSpacing.md), child],
         ],
       ),
     );
@@ -5015,7 +3669,7 @@ class _ManagerProgressVisualsContentState
           children: [
             Expanded(
               child: _buildMetricCard(
-                title: _isAdminManagerView ? 'Managers' : 'Team Members',
+                title: 'Team Members',
                 value: metrics.totalEmployees.toString(),
                 icon: Icons.people_outline,
                 iconWidget: const ImageIcon(
@@ -5045,7 +3699,7 @@ class _ManagerProgressVisualsContentState
                     : metrics.avgTeamProgress >= 40
                     ? AppColors.warningColor
                     : AppColors.dangerColor,
-                subtitle: _isAdminManagerView ? 'Manager average' : 'Team average',
+                subtitle: 'Team average',
               ),
             ),
           ],
@@ -5089,9 +3743,7 @@ class _ManagerProgressVisualsContentState
           children: [
             Expanded(
               child: _buildMetricCard(
-                title: _isAdminManagerView
-                    ? 'Manager Engagement'
-                    : 'Team Engagement',
+                title: 'Team Engagement',
                 value: '${metrics.teamEngagement.toStringAsFixed(1)}%',
                 icon: Icons.group_work_outlined,
                 iconWidget: const ImageIcon(
@@ -5117,9 +3769,7 @@ class _ManagerProgressVisualsContentState
                   size: 23,
                 ),
                 color: AppColors.infoColor,
-                subtitle: _isAdminManagerView
-                    ? 'Currently active managers'
-                    : 'Currently active',
+                subtitle: 'Currently active',
               ),
             ),
           ],
@@ -5831,9 +4481,7 @@ class _ManagerProgressVisualsContentState
           ),
           const SizedBox(height: 8),
           Text(
-            _isAdminManagerView
-                ? 'Manager metrics and insights will appear here once managers start using the system.'
-                : 'Team metrics and insights will appear here once employees start using the system.',
+            'Team metrics and insights will appear here once employees start using the system.',
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -5857,16 +4505,14 @@ class _ManagerProgressVisualsContentState
           Icon(Icons.groups_outlined, size: 48, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
-            _isAdminManagerView ? 'No managers found' : 'No team members found',
+            'No team members found',
             style: AppTypography.heading4.copyWith(
               color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            _isAdminManagerView
-                ? 'Make sure managers are available for this view or check your filter settings.'
-                : 'Make sure your team members have been added to your department or check your filter settings.',
+            'Make sure your team members have been added to your department or check your filter settings.',
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -6785,8 +5431,9 @@ $progressDetails
           const SizedBox(height: 8),
           LinearProgressIndicator(
             value: progress.clamp(0.0, 1.0),
-            backgroundColor:
-                _ProgressChrome.light ? const Color(0xFFE0E0E0) : AppColors.borderColor,
+            backgroundColor: _ProgressChrome.light
+                ? const Color(0xFFE0E0E0)
+                : AppColors.borderColor,
             valueColor: AlwaysStoppedAnimation<Color>(color),
             minHeight: 4,
           ),
@@ -6983,16 +5630,12 @@ $progressDetails
         children: [
           Text(
             label,
-            style: AppTypography.caption.copyWith(
-              color: _ProgressChrome.fg,
-            ),
+            style: AppTypography.caption.copyWith(color: _ProgressChrome.fg),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: AppTypography.heading4.copyWith(
-              color: _ProgressChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: _ProgressChrome.fg),
           ),
         ],
       ),
@@ -7503,16 +6146,12 @@ $progressDetails
           const SizedBox(height: 16),
           Text(
             'No Active Goals',
-            style: AppTypography.heading4.copyWith(
-              color: _ProgressChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: _ProgressChrome.fg),
           ),
           const SizedBox(height: 8),
           Text(
             'Create your first goal to start tracking your progress!',
-            style: AppTypography.bodyMedium.copyWith(
-              color: _ProgressChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: _ProgressChrome.fg),
             textAlign: TextAlign.center,
           ),
         ],

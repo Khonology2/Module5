@@ -25,11 +25,12 @@ class EmployeeProfileScreen extends StatefulWidget {
 }
 
 class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
-  static const Color _kDarkCard = Color(0xFF3D3F40);
+  // Match employee dashboard opacity (0x99 for 60% opacity)
+  static const Color _kDarkCard = Color(0x993D3D40);
 
   bool get _light => employeeDashboardLightModeNotifier.value;
   Color get _fg => _light ? const Color(0xFF000000) : Colors.white;
-  Color get _cardFill => _light ? const Color(0xFFFFFFFF) : _kDarkCard;
+  Color get _cardFill => _light ? const Color(0x99FFFFFF) : _kDarkCard;
   Color get _border =>
       _light ? const Color(0x33000000) : Colors.white.withOpacity(0.2);
 
@@ -232,10 +233,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: _fg),
-                  ),
+                  child: Text('Cancel', style: TextStyle(color: _fg)),
                 ),
                 TextButton(
                   onPressed: () {

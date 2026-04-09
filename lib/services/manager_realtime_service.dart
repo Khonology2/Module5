@@ -2323,7 +2323,10 @@ class ManagerRealtimeService {
       case TimeFilter.today:
         return DateTime(now.year, now.month, now.day);
       case TimeFilter.week:
-        return now.subtract(const Duration(days: 7));
+        // Align with progress visuals: rolling last 7 calendar days through today
+        // (start at midnight, 6 days before today).
+        final todayStart = DateTime(now.year, now.month, now.day);
+        return todayStart.subtract(const Duration(days: 6));
       case TimeFilter.month:
         return DateTime(now.year, now.month, 1);
       case TimeFilter.quarter:

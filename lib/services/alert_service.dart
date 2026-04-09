@@ -221,6 +221,7 @@ class AlertService {
     required String meetingId,
     DateTime? acceptedStartDateTime,
     DateTime? acceptedEndDateTime,
+    String? actionRouteOverride,
   }) async {
     final employeeName = await _displayNameForUser(employeeId);
     String when = '';
@@ -242,7 +243,7 @@ class AlertService {
       title: '1:1 Accepted',
       message: '$employeeName accepted your 1:1 request$when.',
       actionText: 'View',
-      actionRoute: '/manager_inbox',
+      actionRoute: actionRouteOverride ?? '/manager_inbox',
       actionData: {'meetingId': meetingId},
       createdAt: DateTime.now(),
       fromUserId: employeeId,
@@ -259,6 +260,7 @@ class AlertService {
     required String meetingId,
     required DateTime proposedStartDateTime,
     required DateTime proposedEndDateTime,
+    String? actionRouteOverride,
   }) async {
     final employeeName = await _displayNameForUser(employeeId);
     final when = _formatMeetingRange(
@@ -277,7 +279,7 @@ class AlertService {
       title: '1:1 Rescheduled',
       message: '$employeeName suggested a new time: $when.',
       actionText: 'Review',
-      actionRoute: '/manager_inbox',
+      actionRoute: actionRouteOverride ?? '/manager_inbox',
       actionData: {
         'meetingId': meetingId,
         'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
@@ -1114,7 +1116,10 @@ class AlertService {
     }
   }
 
-  static Stream<List<Alert>> getUserAlertsStream(String userId) {
+  static Stream<List<Alert>> getUserAlertsStream(
+    String userId, {
+    int? maxItems = 50,
+  }) {
     return FirestoreSafe.stream(
       _firestore
           .collection('alerts')
@@ -1173,7 +1178,10 @@ class AlertService {
           }
         }
 
-        return deduped.take(50).toList();
+        if (maxItems != null && maxItems > 0) {
+          return deduped.take(maxItems).toList();
+        }
+        return deduped;
       } catch (e) {
         developer.log('Error processing alerts: $e');
         return <Alert>[];
@@ -1348,73 +1356,107 @@ class AlertService {
     }
   }
 
-  static Future<void> markGoalApprovalAlertsAsRead(
-    String userId,
-    String goalId,
-  ) async {
+  static Future<void> markGoalApprovalAlertsAsFinalized({
+    required String userId,
+    required String goalId,
+    required bool approved,
+  }) async {
     try {
       final batch = _firestore.batch();
+      final nextType = approved
+          ? AlertType.goalApprovalApproved.name
+          : AlertType.goalApprovalRejected.name;
       final alerts = await _firestore
           .collection('alerts')
           .where('userId', isEqualTo: userId)
           .where('relatedGoalId', isEqualTo: goalId)
-          .where('type', isEqualTo: 'goalApprovalRequested')
+          .where('type', isEqualTo: AlertType.goalApprovalRequested.name)
           .where('isRead', isEqualTo: false)
           .get();
 
       for (final doc in alerts.docs) {
         batch.update(doc.reference, {
           'isRead': true,
-          'type': 'goalApprovalApproved', // Change type to approved
+          'type': nextType,
         });
       }
 
       await batch.commit();
       developer.log(
-        'Marked ${alerts.docs.length} goal approval alert(s) as read and changed to approved for userId: $userId, goalId: $goalId',
+        'Marked ${alerts.docs.length} goal approval alert(s) as read and changed to $nextType for userId: $userId, goalId: $goalId',
       );
+
+      // Debug: Log the alert types being updated
+      for (final doc in alerts.docs) {
+        final alertData = doc.data();
+        final currentType = alertData['type'];
+        final newType = nextType;
+        developer.log(
+          'Updating alert ${doc.id}: type $currentType -> $newType',
+        );
+      }
     } catch (e) {
       developer.log('Error marking goal approval alerts as read: $e');
     }
   }
 
-  // MIGRATION: Update existing approved goal alerts to have correct type
-  static Future<void> migrateExistingApprovedGoalAlerts() async {
+  static Future<void> markGoalApprovalAlertsAsRead(
+    String userId,
+    String goalId,
+  ) async {
+    await markGoalApprovalAlertsAsFinalized(
+      userId: userId,
+      goalId: goalId,
+      approved: true,
+    );
+  }
+
+  // MIGRATION: Update existing finalized goal alerts so history appears in Archive.
+  static Future<void> migrateExistingFinalizedGoalAlerts() async {
     try {
       final firestore = FirebaseFirestore.instance;
-      final manager = FirebaseAuth.instance.currentUser;
-      if (manager == null) return;
+      final reviewer = FirebaseAuth.instance.currentUser;
+      if (reviewer == null) return;
 
-      // Get all goals that are approved
+      // Get all goals that are approved or rejected.
       final approvedGoals = await firestore
           .collection('goals')
-          .where('approvalStatus', isEqualTo: 'approved')
+          .where('approvalStatus', isEqualTo: GoalApprovalStatus.approved.name)
           .get();
+      final rejectedGoals = await firestore
+          .collection('goals')
+          .where('approvalStatus', isEqualTo: GoalApprovalStatus.rejected.name)
+          .get();
+      final finalizedGoals = [...approvedGoals.docs, ...rejectedGoals.docs];
 
       developer.log(
-        'Found ${approvedGoals.docs.length} approved goals to migrate',
+        'Found ${finalizedGoals.length} finalized goals to migrate',
       );
 
-      for (final goalDoc in approvedGoals.docs) {
+      for (final goalDoc in finalizedGoals) {
         final goalId = goalDoc.id;
         final goalData = goalDoc.data();
-        final userId = goalData['userId'] as String?;
-
-        if (userId == null) continue;
+        final status = (goalData['approvalStatus'] ?? '').toString();
+        final targetType = status == GoalApprovalStatus.rejected.name
+            ? AlertType.goalApprovalRejected.name
+            : AlertType.goalApprovalApproved.name;
 
         // Find any existing approval request alerts for this goal
         final existingAlerts = await firestore
             .collection('alerts')
-            .where('userId', isEqualTo: manager.uid)
+            .where('userId', isEqualTo: reviewer.uid)
             .where('relatedGoalId', isEqualTo: goalId)
-            .where('type', isEqualTo: 'goalApprovalRequested')
+            .where(
+              'type',
+              isEqualTo: AlertType.goalApprovalRequested.name,
+            )
             .get();
 
-        // Update them to approved type
+        // Update them to the finalized decision type.
         final batch = firestore.batch();
         for (final alertDoc in existingAlerts.docs) {
           batch.update(alertDoc.reference, {
-            'type': 'goalApprovalApproved',
+            'type': targetType,
             'isRead': true,
           });
         }
@@ -1422,13 +1464,17 @@ class AlertService {
         if (existingAlerts.docs.isNotEmpty) {
           await batch.commit();
           developer.log(
-            'Migrated ${existingAlerts.docs.length} alerts for goal $goalId to approved type',
+            'Migrated ${existingAlerts.docs.length} alerts for goal $goalId to $targetType',
           );
         }
       }
     } catch (e) {
-      developer.log('Error migrating approved goal alerts: $e');
+      developer.log('Error migrating finalized goal alerts: $e');
     }
+  }
+
+  static Future<void> migrateExistingApprovedGoalAlerts() async {
+    await migrateExistingFinalizedGoalAlerts();
   }
 
   // Auto-generate alerts based on goal events

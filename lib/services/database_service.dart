@@ -403,6 +403,17 @@ class DatabaseService {
     });
     if (goalData == null) return;
 
+    // Move pending approval request alert(s) out of inbox for this reviewer.
+    try {
+      await AlertService.markGoalApprovalAlertsAsFinalized(
+        userId: managerId,
+        goalId: goalId,
+        approved: true,
+      );
+    } catch (e) {
+      developer.log('Error finalizing manager approval-request alert: $e');
+    }
+
     // Get employee details for audit
     String employeeName = '';
     String department = '';
@@ -518,6 +529,18 @@ class DatabaseService {
       });
     });
     if (goalData == null) return;
+
+    // Move pending approval request alert(s) out of inbox for this reviewer.
+    try {
+      await AlertService.markGoalApprovalAlertsAsFinalized(
+        userId: managerId,
+        goalId: goalId,
+        approved: false,
+      );
+    } catch (e) {
+      developer.log('Error finalizing manager rejection-request alert: $e');
+    }
+
     try {
       await AlertService.createGoalApprovalDecisionAlert(
         employeeId: (goalData!['userId'] ?? '') as String,

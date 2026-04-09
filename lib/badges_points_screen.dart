@@ -51,9 +51,10 @@ class _BadgesChrome {
   _BadgesChrome._();
 
   static bool get light => employeeDashboardLightModeNotifier.value;
-  static const Color _darkCard = Color(0xFF3D3F40);
+  // Match employee dashboard opacity (0x99 for 60% opacity)
+  static const Color _darkCard = Color(0x993D3D40);
 
-  static Color get cardFill => light ? const Color(0xFFFFFFFF) : _darkCard;
+  static Color get cardFill => light ? const Color(0x99FFFFFF) : _darkCard;
   static Color get border =>
       light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
   static Color get fg => light ? const Color(0xFF000000) : Colors.white;
@@ -424,12 +425,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 'onTutorialSkip': null,
               };
 
-        final sidebarItems = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+        final sidebarItems =
+            widget.forManagerGwMenu && widget.managerGwMenuRoute != null
             ? SidebarConfig.managerItems
             : (isManager
-                ? SidebarConfig.getItemsForRole('manager')
-                : SidebarConfig.employeeItems);
-        final routeName = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+                  ? SidebarConfig.getItemsForRole('manager')
+                  : SidebarConfig.employeeItems);
+        final routeName =
+            widget.forManagerGwMenu && widget.managerGwMenuRoute != null
             ? widget.managerGwMenuRoute!
             : (isManager ? '/manager_badges_points' : '/badges_points');
         return AppScaffold(
@@ -566,11 +569,11 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                         builder: (context, child) {
                           final animatedPoints =
                               _pointsCountAnimation.isCompleted
-                                  ? points
-                                  : (_previousPoints +
-                                          (points - _previousPoints) *
-                                              _pointsCountAnimation.value)
-                                      .round();
+                              ? points
+                              : (_previousPoints +
+                                        (points - _previousPoints) *
+                                            _pointsCountAnimation.value)
+                                    .round();
                           return Text(
                             _formatNumber(animatedPoints),
                             style: AppTypography.heading1.copyWith(
@@ -607,10 +610,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             child: Image.asset(
               'Process_Flows_Automation/Points.png',
               fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) => Icon(
-                Icons.stars,
-                color: _BadgesChrome.fg,
-              ),
+              errorBuilder: (context, error, stackTrace) =>
+                  Icon(Icons.stars, color: _BadgesChrome.fg),
             ),
           ),
         ],
@@ -625,9 +626,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         padding: const EdgeInsets.all(20),
         child: Text(
           'Please sign in to view badges',
-          style: AppTypography.bodyMedium.copyWith(
-            color: _BadgesChrome.fg,
-          ),
+          style: AppTypography.bodyMedium.copyWith(color: _BadgesChrome.fg),
         ),
       );
     }
@@ -722,7 +721,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             for (final meta in categories) ...[
               _buildCategoryCard(
                 meta: meta,
-                badges: badges.where((b) => b.category == meta.category).toList(),
+                badges: badges
+                    .where((b) => b.category == meta.category)
+                    .toList(),
               ),
               const SizedBox(height: 10),
             ],
@@ -735,21 +736,28 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   badge_model.Badge _normalizeBadgeForDisplay(badge_model.Badge badge) {
     final mappedCategory = switch (badge.category) {
       // Keep v2 categories as-is.
-      badge_model.BadgeCategory.goalMastery => badge_model.BadgeCategory.goalMastery,
-      badge_model.BadgeCategory.consistency => badge_model.BadgeCategory.consistency,
+      badge_model.BadgeCategory.goalMastery =>
+        badge_model.BadgeCategory.goalMastery,
+      badge_model.BadgeCategory.consistency =>
+        badge_model.BadgeCategory.consistency,
       badge_model.BadgeCategory.growth => badge_model.BadgeCategory.growth,
-      badge_model.BadgeCategory.milestones => badge_model.BadgeCategory.milestones,
+      badge_model.BadgeCategory.milestones =>
+        badge_model.BadgeCategory.milestones,
       // Legacy categories mapped into the current employee UI groups.
       badge_model.BadgeCategory.goals => badge_model.BadgeCategory.goalMastery,
       badge_model.BadgeCategory.streak => badge_model.BadgeCategory.consistency,
       badge_model.BadgeCategory.learning => badge_model.BadgeCategory.growth,
-      badge_model.BadgeCategory.achievement => badge_model.BadgeCategory.milestones,
-      badge_model.BadgeCategory.collaboration => badge_model.BadgeCategory.collaboration,
+      badge_model.BadgeCategory.achievement =>
+        badge_model.BadgeCategory.milestones,
+      badge_model.BadgeCategory.collaboration =>
+        badge_model.BadgeCategory.collaboration,
       // Legacy manager-focused categories are hidden by the filter above,
       // but keep a safe fallback mapping in case old data is inconsistent.
       badge_model.BadgeCategory.innovation => badge_model.BadgeCategory.growth,
-      badge_model.BadgeCategory.leadership => badge_model.BadgeCategory.milestones,
-      badge_model.BadgeCategory.community => badge_model.BadgeCategory.collaboration,
+      badge_model.BadgeCategory.leadership =>
+        badge_model.BadgeCategory.milestones,
+      badge_model.BadgeCategory.community =>
+        badge_model.BadgeCategory.collaboration,
     };
 
     if (mappedCategory == badge.category) return badge;
@@ -798,9 +806,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: accent.withValues(alpha: 0.6),
-                    ),
+                    border: Border.all(color: accent.withValues(alpha: 0.6)),
                   ),
                   child: Icon(meta.icon, color: accent),
                 ),
@@ -845,19 +851,19 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 backgroundColor: _BadgesChrome.light
                     ? Colors.black.withValues(alpha: 0.08)
                     : Colors.white.withValues(alpha: 0.15),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  accent,
-                ),
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
               ),
             ),
           ],
         ),
       ),
     );
-}
+  }
 
   // Compact oval section to present a badge rarity group entry point
-  Widget _buildRarityOvalSection({ // ignore: unused_element
+  // ignore: unused_element
+  Widget _buildRarityOvalSection({
+    // ignore: unused_element
     required String title,
     required String subtitle,
     required badge_model.BadgeRarity rarity,
@@ -992,9 +998,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               total == 0
                   ? 'No badges available in this group'
                   : 'Tap to view all badges in this group',
-              style: AppTypography.bodySmall.copyWith(
-                color: _BadgesChrome.fg,
-              ),
+              style: AppTypography.bodySmall.copyWith(color: _BadgesChrome.fg),
             ),
           ],
         ),
@@ -1037,10 +1041,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           backgroundColor: _BadgesChrome.cardFill,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: _BadgesChrome.border,
-              width: 1,
-            ),
+            side: BorderSide(color: _BadgesChrome.border, width: 1),
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -1067,9 +1068,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                                   ? Colors.black.withValues(alpha: 0.06)
                                   : Colors.white.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: _BadgesChrome.border,
-                              ),
+                              border: Border.all(color: _BadgesChrome.border),
                             ),
                             child: Icon(
                               Icons.workspace_premium,
@@ -1179,7 +1178,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                                     decoration: BoxDecoration(
                                       color: _BadgesChrome.light
                                           ? Colors.black.withValues(alpha: 0.06)
-                                          : Colors.white.withValues(alpha: 0.08),
+                                          : Colors.white.withValues(
+                                              alpha: 0.08,
+                                            ),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
                                         color: _BadgesChrome.border,
@@ -1263,24 +1264,16 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.emoji_events_outlined,
-            size: 64,
-            color: _BadgesChrome.fg,
-          ),
+          Icon(Icons.emoji_events_outlined, size: 64, color: _BadgesChrome.fg),
           const SizedBox(height: 16),
           Text(
             'No badges yet',
-            style: AppTypography.heading4.copyWith(
-              color: _BadgesChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: _BadgesChrome.fg),
           ),
           const SizedBox(height: 8),
           Text(
             'Start completing goals and activities to earn your first badges!',
-            style: AppTypography.bodyMedium.copyWith(
-              color: _BadgesChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: _BadgesChrome.fg),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1690,17 +1683,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color:
-                        (badge.isEarned ? Colors.red : _BadgesChrome.fg)
-                            .withValues(alpha: 0.2),
+                    color: (badge.isEarned ? Colors.red : _BadgesChrome.fg)
+                        .withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     badge.isEarned ? 'Earned' : 'Locked',
                     style: AppTypography.bodySmall.copyWith(
-                      color: badge.isEarned
-                          ? Colors.red
-                          : _BadgesChrome.fg,
+                      color: badge.isEarned ? Colors.red : _BadgesChrome.fg,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1736,9 +1726,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         children: [
           Text(
             'Your Progress',
-            style: AppTypography.heading4.copyWith(
-              color: _BadgesChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: _BadgesChrome.fg),
           ),
           const SizedBox(height: 16),
           Row(
@@ -1860,9 +1848,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           ),
           Text(
             safeLabel,
-            style: AppTypography.bodySmall.copyWith(
-              color: _BadgesChrome.fg,
-            ),
+            style: AppTypography.bodySmall.copyWith(color: _BadgesChrome.fg),
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
           ),
@@ -1887,16 +1873,12 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         children: [
           Text(
             'Update Badges',
-            style: AppTypography.heading3.copyWith(
-              color: _BadgesChrome.fg,
-            ),
+            style: AppTypography.heading3.copyWith(color: _BadgesChrome.fg),
           ),
           const SizedBox(height: 8),
           Text(
             'Manually update your badges based on your current accomplishments.',
-            style: AppTypography.bodyMedium.copyWith(
-              color: _BadgesChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: _BadgesChrome.fg),
           ),
           const SizedBox(height: 16),
           Center(
@@ -1927,9 +1909,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Badges updated successfully!',
-                              ),
+                              content: Text('Badges updated successfully!'),
                               backgroundColor: AppColors.successColor,
                             ),
                           );
@@ -2073,9 +2053,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             Expanded(
               child: Text(
                 badge.name,
-                style: AppTypography.heading4.copyWith(
-                  color: _BadgesChrome.fg,
-                ),
+                style: AppTypography.heading4.copyWith(color: _BadgesChrome.fg),
               ),
             ),
           ],
@@ -2103,9 +2081,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             const SizedBox(height: 16),
             Text(
               badge.description,
-              style: AppTypography.bodyMedium.copyWith(
-                color: _BadgesChrome.fg,
-              ),
+              style: AppTypography.bodyMedium.copyWith(color: _BadgesChrome.fg),
             ),
             const SizedBox(height: 16),
             if (badge.isEarned) ...[

@@ -75,7 +75,7 @@ flutter:
     - assets/Email_Notification/
     - assets/fonts/poppins/
     - assets/Goal_Target/
-    - "assets/Graphic_Image Placeholder/"
+    - assets/Graphic_Image_Placeholder/
     - assets/Information_Detail/
     - assets/Innovation_Brainstorm/
     - assets/Internet_Web_Browser/
@@ -112,6 +112,14 @@ flutter:
     - assets/Star.png
     - assets/Innovation_Brainstorm.png
     - assets/light_mode_bg.png
+    - assets/Cancel_Exit_Escape/
+    - assets/Cancel_Exit_Escape/Cancel_Exit_Escape_White_Badge_Red.png
+    - assets/Warning _Error/
+    - assets/Warning _Error/Warning_Error_White Badge_Red.png
+    - assets/Sprints.png
+    - assets/bell_icon.png
+    - assets/Concentration_Key_Focus/Concentration_Key Focus_White_Badge_Red.png
+    - assets/Project_Direction_Acceleration/Project_Direction_Acceleration_Badge_Red.png
 
 
 

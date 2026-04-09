@@ -36,6 +36,24 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'dart:html'
     as html; // Keep using dart:html for now until migration to package:web is complete
 
+class _RepoAuditChrome {
+  _RepoAuditChrome._();
+
+  static bool get light => employeeDashboardLightModeNotifier.value;
+  // Match employee dashboard opacity (0x99 for 60% opacity)
+  static const Color _darkCard = Color(0x993D3D40);
+
+  static Color get cardFill => light ? const Color(0x99FFFFFF) : _darkCard;
+  static Color get border =>
+      light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
+  static Color get fg => light ? const Color(0xFF000000) : Colors.white;
+  static List<Color>? get lightGradient => light
+      ? [
+          Colors.white.withValues(alpha: 0.2),
+          Colors.white.withValues(alpha: 0.08),
+        ]
+      : null;
+}
 class RepositoryAuditScreen extends StatefulWidget {
   const RepositoryAuditScreen({super.key, this.forAdminOversight = false});
 
@@ -44,13 +62,6 @@ class RepositoryAuditScreen extends StatefulWidget {
 
   @override
   State<RepositoryAuditScreen> createState() => _RepositoryAuditScreenState();
-}
-
-class _RepoAuditChrome {
-  static const Color fg = Colors.white;
-  static const Color cardFill = Color(0x3323293A);
-  static const Color border = Color(0x66FFFFFF);
-  static const List<Color> lightGradient = [Color(0x22000000), Color(0x00000000)];
 }
 
 class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
@@ -796,9 +807,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         Expanded(
           child: Text(
             'Completed Goals Archive',
-            style: AppTypography.heading4.copyWith(
-              color: _RepoAuditChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: _RepoAuditChrome.fg),
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),
