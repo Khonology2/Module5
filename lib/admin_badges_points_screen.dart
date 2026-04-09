@@ -10,8 +10,8 @@ class AdminBadgesPointsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ManagerBadgesPointsScreen(
-      embedded: true,
+    return ManagerBadgesPointsScreen(
+      embedded: embedded,
       forAdminOversight: true,
     );
   }
