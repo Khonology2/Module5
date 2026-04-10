@@ -12,7 +12,7 @@ class AdminBadgesPointsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ManagerBadgesPointsScreen(
       embedded: embedded,
-      forAdminSelf: true,
+      forAdminOversight: true,
     );
   }
 }

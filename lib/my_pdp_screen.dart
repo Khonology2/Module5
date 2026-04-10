@@ -108,12 +108,13 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
 }
 
 // PDP chrome matches [EmployeeDashboardScreen] light/dark (shared notifier).
-/// Dark card surface aligned with dashboard tiles (`#3D3F40`).
-const Color _kPdpDarkCard = Color(0xFF3D3F40);
+/// Dark card surface aligned with dashboard tiles (`#3D3D40`).
+// Match employee dashboard opacity (0x99 for 60% opacity)
+const Color _kPdpDarkCard = Color(0x993D3D40);
 
 Color _pdpFg(bool light) => light ? const Color(0xFF000000) : Colors.white;
 Color _pdpMuted(bool light) => light ? const Color(0xFF555555) : Colors.white70;
-Color _pdpCardBg(bool light) => light ? const Color(0xFFFFFFFF) : _kPdpDarkCard;
+Color _pdpCardBg(bool light) => light ? const Color(0x99FFFFFF) : _kPdpDarkCard;
 Color _pdpCardBorder(bool light) =>
     light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
 Color _pdpEvidenceInnerBg(bool light) =>

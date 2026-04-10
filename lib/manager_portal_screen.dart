@@ -114,10 +114,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           forManagerGwMenu: true,
         );
       case '/manager_gw_menu_leaderboard':
-        return const ManagerLeaderboardScreen(
-          embedded: true,
-          compareManagers: true,
-        );
+        return const ManagerLeaderboardScreen(embedded: true);
       case '/manager_gw_menu_badges':
         return const BadgesPointsScreen(
           embedded: true,
@@ -230,17 +227,41 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
-      body: ValueListenableBuilder<bool>(
-        valueListenable: employeeDashboardLightModeNotifier,
-        builder: (context, light, _) {
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: Image.asset(
-                  light ? 'assets/light_mode_bg.png' : 'assets/khono_bg.png',
-                  fit: BoxFit.cover,
+      body: DashboardThemedBackground(
+        child: Stack(
+          children: [
+            Row(
+              children: [
+                ResponsiveSidebar(
+                  items: SidebarConfig.managerItems,
+                  onNavigate: _onNavigate,
+                  currentRouteName: _currentRoute,
+                  onLogout: _onLogout,
+                  tutorialStepIndex:
+                      _shouldShowTutorial ? _currentTutorialStep : null,
+                  sidebarTutorialKeys:
+                      _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
+                          ? _sidebarTutorialKeys
+                          : null,
+                  onTutorialNext:
+                      _shouldShowTutorial ? _moveToNextTutorialStep : null,
+                  onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
                 ),
+                Expanded(child: _getBodyWidget()),
+              ],
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const NotificationsBell(),
+                  const SizedBox(width: 8),
+                  _buildProfileButton(context),
+                ],
               ),
+<<<<<<< HEAD
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
@@ -298,6 +319,11 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
             ],
           );
         },
+=======
+            ),
+          ],
+        ),
+>>>>>>> 30c04e906193b2e6a082078e6973c4610528c5ac
       ),
     );
   }

@@ -21,13 +21,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerAlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
-
   /// When true, admin is viewing; show managers only (no employees).
   final bool forAdminOversight;
-
   /// When set with [forAdminOversight], show data for this manager only.
   final String? selectedManagerId;
 
@@ -114,11 +113,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       barrierColor: Colors.black54,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: AppColors.cardBackground,
+          backgroundColor: DashboardChrome.cardFill,
           content: Text(
             message,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
             ),
           ),
           actions: [
@@ -273,22 +272,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
       final manager = FirebaseAuth.instance.currentUser;
       if (manager != null) {
-        try {
-          await ManagerBadgeEvaluator.logReplanHelped(
-            managerId: manager.uid,
-            goalId: goalId,
-            note: (note != null && note.isNotEmpty)
-                ? 'Rescheduled: $note'
-                : 'Rescheduled from Team Alerts',
-          );
-          await ManagerBadgeEvaluator.evaluate(manager.uid);
-        } catch (badgeError) {
-          // Keep action success even if badge tracking is blocked by rules.
-          developer.log(
-            'Badge tracking failed after team-alerts reschedule: $badgeError',
-            name: 'ManagerAlertsNudgesScreen',
-          );
-        }
+        await ManagerBadgeEvaluator.logReplanHelped(
+          managerId: manager.uid,
+          goalId: goalId,
+          note: (note != null && note.isNotEmpty)
+              ? 'Rescheduled: $note'
+              : 'Rescheduled from Team Alerts',
+        );
+        await ManagerBadgeEvaluator.evaluate(manager.uid);
       }
 
       if (context.mounted) {
@@ -310,7 +301,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           child: Text(
             'Sign in to view approvals.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
           ),
         ),
@@ -345,7 +336,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           child: Text(
             'No approvals yet',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
           ),
         ),
@@ -372,10 +363,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               final decisionDate = g.approvedAt ?? g.targetDate;
               return Container(
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.4),
+                  color: DashboardChrome.cardFill,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: DashboardChrome.border,
                   ),
                 ),
                 child: ListTile(
@@ -390,7 +381,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   title: Text(
                     g.title,
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textPrimary,
+                      color: DashboardChrome.fg,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -399,7 +390,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
+                      color: DashboardChrome.fg,
                     ),
                   ),
                   trailing: Container(
@@ -502,9 +493,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         }
       },
       content: StreamBuilder<List<EmployeeData>>(
-        key: ValueKey(
-          'team_data_stream_${widget.forAdminOversight}_${widget.selectedManagerId}',
-        ),
+        key: ValueKey('team_data_stream_${widget.forAdminOversight}_${widget.selectedManagerId}'),
         stream: widget.forAdminOversight
             ? ManagerRealtimeService.getManagersDataStreamForAdmin(
                 selectedManagerId: widget.selectedManagerId,
@@ -527,14 +516,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     Text(
                       'Error loading team data',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
+                        color: DashboardChrome.fg,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '${snapshot.error}',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: DashboardChrome.fg,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -545,8 +534,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           }
 
           final incoming = snapshot.data;
-          final hasPlaceholderBatch =
-              incoming != null &&
+          final hasPlaceholderBatch = incoming != null &&
               incoming.isNotEmpty &&
               incoming.every((e) => e.isPlaceholder);
 
@@ -562,9 +550,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           // If we only have placeholders and no enriched cache yet,
           // still show employees immediately (for stats/alerts), but
           // rely on the subsequent enriched payload to refine data.
-          final employees = hasPlaceholderBatch
-              ? incoming
-              : (snapshot.data ?? _lastEmployees);
+          final employees =
+              hasPlaceholderBatch ? incoming : (snapshot.data ?? _lastEmployees);
 
           if ((employees.isEmpty) &&
               snapshot.connectionState == ConnectionState.waiting) {
@@ -578,13 +565,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           }
 
           try {
-            return Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/khono_bg.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
+            return DashboardThemedBackground(
+              embedded: widget.embedded,
               child: CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 slivers: [
@@ -629,14 +611,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     Text(
                       'Unable to load team alerts',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
+                        color: DashboardChrome.fg,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Please check your connection and try again.',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: DashboardChrome.fg,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -670,7 +652,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             child: Text(
               'Please sign in to view team supervision alerts',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
+                color: DashboardChrome.fg,
               ),
             ),
           ),
@@ -717,14 +699,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     Text(
                       'Unable to load alerts',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
+                        color: DashboardChrome.fg,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Please check your connection and try again',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: DashboardChrome.fg,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -750,8 +732,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         final managerScopedAlerts = widget.forAdminOversight
             ? <Alert>[]
             : allAlerts
-                  .where((a) => _shouldShowInManagerWorkspace(a, manager.uid))
-                  .toList();
+                .where((a) => _shouldShowInManagerWorkspace(a, manager.uid))
+                .toList();
         developer.log('Loaded ${allAlerts.length} alerts', name: 'TeamAlerts');
 
         try {
@@ -773,7 +755,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             final alerts = e.recentAlerts;
             if (alerts.isEmpty) continue;
             for (final a in alerts) {
-              if (widget.forAdminOversight && !_isAdminOversightTeamAlert(a)) {
+              if (widget.forAdminOversight &&
+                  !_isAdminOversightTeamAlert(a)) {
                 continue;
               }
               if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
@@ -900,8 +883,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   employeesById,
                   AppColors.warningColor,
                   sectionKey: 'performance',
-                  isExpanded:
-                      _supervisionSectionExpanded['performance'] ??
+                  isExpanded: _supervisionSectionExpanded['performance'] ??
                       criticalIssues.isEmpty,
                   onToggleExpand: () {
                     setState(() {
@@ -928,8 +910,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   employeesById,
                   AppColors.successColor,
                   sectionKey: 'monitoring',
-                  isExpanded:
-                      _supervisionSectionExpanded['monitoring'] ??
+                  isExpanded: _supervisionSectionExpanded['monitoring'] ??
                       (criticalIssues.isEmpty && performanceConcerns.isEmpty),
                   onToggleExpand: () {
                     setState(() {
@@ -962,7 +943,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             ),
           );
         } catch (e, stack) {
-          developer.log('Manager Alerts content error: $e', name: 'TeamAlerts');
+          developer.log(
+            'Manager Alerts content error: $e',
+            name: 'TeamAlerts',
+          );
           developer.log('Stack: $stack', name: 'TeamAlerts');
           return SliverFillRemaining(
             hasScrollBody: false,
@@ -981,14 +965,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     Text(
                       'Unable to load alerts',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
+                        color: DashboardChrome.fg,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Please check your connection and try again.',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: DashboardChrome.fg,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -1059,10 +1043,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               child: _buildSupervisionStatCard(
                 'Team Health',
                 '—',
-                AppColors.textSecondary,
+                DashboardChrome.fg,
                 null,
                 subtitle: 'Overall score',
-                imageAsset: 'assets/Team_Meeting/Meeting_Red Badge_White.png',
+                imageAsset:
+                    'assets/Team_Meeting/Meeting_Red Badge_White.png',
               ),
             ),
           ],
@@ -1180,9 +1165,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1195,14 +1180,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           Text(
             value,
             style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
               fontWeight: FontWeight.bold,
             ),
           ),
           Text(
             title,
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
             textAlign: TextAlign.center,
           ),
@@ -1211,7 +1196,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             Text(
               subtitle,
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary.withValues(alpha: 0.7),
+                color: DashboardChrome.fg,
                 fontSize: 10,
               ),
               textAlign: TextAlign.center,
@@ -1233,9 +1218,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.1),
@@ -1263,7 +1248,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           Text(
             title,
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
@@ -1297,9 +1282,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1308,7 +1293,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           Text(
             'Alert Type',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1351,7 +1336,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           Text(
             'Sort & Search',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1371,21 +1356,21 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: DashboardChrome.border,
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: DashboardChrome.border,
                       ),
                     ),
                     filled: true,
-                    fillColor: Colors.black.withValues(alpha: 0.3),
+                    fillColor: DashboardChrome.cardFill,
                   ),
-                  dropdownColor: Colors.black.withValues(alpha: 0.9),
+                  dropdownColor: DashboardChrome.cardFill,
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                   ),
                   items: const [
                     DropdownMenuItem(
@@ -1417,7 +1402,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     hintText: 'Search employees or goals...',
                     prefixIcon: Icon(
                       Icons.search,
-                      color: AppColors.textSecondary,
+                      color: DashboardChrome.fg,
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -1426,20 +1411,20 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: DashboardChrome.border,
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: DashboardChrome.border,
                       ),
                     ),
                     filled: true,
-                    fillColor: Colors.black.withValues(alpha: 0.3),
+                    fillColor: DashboardChrome.cardFill,
                   ),
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                   ),
                 ),
               ),
@@ -1459,19 +1444,19 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       label: Text(
         label,
         style: AppTypography.bodySmall.copyWith(
-          color: selected ? Colors.white : AppColors.textSecondary,
+          color: selected ? Colors.white : DashboardChrome.fg,
           fontWeight: FontWeight.w500,
         ),
       ),
       selected: selected,
       onSelected: (_) => onSelected(),
       showCheckmark: false,
-      backgroundColor: Colors.black.withValues(alpha: 0.3),
+      backgroundColor: DashboardChrome.cardFill,
       selectedColor: AppColors.activeColor,
       side: BorderSide(
         color: selected
             ? AppColors.activeColor
-            : Colors.white.withValues(alpha: 0.2),
+            : DashboardChrome.border,
       ),
     );
   }
@@ -1485,7 +1470,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           child: Text(
             'Please sign in to view team supervision alerts',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
           ),
         ),
@@ -1731,9 +1716,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     if (_alertTypeFilter == null) {
       // All Issues: sort by priority first (urgent first), then by date
       filtered.sort((a, b) {
-        final p = priorityOrder[a.priority]!.compareTo(
-          priorityOrder[b.priority]!,
-        );
+        final p = priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!);
         if (p != 0) return p;
         switch (_sortBy) {
           case 'oldest':
@@ -1752,9 +1735,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           break;
         case 'priority':
           filtered.sort(
-            (a, b) => priorityOrder[a.priority]!.compareTo(
-              priorityOrder[b.priority]!,
-            ),
+            (a, b) =>
+                priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!),
           );
           break;
         case 'newest':
@@ -1778,9 +1760,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1854,7 +1836,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.3),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: alertColor.withValues(alpha: 0.2)),
       ),
@@ -1887,14 +1869,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     Text(
                       employee.profile.displayName,
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
+                        color: DashboardChrome.fg,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     Text(
                       _getAlertTypeDescription(alert.type),
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: DashboardChrome.fg,
                       ),
                     ),
                   ],
@@ -1902,16 +1884,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               ),
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: alertColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: alertColor.withValues(alpha: 0.3),
-                    ),
+                    border: Border.all(color: alertColor.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     alert.priority.name.toUpperCase(),
@@ -1933,7 +1910,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           Text(
             alert.title,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1941,7 +1918,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           Text(
             alert.message,
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
           ),
 
@@ -1954,17 +1931,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.access_time,
-                      size: 16,
-                      color: AppColors.textSecondary,
-                    ),
+                    Icon(Icons.access_time, size: 16, color: DashboardChrome.fg),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
                         _formatAlertTime(alert.createdAt),
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
+                          color: DashboardChrome.fg,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1997,11 +1970,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               CircleAvatar(
                 radius: 20,
                 backgroundColor: alertColor.withValues(alpha: 0.2),
-                child: Icon(
-                  Icons.notifications_active,
-                  color: alertColor,
-                  size: 20,
-                ),
+                child: Icon(Icons.notifications_active, color: alertColor, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2069,8 +2038,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (alert.actionRoute != null &&
-                  alert.actionRoute!.trim().isNotEmpty)
+              if (alert.actionRoute != null && alert.actionRoute!.trim().isNotEmpty)
                 TextButton.icon(
                   onPressed: () {
                     Navigator.pushNamed(
@@ -2181,7 +2149,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ManagerEmployeeDetailScreen(employee: employee),
+        builder: (context) =>
+            ManagerEmployeeDetailScreen(employee: employee),
       ),
     );
   }
@@ -2190,9 +2159,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -2206,7 +2175,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           Text(
             'All Team Members Are Doing Well!',
             style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -2214,7 +2183,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           Text(
             'No supervision alerts at this time. Your team is performing well!',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
             textAlign: TextAlign.center,
           ),
@@ -2230,9 +2199,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2258,7 +2227,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                           child: Text(
                             alert.title,
                             style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textPrimary,
+                              color: DashboardChrome.fg,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -2278,7 +2247,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     Text(
                       alert.message,
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: DashboardChrome.fg,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -2317,7 +2286,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                               Text(
                                 employee.profile.displayName,
                                 style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.textSecondary,
+                                  color: DashboardChrome.fg,
                                   fontSize: 10,
                                 ),
                               ),
@@ -2328,7 +2297,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                         Text(
                           _getTimeAgo(alert.createdAt),
                           style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
+                            color: DashboardChrome.fg,
                             fontSize: 10,
                           ),
                         ),
@@ -2500,20 +2469,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
       final manager = FirebaseAuth.instance.currentUser;
       if (manager != null) {
-        try {
-          await ManagerBadgeEvaluator.logReplanHelped(
-            managerId: manager.uid,
-            goalId: goalId,
-            note: 'Extended deadline from Team Alerts',
-          );
-          await ManagerBadgeEvaluator.evaluate(manager.uid);
-        } catch (badgeError) {
-          // Keep action success even if badge tracking is blocked by rules.
-          developer.log(
-            'Badge tracking failed after team-alerts extend: $badgeError',
-            name: 'ManagerAlertsNudgesScreen',
-          );
-        }
+        await ManagerBadgeEvaluator.logReplanHelped(
+          managerId: manager.uid,
+          goalId: goalId,
+          note: 'Extended deadline from Team Alerts',
+        );
+        await ManagerBadgeEvaluator.evaluate(manager.uid);
       }
 
       if (context.mounted) {
@@ -2587,7 +2548,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 Text(
                   'Send Team Nudges',
                   style: AppTypography.heading3.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -2595,9 +2556,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   onChanged: (value) => setState(() => _searchQuery = value),
                   decoration: InputDecoration(
                     hintText: 'Search team members...',
-                    prefixIcon: const Icon(
+                    prefixIcon: Icon(
                       Icons.search,
-                      color: AppColors.textSecondary,
+                      color: DashboardChrome.fg,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -2659,9 +2620,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2691,14 +2652,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     Text(
                       employee.profile.displayName,
                       style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
+                        color: DashboardChrome.fg,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     Text(
                       '${employee.goals.where((g) => g.status == GoalStatus.inProgress).length} active goals • ${employee.avgProgress.toStringAsFixed(1)}% progress',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: DashboardChrome.fg,
                       ),
                     ),
                   ],
@@ -2755,7 +2716,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         Text(
           'Quick Nudges:',
           style: AppTypography.bodySmall.copyWith(
-            color: AppColors.textSecondary,
+            color: DashboardChrome.fg,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -2837,7 +2798,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         Text(
           'Urgent goal deadlines',
           style: AppTypography.bodySmall.copyWith(
-            color: AppColors.textSecondary,
+            color: DashboardChrome.fg,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -2873,9 +2834,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2883,7 +2844,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           Text(
             goal.title,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -2895,7 +2856,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               Text(
                 'Due $dueLabel',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+                  color: DashboardChrome.fg,
                 ),
               ),
               const Spacer(),
@@ -2965,8 +2926,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       icon: Icon(icon, size: 16),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.textPrimary,
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+        foregroundColor: DashboardChrome.fg,
+        side: BorderSide(color: DashboardChrome.border),
       ),
     );
   }
@@ -3008,7 +2969,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         Text(
           title,
           style: AppTypography.heading4.copyWith(
-            color: AppColors.textPrimary,
+            color: DashboardChrome.fg,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -3017,7 +2978,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           Text(
             subtitle,
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
           ),
         ],
@@ -3029,13 +2990,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Row(
         children: [
-          Icon(Icons.inbox_outlined, color: AppColors.textSecondary),
+          Icon(Icons.inbox_outlined, color: DashboardChrome.fg),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -3044,7 +3005,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 Text(
                   'No urgent goals right now',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -3052,7 +3013,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 Text(
                   'You’ll see employees appear here when a goal is overdue or due within two days.',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
+                    color: DashboardChrome.fg,
                   ),
                 ),
               ],
@@ -3069,9 +3030,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3087,7 +3048,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               Text(
                 'Employees Needing Attention',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
+                  color: DashboardChrome.fg,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -3098,7 +3059,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             Text(
               'All clear! No outstanding nudges or urgent alerts require action.',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: DashboardChrome.fg,
               ),
             )
           else
@@ -3112,10 +3073,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.3),
+                    color: DashboardChrome.cardFill,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: AppColors.textSecondary.withValues(alpha: 0.2),
+                      color: DashboardChrome.border,
                     ),
                   ),
                   child: Column(
@@ -3147,14 +3108,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                                 Text(
                                   employee.profile.displayName,
                                   style: AppTypography.bodyMedium.copyWith(
-                                    color: AppColors.textPrimary,
+                                    color: DashboardChrome.fg,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 Text(
                                   '${item.urgentAlerts} urgent alerts • ${item.unreadNudges} unread nudges',
                                   style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.textSecondary,
+                                    color: DashboardChrome.fg,
                                   ),
                                 ),
                               ],
@@ -3187,7 +3148,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                           Icon(
                             Icons.schedule,
                             size: 14,
-                            color: AppColors.textSecondary,
+                            color: DashboardChrome.fg,
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -3195,7 +3156,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                                 ? 'Inactive ${item.daysInactive}d'
                                 : 'Active today',
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
+                              color: DashboardChrome.fg,
                             ),
                           ),
                           const Spacer(),
@@ -3276,29 +3237,29 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         children: [
           Icon(
             Icons.notifications_off,
             size: 48,
-            color: AppColors.textSecondary,
+            color: DashboardChrome.fg,
           ),
           const SizedBox(height: 16),
           Text(
             'No Team Alerts',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Your team doesn\'t have any alerts right now.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
             textAlign: TextAlign.center,
           ),
@@ -3311,25 +3272,25 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         children: [
-          Icon(Icons.people_outline, size: 48, color: AppColors.textSecondary),
+          Icon(Icons.people_outline, size: 48, color: DashboardChrome.fg),
           const SizedBox(height: 16),
           Text(
             'No Team Members',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'You don\'t have any team members to send nudges to.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
             textAlign: TextAlign.center,
           ),
@@ -3393,7 +3354,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       case EmployeeStatus.overdue:
         return AppColors.dangerColor;
       case EmployeeStatus.inactive:
-        return AppColors.textSecondary;
+        return DashboardChrome.fg;
     }
   }
 
@@ -3780,7 +3741,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
       ),
@@ -3794,13 +3755,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               Text(
                 'AI Team Insights',
                 style: AppTypography.heading4.copyWith(
-                  color: AppColors.textPrimary,
+                  color: DashboardChrome.fg,
                 ),
               ),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.close, size: 18),
-                color: AppColors.textSecondary,
+                color: DashboardChrome.fg,
                 onPressed: () {
                   setState(() => _teamInsights = null);
                 },
@@ -3812,7 +3773,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             Text(
               'At-Risk Team Members',
               style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
+                color: DashboardChrome.fg,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -3870,7 +3831,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                             child: Text(
                               member['name']?.toString() ?? 'Unknown',
                               style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textPrimary,
+                                color: DashboardChrome.fg,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -3895,7 +3856,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                                   child: Text(
                                     reason.toString(),
                                     style: AppTypography.bodySmall.copyWith(
-                                      color: AppColors.textSecondary,
+                                      color: DashboardChrome.fg,
                                     ),
                                   ),
                                 ),
@@ -3945,7 +3906,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             Text(
               'Collaboration Opportunities',
               style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
+                color: DashboardChrome.fg,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -3977,7 +3938,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                             child: Text(
                               '${collab['member1']} ↔ ${collab['member2']}',
                               style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textPrimary,
+                                color: DashboardChrome.fg,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -3988,7 +3949,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                       Text(
                         collab['reason']?.toString() ?? '',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
+                          color: DashboardChrome.fg,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -4086,7 +4047,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
               Text(
                 'Related Goal:',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
+                  color: DashboardChrome.fg,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -4107,7 +4068,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
                   isExpanded: true,
                   hint: const Text('Select Goal'),
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                   ),
                   onChanged: (goal) => setState(() => _selectedGoal = goal),
                   items: widget.employee!.goals.map((goal) {
@@ -4123,7 +4084,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
             Text(
               'Message:',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: DashboardChrome.fg,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -4178,7 +4139,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
             content: Text(
               'Please enter a message',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: DashboardChrome.fg,
               ),
             ),
             actions: [
@@ -4253,7 +4214,7 @@ class _BulkNudgeDialogState extends State<_BulkNudgeDialog> {
             Text(
               'Recipients (${widget.employees.length} team members):',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: DashboardChrome.fg,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -4294,7 +4255,7 @@ class _BulkNudgeDialogState extends State<_BulkNudgeDialog> {
                           child: Text(
                             employee.profile.displayName,
                             style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textPrimary,
+                              color: DashboardChrome.fg,
                             ),
                           ),
                         ),
@@ -4308,7 +4269,7 @@ class _BulkNudgeDialogState extends State<_BulkNudgeDialog> {
             Text(
               'Message:',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: DashboardChrome.fg,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -4363,7 +4324,7 @@ class _BulkNudgeDialogState extends State<_BulkNudgeDialog> {
             content: Text(
               'Please enter a message',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: DashboardChrome.fg,
               ),
             ),
             actions: [

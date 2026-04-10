@@ -18,6 +18,7 @@ import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 @immutable
 class _NudgeFeedback {
@@ -165,94 +166,44 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         msg.contains('review and decide next step');
   }
 
-  DateTime? _meetingEndFromAlert(Alert alert) {
-    final data = alert.actionData;
-    if (data == null || data.isEmpty) return null;
-
-    DateTime? parse(dynamic value) {
-      if (value == null) return null;
-      if (value is Timestamp) return value.toDate();
-      if (value is DateTime) return value;
-      if (value is int) {
-        // Accept both seconds and milliseconds epoch.
-        if (value > 1000000000000) {
-          return DateTime.fromMillisecondsSinceEpoch(value);
-        }
-        if (value > 1000000000) {
-          return DateTime.fromMillisecondsSinceEpoch(value * 1000);
-        }
-      }
-      if (value is String) return DateTime.tryParse(value);
-      return null;
-    }
-
-    // Prefer explicit accepted/proposed end times.
-    final acceptedEnd = parse(data['acceptedEndDateTime']);
-    if (acceptedEnd != null) return acceptedEnd;
-
-    final proposedEnd = parse(data['proposedEndDateTime']);
-    if (proposedEnd != null) return proposedEnd;
-
-    // Legacy fallback: if only a single start time exists, assume 60-minute meeting.
-    final start =
-        parse(data['acceptedStartDateTime']) ??
-        parse(data['proposedStartDateTime']) ??
-        parse(data['proposedDateTime']);
-    if (start != null) {
-      return start.add(const Duration(minutes: 60));
-    }
-    return null;
-  }
-
-  bool _shouldArchiveMeetingAlert(Alert alert) {
-    // "Agreed by both parties" is represented by accepted status alert type.
-    if (alert.type != AlertType.oneOnOneAccepted) return false;
-    final meetingEnd = _meetingEndFromAlert(alert);
-    if (meetingEnd == null) return false;
-    return DateTime.now().isAfter(meetingEnd);
-  }
-
   bool _isManagerInboxRelevantAlert(Alert alert, String managerId) {
-    // Defensive scope: inbox should only show alerts addressed to current user.
-    if (alert.userId != managerId) {
-      return false;
-    }
+    // Defensive scope: manager inbox should only show alerts addressed to manager.
+    if (alert.userId != managerId) return false;
 
-    final isAdminOversight = widget.forAdminOversight;
+    // Admin inbox should reflect all personal alerts addressed to the admin
+    // account so the inbox list matches the notifications-bell unread count.
+    if (widget.forAdminOversight) {
+      return true;
+    }
 
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
-    if (!isAdminOversight &&
-        alert.actionRoute == _managerWorkspaceAlertsRoute) {
-      return false;
-    }
+    if (alert.actionRoute == _managerWorkspaceAlertsRoute) return false;
 
     // Suppress employee-persona cards in manager inbox.
-    if (!isAdminOversight && _isEmployeePersonaAlertType(alert.type)) {
-      return false;
-    }
+    if (_isEmployeePersonaAlertType(alert.type)) return false;
 
     // Keep only manager-scoped overdue alerts.
-    if (!isAdminOversight &&
-        alert.type == AlertType.goalOverdue &&
+    if (alert.type == AlertType.goalOverdue &&
         !_isManagerScopedGoalOverdue(alert)) {
-      developer.log('Filtered out: goal overdue but not manager-scoped');
       return false;
     }
 
     // Context switcher logic:
-    // - Inbox: show all alerts except finalized goal decisions.
-    // - Archived: show finalized goal decisions only (approved/rejected).
+    // - Inbox (active): Show unread messages AND pending approval requests (even if read)
+    // - Archived: Show read messages AND completed approval actions (approved/rejected)
     if (_showArchived) {
-      // Archive is goal history only.
-      return (alert.type == AlertType.goalApprovalApproved) ||
-          (alert.type == AlertType.goalApprovalRejected) ||
-          _shouldArchiveMeetingAlert(alert);
+      // In archived view, show:
+      // 1. All read messages (except pending approvals)
+      // 2. Approved and rejected goals (regardless of read status)
+      return (alert.isRead && alert.type != AlertType.goalApprovalRequested) ||
+          (alert.type == AlertType.goalApprovalApproved) ||
+          (alert.type == AlertType.goalApprovalRejected);
     } else {
-      // Keep everything else in Inbox, including meeting alerts,
-      // until an accepted meeting has actually passed.
-      if (_shouldArchiveMeetingAlert(alert)) return false;
-      return alert.type != AlertType.goalApprovalApproved &&
-          alert.type != AlertType.goalApprovalRejected;
+      // In inbox view, show:
+      // 1. All unread messages
+      // 2. Pending approval requests (even if read) - so manager doesn't miss them
+      // 3. BUT NOT approved or rejected goals - those should be in archived
+      return (!alert.isRead) || (alert.type == AlertType.goalApprovalRequested);
     }
   }
 
@@ -327,11 +278,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       return;
     }
 
-    Navigator.pushNamed(
-      context,
-      '/admin_portal',
-      arguments: {'initialRoute': '/admin_dashboard'},
-    );
+    Navigator.pushNamed(context, '/admin_portal', arguments: {
+      'initialRoute': '/admin_dashboard',
+    });
   }
 
   String? _normalizeGoalId(dynamic raw) {
@@ -429,11 +378,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         .trim();
     if (badgeId.isEmpty) {
       if (widget.forAdminOversight) {
-        Navigator.pushNamed(
-          context,
-          '/admin_portal',
-          arguments: {'initialRoute': '/admin_badges_points'},
-        );
+        Navigator.pushNamed(context, '/admin_portal', arguments: {
+          'initialRoute': '/admin_badges_points',
+        });
       } else {
         Navigator.pushNamed(
           context,
@@ -478,11 +425,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
     if (!mounted) return;
     if (widget.forAdminOversight) {
-      Navigator.pushNamed(
-        context,
-        '/admin_portal',
-        arguments: {'initialRoute': '/admin_badges_points'},
-      );
+      Navigator.pushNamed(context, '/admin_portal', arguments: {
+        'initialRoute': '/admin_badges_points',
+      });
       return;
     }
     Navigator.push(
@@ -539,9 +484,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   void initState() {
     super.initState();
     _redirectIfManager();
-    // Run migration for existing finalized goals (approved/rejected)
+    // Run migration for existing approved goals
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      AlertService.migrateExistingFinalizedGoalAlerts();
+      AlertService.migrateExistingApprovedGoalAlerts();
     });
   }
 
@@ -1146,20 +1091,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           child: Text(
             'Please sign in to view inbox',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+            color: DashboardChrome.fg,
             ),
           ),
         ),
       );
     }
 
-    return Container(
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/khono_bg.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
+    return DashboardThemedBackground(
+      embedded: widget.embedded,
       child: NestedScrollView(
         headerSliverBuilder: (context, innerScrolled) {
           return [
@@ -1184,7 +1124,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     ? 'Archived Messages'
                                     : 'Manager Inbox',
                                 style: AppTypography.heading3.copyWith(
-                                  color: Colors.white,
+                                  color: DashboardChrome.fg,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -1198,7 +1138,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     ? 'Review previously read messages and completed conversations.'
                                     : 'Review alerts, nudges, and approvals in one place.',
                                 style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.textSecondary,
+                                  color: DashboardChrome.fg,
                                 ),
                               ),
                             ],
@@ -1262,36 +1202,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                   : const Icon(Icons.mark_email_read_outlined),
                               label: const Text('Mark all as read'),
                             ),
-                          // TEMPORARY DEBUG BUTTON
-                          IconButton(
-                            onPressed: () async {
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user == null) return;
-
-                              // Create a test alert
-                              await AlertService.createGeneralAlert(
-                                userId: user.uid,
-                                type: AlertType.goalApprovalRequested,
-                                title: 'Test Goal Approval',
-                                message: 'This is a test goal approval request',
-                                priority: AlertPriority.medium,
-                                actionRoute: '/manager_inbox',
-                                actionData: {'goalId': 'test-goal-id'},
-                                fromUserName: 'Debug System',
-                              );
-
-                              await _showCenterNotice(
-                                this.context,
-                                'Test alert created',
-                              );
-                              if (!mounted) return;
-                            },
-                            icon: const Icon(
-                              Icons.add_alert,
-                              color: Colors.white,
-                            ),
-                            tooltip: 'Create Test Alert',
-                          ),
                         ],
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -1303,17 +1213,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             ),
           ];
         },
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.center,
-              radius: 1.1,
-              colors: [Color(0x880A0F1F), Color(0x88040610)],
-              stops: [0.0, 1.0],
-            ),
-          ),
-          child: StreamBuilder<List<Alert>>(
-            stream: AlertService.getUserAlertsStream(user.uid, maxItems: null),
+        body: StreamBuilder<List<Alert>>(
+            stream: AlertService.getUserAlertsStream(user.uid),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
@@ -1325,13 +1226,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 );
               }
               var items = snapshot.data ?? const <Alert>[];
-              developer.log('Total alerts fetched: ${items.length}');
-
               items = items
                   .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
                   .toList();
-
-              developer.log('Alerts after manager filtering: ${items.length}');
 
               if (_unreadOnly && !_showArchived) {
                 items = items.where((a) => !a.isRead).toList();
@@ -1367,16 +1264,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       a.type != AlertType.goalApprovalRequested;
                 }).toList();
               } else if (_typeFilter == 'approval_request') {
-                // Approvals:
-                // - Inbox: pending approval requests.
-                // - Archived: finalized approval decisions (approved/rejected).
-                items = items.where((a) {
-                  if (_showArchived) {
-                    return a.type == AlertType.goalApprovalApproved ||
-                        a.type == AlertType.goalApprovalRejected;
-                  }
-                  return a.type == AlertType.goalApprovalRequested;
-                }).toList();
+                // Approvals: only goal approval requests
+                items = items
+                    .where((a) => a.type == AlertType.goalApprovalRequested)
+                    .toList();
               } else if (_typeFilter == 'nudge') {
                 // Nudges: only manager nudge alerts (nudge feedback is added in the nudge UI branch)
                 items = items
@@ -1568,7 +1459,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               );
             },
           ),
-        ),
       ),
     );
   }
@@ -1764,7 +1654,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   onPressed: () {
                     _navigateInboxByAlertRoute(
                       '/manager_review_team_dashboard',
-                      arguments: {'goalId': alert.relatedGoalId},
+                      arguments: {
+                        'goalId': alert.relatedGoalId,
+                      },
                     );
                   },
                   icon: const Icon(Icons.flag_outlined),
@@ -1780,7 +1672,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     if (alert.relatedGoalId != null) {
                       _navigateInboxByAlertRoute(
                         '/manager_review_team_dashboard',
-                        arguments: {'goalId': alert.relatedGoalId},
+                        arguments: {
+                          'goalId': alert.relatedGoalId,
+                        },
                       );
                     }
                   },
@@ -1797,23 +1691,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               else if (alert.actionText != null && alert.actionRoute != null)
                 TextButton.icon(
                   onPressed: () {
-                    String route = alert.actionRoute!;
+                    final route = alert.actionRoute!;
                     Object? args;
 
-                    // Backward-compat: older admin meeting alerts pointed to inbox.
-                    // Route those to Team Review so "Review" opens actionable UI.
-                    if (widget.forAdminOversight &&
-                        (alert.type == AlertType.oneOnOneRequested ||
-                            alert.type == AlertType.oneOnOneProposed ||
-                            alert.type == AlertType.oneOnOneAccepted ||
-                            alert.type == AlertType.oneOnOneRescheduled) &&
-                        route == '/admin_inbox') {
-                      route = '/admin_team_review';
-                    }
-
                     // Deep-link 1:1 meeting alerts into the Review Team Dashboard.
-                    if (route == '/manager_review_team_dashboard' ||
-                        route == '/admin_team_review') {
+                    if (route == '/manager_review_team_dashboard') {
                       final data =
                           alert.actionData ?? const <String, dynamic>{};
                       final meetingId = data['meetingId']?.toString().trim();
@@ -1856,7 +1738,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       if (alert.relatedGoalId != null) {
                         _navigateInboxByAlertRoute(
                           '/manager_review_team_dashboard',
-                          arguments: {'goalId': alert.relatedGoalId},
+                          arguments: {
+                            'goalId': alert.relatedGoalId,
+                          },
                         );
                       }
                     } else if (actionLower.contains('leaderboard')) {
@@ -2257,9 +2141,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       selectedColor: AppColors.warningColor.withValues(alpha: 0.3),
       checkmarkColor: Colors.white,
       backgroundColor: _glassFieldColor,
-      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      side: BorderSide(color: DashboardChrome.border),
       labelStyle: AppTypography.bodySmall.copyWith(
-        color: Colors.white,
+        color: DashboardChrome.fg,
         fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
       ),
     );
@@ -2267,15 +2151,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   BoxDecoration _glassCardDecoration({double radius = 12, Color? borderColor}) {
     return BoxDecoration(
-      color: Colors.black.withValues(alpha: 0.45),
+      color: DashboardChrome.cardFill,
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
-        color: borderColor ?? Colors.white.withValues(alpha: 0.15),
+        color: borderColor ?? DashboardChrome.border,
       ),
     );
   }
 
-  Color get _glassFieldColor => Colors.black.withValues(alpha: 0.35);
+  Color get _glassFieldColor => DashboardChrome.cardFill;
 
   Color _getAlertColor(AlertPriority priority) {
     switch (priority) {

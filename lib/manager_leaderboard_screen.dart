@@ -1,132 +1,61 @@
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 enum LeaderboardMetric { points, streaks, progress }
 
 class ManagerLeaderboardScreen extends StatefulWidget {
   final bool embedded;
-  final bool compareManagers;
-  const ManagerLeaderboardScreen({
-    super.key,
-    this.embedded = false,
-    this.compareManagers = false,
-  });
+  const ManagerLeaderboardScreen({super.key, this.embedded = false});
 
   @override
   State<ManagerLeaderboardScreen> createState() =>
       _ManagerLeaderboardScreenState();
 }
 
-class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
-    with SingleTickerProviderStateMixin {
+class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   LeaderboardMetric _metric = LeaderboardMetric.points;
-  bool _isAllTime = true;
-  List<EmployeeData> _lastEmployees = const [];
-  late Stream<List<EmployeeData>> _employeeStream;
-  Future<List<EmployeeData>>? _employeeFuture;
-  late final AnimationController _topHoverController;
-  bool _isTopHovered = false;
+  List<EmployeeData> _lastTeam = const [];
+  late final Stream<List<EmployeeData>> _teamStream;
+  Future<List<EmployeeData>>? _teamFuture;
 
   @override
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
-    _topHoverController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
+    // IMPORTANT: Cache the stream instance so StreamBuilder doesn't resubscribe
+    // on every rebuild (which can destabilize Firestore listeners on web).
+    _teamStream = ManagerRealtimeService.getTeamDataStream(
+      department: null,
+      timeFilter: TimeFilter.month,
     );
-    _topHoverController.repeat(reverse: true);
-    _reloadLeaderboardSource();
-  }
-
-  TimeFilter get _selectedTimeFilter =>
-      _isAllTime ? TimeFilter.year : TimeFilter.month;
-
-  void _reloadLeaderboardSource() {
-    // Cache stream instance so StreamBuilder doesn't resubscribe every rebuild.
-    _employeeStream = widget.compareManagers
-        ? ManagerRealtimeService.getManagersDataStream(
-            timeFilter: _selectedTimeFilter,
-          )
-        : ManagerRealtimeService.getTeamDataStream(
-            timeFilter: _selectedTimeFilter,
-          );
-    // On web, prefer one-time fetches to avoid listener instability.
+    // On web, prefer one-time fetches to avoid Firestore Web listener instability.
     if (kIsWeb) {
-      _employeeFuture = (widget.compareManagers
-              ? ManagerRealtimeService.getManagersDataStream(
-                  timeFilter: _selectedTimeFilter,
-                )
-              : ManagerRealtimeService.getTeamDataStream(
-                  timeFilter: _selectedTimeFilter,
-                ))
-          .first;
+      _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+        department: null,
+        timeFilter: TimeFilter.month,
+      );
     }
-  }
-
-  int _badgeCount(EmployeeData e) {
-    final v2 = e.profile.badgesV2.length;
-    if (v2 > 0) return v2;
-    return e.profile.badges.length;
-  }
-
-  Widget _buildInlineStatChip({
-    required IconData icon,
-    required String text,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.45), width: 0.7),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 3),
-          Text(
-            text,
-            style: AppTypography.bodySmall.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _topHoverController.dispose();
-    super.dispose();
   }
 
   Widget _buildEmptyState() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.trending_up_outlined, color: AppColors.textSecondary),
-        SizedBox(height: 8),
+        Icon(Icons.trending_up_outlined, color: DashboardChrome.fg),
+        const SizedBox(height: 8),
         Text(
-          widget.compareManagers ? 'No managers found' : 'No employees found',
-          style: TextStyle(color: AppColors.textSecondary),
+          'No employees found',
+          style: TextStyle(color: DashboardChrome.fg),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
-          widget.compareManagers
-              ? 'If some managers are missing, verify their user profiles exist in Firestore `users` and their role is set to manager.'
-              : 'If some employees are missing, verify their user profiles exist in Firestore `users` and their role is set to employee.',
-          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          'If some employees are missing, verify their user profiles exist in Firestore `users` and their role is set to employee.',
+          style: TextStyle(color: DashboardChrome.fg, fontSize: 12),
         ),
       ],
     );
@@ -162,7 +91,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
 
     if (kIsWeb) {
       content = FutureBuilder<List<EmployeeData>>(
-        future: _employeeFuture,
+        future: _teamFuture,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
@@ -171,15 +100,15 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                 children: [
                   const Icon(Icons.error_outline, color: AppColors.dangerColor),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Failed to load leaderboard',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: DashboardChrome.fg),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${snapshot.error}',
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
+                    style: TextStyle(
+                      color: DashboardChrome.fg,
                       fontSize: 12,
                     ),
                   ),
@@ -187,11 +116,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                   ElevatedButton.icon(
                     onPressed: () {
                       setState(() {
-                        _employeeFuture = ManagerRealtimeService
-                            .getTeamDataStream(
-                              timeFilter: _selectedTimeFilter,
-                            )
-                            .first;
+                        _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+                          department: null,
+                          timeFilter: TimeFilter.month,
+                        );
                       });
                     },
                     icon: const Icon(Icons.refresh),
@@ -206,7 +134,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
             );
           }
 
-          final team = snapshot.data ?? _lastEmployees;
+          final raw = snapshot.data ?? _lastTeam;
+          final team = raw.where((e) => e.profile.leaderboardOptin).toList();
 
           // Sort by metric
           team.sort((a, b) {
@@ -226,7 +155,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
             }
           });
 
-          if (team.isNotEmpty) _lastEmployees = team;
+          if (team.isNotEmpty) _lastTeam = team;
 
           if (team.isEmpty) {
             return ListView(
@@ -234,28 +163,25 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
               children: [
                 Row(
                   children: [
-                    Expanded(child: _buildHeader()),
+                    Expanded(child: _buildHeaderWithFilters()),
                     IconButton(
                       tooltip: 'Refresh',
                       onPressed: () {
                         setState(() {
-                          _employeeFuture = ManagerRealtimeService
-                              .getTeamDataStream(
-                                timeFilter: _selectedTimeFilter,
-                              )
-                              .first;
+                          _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+                            department: null,
+                            timeFilter: TimeFilter.month,
+                          );
                         });
                       },
                       icon: const Icon(
                         Icons.refresh,
-                        color: AppColors.textSecondary,
+                        color: AppColors.activeColor,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                _buildFiltersBar(),
-                const SizedBox(height: 12),
                 _buildEmptyState(),
               ],
             );
@@ -270,28 +196,25 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
             children: [
               Row(
                 children: [
-                  Expanded(child: _buildHeader()),
+                  Expanded(child: _buildHeaderWithFilters()),
                   IconButton(
                     tooltip: 'Refresh',
                     onPressed: () {
                       setState(() {
-                        _employeeFuture = ManagerRealtimeService
-                            .getTeamDataStream(
-                              timeFilter: _selectedTimeFilter,
-                            )
-                            .first;
+                        _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+                          department: null,
+                          timeFilter: TimeFilter.month,
+                        );
                       });
                     },
                     icon: const Icon(
                       Icons.refresh,
-                      color: AppColors.textSecondary,
+                      color: AppColors.activeColor,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              _buildFiltersBar(),
-              const SizedBox(height: 12),
               if (top.isNotEmpty) _buildPodium(top),
               const SizedBox(height: 16),
               ...rest.asMap().entries.map((entry) {
@@ -306,7 +229,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
       );
     } else {
       content = StreamBuilder<List<EmployeeData>>(
-        stream: _employeeStream,
+        stream: _teamStream,
         builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
@@ -315,15 +238,15 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
               children: [
                 const Icon(Icons.error_outline, color: AppColors.dangerColor),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Failed to load leaderboard',
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: DashboardChrome.fg),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '${snapshot.error}',
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
+                  style: TextStyle(
+                    color: DashboardChrome.fg,
                     fontSize: 12,
                   ),
                 ),
@@ -333,7 +256,9 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
         }
 
         // Prefer live data, otherwise show last cached team to avoid spinners
-        final team = snapshot.data ?? _lastEmployees;
+        final raw = snapshot.data ?? _lastTeam;
+        // Only show employees who opted in to leaderboard participation
+        final team = raw.where((e) => e.profile.leaderboardOptin).toList();
 
         // Sort by metric
         team.sort((a, b) {
@@ -355,7 +280,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
 
         // Update cache when we have any data
         if (team.isNotEmpty) {
-          _lastEmployees = team;
+          _lastTeam = team;
         }
 
         if (team.isEmpty &&
@@ -363,10 +288,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _buildHeader(),
+              _buildHeaderWithFilters(),
               const SizedBox(height: 16),
-              _buildFiltersBar(),
-              const SizedBox(height: 12),
               _buildEmptyState(),
             ],
           );
@@ -376,10 +299,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
           return ListView(
             padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
             children: [
-              _buildHeader(),
+              _buildHeaderWithFilters(),
               const SizedBox(height: 16),
-              _buildFiltersBar(),
-              const SizedBox(height: 12),
               _buildEmptyState(),
             ],
           );
@@ -392,10 +313,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
         return ListView(
           padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           children: [
-            _buildHeader(),
+            _buildHeaderWithFilters(),
             const SizedBox(height: 16),
-            _buildFiltersBar(),
-            const SizedBox(height: 12),
             if (top.isNotEmpty) _buildPodium(top),
             const SizedBox(height: 16),
             ...rest.asMap().entries.map((entry) {
@@ -415,71 +334,36 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: AppColors.backgroundColor,
-        title: Text(
-          'Leaderboard',
-          style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
-        ),
-        centerTitle: false,
-      ),
-      body: content,
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      body: DashboardThemedBackground(child: content),
     );
   }
 
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Leaderboard',
-            style: AppTypography.heading2.copyWith(color: Colors.white),
-          ),
-          Row(
-            children: [
-              const Icon(Icons.circle, color: AppColors.successColor, size: 10),
-              const SizedBox(width: 6),
-              Text(
-                'Live',
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.successColor,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFiltersBar() {
-    Widget filterChip(String label, bool selected, VoidCallback onTap) {
+  Widget _buildHeaderWithFilters() {
+    Widget metricChip(String label, LeaderboardMetric metric) {
+      final selected = _metric == metric;
       return GestureDetector(
-        onTap: onTap,
+        onTap: () => setState(() => _metric = metric),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          margin: const EdgeInsets.only(right: 8),
           decoration: BoxDecoration(
-            color: selected ? AppColors.activeColor : AppColors.elevatedBackground,
+            color: selected
+                ? AppColors.activeColor
+                : DashboardChrome.cardFill,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? AppColors.activeColor : AppColors.borderColor,
+              color: selected ? AppColors.activeColor : DashboardChrome.border,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+              color: selected ? Colors.white : DashboardChrome.fg,
               fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-              fontSize: 11,
+              fontSize: 12,
             ),
           ),
         ),
@@ -487,278 +371,194 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        color: DashboardChrome.cardFill,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: DashboardChrome.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              filterChip('This month', !_isAllTime, () {
-                setState(() {
-                  _isAllTime = false;
-                  _reloadLeaderboardSource();
-                });
-              }),
-              filterChip('All time', _isAllTime, () {
-                setState(() {
-                  _isAllTime = true;
-                  _reloadLeaderboardSource();
-                });
-              }),
-              filterChip('Points', _metric == LeaderboardMetric.points, () {
-                setState(() => _metric = LeaderboardMetric.points);
-              }),
-              filterChip('Streaks', _metric == LeaderboardMetric.streaks, () {
-                setState(() => _metric = LeaderboardMetric.streaks);
-              }),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Top Team Performers',
+                  style:
+                      AppTypography.heading2.copyWith(color: DashboardChrome.fg),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Switch metrics to compare different dimensions of impact.',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: DashboardChrome.fg,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Active filters: ${_isAllTime ? 'allTime' : 'thisMonth'}, ${_metric == LeaderboardMetric.points ? 'points' : 'streaks'}',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-          ),
+          metricChip('Points', LeaderboardMetric.points),
+          metricChip('Streaks', LeaderboardMetric.streaks),
+          metricChip('Progress', LeaderboardMetric.progress),
         ],
       ),
     );
   }
 
-  String _podiumMetricText(EmployeeData e) {
-    switch (_metric) {
-      case LeaderboardMetric.points:
-        return '${e.totalPoints} pts';
-      case LeaderboardMetric.streaks:
-        return '${e.streakDays} day streak';
-      case LeaderboardMetric.progress:
-        return '${e.avgProgress.toStringAsFixed(1)}%';
-    }
-  }
-
   Widget _buildPodium(List<EmployeeData> top) {
-    final topThree = top.take(3).toList();
-    if (topThree.isEmpty) return const SizedBox.shrink();
-
-    final colors = [
-      const Color(0xFFFFD700), // Gold
-      const Color(0xFFC0C0C0), // Silver
-      const Color(0xFFCD7F32), // Bronze
+    // Pad to 3 slots
+    final List<EmployeeData?> slots = [
+      top.length > 1 ? top[1] : null, // 2nd place left
+      top.isNotEmpty ? top[0] : null, // 1st center
+      top.length > 2 ? top[2] : null, // 3rd right
     ];
 
-    return SizedBox(
-      height: 300,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            bottom: 0,
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.85,
-              height: 200,
+    Widget tile(EmployeeData? e, int rank, double height, Color color) {
+      return Expanded(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Container(
+              height: height,
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                gradient: LinearGradient(
+                  colors: [
+                    color.withValues(alpha: 0.8),
+                    color.withValues(alpha: 0.4),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(10),
+                ),
               ),
-            ),
-          ),
-          if (topThree.length > 1)
-            Positioned(
-              bottom: 20,
-              left: MediaQuery.of(context).size.width * 0.2,
-              child: _buildPodiumCardWithNumber(
-                employee: topThree[1],
-                color: colors[1],
-                width: 120,
-                numberText: '2',
-              ),
-            ),
-          if (topThree.length > 2)
-            Positioned(
-              bottom: 20,
-              right: MediaQuery.of(context).size.width * 0.2,
-              child: _buildPodiumCardWithNumber(
-                employee: topThree[2],
-                color: colors[2],
-                width: 120,
-                numberText: '3',
-              ),
-            ),
-          if (topThree.isNotEmpty)
-            Positioned(
-              top: 0,
-              child: MouseRegion(
-                onEnter: (_) => setState(() => _isTopHovered = true),
-                onExit: (_) => setState(() => _isTopHovered = false),
-                child: AnimatedBuilder(
-                  animation: _topHoverController,
-                  builder: (context, child) {
-                    final amplitude = _isTopHovered ? 10.0 : 4.0;
-                    final dy =
-                        math.sin(_topHoverController.value * math.pi) * amplitude;
-                    return Transform.translate(
-                      offset: Offset(0, dy),
-                      child: child,
-                    );
-                  },
-                  child: _buildPodiumCardWithNumber(
-                    employee: topThree[0],
-                    color: colors[0],
-                    width: 120,
-                    numberText: '1',
+              child: Center(
+                child: Text(
+                  '$rank',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPodiumCardWithNumber({
-    required EmployeeData employee,
-    required Color color,
-    required double width,
-    required String numberText,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildPodiumCard(
-          employee: employee,
-          color: color,
-          width: width,
-        ),
-        const SizedBox(height: 8),
-        _buildPositionBadge(color: color, text: numberText),
-      ],
-    );
-  }
-
-  Widget _buildPodiumCard({
-    required EmployeeData employee,
-    required Color color,
-    required double width,
-  }) {
-    return Container(
-      width: width,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.3),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundColor: color,
-            child: Text(
-              employee.profile.displayName.isNotEmpty
-                  ? employee.profile.displayName[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+            const SizedBox(height: 8),
+            if (e != null)
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: DashboardChrome.cardFill,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: DashboardChrome.border,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: color,
+                      child: Text(
+                        e.profile.displayName.isNotEmpty
+                            ? e.profile.displayName[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      e.profile.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: DashboardChrome.fg,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.stars, color: Colors.amber, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${e.totalPoints} pts',
+                          style: TextStyle(
+                            color: DashboardChrome.fg,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            employee.profile.displayName,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            _podiumMetricText(employee),
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPositionBadge({required Color color, required String text}) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.4),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          ],
         ),
+      );
+    }
+
+    return SizedBox(
+      height: 200,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          tile(slots[0], 2, 70, const Color(0xFFC0C0C0)),
+          const SizedBox(width: 8),
+          tile(slots[1], 1, 90, const Color(0xFFFFD700)),
+          const SizedBox(width: 8),
+          tile(slots[2], 3, 50, const Color(0xFFCD7F32)),
+        ],
       ),
     );
   }
 
   Widget _buildListItem(EmployeeData e, {required int rank}) {
-    final metricText = switch (_metric) {
-      LeaderboardMetric.points => '${e.totalPoints} pts',
-      LeaderboardMetric.streaks => '${e.streakDays} day streak',
-      LeaderboardMetric.progress => '${e.avgProgress.toStringAsFixed(1)}%',
-    };
+    String rightText = '';
+    switch (_metric) {
+      case LeaderboardMetric.points:
+        rightText = '${e.totalPoints} pts';
+        break;
+      case LeaderboardMetric.streaks:
+        rightText = '${e.streakDays} day streak';
+        break;
+      case LeaderboardMetric.progress:
+        rightText = '${e.avgProgress.toStringAsFixed(1)}%';
+        break;
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Row(
         children: [
           Container(
-            width: 30,
-            height: 30,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
-              color: AppColors.elevatedBackground,
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+              color: DashboardChrome.cardFill,
+              borderRadius: BorderRadius.circular(17),
+              border: Border.all(color: DashboardChrome.border),
             ),
             child: Center(
               child: Text(
                 '$rank',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: DashboardChrome.fg,
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
                 ),
               ),
             ),
@@ -784,42 +584,24 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
               children: [
                 Text(
                   e.profile.displayName,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: DashboardChrome.fg,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   e.profile.department,
-                  style: const TextStyle(color: Colors.white60, fontSize: 12),
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 4,
-                  runSpacing: 3,
-                  children: [
-                    _buildInlineStatChip(
-                      icon: Icons.stars,
-                      text: '${e.totalPoints} pts',
-                      color: AppColors.warningColor,
-                    ),
-                    _buildInlineStatChip(
-                      icon: Icons.workspace_premium,
-                      text: '${_badgeCount(e)}',
-                      color: AppColors.activeColor,
-                    ),
-                    if (_metric != LeaderboardMetric.points)
-                      _buildInlineStatChip(
-                        icon: _metric == LeaderboardMetric.streaks
-                            ? Icons.local_fire_department
-                            : Icons.trending_up,
-                        text: metricText,
-                        color: Colors.white70,
-                      ),
-                  ],
+                  style: TextStyle(color: DashboardChrome.fg, fontSize: 12),
                 ),
               ],
+            ),
+          ),
+          Text(
+            rightText,
+            style: TextStyle(
+              color: DashboardChrome.fg,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],

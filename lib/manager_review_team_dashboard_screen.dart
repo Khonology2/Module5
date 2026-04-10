@@ -12,6 +12,7 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/one_on_one_meeting.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerReviewTeamDashboardScreen extends StatefulWidget {
   /// When true, admin is viewing; show managers only (no employees).
@@ -478,7 +479,7 @@ class _ManagerReviewTeamDashboardScreenState
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          color: AppColors.textPrimary,
+          color: DashboardChrome.fg,
           onPressed: () => Navigator.of(context).pop(),
           tooltip: 'Back',
         ),
@@ -486,54 +487,24 @@ class _ManagerReviewTeamDashboardScreenState
         centerTitle: false,
         actions: const [],
       ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/khono_bg.png'),
-                  fit: BoxFit.cover,
-                ),
+      body: DashboardThemedBackground(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontalPadding = constraints.maxWidth < 400
+                ? 12.0
+                : constraints.maxWidth < 700
+                    ? 16.0
+                    : 24.0;
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                MediaQuery.of(context).padding.top + kToolbarHeight + 16.0,
+                horizontalPadding,
+                16.0,
               ),
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.2,
-                  colors: [
-                    Color(
-                      0x880A0F1F,
-                    ), // More opaque semi-transparent overlay (alpha 0x88)
-                    Color(
-                      0x88040610,
-                    ), // More opaque semi-transparent overlay (alpha 0x88)
-                  ],
-                  stops: [0.0, 1.0],
-                ),
-              ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final horizontalPadding = constraints.maxWidth < 400
-                      ? 12.0
-                      : constraints.maxWidth < 700
-                      ? 16.0
-                      : 24.0;
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      horizontalPadding,
-                      MediaQuery.of(context).padding.top +
-                          kToolbarHeight +
-                          16.0,
-                      horizontalPadding,
-                      16.0,
-                    ),
-                    child: StreamBuilder<List<EmployeeData>>(
-                      stream: _employeesStream,
-                      builder: (context, employeesSnapshot) {
+              child: StreamBuilder<List<EmployeeData>>(
+                stream: _employeesStream,
+                builder: (context, employeesSnapshot) {
                         final incoming = employeesSnapshot.data;
                         final hasPlaceholderBatch =
                             incoming != null &&
@@ -624,14 +595,11 @@ class _ManagerReviewTeamDashboardScreenState
                             const SizedBox(height: 24),
                           ],
                         );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
+                  },
+                ),
+            );
+          },
+        ),
       ),
     );
   }

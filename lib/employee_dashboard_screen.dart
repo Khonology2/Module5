@@ -29,7 +29,9 @@ import 'package:pdh/widgets/version_control_widget.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 /// Employee dashboard card surface (requested #3D3D40; user note had a typo).
-const Color _kDashboardCardBg = Color(0xFF3D3D40);
+// In dark mode we intentionally reduce alpha so the background image shows through.
+// "Drop opacity by 40%" => keep ~60% opacity.
+const Color _kDashboardCardBg = Color(0x993D3D40);
 const Color _kPointsAccent = Color(0xFF6CA510);
 
 /// All dashboard copy uses solid white for clarity on dark cards.
@@ -49,31 +51,32 @@ Color _dashFg(BuildContext context) {
 }
 
 Color _dashCard(BuildContext context) {
-  return _dashIsLight() ? const Color(0xFFFFFFFF) : _kDashboardCardBg;
+  // Light mode: also reduced opacity (same 40% drop request).
+  return _dashIsLight() ? const Color(0x99FFFFFF) : _kDashboardCardBg;
 }
 
 Color _dashBorder(BuildContext context) {
   return _dashIsLight()
-      ? const Color(0x33000000)
-      : Colors.white.withValues(alpha: 0.2);
+      ? const Color(0x1E000000)
+      : Colors.white.withValues(alpha: 0.12);
 }
 
 Color _dashDivider(BuildContext context) {
   return _dashIsLight()
-      ? const Color(0x33000000)
-      : Colors.white.withValues(alpha: 0.22);
+      ? const Color(0x1E000000)
+      : Colors.white.withValues(alpha: 0.13);
 }
 
 Color _dashTopPerfRowBg(BuildContext context) {
   return _dashIsLight()
-      ? Colors.black.withValues(alpha: 0.04)
-      : Colors.white.withValues(alpha: 0.06);
+      ? Colors.black.withValues(alpha: 0.024)
+      : Colors.white.withValues(alpha: 0.036);
 }
 
 Color _dashTopPerfRowBorder(BuildContext context) {
   return _dashIsLight()
-      ? const Color(0x14000000)
-      : Colors.white.withValues(alpha: 0.08);
+      ? const Color(0x0C000000)
+      : Colors.white.withValues(alpha: 0.048);
 }
 
 /// Bell icon in section headers: dark-on-light vs light-on-dark.
@@ -97,7 +100,7 @@ Widget _quickActionLeadingIcon(
     errorBuilder: (context, error, stackTrace) => Icon(
       Icons.touch_app_outlined,
       color: hover ? Colors.white : _dashFg(context),
-      size: 28,
+      size: 40,
     ),
   );
 }
@@ -815,7 +818,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                         if (timedOut) {
                           return _buildLoadTimeout(
                             message:
-                                'We couldn’t load your profile. This is usually caused by a connection issue or missing Firestore permissions.',
+                                'We couldn’t load your profile. This is usually caused by a connection issues.',
                           );
                         }
                         return const Center(
@@ -1124,8 +1127,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       child: Row(
         children: [
           SizedBox(
-            width: 40,
-            height: 40,
+            width: 64,
+            height: 64,
             child: Image.asset(
               'assets/Innovation_Brainstorm.png',
               fit: BoxFit.contain,
@@ -1188,8 +1191,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 valueColor: _dashFg(context),
                 labelColor: _dashFg(context),
                 iconWidget: SizedBox(
-                  width: 48,
-                  height: 48,
+                  width: 64,
+                  height: 64,
                   child: _dashDashboardAsset(
                     'assets/Goal_Target/Goal_Target_White_Badge_Red.png',
                   ),
@@ -1207,8 +1210,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 valueColor: _dashFg(context),
                 labelColor: _dashFg(context),
                 iconWidget: SizedBox(
-                  width: 48,
-                  height: 48,
+                  width: 64,
+                  height: 64,
                   child: _dashDashboardAsset(
                     'assets/Approved_Tick/Approved_White_Badge_Red.png',
                   ),
@@ -1226,8 +1229,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 valueColor: _dashFg(context),
                 labelColor: _dashFg(context),
                 iconWidget: SizedBox(
-                  width: 48,
-                  height: 48,
+                  width: 64,
+                  height: 64,
                   child: Image.asset(
                     'assets/Team_Meeting/Team.png',
                     fit: BoxFit.contain,
@@ -1250,8 +1253,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 valueColor: _dashFg(context),
                 labelColor: _dashFg(context),
                 iconWidget: SizedBox(
-                  width: 48,
-                  height: 48,
+                  width: 64,
+                  height: 64,
                   child: _dashDashboardAsset(
                     'assets/Goal_Target/Goal_Target_White_Badge_Red.png',
                   ),
@@ -1268,8 +1271,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 valueColor: _dashFg(context),
                 labelColor: _dashFg(context),
                 iconWidget: SizedBox(
-                  width: 48,
-                  height: 48,
+                  width: 64,
+                  height: 64,
                   child: _dashDashboardAsset(
                     'assets/Task_Management/Task_Management_White_Badge_Red.png',
                   ),
@@ -1386,8 +1389,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           Row(
             children: [
               SizedBox(
-                width: 26,
-                height: 26,
+                width: 40,
+                height: 40,
                 child: Image.asset(
                   _dashBellAssetPath(context),
                   fit: BoxFit.contain,
@@ -1717,8 +1720,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           Row(
             children: [
               SizedBox(
-                width: 26,
-                height: 26,
+                width: 40,
+                height: 40,
                 child: Image.asset(
                   _dashBellAssetPath(context),
                   fit: BoxFit.contain,
@@ -2289,7 +2292,7 @@ class _QuickActionTileState extends State<_QuickActionTile> {
             child: Column(
               children: [
                 SizedBox(
-                  height: 28,
+                  height: 40,
                   width: double.infinity,
                   child: _quickActionLeadingIcon(
                     context,

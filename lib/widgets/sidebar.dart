@@ -67,8 +67,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   final WorkspaceContextService _workspaceService = WorkspaceContextService();
   List<SidebarItem> _currentItems = [];
 
-  // Use design system colors
-  static const Color backgroundColor = AppColors.backgroundColor;
+  // Dark-mode sidebar surface shared across employee/manager/admin.
+  static const Color backgroundColor = Color(0xFF3D3F40);
 
   @override
   void initState() {
@@ -467,7 +467,7 @@ class _CollapseToggle extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 240),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.backgroundColor.withValues(alpha: 0.9),
+            color: _ResponsiveSidebarState.backgroundColor.withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: AppColors.activeColor.withValues(alpha: 0.5),
@@ -792,7 +792,7 @@ class _NavTileState extends State<_NavTile> {
                                 border: Border.all(
                                   color: sidebarLight
                                       ? Colors.white
-                                      : AppColors.backgroundColor,
+                                      : _ResponsiveSidebarState.backgroundColor,
                                   width: 1.5,
                                 ),
                               ),
@@ -876,7 +876,7 @@ class _NavTileState extends State<_NavTile> {
           constraints: const BoxConstraints(maxWidth: 240),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.backgroundColor.withValues(alpha: 0.9),
+            color: _ResponsiveSidebarState.backgroundColor.withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: AppColors.activeColor.withValues(alpha: 0.5),

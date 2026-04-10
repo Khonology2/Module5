@@ -572,10 +572,7 @@ class _MyAppState extends State<MyApp> {
                     title: 'Leaderboard',
                     currentRouteName: '/manager_gw_menu_leaderboard',
                     items: SidebarConfig.managerItems,
-                    body: const ManagerLeaderboardScreen(
-                      embedded: true,
-                      compareManagers: true,
-                    ),
+                    body: const ManagerLeaderboardScreen(embedded: true),
                   ),
                 ),
                 '/manager_gw_menu_badges': (context) => RoleGate(
@@ -709,6 +706,14 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
     '/manager_gw_menu_badges',
     '/manager_gw_menu_season_challenges',
     '/manager_gw_menu_repository',
+    // Admin portal routes (show chat FAB on admin pages too)
+    '/admin_portal',
+    '/admin_dashboard',
+    '/admin_profile',
+    '/admin_inbox',
+    '/org_leaderboard',
+    '/admin_settings',
+    '/manager_oversight',
   ];
 
   @override

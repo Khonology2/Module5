@@ -17,21 +17,20 @@ import 'package:pdh/services/badge_celebration_service.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/services/sound_service.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/badge_celebration_dialog.dart';
 import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerBadgesPointsScreen extends StatefulWidget {
   final bool embedded;
   /// When true, admin is viewing; show managers only (no employees).
   final bool forAdminOversight;
-  /// When true, render this screen for the signed-in admin's own progress.
-  final bool forAdminSelf;
 
   const ManagerBadgesPointsScreen({
     super.key,
     this.embedded = false,
     this.forAdminOversight = false,
-    this.forAdminSelf = false,
   });
 
   @override
@@ -208,29 +207,17 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       title: '',
       showAppBar: false,
       embedded: widget.embedded,
-      items: SidebarConfig.getItemsForRole(
-        widget.forAdminSelf ? 'admin' : 'manager',
-      ),
-      currentRouteName: widget.forAdminSelf
-          ? '/admin_badges_points'
-          : '/manager_badges_points',
+      items: SidebarConfig.getItemsForRole('manager'),
+      currentRouteName: '/manager_badges_points',
       onNavigate: (route) {
         // Managers should navigate via the portal so the sidebar remains persistent
         // and moved items (e.g. Review Team) open the correct content.
         if (widget.embedded) return;
-        if (widget.forAdminSelf) {
-          Navigator.pushReplacementNamed(
-            context,
-            '/admin_portal',
-            arguments: {'initialRoute': route},
-          );
-        } else {
-          Navigator.pushReplacementNamed(
-            context,
-            '/manager_portal',
-            arguments: {'initialRoute': route},
-          );
-        }
+        Navigator.pushReplacementNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': route},
+        );
       },
       onLogout: () async {
         final navigator = Navigator.of(context);
@@ -318,9 +305,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  widget.forAdminSelf
-                      ? 'No admin badges yet'
-                      : 'No manager badges yet',
+                  'No manager badges yet',
                   style: AppTypography.heading4.copyWith(
                     color: AppColors.textPrimary,
                   ),
@@ -328,9 +313,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  widget.forAdminSelf
-                      ? 'Start reviewing, acknowledging, and supporting teams to earn badges.'
-                      : 'Start acknowledging goals and supporting your team to earn badges.',
+                  'Start acknowledging goals and supporting your team to earn badges.',
                   style: AppTypography.bodyMedium.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -548,10 +531,10 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         child: Padding(
           padding: AppSpacing.screenPadding,
           child: Text(
-            widget.forAdminSelf
-                ? 'Please sign in to view admin badges & points'
-                : 'Please sign in to view manager badges & points',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            'Please sign in to view manager badges & points',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
       );
@@ -559,16 +542,25 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
 
     return FocusTraversalGroup(
       policy: WidgetOrderTraversalPolicy(),
-      child: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
+      child: DashboardThemedBackground(
+        embedded: widget.embedded,
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirestoreSafe.stream(
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(manager.uid)
+                .snapshots(),
           ),
-        ),
-        child: StreamBuilder(
+          builder: (context, userSnap) {
+            final userData = userSnap.data?.data() ?? {};
+            final totalPointsRaw = userData['totalPoints'];
+            final totalPoints = totalPointsRaw is int
+                ? totalPointsRaw
+                : (totalPointsRaw is num
+                      ? totalPointsRaw.toInt()
+                      : int.tryParse('$totalPointsRaw') ?? 0);
+
+            return StreamBuilder(
               stream: _buildManagerMetricsStream(manager.uid),
               builder: (context, AsyncSnapshot<_ManagerMetrics> snapshot) {
                 // Run badge evaluation in background (non-blocking) after first build
@@ -606,17 +598,17 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   child: ListView(
                     padding: AppSpacing.screenPadding,
                     children: [
-                      _buildPointsCard(totalPoints: snapshot.data!.totalPoints),
+                      _buildPointsCard(totalPoints: totalPoints),
                       const SizedBox(height: AppSpacing.xl),
-                      _buildSectionHeader(
-                        widget.forAdminSelf ? 'Your Admin Badges' : 'Your Badges',
-                      ),
+                      _buildSectionHeader('Your Badges'),
                       _buildManagerBadgeCategories(manager.uid),
                       const SizedBox(height: AppSpacing.xl),
                     ],
                   ),
                 );
               },
+            );
+          },
         ),
       ),
     );
@@ -627,7 +619,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Text(
         title,
-        style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+        style: AppTypography.heading3.copyWith(color: DashboardChrome.fg),
       ),
     );
   }
@@ -637,12 +629,14 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
+            color: Colors.black.withValues(
+              alpha: DashboardChrome.light ? 0.08 : 0.2,
+            ),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -657,23 +651,23 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                 Text(
                   '$points',
                   style: AppTypography.heading1.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   'Total Points',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary.withValues(alpha: 0.8),
+                    color: DashboardChrome.fg,
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 16),
-          const Icon(
+          Icon(
             Icons.stars,
-            color: AppColors.textPrimary,
+            color: DashboardChrome.fg,
             size: 40,
           ),
         ],

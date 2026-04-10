@@ -23,6 +23,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
+
+class _SettingsChrome {
+  _SettingsChrome._();
+
+  static bool get light => employeeDashboardLightModeNotifier.value;
+  // Match employee dashboard opacity (0x99 for 60% opacity)
+  static const Color _darkCard = Color(0x993D3D40);
+
+  static Color get cardFill => light ? const Color(0x99FFFFFF) : _darkCard;
+  static Color get border =>
+      light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
+  static Color get fg => light ? const Color(0xFF000000) : Colors.white;
+  static List<Color>? get lightGradient => light
+      ? [
+          Colors.white.withValues(alpha: 0.2),
+          Colors.white.withValues(alpha: 0.08),
+        ]
+      : null;
+}
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -171,139 +192,156 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
-          child: StreamBuilder<UserSettings?>(
-            key: const ValueKey('settings_stream'),
-            stream: _safeSettingsStream(),
-            initialData:
-                _currentSettings, // use cached settings to avoid spinner
-            builder: (context, settingsSnapshot) {
-              // Prefer last known settings to avoid full-screen flicker while waiting
-              if (settingsSnapshot.hasError && _currentSettings == null) {
-                return _buildErrorState(settingsSnapshot.error.toString());
-              }
-
-              final streamed = settingsSnapshot.data;
-              // Prefer local state so switches can update optimistically without
-              // being immediately overwritten by the last streamed snapshot.
-              final settings = _currentSettings ?? streamed;
-              if (streamed != null && mounted) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) return;
-
-                  // If we have optimistic pending keys, keep them pending until
-                  // the stream catches up to the same values.
-                  if (_pendingKeys.isNotEmpty && _currentSettings != null) {
-                    final stillPending = <String>{};
-                    for (final k in _pendingKeys) {
-                      final localVal = _getSettingValue(_currentSettings!, k);
-                      final streamVal = _getSettingValue(streamed, k);
-                      if (localVal != streamVal) {
-                        stillPending.add(k);
-                      }
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: Material(
+            color: Colors.transparent,
+            child: AppComponents.backgroundWithImage(
+              blurSigma: 0,
+              imagePath: light
+                  ? 'assets/light_mode_bg.png'
+                  : 'assets/khono_bg.png',
+              gradientColors: _SettingsChrome.lightGradient,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+                child: StreamBuilder<UserSettings?>(
+                  key: const ValueKey('settings_stream'),
+                  stream: _safeSettingsStream(),
+                  initialData:
+                      _currentSettings, // use cached settings to avoid spinner
+                  builder: (context, settingsSnapshot) {
+                    // Prefer last known settings to avoid full-screen flicker while waiting
+                    if (settingsSnapshot.hasError && _currentSettings == null) {
+                      return _buildErrorState(
+                        settingsSnapshot.error.toString(),
+                      );
                     }
-                    if (stillPending.length != _pendingKeys.length) {
-                      setState(() {
-                        _pendingKeys
-                          ..clear()
-                          ..addAll(stillPending);
+
+                    final streamed = settingsSnapshot.data;
+                    // Prefer local state so switches can update optimistically without
+                    // being immediately overwritten by the last streamed snapshot.
+                    final settings = _currentSettings ?? streamed;
+                    if (streamed != null && mounted) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+
+                        // If we have optimistic pending keys, keep them pending until
+                        // the stream catches up to the same values.
+                        if (_pendingKeys.isNotEmpty &&
+                            _currentSettings != null) {
+                          final stillPending = <String>{};
+                          for (final k in _pendingKeys) {
+                            final localVal = _getSettingValue(
+                              _currentSettings!,
+                              k,
+                            );
+                            final streamVal = _getSettingValue(streamed, k);
+                            if (localVal != streamVal) {
+                              stillPending.add(k);
+                            }
+                          }
+                          if (stillPending.length != _pendingKeys.length) {
+                            setState(() {
+                              _pendingKeys
+                                ..clear()
+                                ..addAll(stillPending);
+                            });
+                          }
+                        }
+
+                        // Only adopt streamed snapshots when they won't overwrite
+                        // optimistic local changes that haven't been observed yet.
+                        if (_pendingKeys.isEmpty &&
+                            _currentSettings != streamed) {
+                          setState(() {
+                            _currentSettings = streamed;
+                          });
+                          _persistLocalSettings(streamed);
+                        }
                       });
                     }
-                  }
 
-                  // Only adopt streamed snapshots when they won't overwrite
-                  // optimistic local changes that haven't been observed yet.
-                  if (_pendingKeys.isEmpty && _currentSettings != streamed) {
-                    setState(() {
-                      _currentSettings = streamed;
-                    });
-                    _persistLocalSettings(streamed);
-                  }
-                });
-              }
+                    // Show loading only if we truly don't have any data yet
+                    if (settings == null &&
+                        settingsSnapshot.connectionState ==
+                            ConnectionState.waiting) {
+                      // If loading too long, show error instead of infinite spinner
+                      if (_isLoadingTooLong) {
+                        return _buildErrorState(
+                          'Settings are taking too long to load. Please check your connection and try again.',
+                        );
+                      }
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.activeColor,
+                        ),
+                      );
+                    }
 
-              // Show loading only if we truly don't have any data yet
-              if (settings == null &&
-                  settingsSnapshot.connectionState == ConnectionState.waiting) {
-                // If loading too long, show error instead of infinite spinner
-                if (_isLoadingTooLong) {
-                  return _buildErrorState(
-                    'Settings are taking too long to load. Please check your connection and try again.',
-                  );
-                }
-                return const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.activeColor,
-                  ),
-                );
-              }
+                    // If still null after waiting, try to load default settings or show error
+                    final effectiveSettings = settings ?? _currentSettings;
+                    if (effectiveSettings == null) {
+                      // If connection is done but still null, show error
+                      if (settingsSnapshot.connectionState ==
+                          ConnectionState.done) {
+                        // Try one more time to load settings
+                        if (!_hasInitialLoadAttempted) {
+                          _loadSettingsFallback();
+                        }
+                        return _buildErrorState(
+                          'Unable to load settings. Please try again.',
+                        );
+                      }
+                      // Still waiting, show spinner (but with timeout check)
+                      if (_isLoadingTooLong) {
+                        return _buildErrorState(
+                          'Settings are taking too long to load. Please check your connection and try again.',
+                        );
+                      }
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.activeColor,
+                        ),
+                      );
+                    }
 
-              // If still null after waiting, try to load default settings or show error
-              final effectiveSettings = settings ?? _currentSettings;
-              if (effectiveSettings == null) {
-                // If connection is done but still null, show error
-                if (settingsSnapshot.connectionState == ConnectionState.done) {
-                  // Try one more time to load settings
-                  if (!_hasInitialLoadAttempted) {
-                    _loadSettingsFallback();
-                  }
-                  return _buildErrorState(
-                    'Unable to load settings. Please try again.',
-                  );
-                }
-                // Still waiting, show spinner (but with timeout check)
-                if (_isLoadingTooLong) {
-                  return _buildErrorState(
-                    'Settings are taking too long to load. Please check your connection and try again.',
-                  );
-                }
-                return const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.activeColor,
-                  ),
-                );
-              }
+                    // Use StreamBuilder for role, but with initial data to avoid waiting
+                    return StreamBuilder<String?>(
+                      key: const ValueKey('role_stream'),
+                      stream: RoleService.instance.roleStream(),
+                      initialData: RoleService.instance.cachedRole,
+                      builder: (context, roleSnapshot) {
+                        final role =
+                            roleSnapshot.data ??
+                            RoleService.instance.cachedRole;
+                        final isManager = role == 'manager';
 
-              // Use StreamBuilder for role, but with initial data to avoid waiting
-              return StreamBuilder<String?>(
-                key: const ValueKey('role_stream'),
-                stream: RoleService.instance.roleStream(),
-                initialData: RoleService.instance.cachedRole,
-                builder: (context, roleSnapshot) {
-                  final role =
-                      roleSnapshot.data ?? RoleService.instance.cachedRole;
-                  final isManager = role == 'manager';
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!isManager) ...[
-                        _buildPrivacySection(effectiveSettings),
-                        const SizedBox(height: 24),
-                      ],
-                      _buildNotificationSection(effectiveSettings),
-                      const SizedBox(height: 24),
-                      _buildAppSection(effectiveSettings),
-                      const SizedBox(height: 24),
-                      _buildAccountSection(),
-                    ],
-                  );
-                },
-              );
-            },
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (!isManager) ...[
+                              _buildPrivacySection(effectiveSettings),
+                              const SizedBox(height: 24),
+                            ],
+                            _buildNotificationSection(effectiveSettings),
+                            const SizedBox(height: 24),
+                            _buildAppSection(effectiveSettings),
+                            const SizedBox(height: 24),
+                            _buildAccountSection(),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -331,9 +369,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Container(
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
+          color: _SettingsChrome.cardFill,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          border: Border.all(color: _SettingsChrome.border),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -343,7 +381,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text(
               'Error Loading Settings',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: _SettingsChrome.fg,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -351,7 +389,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             Text(
               'Unable to load your settings. Please check your connection and try again.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              style: TextStyle(color: _SettingsChrome.fg, fontSize: 14),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -371,7 +409,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             Text(
               'Error: $error',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+              style: TextStyle(color: _SettingsChrome.fg, fontSize: 10),
               textAlign: TextAlign.center,
             ),
           ],
@@ -388,9 +426,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: _SettingsChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _SettingsChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,7 +437,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Text(
               title,
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: _SettingsChrome.fg,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -589,13 +627,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha: 0.6),
+      barrierColor: _SettingsChrome.light
+          ? Colors.black.withValues(alpha: 0.35)
+          : Colors.black.withValues(alpha: 0.6),
       builder: (context) => Center(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 280, maxHeight: 320),
           margin: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(
-            color: AppColors.backgroundColor.withValues(alpha: 0.9),
+            color: _SettingsChrome.cardFill,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: AppColors.activeColor.withValues(alpha: 0.6),
@@ -603,7 +643,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
+                color: Colors.black.withValues(
+                  alpha: _SettingsChrome.light ? 0.12 : 0.4,
+                ),
                 blurRadius: 12,
                 spreadRadius: 1,
               ),
@@ -624,7 +666,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'Start Sidebar Tutorial?',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: _SettingsChrome.fg,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -634,7 +676,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'This tutorial will guide you through all the sidebar navigation options. You can skip it at any time.',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: _SettingsChrome.fg,
                     fontSize: 13,
                     height: 1.3,
                   ),
@@ -649,12 +691,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(false),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textSecondary,
-                          side: BorderSide(
-                            color: AppColors.textSecondary.withValues(
-                              alpha: 0.6,
-                            ),
-                          ),
+                          foregroundColor: _SettingsChrome.fg,
+                          side: BorderSide(color: _SettingsChrome.border),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           minimumSize: const Size(0, 36),
                           shape: RoundedRectangleBorder(
@@ -767,9 +805,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   title,
                   style: TextStyle(
-                    color: enabled
-                        ? AppColors.textPrimary
-                        : AppColors.textMuted,
+                    color: enabled ? _SettingsChrome.fg : _SettingsChrome.fg,
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
                   ),
@@ -778,9 +814,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: enabled
-                        ? AppColors.textSecondary
-                        : AppColors.textMuted,
+                    color: enabled ? _SettingsChrome.fg : _SettingsChrome.fg,
                     fontSize: 14,
                   ),
                 ),
@@ -792,8 +826,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: enabled ? onChanged : null,
             activeThumbColor: AppColors.activeColor,
             activeTrackColor: AppColors.activeColor.withValues(alpha: 0.3),
-            inactiveThumbColor: AppColors.textMuted,
-            inactiveTrackColor: AppColors.textMuted.withValues(alpha: 0.3),
+            inactiveThumbColor: _SettingsChrome.fg,
+            inactiveTrackColor: _SettingsChrome.border,
           ),
         ],
       ),
@@ -814,7 +848,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(
             title,
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: _SettingsChrome.fg,
               fontWeight: FontWeight.w600,
               fontSize: 16,
             ),
@@ -840,12 +874,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: Colors.black.withValues(alpha: 0.4),
+                  fillColor: _SettingsChrome.cardFill,
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.2),
-                    ),
+                    borderSide: BorderSide(color: _SettingsChrome.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -856,8 +888,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     vertical: 16,
                   ),
                 ),
-                dropdownColor: Colors.black.withValues(alpha: 0.9),
-                style: TextStyle(color: AppColors.textPrimary),
+                dropdownColor: _SettingsChrome.cardFill,
+                style: TextStyle(color: _SettingsChrome.fg),
               );
             },
           ),
@@ -2349,14 +2381,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   vertical: 16,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
+                  color: _SettingsChrome.cardFill,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
+                  border: Border.all(color: _SettingsChrome.border),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
+                      color: Colors.black.withValues(
+                        alpha: _SettingsChrome.light ? 0.10 : 0.2,
+                      ),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -2365,7 +2397,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Text(
                   message,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(color: _SettingsChrome.fg),
                 ),
               ),
             ),
@@ -2383,14 +2415,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
       context: context,
-      barrierColor: Colors.black54,
+      barrierColor: _SettingsChrome.light
+          ? Colors.black.withValues(alpha: 0.35)
+          : Colors.black54,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: AppColors.cardBackground,
-          content: Text(
-            message,
-            style: TextStyle(color: AppColors.textPrimary),
-          ),
+          backgroundColor: _SettingsChrome.cardFill,
+          surfaceTintColor: Colors.transparent,
+          content: Text(message, style: TextStyle(color: _SettingsChrome.fg)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
@@ -2410,7 +2442,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
+        backgroundColor: _SettingsChrome.cardFill,
+        surfaceTintColor: Colors.transparent,
         content: Row(
           children: [
             const SizedBox(
@@ -2425,10 +2458,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                message,
-                style: TextStyle(color: AppColors.textPrimary),
-              ),
+              child: Text(message, style: TextStyle(color: _SettingsChrome.fg)),
             ),
           ],
         ),
