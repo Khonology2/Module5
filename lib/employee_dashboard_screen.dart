@@ -1085,7 +1085,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 borderRadius: BorderRadius.circular(50),
               ),
               child: Image.asset(
-                'Innovation_Brainstorm/innovation_brainstorm_red_badge_white.png',
+                'assets/Sprints.png',
                 width: 78, // Increased from 24 to 48
                 height: 78, // Increased from 24 to 48
                 fit: BoxFit.contain,
@@ -1130,7 +1130,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             width: 64,
             height: 64,
             child: Image.asset(
-              'assets/Innovation_Brainstorm.png',
+              'assets/Sprints.png',
               fit: BoxFit.contain,
             ),
           ),
