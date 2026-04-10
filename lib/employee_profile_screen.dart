@@ -1265,506 +1265,498 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   }
 
   Widget _buildProfileContent() {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 32.0), // 2rem auto
-        constraints: const BoxConstraints(
-          maxWidth: 1000,
-        ), // match manager profile width
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.4),
-          borderRadius: BorderRadius.circular(12.0),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
-        ),
-        padding: const EdgeInsets.all(40.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Profile Photo Section - Centered at the top
-            Center(
-              child: Column(
-                children: [
-                  Container(
-                    width: 160,
-                    height: 160,
-                    decoration: BoxDecoration(
-                      color: const Color.fromARGB(25, 255, 255, 255),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color.fromARGB(51, 255, 255, 255),
-                        width: 2,
-                      ),
-                    ),
-                    child: ClipOval(
-                      child:
-                          (_profilePhotoUrl != null &&
-                              _profilePhotoUrl!.isNotEmpty)
-                          ? Image.network(
-                              _profilePhotoUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Image.asset(
-                                    'assets/Account_User_Profile/Profile.png',
-                                    fit: BoxFit.cover,
-                                  ),
-                            )
-                          : Image.asset(
-                              'assets/Account_User_Profile/Profile.png',
-                              fit: BoxFit.cover,
-                            ),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+      constraints: const BoxConstraints(
+        maxWidth: 1000,
+      ), // match manager profile width
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      ),
+      padding: const EdgeInsets.all(40.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Profile Photo Section - Centered at the top
+          Center(
+            child: Column(
+              children: [
+                Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: const Color.fromARGB(25, 255, 255, 255),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color.fromARGB(51, 255, 255, 255),
+                      width: 2,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ElevatedButton(
-                        onPressed: _pickAndUploadImage,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(
-                            25,
-                            255,
-                            255,
-                            255,
+                  child: ClipOval(
+                    child:
+                        (_profilePhotoUrl != null &&
+                            _profilePhotoUrl!.isNotEmpty)
+                        ? Image.network(
+                            _profilePhotoUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Image.asset(
+                                  'assets/Account_User_Profile/Profile.png',
+                                  fit: BoxFit.cover,
+                                ),
+                          )
+                        : Image.asset(
+                            'assets/Account_User_Profile/Profile.png',
+                            fit: BoxFit.cover,
                           ),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28),
-                          ),
-                          side: const BorderSide(
-                            color: Color.fromARGB(51, 255, 255, 255),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _pickAndUploadImage,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(
+                          25,
+                          255,
+                          255,
+                          255,
                         ),
-                        child: const Text(
-                          'Upload Photo',
-                          style: TextStyle(fontSize: 14),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        side: const BorderSide(
+                          color: Color.fromARGB(51, 255, 255, 255),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      if ((_profilePhotoUrl ?? '').isNotEmpty)
-                        TextButton(
-                          onPressed: _removeProfilePhoto,
-                          child: const Text('Remove Photo'),
+                      child: const Text(
+                        'Upload Photo',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if ((_profilePhotoUrl ?? '').isNotEmpty)
+                      TextButton(
+                        onPressed: _removeProfilePhoto,
+                        child: const Text('Remove Photo'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+          // Basic Information Section
+          _buildSectionCard(
+            children: [
+              _buildSectionTitle('Basic Information'),
+              const SizedBox(height: 24),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildInputLabel('Full Name'),
+                  _buildInputField(
+                    controller: _fullNameController,
+                    focusNode: _fullNameFocusNode,
+                    hintText: 'Enter your full name',
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Job Title / Role'),
+                  _buildJobTitleDropdown(),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Department / Team'),
+                  _buildDepartmentDropdown(),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Email Address'),
+                  _buildInputField(
+                    controller: _workEmailController,
+                    focusNode: _workEmailFocusNode,
+                    hintText: 'you@company.com',
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 40),
+
+          // Development & Skills Context Section
+          _buildSectionCard(
+            children: [
+              _buildSectionTitle('Development & Skills Context'),
+              const SizedBox(height: 24),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildInputLabel('Current Skills / Strengths'),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Type a skill and press Enter to add it as a tag',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildTagInput(
+                    controller: _skillsInputController,
+                    tagsList: _skills,
+                    hintText: 'e.g., Python, Project Management',
+                    onTagAdded: (tag) {
+                      setState(() {
+                        _skills.add(tag);
+                        _skillsInputController.clear();
+                      });
+                    },
+                    onTagRemoved: (tag) {
+                      setState(() {
+                        _skills.remove(tag);
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Areas for Development'),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Add each development focus as its own tag',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildTagInput(
+                    controller: _developmentInputController,
+                    tagsList: _developmentAreas,
+                    hintText: 'e.g., Machine Learning, Leadership',
+                    onTagAdded: (tag) {
+                      setState(() {
+                        _developmentAreas.add(tag);
+                        _developmentInputController.clear();
+                      });
+                    },
+                    onTagRemoved: (tag) {
+                      setState(() {
+                        _developmentAreas.remove(tag);
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _isAiHelpingProfile ? null : _runAiProfileHelper,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC10D00),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      '✨ AI help me fill my profile ✨',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildAiProfileHelperSummaryCard(),
+                  const SizedBox(height: 16),
+                  _buildInputLabel('Career Aspirations / Future Role'),
+                  _buildInputField(
+                    controller: _careerAspirationsController,
+                    focusNode: _careerAspirationsFocusNode,
+                    hintText: 'Describe where you see yourself...',
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Current Projects / Focus Areas (optional)'),
+                  _buildInputField(
+                    controller: _currentProjectsController,
+                    focusNode: _currentProjectsFocusNode,
+                    hintText: 'Share your current projects...',
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 40),
+
+          // Goal & Learning Preferences Section
+          _buildSectionCard(
+            children: [
+              _buildSectionTitle('Goal & Learning Preferences'),
+              const SizedBox(height: 24),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildInputLabel('Learning Style'),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color.fromARGB(13, 255, 255, 255),
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(color: Colors.transparent),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: _learningStyle,
+                        hint: const Text(
+                          'Select a style',
+                          style: TextStyle(color: Colors.white30),
                         ),
+                        dropdownColor: const Color(0xFF1F2840),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                        icon: const Icon(
+                          Icons.arrow_drop_down,
+                          color: Colors.white70,
+                        ),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _learningStyle = newValue;
+                          });
+                        },
+                        items:
+                            <String>[
+                              'Visual',
+                              'Hands-on',
+                              'Reading',
+                              'Collaborative',
+                            ].map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value.toLowerCase(),
+                                child: Text(value),
+                              );
+                            }).toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Preferred Development Activities'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      _buildCheckbox('Courses', 'courses'),
+                      _buildCheckbox('Mentorship', 'mentorship'),
+                      _buildCheckbox('Projects', 'projects'),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Short-Term Goals (next 3–6 months)'),
+                  _buildInputField(
+                    controller: _shortGoalsController,
+                    focusNode: _shortGoalsFocusNode,
+                    hintText: 'Describe your short-term goals...',
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Long-Term Goals (1–3 years)'),
+                  _buildInputField(
+                    controller: _longGoalsController,
+                    focusNode: _longGoalsFocusNode,
+                    hintText: 'Describe your long-term goals...',
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Notification Preferences'),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color.fromARGB(13, 255, 255, 255),
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(color: Colors.transparent),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: _notificationFrequency,
+                        hint: const Text(
+                          'Select frequency',
+                          style: TextStyle(color: Colors.white30),
+                        ),
+                        dropdownColor: const Color(0xFF1F2840),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                        icon: const Icon(
+                          Icons.arrow_drop_down,
+                          color: Colors.white70,
+                        ),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _notificationFrequency = newValue;
+                          });
+                        },
+                        items: <String>['Daily', 'Weekly', 'Monthly', 'None']
+                            .map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value.toLowerCase(),
+                                child: Text(value),
+                              );
+                            })
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Goal Visibility'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      _buildRadio(
+                        'Private',
+                        'private',
+                        _goalVisibility,
+                        (value) => setState(() => _goalVisibility = value),
+                      ),
+                      _buildRadio(
+                        'Manager Only',
+                        'manager',
+                        _goalVisibility,
+                        (value) => setState(() => _goalVisibility = value),
+                      ),
+                      _buildRadio(
+                        'Team Share',
+                        'team',
+                        _goalVisibility,
+                        (value) => setState(() => _goalVisibility = value),
+                      ),
                     ],
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 40),
-            // Basic Information Section
-            _buildSectionCard(
-              children: [
-                _buildSectionTitle('Basic Information'),
-                const SizedBox(height: 24),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildInputLabel('Full Name'),
-                    _buildInputField(
-                      controller: _fullNameController,
-                      focusNode: _fullNameFocusNode,
-                      hintText: 'Enter your full name',
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Job Title / Role'),
-                    _buildJobTitleDropdown(),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Department / Team'),
-                    _buildDepartmentDropdown(),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Email Address'),
-                    _buildInputField(
-                      controller: _workEmailController,
-                      focusNode: _workEmailFocusNode,
-                      hintText: 'you@company.com',
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 40),
+            ],
+          ),
+          const SizedBox(height: 40),
 
-            // Development & Skills Context Section
-            _buildSectionCard(
-              children: [
-                _buildSectionTitle('Development & Skills Context'),
-                const SizedBox(height: 24),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildInputLabel('Current Skills / Strengths'),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Type a skill and press Enter to add it as a tag',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildTagInput(
-                      controller: _skillsInputController,
-                      tagsList: _skills,
-                      hintText: 'e.g., Python, Project Management',
-                      onTagAdded: (tag) {
-                        setState(() {
-                          _skills.add(tag);
-                          _skillsInputController.clear();
-                        });
-                      },
-                      onTagRemoved: (tag) {
-                        setState(() {
-                          _skills.remove(tag);
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Areas for Development'),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Add each development focus as its own tag',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildTagInput(
-                      controller: _developmentInputController,
-                      tagsList: _developmentAreas,
-                      hintText: 'e.g., Machine Learning, Leadership',
-                      onTagAdded: (tag) {
-                        setState(() {
-                          _developmentAreas.add(tag);
-                          _developmentInputController.clear();
-                        });
-                      },
-                      onTagRemoved: (tag) {
-                        setState(() {
-                          _developmentAreas.remove(tag);
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: _isAiHelpingProfile
-                          ? null
-                          : _runAiProfileHelper,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFC10D00),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+          // Gamification & Motivation Section
+          _buildSectionCard(
+            children: [
+              _buildSectionTitle('Gamification'),
+              const SizedBox(height: 24),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildInputLabel('Opt-in to Leaderboards'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      _buildRadio(
+                        'Yes',
+                        'yes',
+                        _leaderboardOptin,
+                        (value) => setState(() => _leaderboardOptin = value),
                       ),
-                      child: const Text(
-                        '✨ AI help me fill my profile ✨',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                      _buildRadio(
+                        'No',
+                        'no',
+                        _leaderboardOptin,
+                        (value) => setState(() => _leaderboardOptin = value),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildAiProfileHelperSummaryCard(),
-                    const SizedBox(height: 16),
-                    _buildInputLabel('Career Aspirations / Future Role'),
-                    _buildInputField(
-                      controller: _careerAspirationsController,
-                      focusNode: _careerAspirationsFocusNode,
-                      hintText: 'Describe where you see yourself...',
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInputLabel(
-                      'Current Projects / Focus Areas (optional)',
-                    ),
-                    _buildInputField(
-                      controller: _currentProjectsController,
-                      focusNode: _currentProjectsFocusNode,
-                      hintText: 'Share your current projects...',
-                      maxLines: 3,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 40),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Preferred Badge Display Name'),
+                  _buildInputField(
+                    controller: _badgeNameController,
+                    focusNode: _badgeNameFocusNode,
+                    hintText: 'e.g., Super Coder',
+                  ),
+                  const SizedBox(height: 24),
+                  _buildInputLabel('Celebration Feed Consent'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      _buildRadio(
+                        'Share wins publicly',
+                        'public',
+                        _celebrationConsent,
+                        (value) => setState(() => _celebrationConsent = value),
+                      ),
+                      _buildRadio(
+                        'Private only',
+                        'private',
+                        _celebrationConsent,
+                        (value) => setState(() => _celebrationConsent = value),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 40),
 
-            // Goal & Learning Preferences Section
-            _buildSectionCard(
-              children: [
-                _buildSectionTitle('Goal & Learning Preferences'),
-                const SizedBox(height: 24),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildInputLabel('Learning Style'),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color.fromARGB(13, 255, 255, 255),
-                        borderRadius: BorderRadius.circular(8.0),
-                        border: Border.all(color: Colors.transparent),
+          // Action Buttons
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: AnimatedScale(
+                scale: _saveButtonScale,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+                child: Container(
+                  width: double.infinity,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    color: const Color(0xFFC10D00),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFC10D00).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          value: _learningStyle,
-                          hint: const Text(
-                            'Select a style',
-                            style: TextStyle(color: Colors.white30),
-                          ),
-                          dropdownColor: const Color(0xFF1F2840),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                          icon: const Icon(
-                            Icons.arrow_drop_down,
-                            color: Colors.white70,
-                          ),
-                          onChanged: (String? newValue) {
-                            setState(() {
-                              _learningStyle = newValue;
-                            });
-                          },
-                          items:
-                              <String>[
-                                'Visual',
-                                'Hands-on',
-                                'Reading',
-                                'Collaborative',
-                              ].map<DropdownMenuItem<String>>((String value) {
-                                return DropdownMenuItem<String>(
-                                  value: value.toLowerCase(),
-                                  child: Text(value),
-                                );
-                              }).toList(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Preferred Development Activities'),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
-                      children: [
-                        _buildCheckbox('Courses', 'courses'),
-                        _buildCheckbox('Mentorship', 'mentorship'),
-                        _buildCheckbox('Projects', 'projects'),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Short-Term Goals (next 3–6 months)'),
-                    _buildInputField(
-                      controller: _shortGoalsController,
-                      focusNode: _shortGoalsFocusNode,
-                      hintText: 'Describe your short-term goals...',
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Long-Term Goals (1–3 years)'),
-                    _buildInputField(
-                      controller: _longGoalsController,
-                      focusNode: _longGoalsFocusNode,
-                      hintText: 'Describe your long-term goals...',
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Notification Preferences'),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color.fromARGB(13, 255, 255, 255),
-                        borderRadius: BorderRadius.circular(8.0),
-                        border: Border.all(color: Colors.transparent),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          value: _notificationFrequency,
-                          hint: const Text(
-                            'Select frequency',
-                            style: TextStyle(color: Colors.white30),
-                          ),
-                          dropdownColor: const Color(0xFF1F2840),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                          icon: const Icon(
-                            Icons.arrow_drop_down,
-                            color: Colors.white70,
-                          ),
-                          onChanged: (String? newValue) {
-                            setState(() {
-                              _notificationFrequency = newValue;
-                            });
-                          },
-                          items: <String>['Daily', 'Weekly', 'Monthly', 'None']
-                              .map<DropdownMenuItem<String>>((String value) {
-                                return DropdownMenuItem<String>(
-                                  value: value.toLowerCase(),
-                                  child: Text(value),
-                                );
-                              })
-                              .toList(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Goal Visibility'),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
-                      children: [
-                        _buildRadio(
-                          'Private',
-                          'private',
-                          _goalVisibility,
-                          (value) => setState(() => _goalVisibility = value),
-                        ),
-                        _buildRadio(
-                          'Manager Only',
-                          'manager',
-                          _goalVisibility,
-                          (value) => setState(() => _goalVisibility = value),
-                        ),
-                        _buildRadio(
-                          'Team Share',
-                          'team',
-                          _goalVisibility,
-                          (value) => setState(() => _goalVisibility = value),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 40),
-
-            // Gamification & Motivation Section
-            _buildSectionCard(
-              children: [
-                _buildSectionTitle('Gamification'),
-                const SizedBox(height: 24),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildInputLabel('Opt-in to Leaderboards'),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
-                      children: [
-                        _buildRadio(
-                          'Yes',
-                          'yes',
-                          _leaderboardOptin,
-                          (value) => setState(() => _leaderboardOptin = value),
-                        ),
-                        _buildRadio(
-                          'No',
-                          'no',
-                          _leaderboardOptin,
-                          (value) => setState(() => _leaderboardOptin = value),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Preferred Badge Display Name'),
-                    _buildInputField(
-                      controller: _badgeNameController,
-                      focusNode: _badgeNameFocusNode,
-                      hintText: 'e.g., Super Coder',
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInputLabel('Celebration Feed Consent'),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
-                      children: [
-                        _buildRadio(
-                          'Share wins publicly',
-                          'public',
-                          _celebrationConsent,
-                          (value) =>
-                              setState(() => _celebrationConsent = value),
-                        ),
-                        _buildRadio(
-                          'Private only',
-                          'private',
-                          _celebrationConsent,
-                          (value) =>
-                              setState(() => _celebrationConsent = value),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 40),
-
-            // Action Buttons
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 500),
-                child: AnimatedScale(
-                  scale: _saveButtonScale,
-                  duration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOut,
-                  child: Container(
-                    width: double.infinity,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(28),
-                      color: const Color(0xFFC10D00),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFC10D00).withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: TextButton(
-                      onPressed: () async {
-                        // Pop-out animation
-                        setState(() {
-                          _saveButtonScale = 1.1;
-                        });
-                        await Future.delayed(const Duration(milliseconds: 150));
-                        setState(() {
-                          _saveButtonScale = 1.0;
-                        });
-                        // Save profile after animation
-                        _saveProfile();
-                      },
-                      child: const Text(
-                        'Save Profile',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Poppins',
-                          letterSpacing: 0.5,
-                        ),
+                    ],
+                  ),
+                  child: TextButton(
+                    onPressed: () async {
+                      // Pop-out animation
+                      setState(() {
+                        _saveButtonScale = 1.1;
+                      });
+                      await Future.delayed(const Duration(milliseconds: 150));
+                      setState(() {
+                        _saveButtonScale = 1.0;
+                      });
+                      // Save profile after animation
+                      _saveProfile();
+                    },
+                    child: const Text(
+                      'Save Profile',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Poppins',
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1775,7 +1767,10 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       // When embedded in MainLayout, return just the content without Scaffold/AppBar/background
       return Focus(
         debugLabel: 'EmployeeProfileScreen',
-        child: _buildProfileContent(),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: _buildProfileContent(),
+        ),
       );
     }
 
