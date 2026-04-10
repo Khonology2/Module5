@@ -418,9 +418,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/admin_dashboard': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: Builder(
-                    builder: (context) => AdminPortalScreen(),
-                  ),
+                  child: Builder(builder: (context) => AdminPortalScreen()),
                 ),
                 '/admin_profile': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
@@ -428,21 +426,15 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/manager_oversight': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: Builder(
-                    builder: (context) => AdminPortalScreen(),
-                  ),
+                  child: Builder(builder: (context) => AdminPortalScreen()),
                 ),
                 '/admin_inbox': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: Builder(
-                    builder: (context) => AdminPortalScreen(),
-                  ),
+                  child: Builder(builder: (context) => AdminPortalScreen()),
                 ),
                 '/org_leaderboard': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: Builder(
-                    builder: (context) => AdminPortalScreen(),
-                  ),
+                  child: Builder(builder: (context) => AdminPortalScreen()),
                 ),
                 '/admin_settings': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
@@ -582,7 +574,7 @@ class _MyAppState extends State<MyApp> {
                     items: SidebarConfig.managerItems,
                     body: const ManagerLeaderboardScreen(
                       embedded: true,
-
+                      compareManagers: true,
                     ),
                   ),
                 ),
@@ -834,8 +826,11 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
                     width: 28,
                     height: 28,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.smart_toy, color: Colors.white, size: 24),
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.smart_toy,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
                   backgroundColor: Colors.white,
                 ),
