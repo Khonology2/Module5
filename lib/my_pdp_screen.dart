@@ -1037,7 +1037,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             final shouldShowOwnGoals =
                 isMyWorkspace || widget.managerOwnGoalsOnly;
 
-            return Scaffold(body: _buildContent(context, shouldShowOwnGoals));
+            return _buildContent(context, shouldShowOwnGoals);
           },
     );
   }

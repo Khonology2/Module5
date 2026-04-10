@@ -1648,119 +1648,122 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
             ),
             const SizedBox(height: 40),
 
-          // Gamification & Motivation Section
-          _buildSectionCard(
-            children: [
-              _buildSectionTitle('Gamification'),
-              const SizedBox(height: 24),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildInputLabel('Opt-in to Leaderboards'),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 8,
-                    children: [
-                      _buildRadio(
-                        'Yes',
-                        'yes',
-                        _leaderboardOptin,
-                        (value) => setState(() => _leaderboardOptin = value),
-                      ),
-                      _buildRadio(
-                        'No',
-                        'no',
-                        _leaderboardOptin,
-                        (value) => setState(() => _leaderboardOptin = value),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  _buildInputLabel('Preferred Badge Display Name'),
-                  _buildInputField(
-                    controller: _badgeNameController,
-                    focusNode: _badgeNameFocusNode,
-                    hintText: 'e.g., Super Coder',
-                  ),
-                  const SizedBox(height: 24),
-                  _buildInputLabel('Celebration Feed Consent'),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 8,
-                    children: [
-                      _buildRadio(
-                        'Share wins publicly',
-                        'public',
-                        _celebrationConsent,
-                        (value) => setState(() => _celebrationConsent = value),
-                      ),
-                      _buildRadio(
-                        'Private only',
-                        'private',
-                        _celebrationConsent,
-                        (value) => setState(() => _celebrationConsent = value),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 40),
+            // Gamification & Motivation Section
+            _buildSectionCard(
+              children: [
+                _buildSectionTitle('Gamification'),
+                const SizedBox(height: 24),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildInputLabel('Opt-in to Leaderboards'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 8,
+                      children: [
+                        _buildRadio(
+                          'Yes',
+                          'yes',
+                          _leaderboardOptin,
+                          (value) => setState(() => _leaderboardOptin = value),
+                        ),
+                        _buildRadio(
+                          'No',
+                          'no',
+                          _leaderboardOptin,
+                          (value) => setState(() => _leaderboardOptin = value),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    _buildInputLabel('Preferred Badge Display Name'),
+                    _buildInputField(
+                      controller: _badgeNameController,
+                      focusNode: _badgeNameFocusNode,
+                      hintText: 'e.g., Super Coder',
+                    ),
+                    const SizedBox(height: 24),
+                    _buildInputLabel('Celebration Feed Consent'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 8,
+                      children: [
+                        _buildRadio(
+                          'Share wins publicly',
+                          'public',
+                          _celebrationConsent,
+                          (value) =>
+                              setState(() => _celebrationConsent = value),
+                        ),
+                        _buildRadio(
+                          'Private only',
+                          'private',
+                          _celebrationConsent,
+                          (value) =>
+                              setState(() => _celebrationConsent = value),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 40),
 
-          // Action Buttons
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: AnimatedScale(
-                scale: _saveButtonScale,
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
-                child: Container(
-                  width: double.infinity,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(28),
-                    color: const Color(0xFFC10D00),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFC10D00).withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: TextButton(
-                    onPressed: () async {
-                      // Pop-out animation
-                      setState(() {
-                        _saveButtonScale = 1.1;
-                      });
-                      await Future.delayed(const Duration(milliseconds: 150));
-                      setState(() {
-                        _saveButtonScale = 1.0;
-                      });
-                      // Save profile after animation
-                      _saveProfile();
-                    },
-                    child: const Text(
-                      'Save Profile',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Poppins',
-                        letterSpacing: 0.5,
+            // Action Buttons
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: AnimatedScale(
+                  scale: _saveButtonScale,
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOut,
+                  child: Container(
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(28),
+                      color: const Color(0xFFC10D00),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFC10D00).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: TextButton(
+                      onPressed: () async {
+                        // Pop-out animation
+                        setState(() {
+                          _saveButtonScale = 1.1;
+                        });
+                        await Future.delayed(const Duration(milliseconds: 150));
+                        setState(() {
+                          _saveButtonScale = 1.0;
+                        });
+                        // Save profile after animation
+                        _saveProfile();
+                      },
+                      child: const Text(
+                        'Save Profile',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Poppins',
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

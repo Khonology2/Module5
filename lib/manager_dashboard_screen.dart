@@ -17,7 +17,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/models/goal.dart';
-import 'package:intl/intl.dart';
+import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
@@ -51,7 +51,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   String _managerName = 'Manager';
   late Stream<List<EmployeeData>> _employeesStream;
   // legacy: profile photo url (unused in redesigned dashboard)
-  // String? _currentProfilePhotoUrl;
+  String? _currentProfilePhotoUrl;
   final Stopwatch _employeesLoadWatch = Stopwatch()..start();
 
   // Tutorial state
@@ -131,6 +131,57 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   void dispose() {
     _workspaceService.removeListener(_onWorkspaceChanged);
     super.dispose();
+  }
+
+  void _moveToNextTutorialStep() {
+    if (!mounted || !_shouldShowTutorial) return;
+
+    if (_currentTutorialStep < _sidebarTutorialKeys.length - 1) {
+      setState(() {
+        _currentTutorialStep++;
+      });
+
+      // Trigger showcase for next step
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && _shouldShowTutorial) {
+          try {
+            final keyContext =
+                _sidebarTutorialKeys[_currentTutorialStep].currentContext;
+            if (keyContext != null) {
+              ShowCaseWidget.of(
+                context,
+              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
+            }
+          } catch (e) {
+            developer.log(
+              'Could not start showcase for step $_currentTutorialStep: $e',
+              name: 'ManagerDashboardScreen',
+            );
+          }
+        }
+      });
+    } else {
+      _skipTutorial();
+    }
+  }
+
+  void _skipTutorial() async {
+    if (!mounted) return;
+
+    try {
+      ShowCaseWidget.of(context).dismiss();
+    } catch (e) {
+      // Ignore errors when dismissing
+    }
+
+    await ManagerTutorialService.instance.markTutorialCompleted();
+
+    if (mounted) {
+      setState(() {
+        _shouldShowTutorial = false;
+        _currentTutorialStep = 0;
+      });
+    }
   }
 
   void _onWorkspaceChanged() {
