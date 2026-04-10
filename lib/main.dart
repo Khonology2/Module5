@@ -357,11 +357,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/manager_profile': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
-                  child: MainLayout(
-                    title: 'Manager Profile',
-                    currentRouteName: '/manager_profile',
-                    body: const ManagerProfileScreen(embedded: true),
-                  ),
+                  child: const ManagerProfileScreen(),
                 ),
                 '/progress_visuals': (context) => MainLayout(
                   title: 'Progress Visuals',
@@ -370,11 +366,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/my_goal_workspace': (context) => RoleGate(
                   requiredRole: RequiredRole.employee,
-                  child: MainLayout(
-                    title: 'Goal Workspace',
-                    currentRouteName: '/my_goal_workspace',
-                    body: const MyGoalWorkspaceScreen(embedded: true),
-                  ),
+                  child: const MyGoalWorkspaceScreen(),
                 ),
                 '/gamification': (context) => const GamificationScreen(),
                 '/repository_audit': (context) => MainLayout(
@@ -387,11 +379,7 @@ class _MyAppState extends State<MyApp> {
                   currentRouteName: '/milestone_audit',
                   body: const MilestoneAuditScreen(),
                 ),
-                '/alerts_nudges': (context) => MainLayout(
-                  title: 'Alerts & Nudges',
-                  currentRouteName: '/alerts_nudges',
-                  body: const AlertsNudgesScreen(embedded: true),
-                ),
+                '/alerts_nudges': (context) => const AlertsNudgesScreen(),
                 '/season_challenge': (context) => const SeasonChallengeScreen(),
                 '/settings': (context) => MainLayout(
                   title: 'Settings & Privacy',
@@ -402,11 +390,7 @@ class _MyAppState extends State<MyApp> {
                   requiredRole: RequiredRole.manager,
                   child: const ManagerReviewTeamDashboardScreen(),
                 ),
-                '/badges_points': (context) => MainLayout(
-                  title: 'Badges & Points',
-                  currentRouteName: '/badges_points',
-                  body: const BadgesPointsScreen(embedded: true),
-                ),
+                '/badges_points': (context) => const BadgesPointsScreen(),
                 '/leaderboard': (context) => MainLayout(
                   title: 'Leaderboard',
                   currentRouteName: '/leaderboard',
@@ -422,11 +406,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/employee_dashboard': (context) => RoleGate(
                   requiredRole: RequiredRole.employee,
-                  child: MainLayout(
-                    title: 'Employee Dashboard',
-                    currentRouteName: '/employee_dashboard',
-                    body: const EmployeeDashboardScreen(embedded: true),
-                  ),
+                  child: const EmployeeDashboardScreen(),
                 ),
                 '/manager_portal': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
@@ -438,7 +418,9 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/admin_dashboard': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: Builder(builder: (context) => AdminPortalScreen()),
+                  child: Builder(
+                    builder: (context) => AdminPortalScreen(),
+                  ),
                 ),
                 '/admin_profile': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
@@ -446,15 +428,21 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/manager_oversight': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: Builder(builder: (context) => AdminPortalScreen()),
+                  child: Builder(
+                    builder: (context) => AdminPortalScreen(),
+                  ),
                 ),
                 '/admin_inbox': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: Builder(builder: (context) => AdminPortalScreen()),
+                  child: Builder(
+                    builder: (context) => AdminPortalScreen(),
+                  ),
                 ),
                 '/org_leaderboard': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: Builder(builder: (context) => AdminPortalScreen()),
+                  child: Builder(
+                    builder: (context) => AdminPortalScreen(),
+                  ),
                 ),
                 '/admin_settings': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
@@ -592,7 +580,10 @@ class _MyAppState extends State<MyApp> {
                     title: 'Leaderboard',
                     currentRouteName: '/manager_gw_menu_leaderboard',
                     items: SidebarConfig.managerItems,
-                    body: const LeaderboardScreen(),
+                    body: const ManagerLeaderboardScreen(
+                      embedded: true,
+
+                    ),
                   ),
                 ),
                 '/manager_gw_menu_badges': (context) => RoleGate(
@@ -843,11 +834,8 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
                     width: 28,
                     height: 28,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.smart_toy,
-                      color: Colors.white,
-                      size: 24,
-                    ),
+                    errorBuilder: (_, __, ___) =>
+                        const Icon(Icons.smart_toy, color: Colors.white, size: 24),
                   ),
                   backgroundColor: Colors.white,
                 ),
