@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.BE5.SIT",
-  "generated_at": "2026-04-10T09:33:50Z",
+  "version": "2026.04.CB5.SIT",
+  "generated_at": "2026-04-14T09:37:05Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -18,16 +18,16 @@
       "timestamp": "2026-04-07T10:46:18+02:00"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature - Enhance badge tracking error handling in ManagerAlertsNudgesScreen and ManagerEmployeeDetailScreen to ensure primary actions are not affected by badge tracking failures, improving user experience and logging for debugging.",
-      "timestamp": "2026-04-09T10:11:42+02:00"
-    },
-    {
       "author": "Nathi2266",
       "message": "first push",
       "timestamp": "2026-04-10T09:35:52+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "fix: update package versions and sha256 checksums in pubspec.lock",
+      "timestamp": "2026-04-14T11:36:30+02:00"
     }
   ],
   "total_commits": 5,
-  "date_range": "2026-04-10"
+  "date_range": "2026-04-14"
 }
