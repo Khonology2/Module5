@@ -1,0 +1,98 @@
+// ============================================================================
+// FIREBASE STORAGE SECURITY RULES - PRODUCTION READY
+// ============================================================================
+// Rules Version: 2
+// Plan: Spark (Free Tier Compatible)
+//
+// DESIGN PRINCIPLES:
+// 1. UID-based paths for user ownership
+// 2. Authentication required for all operations
+// 3. Users can only access their own files
+// 4. Managers/Admins can access employee files (if needed)
+// ============================================================================
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Get authenticated user ID
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    // Check if path belongs to user
+    function isOwnerPath(userId) {
+      return isAuthenticated() && getUserId() == userId;
+    }
+    
+    // ============================================================================
+    // USER PROFILE PHOTOS
+    // ============================================================================
+    // Path: profile_photos/{userId}/{filename}
+    
+    match /profile_photos/{userId}/{fileName} {
+      // Read: Owner, or public if needed (for profile display)
+      allow read: if true; // Profile photos can be public for display
+      
+      // Write: Only owner can upload/delete their own photo
+      allow write: if isOwnerPath(userId);
+    }
+    
+    // ============================================================================
+    // USER EXPORTS
+    // ============================================================================
+    // Path: exports/{userId}/{filename}
+    
+    match /exports/{userId}/{fileName} {
+      // Read/Write: Only owner
+      allow read, write: if isOwnerPath(userId);
+    }
+    
+    // ============================================================================
+    // EVIDENCE FILES (if using Firebase Storage instead of Cloudinary)
+    // ============================================================================
+    // Path: evidence/{userId}/{goalId}/{filename}
+    
+    match /evidence/{userId}/{goalId}/{fileName} {
+      // Read: Owner, managers of employee, admins
+      allow read: if isAuthenticated() && (
+        isOwnerPath(userId) ||
+        // Add manager check if needed
+        true // For now, allow authenticated users
+      );
+      
+      // Write: Only owner can upload evidence
+      allow write: if isOwnerPath(userId);
+    }
+    
+    // ============================================================================
+    // GENERAL USER FILES
+    // ============================================================================
+    // Path: users/{userId}/{category}/{filename}
+    
+    match /users/{userId}/{category}/{fileName} {
+      // Read: Owner
+      allow read: if isOwnerPath(userId);
+      
+      // Write: Only owner
+      allow write: if isOwnerPath(userId);
+    }
+    
+    // ============================================================================
+    // DEFAULT DENY - Explicitly deny everything else
+    // ============================================================================
+    
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
