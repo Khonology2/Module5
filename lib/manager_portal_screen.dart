@@ -20,6 +20,7 @@ import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
@@ -40,6 +41,7 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
+
   /// Incremented each time we navigate to manager_alerts_nudges so the screen loads fresh data.
   int _alertsScreenKey = 0;
 
@@ -50,6 +52,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     12,
     (index) => GlobalKey(),
   );
+
+  /// Matches [MainLayout]’s `AppSpacing.screenPadding` for bodies that do not
+  /// apply their own full-bleed inset (e.g. [MyPdpScreen] uses zero scroll padding).
+  static EdgeInsets _portalMainContentPadding(String route) {
+    switch (route) {
+      case '/my_pdp':
+      case '/manager_gw_menu_goal_workspace':
+        return AppSpacing.screenPadding;
+      default:
+        return EdgeInsets.zero;
+    }
+  }
 
   Widget _getBodyWidget() {
     switch (_currentRoute) {
@@ -213,17 +227,24 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                   onNavigate: _onNavigate,
                   currentRouteName: _currentRoute,
                   onLogout: _onLogout,
-                  tutorialStepIndex:
-                      _shouldShowTutorial ? _currentTutorialStep : null,
+                  tutorialStepIndex: _shouldShowTutorial
+                      ? _currentTutorialStep
+                      : null,
                   sidebarTutorialKeys:
                       _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-                          ? _sidebarTutorialKeys
-                          : null,
-                  onTutorialNext:
-                      _shouldShowTutorial ? _moveToNextTutorialStep : null,
+                      ? _sidebarTutorialKeys
+                      : null,
+                  onTutorialNext: _shouldShowTutorial
+                      ? _moveToNextTutorialStep
+                      : null,
                   onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
                 ),
-                Expanded(child: _getBodyWidget()),
+                Expanded(
+                  child: Padding(
+                    padding: _portalMainContentPadding(_currentRoute),
+                    child: _getBodyWidget(),
+                  ),
+                ),
               ],
             ),
             Positioned(
