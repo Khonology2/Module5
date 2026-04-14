@@ -139,7 +139,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/my_profile':
         return const EmployeeProfileScreen(embedded: true);
       default:
-        return const ManagerDashboardScreen();
+        return const ManagerDashboardScreen(embedded: true);
     }
   }
 
@@ -237,14 +237,16 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                   onNavigate: _onNavigate,
                   currentRouteName: _currentRoute,
                   onLogout: _onLogout,
-                  tutorialStepIndex:
-                      _shouldShowTutorial ? _currentTutorialStep : null,
+                  tutorialStepIndex: _shouldShowTutorial
+                      ? _currentTutorialStep
+                      : null,
                   sidebarTutorialKeys:
                       _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-                          ? _sidebarTutorialKeys
-                          : null,
-                  onTutorialNext:
-                      _shouldShowTutorial ? _moveToNextTutorialStep : null,
+                      ? _sidebarTutorialKeys
+                      : null,
+                  onTutorialNext: _shouldShowTutorial
+                      ? _moveToNextTutorialStep
+                      : null,
                   onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
                 ),
                 Expanded(child: _getBodyWidget()),
