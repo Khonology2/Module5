@@ -735,7 +735,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final sidebarItems =
         widget.forManagerGwMenu && widget.managerGwMenuRoute != null
         ? SidebarConfig.managerItems
-        : SidebarConfig.employeeItems;
+        : SidebarConfig.getItemsForCurrentWorkspace();
     final routeName =
         widget.forManagerGwMenu && widget.managerGwMenuRoute != null
         ? widget.managerGwMenuRoute!
@@ -1085,7 +1085,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 borderRadius: BorderRadius.circular(50),
               ),
               child: Image.asset(
-                'assets/Sprints.png',
+                'Innovation_Brainstorm/innovation_brainstorm_red_badge_white.png',
                 width: 78, // Increased from 24 to 48
                 height: 78, // Increased from 24 to 48
                 fit: BoxFit.contain,
@@ -1130,7 +1130,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             width: 64,
             height: 64,
             child: Image.asset(
-              'assets/Sprints.png',
+              'assets/Innovation_Brainstorm.png',
               fit: BoxFit.contain,
             ),
           ),

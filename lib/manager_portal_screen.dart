@@ -19,6 +19,8 @@ import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for l
 import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout navigation
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
+import 'package:pdh/leaderboard_screen.dart';
+import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
@@ -40,6 +42,7 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
+
   /// Incremented each time we navigate to manager_alerts_nudges so the screen loads fresh data.
   int _alertsScreenKey = 0;
 
@@ -126,6 +129,15 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         );
       case '/manager_gw_menu_repository':
         return const RepositoryAuditScreen();
+      // My Workspace routes for managers
+      case '/my_goal_workspace':
+        return const MyGoalWorkspaceScreen(embedded: true);
+      case '/leaderboard':
+        return const LeaderboardScreen();
+      case '/season_challenges':
+        return const EmployeeSeasonChallengesScreen(embedded: true);
+      case '/my_profile':
+        return const EmployeeProfileScreen(embedded: true);
       default:
         return const ManagerDashboardScreen();
     }
@@ -179,6 +191,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         }
       });
     }
+  }
+
+  @override
+  void dispose() {
+    // Cancel any pending operations
+    _shouldShowTutorial = false;
+    _currentTutorialStep = 0;
+
+    // Clean up tutorial keys
+    _sidebarTutorialKeys.clear();
+
+    super.dispose();
   }
 
   @override
