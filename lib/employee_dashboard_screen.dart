@@ -6,6 +6,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
@@ -746,10 +747,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       embedded: widget.embedded,
       items: sidebarItems,
       currentRouteName: routeName,
-      topRightAction: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [NotificationsBell()],
-      ),
+      topRightAction: null,
       tutorialStepIndex: tutorialStep,
       sidebarTutorialKeys: tutorialKeys,
       onTutorialNext: onTutorialNext,
@@ -1040,21 +1038,31 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
     return Row(
       children: [
-        Flexible(
-          child: Text(
-            'Employee Dashboard',
-            style: AppTypography.heading3.copyWith(color: _dashFg(context)),
-            overflow: TextOverflow.ellipsis,
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  'Employee Dashboard',
+                  style: AppTypography.heading3.copyWith(color: _dashFg(context)),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Flexible(
+                child: Text(
+                  'Hello, $userName',
+                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(width: AppSpacing.md),
-        Flexible(
-          child: Text(
-            'Hello, $userName',
-            style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
+        const MessagesIcon(),
+        const SizedBox(width: AppSpacing.sm),
+        const NotificationsBell(),
       ],
     );
   }
