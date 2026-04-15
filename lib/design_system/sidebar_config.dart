@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/widgets/sidebar.dart';
+import 'package:pdh/services/workspace_context_service.dart';
+import 'package:pdh/services/role_service.dart';
 
 /// Standard sidebar configuration for the Personal Development Hub app
 /// Provides consistent navigation items for different user roles
@@ -36,6 +38,136 @@ class SidebarConfig {
       route: route,
     );
   }
+
+  // ===== WORKSPACE-SPECIFIC ITEMS =====
+
+  /// My Workspace items (for employees and managers when in my workspace context)
+  static List<SidebarItem> get myWorkspaceItems => List.unmodifiable([
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Dashboard_White.png',
+      red: 'assets/Khonodemy Icons/Dashboard_Red.png',
+      label: 'Dashboard',
+      route: '/employee_dashboard',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Profile_White.png',
+      red: 'assets/Khonodemy Icons/Profile_Red.png',
+      label: 'Goal Workspace',
+      route: '/my_pdp',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
+      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+      label: 'Alerts & Nudges',
+      route: '/alerts_nudges',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
+      red: 'assets/Khonodemy Icons/GoalWorkspace_Red.png',
+      label: 'My PDP',
+      route: '/my_goal_workspace',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
+      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+      label: 'Progress Visuals',
+      route: '/progress_visuals',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
+      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+      label: 'Leaderboard',
+      route: '/leaderboard',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
+      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
+      label: 'Badges & Points',
+      route: '/badges_points',
+    ),
+    SidebarItem(
+      icon: Icons.emoji_events_outlined,
+      label: 'Season Challenges',
+      route: '/season_challenges',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
+      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
+      label: 'Repository & Audit',
+      route: '/repository_audit',
+    ),
+  ]);
+
+  /// Manager Workspace items (for managers when in manager workspace context)
+  static List<SidebarItem> get managerWorkspaceItems => List.unmodifiable([
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Dashboard_White.png',
+      red: 'assets/Khonodemy Icons/Dashboard_Red.png',
+      label: 'Dashboard',
+      route: '/dashboard',
+    ),
+    const SidebarItem(
+      icon: Icons.inbox_outlined,
+      label: 'Inbox',
+      route: '/manager_inbox',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
+      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+      label: 'Team Alerts & Nudges',
+      route: '/manager_alerts_nudges',
+    ),
+    SidebarItem(
+      icon: Icons.emoji_events,
+      label: 'Team Challenges',
+      route: '/team_challenges_seasons',
+    ),
+    SidebarItem(
+      icon: Icons.groups,
+      label: 'Team Review',
+      route: '/manager_review_team_dashboard',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
+      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+      label: 'Progress Visuals',
+      route: '/progress_visuals',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
+      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+      label: 'Leaderboard',
+      route: '/manager_leaderboard',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
+      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
+      label: 'Badges & Points',
+      route: '/manager_badges_points',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
+      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
+      label: 'Repository & Audit',
+      route: '/repository_audit',
+    ),
+  ]);
+
+  /// Global navigation items (always visible at bottom)
+  static List<SidebarItem> get globalItems => List.unmodifiable([
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Profile_White.png',
+      red: 'assets/Khonodemy Icons/Profile_Red.png',
+      label: 'My Profile',
+      route: '/my_profile',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Settings_White.png',
+      red: 'assets/Khonodemy Icons/Settings_Red.png',
+      label: 'Settings & Privacy',
+      route: '/settings',
+    ),
+  ]);
 
   // ===== EMPLOYEE SIDEBAR ITEMS =====
   // Use getters to avoid mutable static list ordering issues during hot reload,
@@ -117,52 +249,9 @@ class SidebarConfig {
       label: 'Dashboard',
       route: '/dashboard',
     ),
-    SidebarItem(
-      icon: Icons.person,
-      label: 'Manager Workspace',
-      route: '/my_pdp',
-      children: [
-        const SidebarItem(
-          label: 'Dashboard',
-          route: '/manager_gw_menu_dashboard',
-        ),
-        const SidebarItem(
-          label: 'Goal Workspace',
-          route: '/manager_gw_menu_goal_workspace',
-        ),
-        const SidebarItem(
-          label: 'Alerts & Nudges',
-          route: '/manager_gw_menu_alerts',
-        ),
-        const SidebarItem(
-          label: 'My PDP',
-          route: '/manager_gw_menu_my_pdp',
-        ),
-        const SidebarItem(
-          label: 'Progress Visuals',
-          route: '/manager_gw_menu_progress',
-        ),
-        const SidebarItem(
-          label: 'Leaderboard',
-          route: '/manager_gw_menu_leaderboard',
-        ),
-        const SidebarItem(
-          label: 'Badges & Points',
-          route: '/manager_gw_menu_badges',
-        ),
-        const SidebarItem(
-          label: 'Season Challenges',
-          route: '/manager_gw_menu_season_challenges',
-        ),
-        const SidebarItem(
-          label: 'Repository & Audit',
-          route: '/manager_gw_menu_repository',
-        ),
-      ],
-    ),
     const SidebarItem(
       icon: Icons.inbox_outlined,
-      label: 'Manager IBox',
+      label: 'Inbox',
       route: '/manager_inbox',
     ),
     itemWithAssets(
@@ -286,6 +375,32 @@ class SidebarConfig {
   ]);
 
   // ===== UTILITY METHODS =====
+
+  /// Get sidebar items based on workspace context and user role
+  static List<SidebarItem> getItemsForWorkspaceAndRole(
+    String role,
+    WorkspaceContext workspace,
+  ) {
+    final roleLower = role.toLowerCase();
+
+    // Employees only have access to My Workspace (personal goals)
+    if (roleLower == 'employee') {
+      return [...myWorkspaceItems, ...globalItems];
+    }
+
+    // Admins use admin items (no workspace switching)
+    if (roleLower == 'admin') {
+      return adminItems;
+    }
+
+    // Managers can switch between workspaces
+    if (workspace == WorkspaceContext.managerWorkspace) {
+      return [...managerWorkspaceItems, ...globalItems];
+    } else {
+      return [...myWorkspaceItems, ...globalItems];
+    }
+  }
+
   static List<SidebarItem> getItemsForRole(String role) {
     switch (role.toLowerCase()) {
       case 'employee':
@@ -322,6 +437,13 @@ class SidebarConfig {
       return managerItems;
     }
     return employeeItems;
+  }
+
+  /// Get sidebar items based on current workspace context
+  static List<SidebarItem> getItemsForCurrentWorkspace() {
+    final workspaceService = WorkspaceContextService();
+    final role = RoleService.instance.cachedRole ?? 'employee';
+    return getItemsForWorkspaceAndRole(role, workspaceService.currentContext);
   }
 
   static bool isRouteValidForRole(String route, String role) {

@@ -6,6 +6,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
@@ -735,7 +736,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final sidebarItems =
         widget.forManagerGwMenu && widget.managerGwMenuRoute != null
         ? SidebarConfig.managerItems
-        : SidebarConfig.employeeItems;
+        : SidebarConfig.getItemsForCurrentWorkspace();
     final routeName =
         widget.forManagerGwMenu && widget.managerGwMenuRoute != null
         ? widget.managerGwMenuRoute!
@@ -746,10 +747,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       embedded: widget.embedded,
       items: sidebarItems,
       currentRouteName: routeName,
-      topRightAction: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [NotificationsBell()],
-      ),
+      topRightAction: null,
       tutorialStepIndex: tutorialStep,
       sidebarTutorialKeys: tutorialKeys,
       onTutorialNext: onTutorialNext,
@@ -1040,21 +1038,31 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
     return Row(
       children: [
-        Flexible(
-          child: Text(
-            'Employee Dashboard',
-            style: AppTypography.heading3.copyWith(color: _dashFg(context)),
-            overflow: TextOverflow.ellipsis,
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  'Employee Dashboard',
+                  style: AppTypography.heading3.copyWith(color: _dashFg(context)),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Flexible(
+                child: Text(
+                  'Hello, $userName',
+                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(width: AppSpacing.md),
-        Flexible(
-          child: Text(
-            'Hello, $userName',
-            style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
+        const MessagesIcon(),
+        const SizedBox(width: AppSpacing.sm),
+        const NotificationsBell(),
       ],
     );
   }
@@ -1085,7 +1093,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 borderRadius: BorderRadius.circular(50),
               ),
               child: Image.asset(
-                'assets/Sprints.png',
+                'Innovation_Brainstorm/innovation_brainstorm_red_badge_white.png',
                 width: 78, // Increased from 24 to 48
                 height: 78, // Increased from 24 to 48
                 fit: BoxFit.contain,
@@ -1130,7 +1138,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             width: 64,
             height: 64,
             child: Image.asset(
-              'assets/Sprints.png',
+              'assets/Innovation_Brainstorm.png',
               fit: BoxFit.contain,
             ),
           ),
