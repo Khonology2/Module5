@@ -53,6 +53,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     (index) => GlobalKey(),
   );
 
+  /// Matches [MainLayout]’s `AppSpacing.screenPadding` for bodies that do not
+  /// apply their own full-bleed inset (e.g. [MyPdpScreen] uses zero scroll padding).
+  static EdgeInsets _portalMainContentPadding(String route) {
+    switch (route) {
+      case '/my_pdp':
+      case '/manager_gw_menu_goal_workspace':
+        return AppSpacing.screenPadding;
+      default:
+        return EdgeInsets.zero;
+    }
+  }
+
   Widget _getBodyWidget() {
     switch (_currentRoute) {
       case '/dashboard':
@@ -236,17 +248,24 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                   onNavigate: _onNavigate,
                   currentRouteName: _currentRoute,
                   onLogout: _onLogout,
-                  tutorialStepIndex:
-                      _shouldShowTutorial ? _currentTutorialStep : null,
+                  tutorialStepIndex: _shouldShowTutorial
+                      ? _currentTutorialStep
+                      : null,
                   sidebarTutorialKeys:
                       _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-                          ? _sidebarTutorialKeys
-                          : null,
-                  onTutorialNext:
-                      _shouldShowTutorial ? _moveToNextTutorialStep : null,
+                      ? _sidebarTutorialKeys
+                      : null,
+                  onTutorialNext: _shouldShowTutorial
+                      ? _moveToNextTutorialStep
+                      : null,
                   onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
                 ),
-                Expanded(child: _getBodyWidget()),
+                Expanded(
+                  child: Padding(
+                    padding: _portalMainContentPadding(_currentRoute),
+                    child: _getBodyWidget(),
+                  ),
+                ),
               ],
             ),
             if (_currentRoute != '/dashboard')
