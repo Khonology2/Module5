@@ -983,7 +983,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       required int cols,
       required List<Widget> tiles,
     }) {
-      final tileAspectRatio = cols == 1 ? 4.2 : 2.3;
+      // Use fixed tile heights instead of width-derived aspect ratios.
+      // This prevents bottom RenderFlex overflows when browser zoom/viewport
+      // makes width-based tiles too short for 3 lines of KPI content.
+      final double tileHeight = cols == 1 ? 96.0 : 118.0;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -992,14 +995,17 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
           ),
           const SizedBox(height: AppSpacing.md),
-          GridView.count(
-            crossAxisCount: cols,
-            crossAxisSpacing: AppSpacing.md,
-            mainAxisSpacing: AppSpacing.md,
+          GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: tileAspectRatio,
-            children: tiles,
+            itemCount: tiles.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: cols,
+              crossAxisSpacing: AppSpacing.md,
+              mainAxisSpacing: AppSpacing.md,
+              mainAxisExtent: tileHeight,
+            ),
+            itemBuilder: (context, index) => tiles[index],
           ),
         ],
       );
