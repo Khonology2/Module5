@@ -244,7 +244,13 @@ class AlertService {
       message: '$employeeName accepted your 1:1 request$when.',
       actionText: 'View',
       actionRoute: actionRouteOverride ?? '/manager_inbox',
-      actionData: {'meetingId': meetingId},
+      actionData: {
+        'meetingId': meetingId,
+        if (acceptedStartDateTime != null)
+          'meetingStartDateTime': Timestamp.fromDate(acceptedStartDateTime),
+        if (acceptedEndDateTime != null)
+          'meetingEndDateTime': Timestamp.fromDate(acceptedEndDateTime),
+      },
       createdAt: DateTime.now(),
       fromUserId: employeeId,
       fromUserName: employeeName,
