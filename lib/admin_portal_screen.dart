@@ -3,6 +3,7 @@ import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/widgets/messages_icon.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/sign_in_screen.dart';
 import 'package:pdh/admin_profile_screen.dart';
@@ -155,58 +156,25 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
                 Expanded(child: _getBodyWidget()),
               ],
             ),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  NotificationsBell(onTap: () => _onNavigate('/admin_inbox')),
-                  const SizedBox(width: 8),
-                  _buildProfileButton(context),
-                ],
+            if (_currentRoute != '/admin_dashboard')
+              Positioned(
+                top: 24,
+                right: 24,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const MessagesIcon(),
+                    const SizedBox(width: 8),
+                    NotificationsBell(onTap: () => _onNavigate('/admin_inbox')),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProfileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    String userName = 'Admin';
-    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
-    }
-    return InkWell(
-      onTap: () {
-        _onNavigate('/admin_profile');
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: DashboardChrome.cardFill,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: DashboardChrome.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.person, color: DashboardChrome.fg, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _AdminPlaceholder extends StatelessWidget {

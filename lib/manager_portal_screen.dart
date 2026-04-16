@@ -19,15 +19,15 @@ import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for l
 import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout navigation
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
-import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/design_system/app_spacing.dart';
-import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/leaderboard_screen.dart';
+import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
@@ -140,6 +140,15 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         );
       case '/manager_gw_menu_repository':
         return const RepositoryAuditScreen();
+      // My Workspace routes for managers
+      case '/my_goal_workspace':
+        return const MyGoalWorkspaceScreen(embedded: true);
+      case '/leaderboard':
+        return const LeaderboardScreen();
+      case '/season_challenges':
+        return const EmployeeSeasonChallengesScreen(embedded: true);
+      case '/my_profile':
+        return const EmployeeProfileScreen(embedded: true);
       default:
         return const ManagerDashboardScreen();
     }
@@ -196,6 +205,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   @override
+  void dispose() {
+    // Cancel any pending operations
+    _shouldShowTutorial = false;
+    _currentTutorialStep = 0;
+
+    // Clean up tutorial keys
+    _sidebarTutorialKeys.clear();
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!_didInitFromArgs) {
       final args = ModalRoute.of(context)?.settings.arguments;
@@ -247,18 +268,19 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                 ),
               ],
             ),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const NotificationsBell(),
-                  const SizedBox(width: 8),
-                  _buildProfileButton(context),
-                ],
+            if (_currentRoute != '/dashboard')
+              Positioned(
+                top: 24,
+                right: 24,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const MessagesIcon(),
+                    const SizedBox(width: 8),
+                    const NotificationsBell(),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -499,41 +521,4 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     }
   }
 
-  Widget _buildProfileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    String userName = 'User';
-    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
-    }
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ManagerProfileScreen()),
-        );
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderColor),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.person, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: AppTypography.bodySmall.copyWith(color: Colors.white),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

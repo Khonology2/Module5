@@ -122,7 +122,7 @@ class AppScaffold extends StatelessWidget {
                 ),
               ),
               if (topRightAction != null)
-                Positioned(top: 8, right: 8, child: topRightAction!),
+                Positioned(top: 24, right: 24, child: topRightAction!),
             ],
           ),
         ),
@@ -194,8 +194,8 @@ class AppScaffold extends StatelessWidget {
                         ),
                         if (topRightAction != null)
                           Positioned(
-                            top: 16,
-                            right: 16,
+                            top: 24,
+                            right: 24,
                             child: topRightAction!,
                           ),
                       ],
