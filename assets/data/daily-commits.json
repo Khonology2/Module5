@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.CD8.SIT",
-  "generated_at": "2026-04-16T20:47:32Z",
+  "version": "2026.04.CD9.SIT",
+  "generated_at": "2026-04-16T21:00:44Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -39,10 +39,15 @@
     },
     {
       "author": "Thembelihle",
+      "message": "feature - enhance manager inbox alert handling with improved context switching mode.",
+      "timestamp": "2026-04-16T23:00:20+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "feature - improve goal handling and alert suppression logic across multiple screens",
       "timestamp": "2026-04-16T22:47:01+02:00"
     }
   ],
-  "total_commits": 8,
+  "total_commits": 9,
   "date_range": "2026-04-16"
 }
