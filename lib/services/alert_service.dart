@@ -1538,7 +1538,7 @@ class AlertService {
         final daysUntilDue = goal.targetDate.difference(DateTime.now()).inDays;
         if (daysUntilDue <= 7 &&
             daysUntilDue > 0 &&
-            goal.status != GoalStatus.completed) {
+            goal.isEligibleForOverdueTeamAlert) {
           // Check if alert already exists
           final existingAlert = await _firestore
               .collection('alerts')
@@ -1558,7 +1558,7 @@ class AlertService {
         }
 
         // Overdue alerts (employee) and notify manager when 1 day overdue
-        if (daysUntilDue < 0 && goal.status != GoalStatus.completed) {
+        if (daysUntilDue < 0 && goal.isEligibleForOverdueTeamAlert) {
           final existingAlert = await _firestore
               .collection('alerts')
               .where('userId', isEqualTo: user.uid)
