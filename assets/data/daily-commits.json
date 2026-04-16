@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.BE20.SIT",
-  "generated_at": "2026-04-10T14:43:17Z",
+  "version": "2026.04.CD17.SIT",
+  "generated_at": "2026-04-16T15:12:21Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -84,25 +84,10 @@
     },
     {
       "author": "BhutSipho",
-      "message": "Merge All Branches",
-      "timestamp": "2026-04-10T16:38:35+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Pubspec-Update",
-      "timestamp": "2026-04-10T13:25:41+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Fix: Screens Rendering Incorrect Data",
-      "timestamp": "2026-04-10T12:50:42+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Fix:Layout Overflow Issue On Manager Profile",
-      "timestamp": "2026-04-10T10:34:55+02:00"
+      "message": "fix(manager-portal): align workspace routing",
+      "timestamp": "2026-04-16T17:10:44+02:00"
     }
   ],
-  "total_commits": 20,
-  "date_range": "2026-04-10"
+  "total_commits": 17,
+  "date_range": "2026-04-16"
 }
