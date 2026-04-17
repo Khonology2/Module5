@@ -68,7 +68,7 @@ jobs:
           cache: false
 
       - name: Install dependencies
-        run: flutter pub get --enforce-lockfile
+        run: flutter pub get
 
       - name: Analyze
         run: flutter analyze
