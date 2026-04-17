@@ -246,6 +246,8 @@ class AlertService {
       actionRoute: actionRouteOverride ?? '/manager_inbox',
       actionData: {
         'meetingId': meetingId,
+        'employeeId': employeeId,
+        'lineManagerId': managerId,
         if (acceptedStartDateTime != null)
           'meetingStartDateTime': Timestamp.fromDate(acceptedStartDateTime),
         if (acceptedEndDateTime != null)
@@ -288,6 +290,8 @@ class AlertService {
       actionRoute: actionRouteOverride ?? '/manager_inbox',
       actionData: {
         'meetingId': meetingId,
+        'employeeId': employeeId,
+        'lineManagerId': managerId,
         'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
         'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
       },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -9,6 +10,7 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/one_on_one_meeting_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/goal.dart';
@@ -161,6 +163,67 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     return alert.audience == AlertAudience.team ||
         title.contains('employee') ||
         msg.contains('review and decide next step');
+  }
+
+  bool _isManagerFacingOneOnOneInboxAlert(Alert alert) {
+    switch (alert.type) {
+      case AlertType.oneOnOneAccepted:
+      case AlertType.oneOnOneRescheduled:
+      case AlertType.oneOnOneCancelled:
+        final mid = alert.actionData?['meetingId']?.toString().trim();
+        return mid != null && mid.isNotEmpty;
+      default:
+        return false;
+    }
+  }
+
+  Future<void> _openOneOnOneReviewFromInbox(Alert alert) async {
+    final data = alert.actionData ?? const <String, dynamic>{};
+    var meetingId = data['meetingId']?.toString().trim();
+    var employeeId = data['employeeId']?.toString().trim();
+    var lineManagerId = data['lineManagerId']?.toString().trim();
+
+    if (employeeId == null || employeeId.isEmpty) {
+      employeeId = alert.fromUserId?.toString().trim();
+    }
+
+    if (meetingId == null || meetingId.isEmpty) {
+      return;
+    }
+
+    if (lineManagerId == null || lineManagerId.isEmpty) {
+      final m = await OneOnOneMeetingService.getMeeting(meetingId);
+      lineManagerId = m?.managerId;
+      if (employeeId == null || employeeId.isEmpty) {
+        employeeId = m?.employeeId;
+      }
+    }
+
+    if (employeeId == null || employeeId.isEmpty) {
+      return;
+    }
+
+    if (widget.forAdminOversight) {
+      final merged = <String, dynamic>{
+        'initialRoute': '/admin_team_review',
+        'meetingId': meetingId,
+        'employeeId': employeeId,
+        if (lineManagerId != null && lineManagerId.isNotEmpty)
+          'selectedManagerId': lineManagerId,
+      };
+      if (!mounted) return;
+      Navigator.pushNamed(context, '/admin_portal', arguments: merged);
+      return;
+    }
+
+    if (!mounted) return;
+    _navigateInboxByAlertRoute(
+      '/manager_review_team_dashboard',
+      arguments: <String, dynamic>{
+        'employeeId': employeeId,
+        'meetingId': meetingId,
+      },
+    );
   }
 
   DateTime? _parseAlertActionDate(dynamic v) {
@@ -1725,6 +1788,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   icon: const Icon(Icons.visibility_outlined),
                   label: const Text('View Goal'),
                 )
+              else if (_isManagerFacingOneOnOneInboxAlert(alert))
+                TextButton.icon(
+                  onPressed: () => _openOneOnOneReviewFromInbox(alert),
+                  icon: const Icon(Icons.event_available_outlined),
+                  label: const Text('Review'),
+                )
               else if (alert.type == AlertType.managerNudge &&
                   alert.relatedGoalId != null &&
                   alert.relatedGoalId!.isNotEmpty) ...[
@@ -1769,14 +1838,24 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               else if (alert.actionText != null && alert.actionRoute != null)
                 TextButton.icon(
                   onPressed: () {
-                    final route = alert.actionRoute!;
+                    var targetRoute = alert.actionRoute!;
                     Object? args;
 
-                    // Deep-link 1:1 meeting alerts into the Review Team Dashboard.
-                    if (route == '/manager_review_team_dashboard') {
+                    // Deep-link 1:1 meeting alerts into Team Review (not raw inbox).
+                    if (targetRoute == '/manager_review_team_dashboard' ||
+                        targetRoute == '/manager_inbox' ||
+                        targetRoute == '/admin_inbox' ||
+                        targetRoute == '/manager_gw_menu_alerts') {
                       final data =
                           alert.actionData ?? const <String, dynamic>{};
                       final meetingId = data['meetingId']?.toString().trim();
+                      if (meetingId != null && meetingId.isNotEmpty) {
+                        if (widget.forAdminOversight) {
+                          unawaited(_openOneOnOneReviewFromInbox(alert));
+                          return;
+                        }
+                        targetRoute = '/manager_review_team_dashboard';
+                      }
                       final employeeIdRaw = data['employeeId']
                           ?.toString()
                           .trim();
@@ -1799,7 +1878,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       args = {'goalId': alert.relatedGoalId};
                     }
 
-                    _navigateInboxByAlertRoute(route, arguments: args);
+                    _navigateInboxByAlertRoute(targetRoute, arguments: args);
                   },
                   icon: const Icon(Icons.open_in_new),
                   label: Text(alert.actionText!),

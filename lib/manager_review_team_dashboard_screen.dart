@@ -8,6 +8,7 @@ import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/audit_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/one_on_one_meeting_service.dart';
+import 'package:pdh/services/database_service.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/models/goal.dart';
@@ -55,6 +56,12 @@ class _ManagerReviewTeamDashboardScreenState
   String? _initialMeetingId;
   bool _initialMeetingHandled = false;
 
+  /// When the team stream is empty but we opened a 1:1 from inbox, show this row
+  /// behind the sheet (and clear it once real stream data arrives).
+  List<EmployeeData>? _oneOnOneBackdropEmployees;
+  /// Line manager for the meeting (for on-page context while the sheet is open).
+  String? _oneOnOneLineManagerName;
+
   /// When set, only employees matching this KPI filter are shown (from dashboard drill-down).
   String? _statusFilter;
   bool _routeFilterApplied = false;
@@ -71,6 +78,37 @@ class _ManagerReviewTeamDashboardScreenState
       }
     }
     _rebuildStreams();
+  }
+
+  @override
+  void didUpdateWidget(ManagerReviewTeamDashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    var needsRebuild = false;
+    final wEmp = widget.initialEmployeeId?.trim();
+    if (wEmp != null &&
+        wEmp.isNotEmpty &&
+        (_initialEmployeeId == null || _initialEmployeeId!.trim().isEmpty)) {
+      _initialEmployeeId = wEmp;
+      needsRebuild = true;
+    }
+    final wMeet = widget.initialMeetingId?.trim();
+    if (wMeet != null &&
+        wMeet.isNotEmpty &&
+        (_initialMeetingId == null || _initialMeetingId!.trim().isEmpty)) {
+      _initialMeetingId = wMeet;
+      needsRebuild = true;
+    }
+    final oldSel = oldWidget.selectedManagerId?.trim();
+    final newSel = widget.selectedManagerId?.trim();
+    if (widget.forAdminOversight && oldSel != newSel) {
+      _oneOnOneBackdropEmployees = null;
+      _oneOnOneLineManagerName = null;
+      _rebuildStreams();
+      needsRebuild = true;
+    }
+    if (needsRebuild && mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -97,19 +135,83 @@ class _ManagerReviewTeamDashboardScreenState
     }
   }
 
+  bool _hasPendingOneOnOneDeepLink() {
+    final e = _initialEmployeeId?.trim();
+    final m = _initialMeetingId?.trim();
+    return e != null && e.isNotEmpty && m != null && m.isNotEmpty;
+  }
+
   void _maybeOpenInitialMeeting(List<EmployeeData> employees) {
     if (_initialMeetingHandled) return;
-    final employeeId = _initialEmployeeId;
+    final employeeId = _initialEmployeeId?.trim();
     if (employeeId == null || employeeId.isEmpty) return;
 
-    final match = employees.where((e) => e.profile.uid == employeeId).toList();
-    if (match.isEmpty) return;
+    final meetingId = _initialMeetingId?.trim();
 
-    _initialMeetingHandled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _scheduleOneOnOne(match.first, meetingId: _initialMeetingId);
-    });
+    final match = employees.where((e) => e.profile.uid == employeeId).toList();
+    if (match.isNotEmpty) {
+      _initialMeetingHandled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scheduleOneOnOne(match.first, meetingId: meetingId);
+      });
+      return;
+    }
+
+    // Team stream can be empty or omit this employee (timing, filters, admin roster).
+    // Still open the 1:1 sheet from profile + meeting id so Review from inbox works.
+    if (meetingId != null && meetingId.isNotEmpty) {
+      _initialMeetingHandled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        try {
+          final profile = await DatabaseService.getUserProfile(employeeId);
+          if (!mounted) return;
+          final now = DateTime.now();
+          final minimal = EmployeeData(
+            profile: profile,
+            goals: const [],
+            recentActivities: const [],
+            recentAlerts: const [],
+            completedGoalsCount: 0,
+            overdueGoalsCount: 0,
+            totalPoints: profile.totalPoints,
+            lastActivity: profile.lastActivityAt ??
+                profile.lastLoginAt ??
+                now.subtract(const Duration(days: 1)),
+            avgProgress: 0.0,
+            streakDays: 0,
+            status: EmployeeStatus.onTrack,
+            weeklyActivityCount: 0,
+            engagementScore: 0.0,
+            motivationLevel: 'N/A',
+          );
+
+          String? mgrName;
+          try {
+            final mtg = await OneOnOneMeetingService.getMeeting(meetingId);
+            if (mtg != null && mtg.managerId.trim().isNotEmpty) {
+              final mgr = await DatabaseService.getUserProfile(mtg.managerId);
+              final n = mgr.displayName.trim();
+              if (n.isNotEmpty) mgrName = n;
+            }
+          } catch (_) {}
+
+          if (mounted) {
+            setState(() {
+              _oneOnOneBackdropEmployees = [minimal];
+              _oneOnOneLineManagerName = mgrName;
+            });
+          }
+          if (!mounted) return;
+          _scheduleOneOnOne(minimal, meetingId: meetingId);
+        } catch (_) {
+          if (mounted) {
+            _initialMeetingHandled = false;
+          }
+        }
+      });
+    }
   }
 
   void _rebuildStreams() {
@@ -530,24 +632,61 @@ class _ManagerReviewTeamDashboardScreenState
                         // If we only have placeholders and no enriched cache yet,
                         // still show employees immediately (for "Last active"),
                         // but render goal/metrics sections as "Loading..." in each card.
-                        final employees = hasPlaceholderBatch
+                        final streamEmployees = hasPlaceholderBatch
                             ? incoming
                             : (employeesSnapshot.data ?? _lastEmployees);
 
-                        if (employees.isEmpty) {
+                        // Prefer live stream; fall back to inbox deep-link row so the page
+                        // never shows "no team" behind an active 1:1 sheet.
+                        var displayEmployees = streamEmployees;
+                        if (streamEmployees.isEmpty &&
+                            _oneOnOneBackdropEmployees != null &&
+                            _oneOnOneBackdropEmployees!.isNotEmpty) {
+                          displayEmployees = _oneOnOneBackdropEmployees!;
+                        }
+
+                        if (streamEmployees.isNotEmpty &&
+                            !hasPlaceholderBatch &&
+                            _oneOnOneBackdropEmployees != null) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted || _oneOnOneBackdropEmployees == null) {
+                              return;
+                            }
+                            setState(() {
+                              _oneOnOneBackdropEmployees = null;
+                              _oneOnOneLineManagerName = null;
+                            });
+                          });
+                        }
+
+                        if (displayEmployees.isEmpty) {
                           if (employeesSnapshot.connectionState ==
                               ConnectionState.waiting) {
+                            return _buildLoadingState();
+                          }
+                          // Inbox deep-link can arrive before team stream has rows, or the
+                          // employee may not appear in the filtered stream — still open 1:1.
+                          if (_hasPendingOneOnOneDeepLink() &&
+                              !_initialMeetingHandled) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                _maybeOpenInitialMeeting(
+                                  const <EmployeeData>[],
+                                );
+                              }
+                            });
                             return _buildLoadingState();
                           }
                           return _buildEmptyState();
                         }
 
-                        final insights =
-                            hasPlaceholderBatch ? const <TeamInsight>[] : _computeInsights(employees);
+                        final insights = hasPlaceholderBatch
+                            ? const <TeamInsight>[]
+                            : _computeInsights(displayEmployees);
 
                         // Deep-link from alerts (if provided) once we have a real employee list.
                         if (!hasPlaceholderBatch) {
-                          _maybeOpenInitialMeeting(employees);
+                          _maybeOpenInitialMeeting(streamEmployees);
                         }
 
                         return Column(
@@ -564,11 +703,22 @@ class _ManagerReviewTeamDashboardScreenState
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            if (_oneOnOneLineManagerName != null &&
+                                _oneOnOneLineManagerName!.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                '1:1 with line manager: ${_oneOnOneLineManagerName!.trim()}',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 10),
                             _buildEmployeeSearchBar(
-                              totalCount: employees.length,
+                              totalCount: displayEmployees.length,
                               filteredCount: _filterByStatus(
-                                    _filterEmployees(employees),
+                                    _filterEmployees(displayEmployees),
                                   ).length,
                             ),
                             if (_statusFilter != null) ...[
@@ -577,11 +727,11 @@ class _ManagerReviewTeamDashboardScreenState
                             ],
                             const SizedBox(height: 12),
                             if (_filterByStatus(
-                                  _filterEmployees(employees),
+                                  _filterEmployees(displayEmployees),
                                 ).isNotEmpty)
                               _buildRealTimeEmployeeList(
                                 _filterByStatus(
-                                  _filterEmployees(employees),
+                                  _filterEmployees(displayEmployees),
                                 ),
                               )
                             else
@@ -1820,7 +1970,9 @@ class _ManagerReviewTeamDashboardScreenState
         final m = await OneOnOneMeetingService.getMeeting(requestedMeetingId);
         final sameEmployee = m?.employeeId == employee.profile.uid;
         final sameManager = managerId == null || m?.managerId == managerId;
-        if (m != null && sameEmployee && sameManager) {
+        final adminOversightOk =
+            widget.forAdminOversight && m != null && sameEmployee;
+        if (m != null && sameEmployee && (sameManager || adminOversightOk)) {
           existing = m;
         }
       } catch (_) {

@@ -18,6 +18,7 @@ import 'package:pdh/admin_badges_points_screen.dart';
 import 'package:pdh/admin_repository_audit_screen.dart';
 import 'package:pdh/admin_settings_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/services/one_on_one_meeting_service.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -33,6 +34,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   String? _selectedManagerId;
   String? _initialReviewEmployeeId;
   String? _initialReviewMeetingId;
+  bool _startedMeetingManagerResolution = false;
 
   Widget _getBodyWidget() {
     if (_currentRoute == '/admin_dashboard') {
@@ -114,7 +116,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
           _currentRoute = initial;
         }
         final selectedManagerRaw =
-            args['selectedManagerId'] ?? args['employeeId'];
+            args['selectedManagerId'] ?? args['lineManagerId'];
         final selectedManager = selectedManagerRaw?.toString().trim();
         if (selectedManager != null && selectedManager.isNotEmpty) {
           _selectedManagerId = selectedManager;
@@ -139,6 +141,28 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
       }
       _didInitFromArgs = true;
     }
+
+    if (_didInitFromArgs &&
+        !_startedMeetingManagerResolution &&
+        _initialReviewMeetingId != null &&
+        _initialReviewMeetingId!.trim().isNotEmpty &&
+        (_selectedManagerId == null || _selectedManagerId!.trim().isEmpty)) {
+      _startedMeetingManagerResolution = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final mid = _initialReviewMeetingId?.trim();
+        if (mid == null || mid.isEmpty) return;
+        final m = await OneOnOneMeetingService.getMeeting(mid);
+        if (!mounted || m == null) return;
+        setState(() {
+          _selectedManagerId = m.managerId;
+          if (_initialReviewEmployeeId == null ||
+              _initialReviewEmployeeId!.trim().isEmpty) {
+            _initialReviewEmployeeId = m.employeeId;
+          }
+        });
+      });
+    }
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
