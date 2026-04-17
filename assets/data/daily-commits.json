@@ -1,7 +1,17 @@
 {
-  "version": "2026.04.CB10.SIT",
-  "generated_at": "2026-04-17T08:06:38Z",
+  "version": "2026.04.CB12.SIT",
+  "generated_at": "2026-04-17T08:10:17Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "chore: simplify dependency installation in deploy workflow",
+      "timestamp": "2026-04-17T10:09:58+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "chore: update daily commits data [2026-04-17] [skip ci]",
+      "timestamp": "2026-04-17T08:06:38Z"
+    },
     {
       "author": "Nathi2266",
       "message": "fix: remove conditional check for deployment job in workflow",
@@ -53,6 +63,6 @@
       "timestamp": "2026-04-17T09:42:52+02:00"
     }
   ],
-  "total_commits": 10,
+  "total_commits": 12,
   "date_range": "2026-04-17"
 }
