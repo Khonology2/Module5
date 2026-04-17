@@ -98,6 +98,64 @@ class SidebarConfig {
     ),
   ]);
 
+  /// Manager "My Workspace" uses manager_gw_menu routes so navigation stays
+  /// inside ManagerPortalScreen while showing employee-style screens.
+  static List<SidebarItem> get managerMyWorkspaceItems => List.unmodifiable([
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Dashboard_White.png',
+      red: 'assets/Khonodemy Icons/Dashboard_Red.png',
+      label: 'Dashboard',
+      route: '/manager_gw_menu_dashboard',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Profile_White.png',
+      red: 'assets/Khonodemy Icons/Profile_Red.png',
+      label: 'Goal Workspace',
+      route: '/manager_gw_menu_goal_workspace',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
+      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+      label: 'Alerts & Nudges',
+      route: '/manager_gw_menu_alerts',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
+      red: 'assets/Khonodemy Icons/GoalWorkspace_Red.png',
+      label: 'My PDP',
+      route: '/manager_gw_menu_my_pdp',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
+      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+      label: 'Progress Visuals',
+      route: '/manager_gw_menu_progress',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
+      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+      label: 'Leaderboard',
+      route: '/manager_gw_menu_leaderboard',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
+      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
+      label: 'Badges & Points',
+      route: '/manager_gw_menu_badges',
+    ),
+    SidebarItem(
+      icon: Icons.emoji_events_outlined,
+      label: 'Season Challenges',
+      route: '/manager_gw_menu_season_challenges',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
+      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
+      label: 'Repository & Audit',
+      route: '/manager_gw_menu_repository',
+    ),
+  ]);
+
   /// Manager Workspace items (for managers when in manager workspace context)
   static List<SidebarItem> get managerWorkspaceItems => List.unmodifiable([
     itemWithAssets(
@@ -397,7 +455,7 @@ class SidebarConfig {
     if (workspace == WorkspaceContext.managerWorkspace) {
       return [...managerWorkspaceItems, ...globalItems];
     } else {
-      return [...myWorkspaceItems, ...globalItems];
+      return [...managerMyWorkspaceItems, ...globalItems];
     }
   }
 

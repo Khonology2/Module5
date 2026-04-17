@@ -29,6 +29,7 @@ import 'dart:developer' as developer;
 import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerPortalScreen extends StatefulWidget {
@@ -41,6 +42,7 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
+  final WorkspaceContextService _workspaceService = WorkspaceContextService();
 
   /// Incremented each time we navigate to manager_alerts_nudges so the screen loads fresh data.
   int _alertsScreenKey = 0;
@@ -150,11 +152,45 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/my_profile':
         return const EmployeeProfileScreen(embedded: true);
       default:
-        return const ManagerDashboardScreen();
+        return const ManagerDashboardScreen(embedded: true);
     }
   }
 
+  bool _isMyWorkspaceRoute(String route) {
+    switch (route) {
+      case '/manager_gw_menu_dashboard':
+      case '/manager_gw_menu_goal_workspace':
+      case '/manager_gw_menu_alerts':
+      case '/manager_gw_menu_my_pdp':
+      case '/manager_gw_menu_progress':
+      case '/manager_gw_menu_leaderboard':
+      case '/manager_gw_menu_badges':
+      case '/manager_gw_menu_season_challenges':
+      case '/manager_gw_menu_repository':
+      case '/employee_dashboard':
+      case '/my_pdp':
+      case '/alerts_nudges':
+      case '/my_goal_workspace':
+      case '/leaderboard':
+      case '/badges_points':
+      case '/season_challenges':
+      case '/my_profile':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  void _syncWorkspaceContextForRoute(String route) {
+    _workspaceService.switchToContext(
+      _isMyWorkspaceRoute(route)
+          ? WorkspaceContext.myWorkspace
+          : WorkspaceContext.managerWorkspace,
+    );
+  }
+
   void _onNavigate(String route) {
+    _syncWorkspaceContextForRoute(route);
     setState(() {
       if (route == '/manager_alerts_nudges') {
         _alertsScreenKey++;
@@ -226,6 +262,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           _currentRoute = initial;
         }
       }
+      _syncWorkspaceContextForRoute(_currentRoute);
       _didInitFromArgs = true;
     }
     // Set system UI overlay style here if needed to ensure consistency across the portal
