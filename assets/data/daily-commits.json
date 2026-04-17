@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.CE22.SIT",
-  "generated_at": "2026-04-17T16:17:55Z",
+  "version": "2026.04.CE23.SIT",
+  "generated_at": "2026-04-17T16:19:33Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -36,6 +36,11 @@
       "author": "Nathi2266",
       "message": "feat: enhance dropdowns with isExpanded property for better UI layout",
       "timestamp": "2026-04-15T09:22:46+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Update ManagerLeaderboardScreen to support comparison of managers, enhancing data stream handling and UI messaging based on selected context.",
+      "timestamp": "2026-04-08T13:36:44+02:00"
     },
     {
       "author": "Thembelihle",
@@ -113,6 +118,6 @@
       "timestamp": "2026-04-07T12:54:08+02:00"
     }
   ],
-  "total_commits": 22,
+  "total_commits": 23,
   "date_range": "2026-04-17"
 }
