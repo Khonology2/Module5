@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.CE19.SIT",
-  "generated_at": "2026-04-17T16:13:08Z",
+  "version": "2026.04.CE20.SIT",
+  "generated_at": "2026-04-17T16:15:12Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -36,6 +36,11 @@
       "author": "Nathi2266",
       "message": "feat: enhance dropdowns with isExpanded property for better UI layout",
       "timestamp": "2026-04-15T09:22:46+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Refactor ManagerLeaderboardScreen to replace manager terminology with employee, updating data streams and UI elements accordingly.",
+      "timestamp": "2026-04-08T13:08:57+02:00"
     },
     {
       "author": "Thembelihle",
@@ -98,6 +103,6 @@
       "timestamp": "2026-04-07T12:54:08+02:00"
     }
   ],
-  "total_commits": 19,
+  "total_commits": 20,
   "date_range": "2026-04-17"
 }
