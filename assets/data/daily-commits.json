@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.CE17.SIT",
-  "generated_at": "2026-04-17T16:07:45Z",
+  "version": "2026.04.CE18.SIT",
+  "generated_at": "2026-04-17T16:11:07Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -36,6 +36,11 @@
       "author": "Nathi2266",
       "message": "feat: enhance dropdowns with isExpanded property for better UI layout",
       "timestamp": "2026-04-15T09:22:46+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature -  Update AdminBadgesPointsScreen to utilize forAdminSelf flag and adjust navigation and display logic in ManagerBadgesPointsScreen for admin oversight.",
+      "timestamp": "2026-04-08T12:48:01+02:00"
     },
     {
       "author": "Thembelihle",
@@ -88,6 +93,6 @@
       "timestamp": "2026-04-07T12:54:08+02:00"
     }
   ],
-  "total_commits": 17,
+  "total_commits": 18,
   "date_range": "2026-04-17"
 }
