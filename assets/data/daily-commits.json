@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.CD10.SIT",
-  "generated_at": "2026-04-16T10:55:23Z",
+  "version": "2026.04.CE8.SIT",
+  "generated_at": "2026-04-17T15:52:34Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -28,21 +28,6 @@
       "timestamp": "2026-04-10T10:34:55+02:00"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature - enhance ManagerPortalScreen layout with dynamic padding and integrate KPA excellence surface styles in MyGoalWorkspaceScreen and MyPdpScreen.",
-      "timestamp": "2026-04-14T23:22:06+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feture - implement alert categorization and filtering in ManagerAlertsNudgesScreen to enhance supervision insights.",
-      "timestamp": "2026-04-14T11:52:15+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "fix: update package versions and sha256 checksums in pubspec.lock",
-      "timestamp": "2026-04-14T11:36:30+02:00"
-    },
-    {
       "author": "Nathi2266",
       "message": "feat: update dependencies and enhance UI with new message and notification icons",
       "timestamp": "2026-04-15T10:12:42+02:00"
@@ -51,8 +36,13 @@
       "author": "Nathi2266",
       "message": "feat: enhance dropdowns with isExpanded property for better UI layout",
       "timestamp": "2026-04-15T09:22:46+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "feature - Refactor alert handling for goal approvals and rejections.",
+      "timestamp": "2026-04-07T12:54:08+02:00"
     }
   ],
-  "total_commits": 10,
-  "date_range": "2026-04-16"
+  "total_commits": 8,
+  "date_range": "2026-04-17"
 }
