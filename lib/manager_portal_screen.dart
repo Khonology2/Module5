@@ -20,6 +20,8 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService for onboarding data
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
+import 'package:pdh/leaderboard_screen.dart';
+import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
@@ -29,6 +31,7 @@ import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerPortalScreen extends StatefulWidget {
@@ -41,6 +44,8 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
+  final WorkspaceContextService _workspaceService = WorkspaceContextService();
+
   /// Incremented each time we navigate to manager_alerts_nudges so the screen loads fresh data.
   int _alertsScreenKey = 0;
 
@@ -127,12 +132,55 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         );
       case '/manager_gw_menu_repository':
         return const RepositoryAuditScreen();
+      // My Workspace routes for managers
+      case '/my_goal_workspace':
+        return const MyGoalWorkspaceScreen(embedded: true);
+      case '/leaderboard':
+        return const LeaderboardScreen();
+      case '/season_challenges':
+        return const EmployeeSeasonChallengesScreen(embedded: true);
+      case '/my_profile':
+        return const EmployeeProfileScreen(embedded: true);
       default:
-        return const ManagerDashboardScreen();
+        return const ManagerDashboardScreen(embedded: true);
     }
   }
 
+  bool _isMyWorkspaceRoute(String route) {
+    switch (route) {
+      case '/manager_gw_menu_dashboard':
+      case '/manager_gw_menu_goal_workspace':
+      case '/manager_gw_menu_alerts':
+      case '/manager_gw_menu_my_pdp':
+      case '/manager_gw_menu_progress':
+      case '/manager_gw_menu_leaderboard':
+      case '/manager_gw_menu_badges':
+      case '/manager_gw_menu_season_challenges':
+      case '/manager_gw_menu_repository':
+      case '/employee_dashboard':
+      case '/my_pdp':
+      case '/alerts_nudges':
+      case '/my_goal_workspace':
+      case '/leaderboard':
+      case '/badges_points':
+      case '/season_challenges':
+      case '/my_profile':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  void _syncWorkspaceContextForRoute(String route) {
+    _workspaceService.switchToContext(
+      _isMyWorkspaceRoute(route)
+          ? WorkspaceContext.myWorkspace
+          : WorkspaceContext.managerWorkspace,
+    );
+  }
+
   void _onNavigate(String route) {
+    _syncWorkspaceContextForRoute(route);
     setState(() {
       if (route == '/manager_alerts_nudges') {
         _alertsScreenKey++;
@@ -179,6 +227,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   @override
+  void dispose() {
+    // Cancel any pending operations
+    _shouldShowTutorial = false;
+    _currentTutorialStep = 0;
+
+    // Clean up tutorial keys
+    _sidebarTutorialKeys.clear();
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!_didInitFromArgs) {
       final args = ModalRoute.of(context)?.settings.arguments;
@@ -188,6 +248,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           _currentRoute = initial;
         }
       }
+      _syncWorkspaceContextForRoute(_currentRoute);
       _didInitFromArgs = true;
     }
     // Set system UI overlay style here if needed to ensure consistency across the portal
@@ -210,14 +271,16 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                   onNavigate: _onNavigate,
                   currentRouteName: _currentRoute,
                   onLogout: _onLogout,
-                  tutorialStepIndex:
-                      _shouldShowTutorial ? _currentTutorialStep : null,
+                  tutorialStepIndex: _shouldShowTutorial
+                      ? _currentTutorialStep
+                      : null,
                   sidebarTutorialKeys:
                       _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-                          ? _sidebarTutorialKeys
-                          : null,
-                  onTutorialNext:
-                      _shouldShowTutorial ? _moveToNextTutorialStep : null,
+                      ? _sidebarTutorialKeys
+                      : null,
+                  onTutorialNext: _shouldShowTutorial
+                      ? _moveToNextTutorialStep
+                      : null,
                   onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
                 ),
                 Expanded(child: _getBodyWidget()),

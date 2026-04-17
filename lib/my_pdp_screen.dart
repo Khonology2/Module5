@@ -9,6 +9,7 @@ import 'package:web/web.dart' as web;
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/workspace_aware_builder.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
@@ -1037,6 +1038,25 @@ class _MyPdpScreenState extends State<MyPdpScreen>
 
   @override
   Widget build(BuildContext context) {
+    return WorkspaceAwareBuilder(
+      builder:
+          (
+            context,
+            workspaceContext,
+            isManager,
+            isMyWorkspace,
+            isManagerWorkspace,
+          ) {
+            // Determine if this should show personal goals based on workspace context
+            final shouldShowOwnGoals =
+                isMyWorkspace || widget.managerOwnGoalsOnly;
+
+            return _buildContent(context, shouldShowOwnGoals);
+          },
+    );
+  }
+
+  Widget _buildContent(BuildContext context, bool managerOwnGoalsOnly) {
     return ValueListenableBuilder<bool>(
       valueListenable: employeeDashboardLightModeNotifier,
       builder: (context, light, _) {
@@ -1082,6 +1102,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                       expanded: _isOperationalExpanded,
                       onToggle: (v) =>
                           setState(() => _isOperationalExpanded = v),
+                      managerOwnGoalsOnly: managerOwnGoalsOnly,
                     ),
                     const SizedBox(height: 20),
                     _buildExcellenceArea(
@@ -1089,6 +1110,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                       title: 'Customer Excellence',
                       expanded: _isCustomerExpanded,
                       onToggle: (v) => setState(() => _isCustomerExpanded = v),
+                      managerOwnGoalsOnly: managerOwnGoalsOnly,
                     ),
                     const SizedBox(height: 20),
                     _buildExcellenceArea(
@@ -1096,6 +1118,16 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                       title: 'Financial Excellence',
                       expanded: _isFinancialExpanded,
                       onToggle: (v) => setState(() => _isFinancialExpanded = v),
+                      managerOwnGoalsOnly: managerOwnGoalsOnly,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildExcellenceArea(
+                      light: light,
+                      title: 'Operational Excellence',
+                      expanded: _isOperationalExpanded,
+                      onToggle: (v) =>
+                          setState(() => _isOperationalExpanded = v),
+                      managerOwnGoalsOnly: managerOwnGoalsOnly,
                     ),
                     const SizedBox(height: 20),
                     _buildExcellenceArea(
@@ -1104,6 +1136,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                       expanded: _isOrganisationalExpanded,
                       onToggle: (v) =>
                           setState(() => _isOrganisationalExpanded = v),
+                      managerOwnGoalsOnly: managerOwnGoalsOnly,
                     ),
                     const SizedBox(height: 20),
                     _buildExcellenceArea(
@@ -1111,6 +1144,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                       title: 'People Excellence',
                       expanded: _isPeopleExpanded,
                       onToggle: (v) => setState(() => _isPeopleExpanded = v),
+                      managerOwnGoalsOnly: managerOwnGoalsOnly,
                     ),
                     const SizedBox(height: 80),
                   ],
@@ -1128,6 +1162,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     required String title,
     required bool expanded,
     required ValueChanged<bool> onToggle,
+    required bool managerOwnGoalsOnly,
   }) {
     return Material(
       color: Colors.transparent,
@@ -1164,7 +1199,11 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                   horizontal: 16.0,
                   vertical: 8.0,
                 ),
-                child: _buildGoalsForExcellence(title, light),
+                child: _buildGoalsForExcellence(
+                  title,
+                  light,
+                  managerOwnGoalsOnly,
+                ),
               ),
           ],
         ),
@@ -1172,7 +1211,11 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     );
   }
 
-  Widget _buildGoalsForExcellence(String excellence, bool light) {
+  Widget _buildGoalsForExcellence(
+    String excellence,
+    bool light,
+    bool managerOwnGoalsOnly,
+  ) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnap) {
@@ -1193,7 +1236,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
           builder: (context, roleSnap) {
             final role = roleSnap.data ?? RoleService.instance.cachedRole;
             final isManager = role == 'manager';
-            if (isManager && widget.managerOwnGoalsOnly) {
+            if (isManager && managerOwnGoalsOnly) {
               return StreamBuilder<List<Goal>>(
                 stream: DatabaseService.getUserGoalsStream(user.uid)
                     .handleError((error) {

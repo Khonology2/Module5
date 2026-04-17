@@ -731,7 +731,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final sidebarItems =
         widget.forManagerGwMenu && widget.managerGwMenuRoute != null
         ? SidebarConfig.managerItems
-        : SidebarConfig.employeeItems;
+        : SidebarConfig.getItemsForCurrentWorkspace();
     final routeName =
         widget.forManagerGwMenu && widget.managerGwMenuRoute != null
         ? widget.managerGwMenuRoute!

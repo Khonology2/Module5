@@ -22,6 +22,8 @@ import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
+const Color _kQuickActionHoverRed = Color(0xFFC10D00);
+
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
 
@@ -748,7 +750,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         value: '$activeToday',
         icon: Icons.calendar_today,
         assetPath:
-            'assets/Task_Management/Task_Management_White_Badge_Red.png',
+            'assets/Goal_Target/Goal_Target_White_Badge_Red.png',
         accent: AppColors.activeColor,
       ),
       _topStatTile(
@@ -772,8 +774,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$inactive',
         icon: Icons.priority_high,
-        assetPath:
-            'assets/Cancel_Exit_Escape/Cancel_Exit_Escape_White_Badge_Red.png',
+        assetPath: 'assets/Team_Meeting/Team.png',
         accent: AppColors.warningColor,
       ),
       _topStatTile(
@@ -786,7 +787,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         value: '$overdue',
         icon: Icons.remove_red_eye,
         assetPath:
-            'assets/Concentration_Key_Focus/Concentration_Key Focus_White_Badge_Red.png',
+            'assets/Goal_Target/Goal_Target_White_Badge_Red.png',
         accent: AppColors.dangerColor,
       ),
       _topStatTile(
@@ -799,7 +800,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         value: '$atRisk',
         icon: Icons.error_outline,
         assetPath:
-            'assets/Warning _Error/Warning_Error_White Badge_Red.png',
+            'assets/Task_Management/Task_Management_White_Badge_Red.png',
         accent: AppColors.dangerColor,
       ),
       _topStatTile(
@@ -811,8 +812,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$onTrack',
         icon: Icons.rocket_launch,
-        assetPath:
-            'assets/Project_Direction_Acceleration/Project_Direction_Acceleration_Badge_Red.png',
+        assetPath: 'assets/Badge.png',
         accent: AppColors.successColor,
       ),
     ];
@@ -872,11 +872,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          if (widget.forAdminOversight && assetPath != null)
-            // Render icon without the extra circular overlay.
+          if (assetPath != null)
+            // Always use dashboard asset icons so light/dark mode stays consistent.
             Padding(
               padding: const EdgeInsets.only(right: 2),
-              child: _assetIcon(assetPath, size: 44),
+              child: _assetIcon(assetPath, size: 64),
             )
           else
             Container(
@@ -1009,7 +1009,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       required int cols,
       required List<Widget> tiles,
     }) {
-      final tileAspectRatio = cols == 1 ? 4.2 : 2.3;
+      // Use fixed tile heights instead of width-derived aspect ratios.
+      // This prevents bottom RenderFlex overflows when browser zoom/viewport
+      // makes width-based tiles too short for 3 lines of KPI content.
+      final double tileHeight = cols == 1 ? 96.0 : 118.0;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1018,14 +1021,17 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
           ),
           const SizedBox(height: AppSpacing.md),
-          GridView.count(
-            crossAxisCount: cols,
-            crossAxisSpacing: AppSpacing.md,
-            mainAxisSpacing: AppSpacing.md,
+          GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: tileAspectRatio,
-            children: tiles,
+            itemCount: tiles.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: cols,
+              crossAxisSpacing: AppSpacing.md,
+              mainAxisSpacing: AppSpacing.md,
+              mainAxisExtent: tileHeight,
+            ),
+            itemBuilder: (context, index) => tiles[index],
           ),
         ],
       );
@@ -1139,29 +1145,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     return _card(
       child: Row(
         children: [
-          if (widget.forAdminOversight)
-            _assetIcon('assets/Sprints.png', size: 56)
-          else
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: DashboardChrome.light
-                    ? AppColors.activeColor.withValues(alpha: 0.072)
-                    : AppColors.activeColor.withValues(alpha: 0.072),
-                border: Border.all(
-                  color: DashboardChrome.light
-                      ? AppColors.activeColor.withValues(alpha: 0.21)
-                      : AppColors.activeColor.withValues(alpha: 0.21),
-                ),
-              ),
-              child: Icon(
-                Icons.directions_run,
-                color: AppColors.activeColor,
-                size: 28,
-              ),
-            ),
+          _assetIcon('assets/Sprints.png', size: 56),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1581,6 +1565,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   }
 
   Widget _buildQuickActions({required bool expand, double? minHeight}) {
+    const double employeeQuickActionIconSize = 40;
+
     Widget actionTile({
       required String label,
       required VoidCallback onTap,
@@ -1591,38 +1577,16 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       final fill =
           filled ? AppColors.dangerColor : _dashboardCardFill();
       final fg = filled ? Colors.white : DashboardChrome.fg;
-      final border = filled ? AppColors.dangerColor : AppColors.dangerColor;
-
-      return InkWell(
+      return _ManagerQuickActionTile(
+        label: label,
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: fill,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: border, width: 1.5),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              widget.forAdminOversight && assetPath != null
-                  ? _assetIcon(assetPath, size: 22)
-                  : Icon(icon, color: fg, size: 18),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.bodySmall.copyWith(
-                    color: fg,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        icon: icon,
+        assetPath: assetPath,
+        baseFill: fill,
+        baseFg: fg,
+        filled: filled,
+        light: DashboardChrome.light,
+        iconSize: employeeQuickActionIconSize,
       );
     }
 
@@ -1640,14 +1604,14 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         label: 'Progress Visuals',
         icon: Icons.insights_outlined,
         assetPath:
-            'assets/Graphic_Image_Placeholder/Image_White_Badge_Red.png',
+            'assets/Process_Flows_Automation/Process_Flows_Automation_White_Badge_Red.png',
         onTap: () => Navigator.pushNamed(context, '/progress_visuals'),
       ),
       actionTile(
         label: 'Leaderboard',
         icon: Icons.attribution_outlined,
         assetPath:
-            'assets/Internet_Web_Browser/Internet_Web_Browser_White Badge_Red.png',
+            'assets/Project_Direction_Acceleration/Project_Direction_Acceleration_White_Badge_Red.png',
         onTap: () => Navigator.pushNamed(context, '/manager_leaderboard'),
       ),
       actionTile(
@@ -1655,7 +1619,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         icon: Icons.emoji_events_outlined,
         assetPath:
             'assets/Business_Growth_Development/Business_Growth_Development_White_Badge_Red.png',
-        filled: true,
         onTap: () => Navigator.pushNamed(context, '/manager_badges_points'),
       ),
     ];
@@ -1714,6 +1677,99 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           else
             grid(shrinkWrap: true),
         ],
+      ),
+    );
+  }
+}
+
+class _ManagerQuickActionTile extends StatefulWidget {
+  const _ManagerQuickActionTile({
+    required this.label,
+    required this.onTap,
+    required this.icon,
+    required this.baseFill,
+    required this.baseFg,
+    required this.filled,
+    required this.light,
+    required this.iconSize,
+    this.assetPath,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final IconData icon;
+  final String? assetPath;
+  final Color baseFill;
+  final Color baseFg;
+  final bool filled;
+  final bool light;
+  final double iconSize;
+
+  @override
+  State<_ManagerQuickActionTile> createState() => _ManagerQuickActionTileState();
+}
+
+class _ManagerQuickActionTileState extends State<_ManagerQuickActionTile> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = _hover ? _kQuickActionHoverRed : widget.baseFill;
+    final borderColor = _hover
+        ? _kQuickActionHoverRed
+        : (widget.filled
+              ? AppColors.dangerColor
+              : (widget.light
+                    ? const Color(0x33000000)
+                    : Colors.white.withValues(alpha: 0.25)));
+    final fg = _hover ? Colors.white : widget.baseFg;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeInOut,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor, width: 1.5),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (widget.assetPath != null)
+                  Image.asset(
+                    widget.assetPath!,
+                    width: widget.iconSize,
+                    height: widget.iconSize,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, _) =>
+                        Icon(Icons.touch_app_outlined, color: fg, size: 18),
+                  )
+                else
+                  Icon(widget.icon, color: fg, size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: fg,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
