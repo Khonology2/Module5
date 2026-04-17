@@ -836,7 +836,11 @@ class _ManagerReviewTeamDashboardScreenState
     }
 
     final approvedGoals = employee.goals
-        .where((g) => g.approvalStatus == GoalApprovalStatus.approved)
+        .where(
+          (g) =>
+              g.isDisplayableGoal &&
+              g.approvalStatus == GoalApprovalStatus.approved,
+        )
         .toList();
 
     // Determine active status

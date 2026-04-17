@@ -98,14 +98,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   // Context switcher state
   bool _showArchived =
-      false; // false = Inbox (active), true = Archived (read/completed)
+      false; // false = Inbox (all actionable + read items stay here), true = Archived (completed-only)
 
   // Method to switch between inbox and archived views
   void _switchContext(bool showArchived) {
     setState(() {
       _showArchived = showArchived;
       // Reset unread-only filter when switching to archived view
-      // since all archived messages are already read
       if (showArchived) {
         _unreadOnly = false;
       }
@@ -139,8 +138,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       case AlertType.goalCreated:
       case AlertType.goalCompleted:
       case AlertType.goalDueSoon:
-      case AlertType.goalApprovalApproved:
-      case AlertType.goalApprovalRejected:
       case AlertType.pointsEarned:
       case AlertType.levelUp:
       case AlertType.badgeEarned:
@@ -166,45 +163,126 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         msg.contains('review and decide next step');
   }
 
+  DateTime? _parseAlertActionDate(dynamic v) {
+    if (v == null) return null;
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    return DateTime.tryParse(v.toString());
+  }
+
+  /// Latest moment of the scheduled 1:1 window, when present on the alert.
+  DateTime? _scheduledEndForOneOnOneAlert(Alert alert) {
+    final m = alert.actionData;
+    if (m == null) return null;
+    final end = _parseAlertActionDate(m['proposedEndDateTime']) ??
+        _parseAlertActionDate(m['meetingEndDateTime']);
+    if (end != null) return end;
+    final start = _parseAlertActionDate(m['proposedStartDateTime']) ??
+        _parseAlertActionDate(m['proposedDateTime']) ??
+        _parseAlertActionDate(m['meetingStartDateTime']);
+    if (start != null) {
+      return start.add(const Duration(hours: 1));
+    }
+    return null;
+  }
+
+  /// After the meeting window, the notification belongs in archive (not active inbox).
+  bool _isPastScheduledOneOnOneMeetingAlert(Alert alert) {
+    switch (alert.type) {
+      case AlertType.oneOnOneAccepted:
+      case AlertType.oneOnOneRescheduled:
+        break;
+      default:
+        return false;
+    }
+    final end = _scheduledEndForOneOnOneAlert(alert);
+    if (end == null) return false;
+    return !end.isAfter(DateTime.now());
+  }
+
+  /// Admin inbox: personal notifications, goal approvals, 1:1s, and manager/supervision
+  /// work — not the full employee Alerts & Nudges feed.
+  bool _isAdminInboxEligibleAlert(Alert alert) {
+    switch (alert.type) {
+      case AlertType.goalApprovalRequested:
+      case AlertType.goalApprovalApproved:
+      case AlertType.goalApprovalRejected:
+      case AlertType.oneOnOneRequested:
+      case AlertType.oneOnOneProposed:
+      case AlertType.oneOnOneAccepted:
+      case AlertType.oneOnOneRescheduled:
+      case AlertType.oneOnOneCancelled:
+      case AlertType.goalCreated:
+      case AlertType.goalCompleted:
+      case AlertType.goalDueSoon:
+      case AlertType.pointsEarned:
+      case AlertType.levelUp:
+      case AlertType.badgeEarned:
+      case AlertType.achievementUnlocked:
+      case AlertType.streakMilestone:
+      case AlertType.deadlineReminder:
+      case AlertType.teamAssigned:
+      case AlertType.teamGoalAvailable:
+      case AlertType.recognition:
+      case AlertType.managerNudge:
+      case AlertType.employeeJoinedTeamGoal:
+      case AlertType.inactivity:
+      case AlertType.milestoneRisk:
+      case AlertType.seasonJoined:
+      case AlertType.seasonProgressUpdate:
+      case AlertType.seasonCompleted:
+      case AlertType.goalMilestoneCompleted:
+      case AlertType.milestoneDeletionRequest:
+      case AlertType.managerGeneral:
+      case AlertType.milestoneDeleted:
+      case AlertType.milestoneDeletionRejected:
+        return true;
+      case AlertType.goalOverdue:
+        return _isManagerScopedGoalOverdue(alert) ||
+            alert.audience == AlertAudience.personal;
+    }
+  }
+
   bool _isManagerInboxRelevantAlert(Alert alert, String managerId) {
     // Defensive scope: manager inbox should only show alerts addressed to manager.
     if (alert.userId != managerId) return false;
 
-    // Admin inbox should reflect all personal alerts addressed to the admin
-    // account so the inbox list matches the notifications-bell unread count.
-    if (widget.forAdminOversight) {
-      return true;
-    }
-
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
     if (alert.actionRoute == _managerWorkspaceAlertsRoute) return false;
 
-    // Suppress employee-persona cards in manager inbox.
-    if (_isEmployeePersonaAlertType(alert.type)) return false;
+    if (widget.forAdminOversight && !_isAdminInboxEligibleAlert(alert)) {
+      return false;
+    }
 
-    // Keep only manager-scoped overdue alerts.
-    if (alert.type == AlertType.goalOverdue &&
+    // Suppress employee-persona cards in the manager (non-admin) inbox only.
+    if (!widget.forAdminOversight && _isEmployeePersonaAlertType(alert.type)) {
+      return false;
+    }
+
+    // Keep only manager-scoped overdue alerts (managers); admins use allowlist above.
+    if (!widget.forAdminOversight &&
+        alert.type == AlertType.goalOverdue &&
         !_isManagerScopedGoalOverdue(alert)) {
       return false;
     }
 
-    // Context switcher logic:
-    // - Inbox (active): Show unread messages AND pending approval requests (even if read)
-    // - Archived: Show read messages AND completed approval actions (approved/rejected)
+    final pastMeeting = _isPastScheduledOneOnOneMeetingAlert(alert);
+
+    // Inbox vs archive (same rules for manager and admin).
+    // Inbox keeps read and unread; only completed approvals and past 1:1 windows
+    // move to Archive so they do not clutter the main list.
     if (_showArchived) {
-      // In archived view, show:
-      // 1. All read messages (except pending approvals)
-      // 2. Approved and rejected goals (regardless of read status)
-      return (alert.isRead && alert.type != AlertType.goalApprovalRequested) ||
-          (alert.type == AlertType.goalApprovalApproved) ||
-          (alert.type == AlertType.goalApprovalRejected);
-    } else {
-      // In inbox view, show:
-      // 1. All unread messages
-      // 2. Pending approval requests (even if read) - so manager doesn't miss them
-      // 3. BUT NOT approved or rejected goals - those should be in archived
-      return (!alert.isRead) || (alert.type == AlertType.goalApprovalRequested);
+      return (alert.type == AlertType.goalApprovalApproved ||
+              alert.type == AlertType.goalApprovalRejected) ||
+          pastMeeting;
     }
+
+    if (alert.type == AlertType.goalApprovalApproved ||
+        alert.type == AlertType.goalApprovalRejected) {
+      return false;
+    }
+    if (pastMeeting) return false;
+    return true;
   }
 
   /// Manager-only routes in alert [actionRoute] hit [RoleGate] and show "Access restricted"

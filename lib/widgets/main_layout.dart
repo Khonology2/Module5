@@ -5,12 +5,9 @@ import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/auth_service.dart';
-import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/employee_profile_screen.dart';
-import 'package:pdh/manager_profile_screen.dart';
+import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
@@ -80,12 +77,12 @@ class MainLayout extends StatelessWidget {
       showAppBar: false,
       items: sidebarItems,
       currentRouteName: currentRouteName,
-      topRightAction: currentRouteName == '/my_profile' ? null : Row(
+      topRightAction: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const NotificationsBell(),
-          const SizedBox(width: 8),
-          _ProfileButton(),
+          MessagesIcon(),
+          SizedBox(width: 8),
+          NotificationsBell(),
         ],
       ),
       tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
@@ -125,58 +122,6 @@ class MainLayout extends StatelessWidget {
           );
         },
       ),
-    );
-  }
-}
-
-class _ProfileButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<String?>(
-      stream: RoleService.instance.roleStream(),
-      builder: (context, snapshot) {
-        final user = FirebaseAuth.instance.currentUser;
-        String userName = 'User';
-        if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-          userName = user.displayName!.split(' ').first;
-        } else if (user?.email != null && user!.email!.isNotEmpty) {
-          userName = user.email!.split('@').first;
-        }
-        final isManager =
-            (snapshot.data ?? RoleService.instance.cachedRole) == 'manager';
-        return InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => isManager
-                    ? const ManagerProfileScreen()
-                    : const EmployeeProfileScreen(),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2A3652),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0x1FFFFFFF)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.person, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  userName,
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

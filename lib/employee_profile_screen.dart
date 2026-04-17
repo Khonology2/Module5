@@ -1125,6 +1125,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         ),
         child: DropdownButtonFormField<String>(
           value: _selectedJobTitle,
+          isExpanded: true,
           style: TextStyle(color: _fg),
           decoration: InputDecoration(
             hintText: 'Select Job Title',
@@ -1179,6 +1180,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         ),
         child: DropdownButtonFormField<String>(
           value: _selectedDepartment,
+          isExpanded: true,
           style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
             hintText: 'Select Department',
@@ -1777,7 +1779,13 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         builder: (context, light, _) {
           return EmployeeDashboardThemeScope(
             light: light,
-            child: _buildProfileContent(),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 16.0,
+              ),
+              child: _buildProfileContent(),
+            ),
           );
         },
       );

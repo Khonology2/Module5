@@ -21,16 +21,15 @@ import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
 import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/employee_profile_screen.dart';
-import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/services/season_service.dart';
-import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerPortalScreen extends StatefulWidget {
@@ -43,7 +42,6 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
-  final WorkspaceContextService _workspaceService = WorkspaceContextService();
 
   /// Incremented each time we navigate to manager_alerts_nudges so the screen loads fresh data.
   int _alertsScreenKey = 0;
@@ -55,6 +53,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     12,
     (index) => GlobalKey(),
   );
+
+  /// Matches [MainLayout]’s `AppSpacing.screenPadding` for bodies that do not
+  /// apply their own full-bleed inset (e.g. [MyPdpScreen] uses zero scroll padding).
+  static EdgeInsets _portalMainContentPadding(String route) {
+    switch (route) {
+      case '/my_pdp':
+      case '/manager_gw_menu_goal_workspace':
+        return AppSpacing.screenPadding;
+      default:
+        return EdgeInsets.zero;
+    }
+  }
 
   Widget _getBodyWidget() {
     switch (_currentRoute) {
@@ -141,45 +151,11 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/my_profile':
         return const EmployeeProfileScreen(embedded: true);
       default:
-        return const ManagerDashboardScreen(embedded: true);
+        return const ManagerDashboardScreen();
     }
-  }
-
-  bool _isMyWorkspaceRoute(String route) {
-    switch (route) {
-      case '/manager_gw_menu_dashboard':
-      case '/manager_gw_menu_goal_workspace':
-      case '/manager_gw_menu_alerts':
-      case '/manager_gw_menu_my_pdp':
-      case '/manager_gw_menu_progress':
-      case '/manager_gw_menu_leaderboard':
-      case '/manager_gw_menu_badges':
-      case '/manager_gw_menu_season_challenges':
-      case '/manager_gw_menu_repository':
-      case '/employee_dashboard':
-      case '/my_pdp':
-      case '/alerts_nudges':
-      case '/my_goal_workspace':
-      case '/leaderboard':
-      case '/badges_points':
-      case '/season_challenges':
-      case '/my_profile':
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  void _syncWorkspaceContextForRoute(String route) {
-    _workspaceService.switchToContext(
-      _isMyWorkspaceRoute(route)
-          ? WorkspaceContext.myWorkspace
-          : WorkspaceContext.managerWorkspace,
-    );
   }
 
   void _onNavigate(String route) {
-    _syncWorkspaceContextForRoute(route);
     setState(() {
       if (route == '/manager_alerts_nudges') {
         _alertsScreenKey++;
@@ -251,7 +227,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           _currentRoute = initial;
         }
       }
-      _syncWorkspaceContextForRoute(_currentRoute);
       _didInitFromArgs = true;
     }
     // Set system UI overlay style here if needed to ensure consistency across the portal
@@ -286,21 +261,27 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                       : null,
                   onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
                 ),
-                Expanded(child: _getBodyWidget()),
+                Expanded(
+                  child: Padding(
+                    padding: _portalMainContentPadding(_currentRoute),
+                    child: _getBodyWidget(),
+                  ),
+                ),
               ],
             ),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const NotificationsBell(),
-                  const SizedBox(width: 8),
-                  _buildProfileButton(context),
-                ],
+            if (_currentRoute != '/dashboard')
+              Positioned(
+                top: 24,
+                right: 24,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const MessagesIcon(),
+                    const SizedBox(width: 8),
+                    const NotificationsBell(),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -541,41 +522,4 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     }
   }
 
-  Widget _buildProfileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    String userName = 'User';
-    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
-    }
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ManagerProfileScreen()),
-        );
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderColor),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.person, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: AppTypography.bodySmall.copyWith(color: Colors.white),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

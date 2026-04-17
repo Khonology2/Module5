@@ -73,10 +73,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   @override
   void initState() {
     super.initState();
-    // Keep tutorial navigation and profile warning state in sync from first paint.
     _previousTutorialStep = widget.tutorialStepIndex;
     _checkProfileCompletion();
-    // Sidebar items can change when workspace context switches (My/Manager).
     _workspaceService.addListener(_onWorkspaceChanged);
     _updateItems();
   }
@@ -113,14 +111,12 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   void _onWorkspaceChanged() {
     if (mounted) {
       setState(() {
-        // Rebuild the nav list from the active workspace/role context.
         _updateItems();
       });
     }
   }
 
   void _updateItems() {
-    // Centralized source of sidebar items so all entry points stay consistent.
     _currentItems = SidebarConfig.getItemsForCurrentWorkspace();
   }
 
@@ -216,52 +212,22 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                     child: ListView(
                       controller: _scrollController,
                       padding: AppSpacing.sidebarContentPadding,
-                      children: [
-                        ..._currentItems.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final it = entry.value;
-                          // Show the profile warning indicator for incomplete profile routes.
-                          final bool showProfileIndicator =
-                              (it.route == '/my_profile' ||
-                                  it.route == '/manager_profile') &&
-                              _isProfileIncomplete;
+                      children: _currentItems.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final it = entry.value;
+                        // Check if this is the My Profile route and profile is incomplete
+                        final bool showProfileIndicator =
+                            (it.route == '/my_profile' ||
+                                it.route == '/manager_profile') &&
+                            _isProfileIncomplete;
 
-                          if (it.children != null && it.children!.isNotEmpty) {
-                            return _ExpandableNavGroup(
-                              key: ValueKey('expand_${it.route}_$index'),
-                              parent: it,
-                              currentRouteName: widget.currentRouteName,
-                              collapsed: effectiveCollapsed,
-                              onNavigate: widget.onNavigate,
-                              showProfileIndicator: showProfileIndicator,
-                              tutorialKey:
-                                  widget.sidebarTutorialKeys != null &&
-                                      index < widget.sidebarTutorialKeys!.length
-                                  ? widget.sidebarTutorialKeys![index]
-                                  : null,
-                              showTutorial:
-                                  widget.tutorialStepIndex != null &&
-                                  widget.tutorialStepIndex == index,
-                              onTutorialNext: widget.onTutorialNext,
-                              onTutorialSkip: widget.onTutorialSkip,
-                              isLastTutorialStep:
-                                  widget.tutorialStepIndex != null &&
-                                  widget.tutorialStepIndex ==
-                                      widget.items.length - 1,
-                            );
-                          }
-
-                          return _NavTile(
-                            key: ValueKey('nav_${it.route}_$index'),
-                            icon: it.icon,
-                            iconWidget: it.iconWidget,
-                            assetWhite: it.assetWhite,
-                            assetRed: it.assetRed,
-                            label: it.label,
-                            route: it.route,
-                            isActive: widget.currentRouteName == it.route,
+                        if (it.children != null && it.children!.isNotEmpty) {
+                          return _ExpandableNavGroup(
+                            key: ValueKey('expand_${it.route}_$index'),
+                            parent: it,
+                            currentRouteName: widget.currentRouteName,
                             collapsed: effectiveCollapsed,
-                            onTap: () => widget.onNavigate(it.route),
+                            onNavigate: widget.onNavigate,
                             showProfileIndicator: showProfileIndicator,
                             tutorialKey:
                                 widget.sidebarTutorialKeys != null &&
@@ -278,46 +244,71 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                                 widget.tutorialStepIndex ==
                                     widget.items.length - 1,
                           );
-                        }),
-                        // Keep footer actions in the scrollable region to prevent
-                        // bottom RenderFlex overflows on shorter web viewports.
-                        _NavTile(
-                          key: const ValueKey('nav_logout'),
-                          icon: Icons.exit_to_app,
-                          label: AppLocalizations.of(context).employee_drawer_exit,
-                          route: '__logout__',
-                          isActive: false,
+                        }
+
+                        return _NavTile(
+                          key: ValueKey('nav_${it.route}_$index'),
+                          icon: it.icon,
+                          iconWidget: it.iconWidget,
+                          assetWhite: it.assetWhite,
+                          assetRed: it.assetRed,
+                          label: it.label,
+                          route: it.route,
+                          isActive: widget.currentRouteName == it.route,
                           collapsed: effectiveCollapsed,
-                          onTap: widget.onLogout,
-                        ),
-                        _CollapseToggle(
-                          collapsed: effectiveCollapsed,
+                          onTap: () => widget.onNavigate(it.route),
+                          showProfileIndicator: showProfileIndicator,
                           tutorialKey:
                               widget.sidebarTutorialKeys != null &&
-                                  widget.tutorialStepIndex != null &&
-                                  widget.tutorialStepIndex == widget.items.length &&
-                                  widget.tutorialStepIndex! <
-                                      widget.sidebarTutorialKeys!.length
-                              ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
+                                  index < widget.sidebarTutorialKeys!.length
+                              ? widget.sidebarTutorialKeys![index]
                               : null,
                           showTutorial:
                               widget.tutorialStepIndex != null &&
-                              widget.tutorialStepIndex == widget.items.length,
+                              widget.tutorialStepIndex == index,
                           onTutorialNext: widget.onTutorialNext,
                           onTutorialSkip: widget.onTutorialSkip,
                           isLastTutorialStep:
                               widget.tutorialStepIndex != null &&
-                              widget.tutorialStepIndex == widget.items.length,
-                        ),
-                      ],
+                              widget.tutorialStepIndex ==
+                                  widget.items.length - 1,
+                        );
+                      }).toList(),
                     ),
+                  ),
+                  _NavTile(
+                    key: const ValueKey('nav_logout'),
+                    icon: Icons.exit_to_app,
+                    label: AppLocalizations.of(context).employee_drawer_exit,
+                    route: '__logout__',
+                    isActive: false,
+                    collapsed: effectiveCollapsed,
+                    onTap: widget.onLogout,
+                  ),
+                  _CollapseToggle(
+                    collapsed: effectiveCollapsed,
+                    tutorialKey:
+                        widget.sidebarTutorialKeys != null &&
+                            widget.tutorialStepIndex != null &&
+                            widget.tutorialStepIndex == widget.items.length &&
+                            widget.tutorialStepIndex! <
+                                widget.sidebarTutorialKeys!.length
+                        ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
+                        : null,
+                    showTutorial:
+                        widget.tutorialStepIndex != null &&
+                        widget.tutorialStepIndex == widget.items.length,
+                    onTutorialNext: widget.onTutorialNext,
+                    onTutorialSkip: widget.onTutorialSkip,
+                    isLastTutorialStep:
+                        widget.tutorialStepIndex != null &&
+                        widget.tutorialStepIndex == widget.items.length,
                   ),
                 ],
               ),
             );
 
             final Widget shell = Container(
-              // Keep compact and expanded rail widths explicit for predictable layout.
               width: isSmall
                   ? double.infinity
                   : (effectiveCollapsed ? 72 : 280),
