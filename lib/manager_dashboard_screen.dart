@@ -21,6 +21,8 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/messages_icon.dart';
+import 'package:pdh/widgets/notifications_bell.dart';
 
 const Color _kQuickActionHoverRed = Color(0xFFC10D00);
 
@@ -691,15 +693,34 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: Text(
-            'Manager Dashboard',
-            style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
+          child: Row(
+            children: [
+              Text(
+                'Manager Dashboard',
+                style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  'Hello, ${_resolveManagerName()}',
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: DashboardChrome.fg,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        Text(
-          'Hello, ${_resolveManagerName()}',
-          style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
-        ),
+        const SizedBox(width: 12),
+        const MessagesIcon(),
+        const SizedBox(width: 8),
+        if (widget.forAdminOversight)
+          NotificationsBell(
+            onTap: () => Navigator.pushNamed(context, '/admin_inbox'),
+          )
+        else
+          const NotificationsBell(),
       ],
     );
   }
