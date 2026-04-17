@@ -70,6 +70,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   // Dark-mode sidebar surface shared across employee/manager/admin.
   static const Color backgroundColor = Color(0xFF3D3F40);
 
+  void _logSidebar(String message) {
+    debugPrint('[Sidebar] $message');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -120,6 +124,9 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     // Always use the nav items provided by the current page/portal.
     // This preserves correct route mapping for manager/admin/employee contexts.
     _currentItems = widget.items;
+    _logSidebar(
+      'items updated count=${_currentItems.length}, currentRoute=${widget.currentRouteName}',
+    );
   }
 
   @override
@@ -197,6 +204,9 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
       stream: RoleService.instance.roleStream(),
       initialData: RoleService.instance.cachedRole,
       builder: (context, roleSnapshot) {
+        if (roleSnapshot.hasError) {
+          _logSidebar('role stream error: ${roleSnapshot.error}');
+        }
         return ValueListenableBuilder<bool>(
           valueListenable: employeeDashboardLightModeNotifier,
           builder: (context, sidebarLight, _) {
@@ -253,7 +263,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                               isLastTutorialStep:
                                   widget.tutorialStepIndex != null &&
                                   widget.tutorialStepIndex ==
-                                      widget.items.length - 1,
+                                      _currentItems.length - 1,
                             );
                           }
 
@@ -267,7 +277,17 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                             route: it.route,
                             isActive: widget.currentRouteName == it.route,
                             collapsed: effectiveCollapsed,
-                            onTap: () => widget.onNavigate(it.route),
+                            onTap: () {
+                              _logSidebar(
+                                'tap route=${it.route} from=${widget.currentRouteName}',
+                              );
+                              try {
+                                widget.onNavigate(it.route);
+                              } catch (e, st) {
+                                _logSidebar('onNavigate error route=${it.route}: $e');
+                                debugPrint(st.toString());
+                              }
+                            },
                             showProfileIndicator: showProfileIndicator,
                             tutorialKey:
                                 widget.sidebarTutorialKeys != null &&
@@ -282,7 +302,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                             isLastTutorialStep:
                                 widget.tutorialStepIndex != null &&
                                 widget.tutorialStepIndex ==
-                                    widget.items.length - 1,
+                                    _currentItems.length - 1,
                           );
                         }),
                         // Keep footer actions inside the scroll area to prevent
@@ -294,7 +314,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                           route: '__logout__',
                           isActive: false,
                           collapsed: effectiveCollapsed,
-                          onTap: widget.onLogout,
+                          onTap: () {
+                            _logSidebar('tap logout');
+                            widget.onLogout();
+                          },
                         ),
                         _CollapseToggle(
                           collapsed: effectiveCollapsed,
@@ -662,79 +685,85 @@ class _NavTileState extends State<_NavTile> {
     final bool isSelected = widget.isActive;
     final bool isCollapsed = widget.collapsed;
 
-    final localizations = AppLocalizations.of(context);
+    AppLocalizations? localizations;
+    try {
+      localizations = AppLocalizations.of(context);
+    } catch (e) {
+      debugPrint('[Sidebar] localization unavailable in NavTile: $e');
+      localizations = null;
+    }
     String label = widget.label;
     switch (widget.route) {
       case '/employee_dashboard':
       case '/dashboard':
-        label = localizations.nav_dashboard;
+        label = localizations?.nav_dashboard ?? widget.label;
         break;
       case '/my_pdp':
         // Manager sidebar dropdown parent uses "Manager Workspace"; employee uses Goal Workspace.
         if (widget.label != 'Manager Workspace') {
-          label = localizations.nav_goal_workspace;
+          label = localizations?.nav_goal_workspace ?? widget.label;
         }
         break;
       case '/my_profile':
-        label = localizations.nav_my_profile;
+        label = localizations?.nav_my_profile ?? widget.label;
         break;
       case '/my_goal_workspace':
-        label = localizations.nav_my_pdp;
+        label = localizations?.nav_my_pdp ?? widget.label;
         break;
       case '/progress_visuals':
-        label = localizations.nav_progress_visuals;
+        label = localizations?.nav_progress_visuals ?? widget.label;
         break;
       case '/alerts_nudges':
-        label = localizations.nav_alerts_nudges;
+        label = localizations?.nav_alerts_nudges ?? widget.label;
         break;
       case '/badges_points':
       case '/manager_badges_points':
-        label = localizations.nav_badges_points;
+        label = localizations?.nav_badges_points ?? widget.label;
         break;
       case '/season_challenges':
-        label = localizations.nav_season_challenges;
+        label = localizations?.nav_season_challenges ?? widget.label;
         break;
       case '/leaderboard':
       case '/manager_leaderboard':
-        label = localizations.nav_leaderboard;
+        label = localizations?.nav_leaderboard ?? widget.label;
         break;
       case '/repository_audit':
-        label = localizations.nav_repository_audit;
+        label = localizations?.nav_repository_audit ?? widget.label;
         break;
       case '/settings':
-        label = localizations.nav_settings_privacy;
+        label = localizations?.nav_settings_privacy ?? widget.label;
         break;
       case '/team_challenges_seasons':
-        label = localizations.nav_team_challenges;
+        label = localizations?.nav_team_challenges ?? widget.label;
         break;
       case '/manager_alerts_nudges':
-        label = localizations.nav_team_alerts_nudges;
+        label = localizations?.nav_team_alerts_nudges ?? widget.label;
         break;
       case '/manager_inbox':
-        label = localizations.nav_manager_inbox;
+        label = localizations?.nav_manager_inbox ?? widget.label;
         break;
       case '/manager_review_team_dashboard':
         // Use the updated manager label without requiring l10n regeneration.
         label = 'Team Review';
         break;
       case '/admin_dashboard':
-        label = localizations.nav_dashboard;
+        label = localizations?.nav_dashboard ?? widget.label;
         break;
       case '/user_management':
-        label = localizations.nav_user_management;
+        label = localizations?.nav_user_management ?? widget.label;
         break;
       case '/analytics':
       case '/admin_analytics':
-        label = localizations.nav_analytics;
+        label = localizations?.nav_analytics ?? widget.label;
         break;
       case '/system_settings':
-        label = localizations.nav_system_settings;
+        label = localizations?.nav_system_settings ?? widget.label;
         break;
       case '/security':
-        label = localizations.nav_security;
+        label = localizations?.nav_security ?? widget.label;
         break;
       case '/backup':
-        label = localizations.nav_backup_restore;
+        label = localizations?.nav_backup_restore ?? widget.label;
         break;
       default:
         break;

@@ -92,7 +92,9 @@ class MainLayout extends StatelessWidget {
       onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
       onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
       onNavigate: (route) {
-        if (ModalRoute.of(context)?.settings.name != route) {
+        final activeRoute = ModalRoute.of(context)?.settings.name ?? currentRouteName;
+        debugPrint('[MainLayout] navigate from=$activeRoute to=$route');
+        if (activeRoute != route) {
           Navigator.pushNamed(context, route);
         }
       },

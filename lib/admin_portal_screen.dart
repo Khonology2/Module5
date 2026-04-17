@@ -89,6 +89,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   }
 
   void _onNavigate(String route) {
+    debugPrint('[AdminPortal] navigate from=$_currentRoute to=$route');
     setState(() {
       _currentRoute = route;
     });

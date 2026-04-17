@@ -198,6 +198,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   void _onNavigate(String route) {
+    debugPrint('[ManagerPortal] navigate from=$_currentRoute to=$route');
     _syncWorkspaceContextForRoute(route);
     setState(() {
       if (route == '/manager_alerts_nudges') {

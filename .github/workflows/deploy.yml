@@ -60,6 +60,21 @@ jobs:
           echo "Commit: $(git rev-parse HEAD)"
           git log -1 --pretty=fuller
 
+      - name: Gate hook deploy for skip-ci commits
+        id: deploy_gate
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        run: |
+          set -euo pipefail
+          HEAD_SUBJECT="$(git log -1 --pretty=%s)"
+          echo "HEAD_SUBJECT=${HEAD_SUBJECT}" >> "$GITHUB_ENV"
+          if echo "$HEAD_SUBJECT" | grep -qi '\[skip ci\]'; then
+            echo "should_trigger_render_hook=false" >> "$GITHUB_OUTPUT"
+            echo "Latest commit contains [skip ci]; Render hook deploy will be skipped."
+          else
+            echo "should_trigger_render_hook=true" >> "$GITHUB_OUTPUT"
+            echo "Latest commit does not contain [skip ci]; Render hook deploy is allowed."
+          fi
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -151,7 +166,7 @@ jobs:
           exit 1
 
       - name: Trigger Render deploy hook
-        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH && steps.deploy_gate.outputs.should_trigger_render_hook == 'true'
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
@@ -180,7 +195,7 @@ jobs:
           DEPLOY_START_ISO="$(date -Is)"
           DEPLOY_START_EPOCH="$(date +%s)"
 
-          # Capture body + status (Render may return empty body; that’s fine)
+          # Capture body + status (Render may return empty body; that's fine)
           CURL_OUT="$(mktemp)"
           HTTP_CODE="$(curl -sS -o "$CURL_OUT" -w "%{http_code}" -X POST "$RENDER_DEPLOY_HOOK" || true)"
           DEPLOY_END_ISO="$(date -Is)"
@@ -209,6 +224,11 @@ jobs:
             echo "$DEPLOY_BODY"
             exit 1
           fi
+
+      - name: Skip Render hook deploy for skip-ci commit
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH && steps.deploy_gate.outputs.should_trigger_render_hook != 'true'
+        run: |
+          echo "Render hook deploy skipped because HEAD commit contains [skip ci]."
 
       - name: Deploy summary
         if: ${{ always() && env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH }}
