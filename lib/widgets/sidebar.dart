@@ -14,7 +14,6 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/workspace_context_switcher.dart';
 import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/services/role_service.dart';
-import 'package:pdh/design_system/sidebar_config.dart';
 
 /// Light palette for the nav rail (white panel, black labels), driven by
 /// [employeeDashboardLightModeNotifier] with the employee dashboard light toggle.
@@ -66,6 +65,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   int? _previousTutorialStep;
   bool _isProfileIncomplete = false;
   final WorkspaceContextService _workspaceService = WorkspaceContextService();
+  List<SidebarItem> _currentItems = [];
 
   // Dark-mode sidebar surface shared across employee/manager/admin.
   static const Color backgroundColor = Color(0xFF3D3F40);
@@ -76,6 +76,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     _previousTutorialStep = widget.tutorialStepIndex;
     _checkProfileCompletion();
     _workspaceService.addListener(_onWorkspaceChanged);
+    _updateItems();
   }
 
   Future<void> _checkProfileCompletion({bool bypassCache = false}) async {
@@ -109,13 +110,24 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
 
   void _onWorkspaceChanged() {
     if (mounted) {
-      setState(() {});
+      setState(() {
+        _updateItems();
+      });
     }
+  }
+
+  void _updateItems() {
+    // Always use the nav items provided by the current page/portal.
+    // This preserves correct route mapping for manager/admin/employee contexts.
+    _currentItems = widget.items;
   }
 
   @override
   void didUpdateWidget(ResponsiveSidebar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.items, widget.items)) {
+      _updateItems();
+    }
 
     // Only proceed if the widget is still in the tree
     if (!mounted) return;
@@ -191,8 +203,6 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
             return ValueListenableBuilder<bool>(
               valueListenable: SidebarState.instance.isCollapsed,
               builder: (context, collapsed, _) {
-                // Recompute items at build-time so role/workspace changes are reflected immediately.
-                final currentItems = SidebarConfig.getItemsForCurrentWorkspace();
             // Allow toggling on medium/large screens; always collapsed on small screens
             final effectiveCollapsed = isSmall ? true : collapsed;
 
@@ -213,7 +223,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       padding: AppSpacing.sidebarContentPadding,
                       children: [
                         // Build nav entries first.
-                        ...currentItems.asMap().entries.map((entry) {
+                        ..._currentItems.asMap().entries.map((entry) {
                           final index = entry.key;
                           final it = entry.value;
                           // Show profile warning marker when profile is incomplete.
@@ -291,19 +301,19 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                           tutorialKey:
                               widget.sidebarTutorialKeys != null &&
                                   widget.tutorialStepIndex != null &&
-                                  widget.tutorialStepIndex == currentItems.length &&
+                                  widget.tutorialStepIndex == _currentItems.length &&
                                   widget.tutorialStepIndex! <
                                       widget.sidebarTutorialKeys!.length
                               ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
                               : null,
                           showTutorial:
                               widget.tutorialStepIndex != null &&
-                              widget.tutorialStepIndex == currentItems.length,
+                              widget.tutorialStepIndex == _currentItems.length,
                           onTutorialNext: widget.onTutorialNext,
                           onTutorialSkip: widget.onTutorialSkip,
                           isLastTutorialStep:
                               widget.tutorialStepIndex != null &&
-                              widget.tutorialStepIndex == currentItems.length,
+                              widget.tutorialStepIndex == _currentItems.length,
                         ),
                       ],
                     ),
