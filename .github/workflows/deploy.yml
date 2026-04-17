@@ -12,6 +12,11 @@ name: deploy-check
 
 on:
   workflow_call:
+    inputs:
+      deploy_branch:
+        description: "Branch that requested deployment"
+        required: true
+        type: string
   workflow_dispatch:
 
 concurrency:
@@ -23,12 +28,12 @@ permissions:
 
 jobs:
   checks-build-deploy:
-    if: ${{ (github.event_name == 'workflow_call' && github.ref_name == 'deployed-v2') || (github.event_name == 'workflow_dispatch' && github.ref_name == 'deployed-v2') }}
+    if: ${{ github.event_name == 'workflow_call' || (github.event_name == 'workflow_dispatch' && github.ref_name == 'deployed-v2') }}
     name: Flutter CI, web build, Render deploy
     runs-on: ubuntu-latest
     env:
       TARGET_DEPLOY_BRANCH: deployed-v2
-      DEPLOY_BRANCH: ${{ github.ref_name }}
+      DEPLOY_BRANCH: ${{ github.event_name == 'workflow_call' && inputs.deploy_branch || github.ref_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

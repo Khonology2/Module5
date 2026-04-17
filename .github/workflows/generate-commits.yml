@@ -149,5 +149,7 @@ jobs:
     needs: generate-commits
     if: ${{ github.event_name == 'push' && github.ref_name == 'deployed-v2' }}
     uses: ./.github/workflows/deploy.yml
+    with:
+      deploy_branch: ${{ github.ref_name }}
     secrets: inherit
 
