@@ -11,11 +11,7 @@
 name: deploy-check
 
 on:
-  workflow_run:
-    workflows: ["Generate Daily Commits"]
-    types: [completed]
-    branches:
-      - deployed-v2
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
@@ -27,12 +23,12 @@ permissions:
 
 jobs:
   checks-build-deploy:
-    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref_name == 'deployed-v2') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'deployed-v2') }}
+    if: ${{ (github.event_name == 'workflow_call' && github.ref_name == 'deployed-v2') || (github.event_name == 'workflow_dispatch' && github.ref_name == 'deployed-v2') }}
     name: Flutter CI, web build, Render deploy
     runs-on: ubuntu-latest
     env:
       TARGET_DEPLOY_BRANCH: deployed-v2
-      DEPLOY_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+      DEPLOY_BRANCH: ${{ github.ref_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
