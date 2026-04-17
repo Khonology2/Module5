@@ -90,6 +90,12 @@ jobs:
           printf '{"sha":"%s","run_id":"%s","run_attempt":"%s"}\n' \
             "$SOURCE_SHA" "${GITHUB_RUN_ID}" "${GITHUB_RUN_ATTEMPT}" > build/web/.ci-build-meta.json
 
+      - name: Restore lockfile changes from CI resolver
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        run: |
+          # flutter pub get may update pubspec.lock on CI; keep source tree clean for deploy commit.
+          git restore --source=HEAD --worktree -- "pubspec.lock" || true
+
       - name: Commit and push build/web
         if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
         run: |
@@ -321,19 +327,19 @@ jobs:
               echo "**Features (\`feat\`)**"
               echo ""
               echo "\`\`\`"
-              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|\\s)feat(\\(|:|\\s)' || echo "None"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|[[:space:]])feat(\(|:|[[:space:]])' || echo "None"
               echo "\`\`\`"
               echo ""
               echo "**Fixes (\`fix\`)**"
               echo ""
               echo "\`\`\`"
-              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|\\s)fix(\\(|:|\\s)' || echo "None"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|[[:space:]])fix(\(|:|[[:space:]])' || echo "None"
               echo "\`\`\`"
               echo ""
               echo "**Chores (\`chore\`)**"
               echo ""
               echo "\`\`\`"
-              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|\\s)chore(\\(|:|\\s)' || echo "None"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|[[:space:]])chore(\(|:|[[:space:]])' || echo "None"
               echo "\`\`\`"
               echo ""
               echo "**Breaking (\`BREAKING CHANGE\`)**"
