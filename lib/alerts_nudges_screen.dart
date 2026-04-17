@@ -1006,6 +1006,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return;
       }
 
+      if (!mounted) return;
       final selectedAdminId = await showModalBottomSheet<String>(
         context: context,
         backgroundColor: _AlertsChrome.cardFill,
@@ -1144,8 +1145,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         },
                         fromUserId: employeeId,
                       );
-                      if (!mounted) return;
+                      if (!sheetContext.mounted) return;
                       Navigator.pop(sheetContext);
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('1:1 request sent to admin.')),
                       );
@@ -1177,6 +1179,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         initialDate: now.add(const Duration(days: 1)),
                       );
                       if (pickedDate == null) return;
+                      if (!sheetContext.mounted) return;
                       final pickedStartTime = await showTimePicker(
                         context: sheetContext,
                         initialTime: TimeOfDay.fromDateTime(
@@ -1184,6 +1187,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         ),
                       );
                       if (pickedStartTime == null) return;
+                      if (!sheetContext.mounted) return;
                       final proposedStart = DateTime(
                         pickedDate.year,
                         pickedDate.month,
@@ -1252,8 +1256,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         },
                         fromUserId: employeeId,
                       );
-                      if (!mounted) return;
+                      if (!sheetContext.mounted) return;
                       Navigator.pop(sheetContext);
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Proposed time sent to admin.')),
                       );

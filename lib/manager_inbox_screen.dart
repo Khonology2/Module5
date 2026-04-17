@@ -9,7 +9,7 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
-import 'package:pdh/services/role_service.dart';  
+import 'package:pdh/services/role_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
@@ -1145,9 +1145,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           padding: AppSpacing.screenPadding,
           child: Text(
             'Please sign in to view inbox',
-            style: AppTypography.bodyMedium.copyWith(
-            color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
           ),
         ),
       );
@@ -1529,6 +1527,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               );
             },
           ),
+        ),
       ),
     );
   }
@@ -2229,9 +2228,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     return BoxDecoration(
       color: DashboardChrome.cardFill,
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(
-        color: borderColor ?? DashboardChrome.border,
-      ),
+      border: Border.all(color: borderColor ?? DashboardChrome.border),
     );
   }
 

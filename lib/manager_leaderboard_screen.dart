@@ -22,14 +22,14 @@ class ManagerLeaderboardScreen extends StatefulWidget {
       _ManagerLeaderboardScreenState();
 }
 
-class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
+class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
+    with SingleTickerProviderStateMixin {
   LeaderboardMetric _metric = LeaderboardMetric.points;
   bool _isAllTime = true;
   List<EmployeeData> _lastEmployees = const [];
   late Stream<List<EmployeeData>> _employeeStream;
   Future<List<EmployeeData>>? _employeeFuture;
   late final AnimationController _topHoverController;
-  bool _isTopHovered = false;
 
   @override
   void initState() {

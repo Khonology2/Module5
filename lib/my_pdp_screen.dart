@@ -1157,15 +1157,6 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     const SizedBox(height: 20),
                     _buildExcellenceArea(
                       light: light,
-                      title: 'Operational Excellence',
-                      expanded: _isOperationalExpanded,
-                      onToggle: (v) =>
-                          setState(() => _isOperationalExpanded = v),
-                      managerOwnGoalsOnly: managerOwnGoalsOnly,
-                    ),
-                    const SizedBox(height: 20),
-                    _buildExcellenceArea(
-                      light: light,
                       title: 'Organisational Excellence',
                       iconAsset: _kpaIconOrganisational,
                       expanded: _isOrganisationalExpanded,
@@ -1286,17 +1277,16 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     horizontal: 16.0,
                     vertical: 8.0,
                   ),
-                  child: _buildGoalsForExcellence(title, light),
+                  child: _buildGoalsForExcellence(
+                    title,
+                    light,
+                    managerOwnGoalsOnly,
+                  ),
                 ),
-                child: _buildGoalsForExcellence(
-                  title,
-                  light,
-                  managerOwnGoalsOnly,
-                ),
-              ),
           ],
         ),
       ),
+    ),
     );
   }
 

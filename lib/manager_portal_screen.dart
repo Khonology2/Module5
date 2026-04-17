@@ -21,6 +21,7 @@ import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
 import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/employee_profile_screen.dart';
+import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
@@ -62,7 +63,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return AppSpacing.screenPadding;
       default:
         return EdgeInsets.zero;
-    }
+    } 
   }
 
   Widget _getBodyWidget() {
