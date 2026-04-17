@@ -151,6 +151,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       if (!mounted) return;
       if (role == 'manager') {
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          // Guard against async frame callbacks running after this State is disposed.
+          if (!mounted) return;
           final current = ModalRoute.of(context)?.settings.name;
           if (current != '/manager_portal') {
             Navigator.pushReplacementNamed(

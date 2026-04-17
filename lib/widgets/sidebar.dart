@@ -73,8 +73,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   @override
   void initState() {
     super.initState();
+    // Keep tutorial navigation and profile warning state in sync from first paint.
     _previousTutorialStep = widget.tutorialStepIndex;
     _checkProfileCompletion();
+    // Sidebar items can change when workspace context switches (My/Manager).
     _workspaceService.addListener(_onWorkspaceChanged);
     _updateItems();
   }
@@ -111,12 +113,14 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   void _onWorkspaceChanged() {
     if (mounted) {
       setState(() {
+        // Rebuild the nav list from the active workspace/role context.
         _updateItems();
       });
     }
   }
 
   void _updateItems() {
+    // Centralized source of sidebar items so all entry points stay consistent.
     _currentItems = SidebarConfig.getItemsForCurrentWorkspace();
   }
 
@@ -313,6 +317,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
             );
 
             final Widget shell = Container(
+              // Keep compact and expanded rail widths explicit for predictable layout.
               width: isSmall
                   ? double.infinity
                   : (effectiveCollapsed ? 72 : 280),
