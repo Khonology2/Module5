@@ -1,4 +1,4 @@
-Future<String?> fetchCurrentDeployCommit() async => null;
+Future<String?> fetchLatestLiveVersion() async => null;
 
 void forceHardReload() {}
 

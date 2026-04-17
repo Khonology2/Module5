@@ -3,8 +3,7 @@
 #    commit + push build/web (always when SHA changes), wait, POST RENDER_DEPLOY_HOOK
 #
 # Render must serve pre-built files only (Static Site): buildCommand = no-op, publish = build/web.
-# The version label (Ver … SIT) comes from assets/data/version.json bundled at build time — it must
-# be committed to the branch you deploy, or CI will keep building the old version string.
+# The version label (Ver … SIT) comes from assets/data/daily-commits.json bundled at build time.
 #
 # Secrets: RENDER_DEPLOY_HOOK = full URL from Render → Service → Settings → Deploy Hook
 
