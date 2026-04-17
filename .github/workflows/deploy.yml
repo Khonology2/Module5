@@ -28,7 +28,6 @@ permissions:
 
 jobs:
   checks-build-deploy:
-    if: ${{ github.event_name == 'workflow_call' || (github.event_name == 'workflow_dispatch' && github.ref_name == 'deployed-v2') }}
     name: Flutter CI, web build, Render deploy
     runs-on: ubuntu-latest
     env:
