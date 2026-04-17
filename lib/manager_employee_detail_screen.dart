@@ -42,14 +42,27 @@ class _ManagerEmployeeDetailScreenState
         .map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
 
     return topLevel.combineLatest<List<Goal>, List<Goal>>(nested, (a, b) {
-      final seen = <String>{};
-      final merged = <Goal>[];
-      for (final g in [...a, ...b]) {
-        if (!seen.contains(g.id)) {
-          seen.add(g.id);
-          merged.add(g);
-        }
+      int richness(Goal g) =>
+          g.title.trim().length + g.description.trim().length;
+
+      Goal? pickBetter(Goal? current, Goal candidate) {
+        if (!candidate.isDisplayableGoal) return current;
+        if (current == null) return candidate;
+        final rc = richness(candidate);
+        final r0 = richness(current);
+        return rc > r0 ? candidate : current;
       }
+
+      final byId = <String, Goal>{};
+      for (final g in a) {
+        final next = pickBetter(byId[g.id], g);
+        if (next != null) byId[g.id] = next;
+      }
+      for (final g in b) {
+        final next = pickBetter(byId[g.id], g);
+        if (next != null) byId[g.id] = next;
+      }
+      final merged = byId.values.where((g) => g.isDisplayableGoal).toList();
       merged.sort((x, y) => y.createdAt.compareTo(x.createdAt));
       return merged;
     });
@@ -105,7 +118,9 @@ class _ManagerEmployeeDetailScreenState
                     }
                     final goals = snapshot.data!
                         .where(
-                          (g) => g.approvalStatus == GoalApprovalStatus.approved,
+                          (g) =>
+                              g.isDisplayableGoal &&
+                              g.approvalStatus == GoalApprovalStatus.approved,
                         )
                         .toList();
 

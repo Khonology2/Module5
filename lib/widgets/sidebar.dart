@@ -213,10 +213,11 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       controller: _scrollController,
                       padding: AppSpacing.sidebarContentPadding,
                       children: [
+                        // Build nav entries first.
                         ..._currentItems.asMap().entries.map((entry) {
                           final index = entry.key;
                           final it = entry.value;
-                          // Show the profile warning indicator for incomplete profile routes.
+                          // Show profile warning marker when profile is incomplete.
                           final bool showProfileIndicator =
                               (it.route == '/my_profile' ||
                                   it.route == '/manager_profile') &&
@@ -275,8 +276,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                                     widget.items.length - 1,
                           );
                         }),
-                        // Keep footer actions in the scrollable region to prevent
-                        // bottom RenderFlex overflows on shorter web viewports.
+                        // Keep footer actions inside the scroll area to prevent
+                        // overflow/duplication effects on shorter viewports.
                         _NavTile(
                           key: const ValueKey('nav_logout'),
                           icon: Icons.exit_to_app,

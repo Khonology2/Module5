@@ -9,6 +9,7 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/design_system/kpa_excellence_surface.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/ai_fallback_service.dart';
@@ -402,6 +403,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionCard(
                     gw,
+                    light,
                     children: [
                       _buildTextFieldWithGenerate(
                         gw,
@@ -443,6 +445,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   ),
                   _buildSectionCard(
                     gw,
+                    light,
                     children: [
                       Row(
                         children: [
@@ -499,6 +502,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   _buildSectionHeader('Dependencies & Prerequisites', gw),
                   _buildSectionCard(
                     gw,
+                    light,
                     children: [
                       _buildTextField(
                         gw,
@@ -513,6 +517,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   _buildSectionHeader('Success Metrics', gw),
                   _buildSectionCard(
                     gw,
+                    light,
                     children: [
                       _buildTextField(
                         gw,
@@ -533,7 +538,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                       ),
                     ),
                   ),
-                  _buildSectionCard(gw, children: [_buildActionButtons(gw)]),
+                  _buildSectionCard(
+                    gw,
+                    light,
+                    children: [_buildActionButtons(gw)],
+                  ),
                         ],
                       ),
                     ),
@@ -558,19 +567,22 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }
 
   Widget _buildSectionCard(
-    _GoalWorkspacePalette gw, {
+    _GoalWorkspacePalette gw,
+    bool light, {
     required List<Widget> children,
   }) {
+    final r = KpaExcellenceSurface.borderRadiusGeometry;
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: gw.widgetBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: gw.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+      decoration: KpaExcellenceSurface.cardDecoration(light),
+      child: ClipRRect(
+        borderRadius: r,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
+          ),
+        ),
       ),
     );
   }

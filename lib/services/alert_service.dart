@@ -244,7 +244,13 @@ class AlertService {
       message: '$employeeName accepted your 1:1 request$when.',
       actionText: 'View',
       actionRoute: actionRouteOverride ?? '/manager_inbox',
-      actionData: {'meetingId': meetingId},
+      actionData: {
+        'meetingId': meetingId,
+        if (acceptedStartDateTime != null)
+          'meetingStartDateTime': Timestamp.fromDate(acceptedStartDateTime),
+        if (acceptedEndDateTime != null)
+          'meetingEndDateTime': Timestamp.fromDate(acceptedEndDateTime),
+      },
       createdAt: DateTime.now(),
       fromUserId: employeeId,
       fromUserName: employeeName,
@@ -1542,7 +1548,7 @@ class AlertService {
         final daysUntilDue = goal.targetDate.difference(DateTime.now()).inDays;
         if (daysUntilDue <= 7 &&
             daysUntilDue > 0 &&
-            goal.status != GoalStatus.completed) {
+            goal.isEligibleForOverdueTeamAlert) {
           // Check if alert already exists
           final existingAlert = await _firestore
               .collection('alerts')
@@ -1562,7 +1568,7 @@ class AlertService {
         }
 
         // Overdue alerts (employee) and notify manager when 1 day overdue
-        if (daysUntilDue < 0 && goal.status != GoalStatus.completed) {
+        if (daysUntilDue < 0 && goal.isEligibleForOverdueTeamAlert) {
           final existingAlert = await _firestore
               .collection('alerts')
               .where('userId', isEqualTo: user.uid)

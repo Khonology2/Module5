@@ -10,7 +10,6 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 class NotificationsBell extends StatefulWidget {
   const NotificationsBell({super.key, this.onTap});
 
-  /// When set, this callback is used instead of the default role-based navigation (e.g. admin portal can route to admin inbox).
   final VoidCallback? onTap;
 
   @override
@@ -32,10 +31,7 @@ class _NotificationsBellState extends State<NotificationsBell>
     _opacityAnimation = Tween<double>(
       begin: 0.3,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeInOut));
   }
 
   @override
@@ -98,7 +94,6 @@ class _NotificationsBellState extends State<NotificationsBell>
         return FutureBuilder<bool>(
           future: _isProfileIncomplete(),
           builder: (context, profileSnapshot) {
-            // Include profile incomplete as an unread alert
             final profileIncomplete = profileSnapshot.data ?? false;
             final unreadCount = unreadAlertsCount + (profileIncomplete ? 1 : 0);
             final hasUnread = unreadCount > 0;
