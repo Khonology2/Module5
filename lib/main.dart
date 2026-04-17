@@ -60,6 +60,7 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
+import 'package:pdh/services/deployment_freshness_service.dart';
 import 'dart:ui' as ui;
 
 final GlobalKey<NavigatorState> navigatorKey =
@@ -151,7 +152,8 @@ void main() async {
   // third-party storage; serve the app from your own domain or allow storage for the site.
   if (kIsWeb) {
     try {
-      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+      // Keep auth scoped to current tab/session to avoid stale cross-session state.
+      await FirebaseAuth.instance.setPersistence(Persistence.SESSION);
     } catch (_) {
       // Non-web or older SDKs will ignore
     }
@@ -241,6 +243,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     ShowcaseView.register();
+    DeploymentFreshnessService.instance.start();
     _initializeSpeechRecognition();
     _initializeLocale(); // Load persisted language
     _speechRecognitionService.speechCommands.listen((command) {
@@ -308,6 +311,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
+    DeploymentFreshnessService.instance.stop();
     _speechRecognitionService.dispose();
     super.dispose();
   }

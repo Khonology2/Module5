@@ -13,6 +13,7 @@ import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/workspace_context_switcher.dart';
 import 'package:pdh/services/workspace_context_service.dart';
+import 'package:pdh/services/role_service.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 
 /// Light palette for the nav rail (white panel, black labels), driven by
@@ -65,7 +66,6 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   int? _previousTutorialStep;
   bool _isProfileIncomplete = false;
   final WorkspaceContextService _workspaceService = WorkspaceContextService();
-  List<SidebarItem> _currentItems = [];
 
   // Dark-mode sidebar surface shared across employee/manager/admin.
   static const Color backgroundColor = Color(0xFF3D3F40);
@@ -76,7 +76,6 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     _previousTutorialStep = widget.tutorialStepIndex;
     _checkProfileCompletion();
     _workspaceService.addListener(_onWorkspaceChanged);
-    _updateItems();
   }
 
   Future<void> _checkProfileCompletion({bool bypassCache = false}) async {
@@ -110,14 +109,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
 
   void _onWorkspaceChanged() {
     if (mounted) {
-      setState(() {
-        _updateItems();
-      });
+      setState(() {});
     }
-  }
-
-  void _updateItems() {
-    _currentItems = SidebarConfig.getItemsForCurrentWorkspace();
   }
 
   @override
@@ -188,12 +181,18 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     // Use design system breakpoints
     final isSmall = AppBreakpoints.isSmall(context);
 
-    return ValueListenableBuilder<bool>(
-      valueListenable: employeeDashboardLightModeNotifier,
-      builder: (context, sidebarLight, _) {
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      initialData: RoleService.instance.cachedRole,
+      builder: (context, roleSnapshot) {
         return ValueListenableBuilder<bool>(
-          valueListenable: SidebarState.instance.isCollapsed,
-          builder: (context, collapsed, _) {
+          valueListenable: employeeDashboardLightModeNotifier,
+          builder: (context, sidebarLight, _) {
+            return ValueListenableBuilder<bool>(
+              valueListenable: SidebarState.instance.isCollapsed,
+              builder: (context, collapsed, _) {
+                // Recompute items at build-time so role/workspace changes are reflected immediately.
+                final currentItems = SidebarConfig.getItemsForCurrentWorkspace();
             // Allow toggling on medium/large screens; always collapsed on small screens
             final effectiveCollapsed = isSmall ? true : collapsed;
 
@@ -214,7 +213,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       padding: AppSpacing.sidebarContentPadding,
                       children: [
                         // Build nav entries first.
-                        ..._currentItems.asMap().entries.map((entry) {
+                        ...currentItems.asMap().entries.map((entry) {
                           final index = entry.key;
                           final it = entry.value;
                           // Show profile warning marker when profile is incomplete.
@@ -292,19 +291,19 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                           tutorialKey:
                               widget.sidebarTutorialKeys != null &&
                                   widget.tutorialStepIndex != null &&
-                                  widget.tutorialStepIndex == widget.items.length &&
+                                  widget.tutorialStepIndex == currentItems.length &&
                                   widget.tutorialStepIndex! <
                                       widget.sidebarTutorialKeys!.length
                               ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
                               : null,
                           showTutorial:
                               widget.tutorialStepIndex != null &&
-                              widget.tutorialStepIndex == widget.items.length,
+                              widget.tutorialStepIndex == currentItems.length,
                           onTutorialNext: widget.onTutorialNext,
                           onTutorialSkip: widget.onTutorialSkip,
                           isLastTutorialStep:
                               widget.tutorialStepIndex != null &&
-                              widget.tutorialStepIndex == widget.items.length,
+                              widget.tutorialStepIndex == currentItems.length,
                         ),
                       ],
                     ),
@@ -340,6 +339,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: shell,
                     ),
+            );
+              },
             );
           },
         );

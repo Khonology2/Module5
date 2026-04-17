@@ -11,6 +11,8 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  String? _lastResolvedUid;
+
   @override
   void initState() {
     super.initState();
@@ -36,15 +38,22 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // If no authenticated user, show the normal login screen
         if (user == null) {
+          if (_lastResolvedUid != null) {
+            RoleService.instance.clearCache();
+            _lastResolvedUid = null;
+          }
           return const LoginScreen();
+        }
+
+        if (_lastResolvedUid != user.uid) {
+          RoleService.instance.clearCache();
+          _lastResolvedUid = user.uid;
         }
 
         // User is signed in: determine their role and route them
         return FutureBuilder<String?>(
           future: () async {
-            await RoleService.instance.ensureRoleLoaded();
-            // ensureRoleLoaded caches the role; return cached value
-            return RoleService.instance.cachedRole;
+            return RoleService.instance.getRole(refresh: true);
           }(),
           builder: (context, roleSnapshot) {
             final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
