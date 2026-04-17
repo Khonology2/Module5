@@ -1,7 +1,17 @@
 {
-  "version": "2026.04.CB6.SIT",
-  "generated_at": "2026-04-17T07:59:25Z",
+  "version": "2026.04.CB8.SIT",
+  "generated_at": "2026-04-17T08:05:09Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "feat: enhance deploy workflow with dynamic branch input",
+      "timestamp": "2026-04-17T10:01:48+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "chore: update daily commits data [2026-04-17] [skip ci]",
+      "timestamp": "2026-04-17T07:59:26Z"
+    },
     {
       "author": "Nathi2266",
       "message": "refactor: update deploy and generate commits workflows",
@@ -33,6 +43,6 @@
       "timestamp": "2026-04-17T09:42:52+02:00"
     }
   ],
-  "total_commits": 6,
+  "total_commits": 8,
   "date_range": "2026-04-17"
 }
