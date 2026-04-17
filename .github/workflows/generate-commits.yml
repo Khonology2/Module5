@@ -3,7 +3,7 @@ name: Generate Daily Commits
 on:
   push:
     branches:
-      - pdh-deployed-backup-v3
+      - deployed-v2
   schedule:
     # Run daily at 4:30 PM UTC (2:30 PM SAST, 6:30 AM PST)
     - cron: '30 16 * * *'
@@ -144,15 +144,3 @@ jobs:
             git push || echo "Push failed - likely due to no changes or permissions"
           fi
 
-      - name: Trigger deploy workflow
-        if: github.event_name == 'push' && github.ref_name == 'pdh-deployed-backup-v3'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          curl -sS -X POST \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/dispatches" \
-            -d "{\"ref\":\"${GITHUB_REF_NAME}\"}"
-          echo "Deploy workflow dispatched for branch ${GITHUB_REF_NAME}"
