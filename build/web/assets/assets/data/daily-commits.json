@@ -1,7 +1,22 @@
 {
-  "version": "2026.04.CB33.SIT",
-  "generated_at": "2026-04-17T11:12:41Z",
+  "version": "2026.04.CB36.SIT",
+  "generated_at": "2026-04-17T11:19:14Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "refactor: simplify deployment workflow by removing skip-ci checks",
+      "timestamp": "2026-04-17T13:18:53+02:00"
+    },
+    {
+      "author": "github-actions[bot]",
+      "message": "chore: update Flutter web build [skip ci]",
+      "timestamp": "2026-04-17T11:15:41Z"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "chore: update daily commits data [2026-04-17] [skip ci]",
+      "timestamp": "2026-04-17T11:12:41Z"
+    },
     {
       "author": "Nathi2266",
       "message": "feat: add debug logging for navigation and sidebar interactions",
@@ -168,6 +183,6 @@
       "timestamp": "2026-04-17T09:31:56+02:00"
     }
   ],
-  "total_commits": 33,
+  "total_commits": 36,
   "date_range": "2026-04-17"
 }
