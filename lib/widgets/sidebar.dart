@@ -74,6 +74,20 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     debugPrint('[Sidebar] $message');
   }
 
+  /// Global showcase (employee / manager sidebar tutorials via
+  /// `ShowcaseView.get().startShowCase`) uses a full-screen barrier that blocks taps
+  /// on other sidebar items. Body widgets (e.g. notification bell) can still receive taps.
+  /// This widget is used for employee, manager, and admin sidebars (portal screens and
+  /// `AppScaffold`); dismiss before every sidebar navigation so all roles behave consistently.
+  void _sidebarNavigate(String route) {
+    try {
+      ShowcaseView.get().dismiss();
+    } catch (_) {
+      // No active showcase or API unavailable — safe to ignore.
+    }
+    widget.onNavigate(route);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -248,7 +262,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                               parent: it,
                               currentRouteName: widget.currentRouteName,
                               collapsed: effectiveCollapsed,
-                              onNavigate: widget.onNavigate,
+                              onNavigate: _sidebarNavigate,
                               showProfileIndicator: showProfileIndicator,
                               tutorialKey:
                                   widget.sidebarTutorialKeys != null &&
@@ -282,7 +296,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                                 'tap route=${it.route} from=${widget.currentRouteName}',
                               );
                               try {
-                                widget.onNavigate(it.route);
+                                _sidebarNavigate(it.route);
                               } catch (e, st) {
                                 _logSidebar('onNavigate error route=${it.route}: $e');
                                 debugPrint(st.toString());
