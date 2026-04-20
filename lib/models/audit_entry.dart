@@ -19,6 +19,8 @@ class AuditEntry {
   final double? score;
   final String? comments;
   final String? rejectionReason;
+  final String? requiredApproverRole;
+  final String? approvalChain;
   final String userDisplayName;
   final String userDepartment;
 
@@ -40,6 +42,8 @@ class AuditEntry {
     this.score,
     this.comments,
     this.rejectionReason,
+    this.requiredApproverRole,
+    this.approvalChain,
     required this.userDisplayName,
     required this.userDepartment,
   });
@@ -66,6 +70,8 @@ class AuditEntry {
       score: data['score']?.toDouble(),
       comments: data['comments'],
       rejectionReason: data['rejectionReason'],
+      requiredApproverRole: data['requiredApproverRole']?.toString(),
+      approvalChain: data['approvalChain']?.toString(),
       userDisplayName: data['userDisplayName'] ?? 'Unknown User',
       userDepartment: data['userDepartment'] ?? 'Unknown',
     );
@@ -97,6 +103,8 @@ class AuditEntry {
       'score': score,
       'comments': comments,
       'rejectionReason': rejectionReason,
+      'requiredApproverRole': requiredApproverRole,
+      'approvalChain': approvalChain,
       'userDisplayName': userDisplayName,
       'userDepartment': userDepartment,
     };

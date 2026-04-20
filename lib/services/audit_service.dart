@@ -91,7 +91,7 @@ class AuditService {
     }
   }
 
-  // Get audit entries stream for managers (temporarily unscoped to all entries)
+  // Get audit entries stream for managers (department-scoped, fail-closed)
   static Stream<List<AuditEntry>> getManagerAuditEntriesStream({
     String? status,
     String? searchQuery,
@@ -106,16 +106,35 @@ class AuditService {
     }
 
     try {
-      Query query = _firestore.collection('audit_entries');
-
-      if (status != null && status.isNotEmpty) {
-        query = query.where('status', isEqualTo: status);
-      }
-
-      query = query.orderBy('submittedDate', descending: true).limit(200);
-
-      return query
+      return _firestore
+          .collection('users')
+          .doc(user.uid)
           .snapshots()
+          .asyncExpand((managerDoc) {
+            final dept = (managerDoc.data() ?? const {})['department']
+                    ?.toString()
+                    .trim() ??
+                '';
+            if (dept.isEmpty) {
+              developer.log(
+                'Manager audit entries: missing manager department; returning empty stream',
+                name: 'AuditService',
+              );
+              return Stream.value(const <QuerySnapshot<Map<String, dynamic>>>[]);
+            }
+
+            Query<Map<String, dynamic>> query = _firestore
+                .collection('audit_entries')
+                .where('userDepartment', isEqualTo: dept);
+
+            if (status != null && status.isNotEmpty) {
+              query = query.where('status', isEqualTo: status);
+            }
+
+            query = query.orderBy('submittedDate', descending: true).limit(200);
+            return query.snapshots().map((s) => [s]);
+          })
+          .expand((items) => items)
           .map((snapshot) {
             try {
               List<AuditEntry> entries = snapshot.docs

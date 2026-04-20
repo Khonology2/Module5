@@ -10,6 +10,44 @@ class UnifiedMilestoneAudit {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  static Future<Map<String, String>> _resolveGoalOwnerContext(
+    String goalId,
+  ) async {
+    try {
+      final goalDoc = await _firestore.collection('goals').doc(goalId).get();
+      final goalData = goalDoc.data() ?? const <String, dynamic>{};
+      final ownerId = (goalData['userId'] ?? '').toString().trim();
+      if (ownerId.isEmpty) {
+        return const <String, String>{
+          'goalOwnerId': '',
+          'goalOwnerName': '',
+          'goalOwnerDepartment': '',
+        };
+      }
+      final ownerDoc = await _firestore.collection('users').doc(ownerId).get();
+      final ownerData = ownerDoc.data() ?? const <String, dynamic>{};
+      final ownerName = (ownerData['displayName'] ??
+              ownerData['fullName'] ??
+              ownerData['name'] ??
+              ownerData['email'] ??
+              '')
+          .toString()
+          .trim();
+      final ownerDept = (ownerData['department'] ?? '').toString().trim();
+      return <String, String>{
+        'goalOwnerId': ownerId,
+        'goalOwnerName': ownerName,
+        'goalOwnerDepartment': ownerDept,
+      };
+    } catch (_) {
+      return const <String, String>{
+        'goalOwnerId': '',
+        'goalOwnerName': '',
+        'goalOwnerDepartment': '',
+      };
+    }
+  }
+
   /// Log milestone creation with comprehensive details
   static Future<void> logMilestoneCreated({
     required String goalId,
@@ -26,6 +64,7 @@ class UnifiedMilestoneAudit {
       String userName = 'System';
       String userEmail = 'system';
       String userRole = 'system';
+      String userDepartment = '';
 
       if (user != null) {
         try {
@@ -42,6 +81,7 @@ class UnifiedMilestoneAudit {
               'Unknown User';
           userEmail = user.email ?? 'unknown';
           userRole = userData['role'] ?? 'employee';
+          userDepartment = (userData['department'] ?? '').toString().trim();
         } catch (e) {
           // Fallback to basic user info if profile fetch fails
           userName = user.email ?? 'Unknown User';
@@ -51,11 +91,20 @@ class UnifiedMilestoneAudit {
       }
 
       // Create comprehensive audit event
+      final owner = await _resolveGoalOwnerContext(goalId);
       final event = {
         'action': 'milestone_created',
         'goalId': goalId,
+        'goalTitle': goalTitle,
         'milestoneId': milestoneId,
+        'milestoneTitle': milestoneTitle,
+        'status': 'created',
         'userId': user?.uid ?? userId ?? 'system',
+        'userDisplayName': userName,
+        'userDepartment': userDepartment,
+        'goalOwnerId': owner['goalOwnerId'] ?? '',
+        'goalOwnerName': owner['goalOwnerName'] ?? '',
+        'goalOwnerDepartment': owner['goalOwnerDepartment'] ?? '',
         'userName': userName,
         'userEmail': userEmail,
         'userRole': userRole,
@@ -67,6 +116,9 @@ class UnifiedMilestoneAudit {
           'goalTitle': goalTitle,
           'milestoneId': milestoneId,
           'goalId': goalId,
+          'goalOwnerId': owner['goalOwnerId'] ?? '',
+          'goalOwnerName': owner['goalOwnerName'] ?? '',
+          'goalOwnerDepartment': owner['goalOwnerDepartment'] ?? '',
           'createdBy': user?.uid ?? userId ?? 'system',
           'creatorName': userName,
           'creatorEmail': userEmail,
@@ -114,6 +166,7 @@ class UnifiedMilestoneAudit {
       String userName = 'System';
       String userEmail = 'system';
       String userRole = 'system';
+      String userDepartment = '';
 
       if (user != null) {
         try {
@@ -130,6 +183,7 @@ class UnifiedMilestoneAudit {
               'Unknown User';
           userEmail = user.email ?? 'unknown';
           userRole = userData['role'] ?? 'employee';
+          userDepartment = (userData['department'] ?? '').toString().trim();
         } catch (e) {
           // Fallback to basic user info if profile fetch fails
           userName = user.email ?? 'Unknown User';
@@ -139,11 +193,20 @@ class UnifiedMilestoneAudit {
       }
 
       // Create comprehensive audit event
+      final owner = await _resolveGoalOwnerContext(goalId);
       final event = {
         'action': 'milestone_status_changed',
         'goalId': goalId,
+        'goalTitle': goalTitle,
         'milestoneId': milestoneId,
+        'milestoneTitle': milestoneTitle,
+        'status': _formatStatus(newStatus),
         'userId': user?.uid ?? 'system',
+        'userDisplayName': userName,
+        'userDepartment': userDepartment,
+        'goalOwnerId': owner['goalOwnerId'] ?? '',
+        'goalOwnerName': owner['goalOwnerName'] ?? '',
+        'goalOwnerDepartment': owner['goalOwnerDepartment'] ?? '',
         'userName': userName,
         'userEmail': userEmail,
         'userRole': userRole,
@@ -155,6 +218,9 @@ class UnifiedMilestoneAudit {
           'goalTitle': goalTitle,
           'milestoneId': milestoneId,
           'goalId': goalId,
+          'goalOwnerId': owner['goalOwnerId'] ?? '',
+          'goalOwnerName': owner['goalOwnerName'] ?? '',
+          'goalOwnerDepartment': owner['goalOwnerDepartment'] ?? '',
           'oldStatus': oldStatus,
           'newStatus': newStatus,
           'oldStatusDisplay': _formatStatus(oldStatus),
@@ -323,6 +389,9 @@ class UnifiedMilestoneAudit {
   /// Get milestone audit entries as Future (safe alternative)
   static Future<List<Map<String, dynamic>>> getMilestoneAudits({
     bool forManager = false,
+    bool organizationWide = false,
+    Set<String>? allowedUserIds,
+    int limit = 120,
   }) async {
     try {
       final user = _auth.currentUser;
@@ -330,13 +399,17 @@ class UnifiedMilestoneAudit {
         return [];
       }
 
+      final capped = limit.clamp(10, 500);
+
       // Simple one-time query
       final snapshot = await _firestore
           .collection('audit_entries')
           .orderBy('timestamp', descending: true)
-          .limit(100) // Increased limit for managers
+          .limit(capped)
           .get();
 
+      final allowSet = allowedUserIds ?? const <String>{};
+      final enforceUserAllowList = forManager && !organizationWide;
       final audits = snapshot.docs
           .map((doc) => {'id': doc.id, ...doc.data()})
           .where((audit) {
@@ -354,9 +427,13 @@ class UnifiedMilestoneAudit {
               'milestone_dismissed',
             ].contains(action);
 
-            // For managers: show all milestone actions from their department
+            if (organizationWide) {
+              return isMilestoneAction;
+            }
+            // Team manager workspace: fail-closed unless user allow-list is known.
             if (forManager) {
-              return isMilestoneAction; // Managers see all milestone actions
+              if (!enforceUserAllowList || allowSet.isEmpty) return false;
+              return isMilestoneAction && allowSet.contains(userId);
             } else {
               return isMilestoneAction &&
                   userId == user.uid; // Employees see only their own

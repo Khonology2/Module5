@@ -414,6 +414,129 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     return gid != null && gid.isNotEmpty;
   }
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> _adminPendingGoalsStream() {
+    return FirestoreSafe.stream<QuerySnapshot<Map<String, dynamic>>>(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('approvalStatus', isEqualTo: GoalApprovalStatus.pending.name)
+          .where('requiredApproverRole', whereIn: const [
+            'admin',
+            'administrator',
+            'super_admin',
+            'superadmin',
+          ])
+          .limit(300)
+          .snapshots(),
+    );
+  }
+
+  List<Alert> _mergeAdminPendingGoalFallbackAlerts({
+    required List<Alert> baseItems,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> goalDocs,
+    required String adminUserId,
+  }) {
+    final merged = List<Alert>.from(baseItems);
+    final seenGoalIds = <String>{
+      for (final a in baseItems)
+        if (a.type == AlertType.goalApprovalRequested &&
+            _goalIdFromAlert(a) != null)
+          _goalIdFromAlert(a)!,
+    };
+
+    for (final doc in goalDocs) {
+      if (seenGoalIds.contains(doc.id)) continue;
+      final data = doc.data();
+      final goalTitle = (data['title'] ?? 'Untitled Goal').toString();
+      final requesterId = (data['userId'] ?? '').toString();
+      final requestedAt =
+          (data['approvalRequestedAt'] ?? data['createdAt']) as Timestamp?;
+
+      merged.add(
+        Alert(
+          id: 'fallback_goal_approval_${doc.id}',
+          userId: adminUserId,
+          type: AlertType.goalApprovalRequested,
+          audience: AlertAudience.team,
+          priority: AlertPriority.high,
+          title: 'Goal Approval Needed',
+          message:
+              'Manager goal "$goalTitle" is awaiting admin approval.',
+          actionText: 'Review Goal',
+          actionRoute: '/admin_inbox',
+          actionData: {
+            'goalId': doc.id,
+            'requestedByUserId': requesterId,
+            'requiredApproverRole': 'admin',
+            'approvalChain': 'manager_to_admin',
+            'fallbackGenerated': true,
+          },
+          createdAt: requestedAt?.toDate() ?? DateTime.now(),
+          isRead: false,
+          isDismissed: false,
+          relatedGoalId: doc.id,
+          fromUserId: requesterId.isNotEmpty ? requesterId : null,
+          fromUserName: (data['userDisplayName'] ?? '').toString().trim().isNotEmpty
+              ? (data['userDisplayName'] ?? '').toString()
+              : null,
+        ),
+      );
+      seenGoalIds.add(doc.id);
+    }
+
+    return merged;
+  }
+
+  bool _isGenericPlaceholderName(String s) {
+    final l = s.trim().toLowerCase();
+    return l == 'manager' ||
+        l == 'an employee' ||
+        l == 'employee' ||
+        l == 'unknown';
+  }
+
+  /// Prefer real display name/email from Firestore when the alert used a generic label.
+  Future<String> _resolvedRequesterDisplay(Alert alert) async {
+    final uid = (alert.actionData?['requestedByUserId'] ?? alert.fromUserId ?? '')
+        .toString()
+        .trim();
+    final rawFrom = (alert.fromUserName ?? '').trim();
+    if (rawFrom.isNotEmpty && !_isGenericPlaceholderName(rawFrom)) {
+      return rawFrom;
+    }
+    if (uid.isEmpty) {
+      return rawFrom.isNotEmpty ? rawFrom : 'Unknown submitter';
+    }
+    try {
+      final p = await DatabaseService.getUserProfile(uid);
+      final name = p.displayName.trim();
+      if (name.isNotEmpty && !_isGenericPlaceholderName(name)) return name;
+      final email = p.email.trim();
+      if (email.isNotEmpty) return email;
+      return uid;
+    } catch (_) {
+      return uid;
+    }
+  }
+
+  Widget _buildRequestedByLine(Alert alert) {
+    return FutureBuilder<String>(
+      future: _resolvedRequesterDisplay(alert),
+      builder: (context, snap) {
+        final fallback =
+            (alert.fromUserName ?? '').trim().isNotEmpty
+                ? alert.fromUserName!.trim()
+                : '';
+        final label =
+            snap.data ??
+            (fallback.isNotEmpty ? fallback : 'Loading…');
+        return Text(
+          'Requested by: $label',
+          style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+        );
+      },
+    );
+  }
+
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
       context: context,
@@ -649,19 +772,21 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           maxChildSize: 0.95,
           expand: false,
           builder: (context, scrollController) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream:
-                    FirestoreSafe.stream<
-                      DocumentSnapshot<Map<String, dynamic>>
-                    >(
-                      FirebaseFirestore.instance
-                          .collection('goals')
-                          .doc(goalId)
-                          .snapshots(),
-                    ),
-                builder: (context, snap) {
+            return StatefulBuilder(
+              builder: (modalContext, setModalState) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream:
+                        FirestoreSafe.stream<
+                          DocumentSnapshot<Map<String, dynamic>>
+                        >(
+                          FirebaseFirestore.instance
+                              .collection('goals')
+                              .doc(goalId)
+                              .snapshots(),
+                        ),
+                    builder: (streamCtx, snap) {
                   Goal? goal;
                   if (snap.hasData && (snap.data?.exists ?? false)) {
                     try {
@@ -687,7 +812,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                           ),
                           const Spacer(),
                           IconButton(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () => Navigator.pop(modalContext),
                             icon: const Icon(Icons.close),
                             color: Colors.white,
                           ),
@@ -754,30 +879,35 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                         goalId,
                         _clarity,
                         '1=vague, 5=precise',
+                        onScoresChanged: () => setModalState(() {}),
                       ),
                       _scoreRow(
                         'Measurability',
                         goalId,
                         _measurability,
                         '1=no KPI, 5=KPI+baseline+target',
+                        onScoresChanged: () => setModalState(() {}),
                       ),
                       _scoreRow(
                         'Achievability',
                         goalId,
                         _achievability,
                         '1=unlikely, 5=realistic',
+                        onScoresChanged: () => setModalState(() {}),
                       ),
                       _scoreRow(
                         'Relevance',
                         goalId,
                         _relevance,
                         '1=not aligned, 5=directly aligned',
+                        onScoresChanged: () => setModalState(() {}),
                       ),
                       _scoreRow(
                         'Timeline',
                         goalId,
                         _timeline,
                         '1=no date, 5=realistic date',
+                        onScoresChanged: () => setModalState(() {}),
                       ),
                       const SizedBox(height: 12),
                       if (finalDecision) ...[
@@ -832,19 +962,48 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           ElevatedButton.icon(
                             onPressed: finalDecision
                                 ? null
                                 : () async {
-                                    await _persistReview(
-                                      goalId,
-                                      decision: 'approved',
+                                    final messenger =
+                                        ScaffoldMessenger.maybeOf(modalContext);
+                                    messenger?.showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Saving…'),
+                                        duration: Duration(seconds: 30),
+                                      ),
                                     );
-                                    await _approveGoal(goalId);
-                                    if (!context.mounted) return;
-                                    Navigator.pop(context);
+                                    try {
+                                      await _persistReview(
+                                        goalId,
+                                        decision: 'approved',
+                                      );
+                                      final ok =
+                                          await _approveGoal(goalId);
+                                      messenger?.hideCurrentSnackBar();
+                                      if (!modalContext.mounted || !ok) {
+                                        return;
+                                      }
+                                      Navigator.pop(modalContext);
+                                    } catch (e, st) {
+                                      messenger?.hideCurrentSnackBar();
+                                      developer.log(
+                                        'persistReview failed',
+                                        error: e,
+                                        stackTrace: st,
+                                      );
+                                      if (!modalContext.mounted) return;
+                                      await _showCenterNotice(
+                                        modalContext,
+                                        'Could not save review: $e',
+                                      );
+                                    }
                                   },
                             icon: const Icon(Icons.check),
                             label: const Text('Approve'),
@@ -853,7 +1012,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               foregroundColor: Colors.white,
                             ),
                           ),
-                          const SizedBox(width: 8),
                           ElevatedButton.icon(
                             onPressed: finalDecision
                                 ? null
@@ -862,18 +1020,46 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                         _reviewNotes[goalId]?.text.trim() ?? '';
                                     if (note.isEmpty) {
                                       await _showCenterNotice(
-                                        context,
+                                        modalContext,
                                         'Please add a note for Request changes',
                                       );
                                       return;
                                     }
-                                    await _persistReview(
-                                      goalId,
-                                      decision: 'changes_requested',
+                                    final messenger =
+                                        ScaffoldMessenger.maybeOf(modalContext);
+                                    messenger?.showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Saving…'),
+                                        duration: Duration(seconds: 30),
+                                      ),
                                     );
-                                    await _rejectGoal(goalId, reason: note);
-                                    if (!context.mounted) return;
-                                    Navigator.pop(context);
+                                    try {
+                                      await _persistReview(
+                                        goalId,
+                                        decision: 'changes_requested',
+                                      );
+                                      final ok = await _rejectGoal(
+                                        goalId,
+                                        reason: note,
+                                      );
+                                      messenger?.hideCurrentSnackBar();
+                                      if (!modalContext.mounted || !ok) {
+                                        return;
+                                      }
+                                      Navigator.pop(modalContext);
+                                    } catch (e, st) {
+                                      messenger?.hideCurrentSnackBar();
+                                      developer.log(
+                                        'reject/persist failed',
+                                        error: e,
+                                        stackTrace: st,
+                                      );
+                                      if (!modalContext.mounted) return;
+                                      await _showCenterNotice(
+                                        modalContext,
+                                        'Could not save review: $e',
+                                      );
+                                    }
                                   },
                             icon: const Icon(Icons.edit_note),
                             label: const Text('Request changes'),
@@ -882,7 +1068,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               foregroundColor: Colors.white,
                             ),
                           ),
-                          const SizedBox(width: 8),
                           OutlinedButton.icon(
                             onPressed: finalDecision
                                 ? null
@@ -891,18 +1076,46 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                         _reviewNotes[goalId]?.text.trim() ?? '';
                                     if (note.isEmpty) {
                                       await _showCenterNotice(
-                                        context,
+                                        modalContext,
                                         'Please add a reason to reject',
                                       );
                                       return;
                                     }
-                                    await _persistReview(
-                                      goalId,
-                                      decision: 'rejected',
+                                    final messenger =
+                                        ScaffoldMessenger.maybeOf(modalContext);
+                                    messenger?.showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Saving…'),
+                                        duration: Duration(seconds: 30),
+                                      ),
                                     );
-                                    await _rejectGoal(goalId, reason: note);
-                                    if (!context.mounted) return;
-                                    Navigator.pop(context);
+                                    try {
+                                      await _persistReview(
+                                        goalId,
+                                        decision: 'rejected',
+                                      );
+                                      final ok = await _rejectGoal(
+                                        goalId,
+                                        reason: note,
+                                      );
+                                      messenger?.hideCurrentSnackBar();
+                                      if (!modalContext.mounted || !ok) {
+                                        return;
+                                      }
+                                      Navigator.pop(modalContext);
+                                    } catch (e, st) {
+                                      messenger?.hideCurrentSnackBar();
+                                      developer.log(
+                                        'reject/persist failed',
+                                        error: e,
+                                        stackTrace: st,
+                                      );
+                                      if (!modalContext.mounted) return;
+                                      await _showCenterNotice(
+                                        modalContext,
+                                        'Could not save review: $e',
+                                      );
+                                    }
                                   },
                             icon: const Icon(Icons.close, color: Colors.white),
                             label: const Text('Reject'),
@@ -915,8 +1128,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       ),
                     ],
                   );
-                },
-              ),
+                    },
+                  ),
+                );
+              },
             );
           },
         );
@@ -925,25 +1140,23 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   Future<void> _persistReview(String goalId, {required String decision}) async {
-    try {
-      final reviewer = fb.FirebaseAuth.instance.currentUser;
-      await FirebaseFirestore.instance.collection('goals').doc(goalId).set({
-        'review': {
-          'smart': {
-            'clarity': _clarity[goalId] ?? 3,
-            'measurability': _measurability[goalId] ?? 3,
-            'achievability': _achievability[goalId] ?? 3,
-            'relevance': _relevance[goalId] ?? 3,
-            'timeline': _timeline[goalId] ?? 3,
-            'total': _smartTotal(goalId),
-          },
-          'decision': decision,
-          'note': _reviewNotes[goalId]?.text.trim(),
-          'reviewerId': reviewer?.uid,
-          'reviewedAt': FieldValue.serverTimestamp(),
+    final reviewer = fb.FirebaseAuth.instance.currentUser;
+    await FirebaseFirestore.instance.collection('goals').doc(goalId).set({
+      'review': {
+        'smart': {
+          'clarity': _clarity[goalId] ?? 3,
+          'measurability': _measurability[goalId] ?? 3,
+          'achievability': _achievability[goalId] ?? 3,
+          'relevance': _relevance[goalId] ?? 3,
+          'timeline': _timeline[goalId] ?? 3,
+          'total': _smartTotal(goalId),
         },
-      }, SetOptions(merge: true));
-    } catch (_) {}
+        'decision': decision,
+        'note': _reviewNotes[goalId]?.text.trim(),
+        'reviewerId': reviewer?.uid,
+        'reviewedAt': FieldValue.serverTimestamp(),
+      },
+    }, SetOptions(merge: true));
   }
 
   int _smartTotal(String goalId) {
@@ -973,8 +1186,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     String title,
     String goalId,
     Map<String, int> map,
-    String helper,
-  ) {
+    String helper, {
+    VoidCallback? onScoresChanged,
+  }) {
     final current = map[goalId] ?? 3;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -1003,7 +1217,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               return ChoiceChip(
                 label: Text('$score'),
                 selected: selected,
-                onSelected: (_) => setState(() => map[goalId] = score),
+                onSelected: (_) {
+                  map[goalId] = score;
+                  if (onScoresChanged != null) {
+                    onScoresChanged();
+                  } else {
+                    setState(() {});
+                  }
+                },
                 selectedColor: AppColors.activeColor.withValues(alpha: 0.3),
                 backgroundColor: AppColors.elevatedBackground,
                 labelStyle: AppTypography.bodySmall.copyWith(
@@ -1066,7 +1287,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     );
   }
 
-  Future<void> _approveGoal(String goalId) async {
+  /// Returns true only when Firestore approval succeeded (sheet may close).
+  Future<bool> _approveGoal(String goalId) async {
     try {
       final manager = fb.FirebaseAuth.instance.currentUser;
       final managerName = manager?.displayName ?? 'Manager';
@@ -1078,6 +1300,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       if (mounted) {
         await _showCenterNotice(context, 'Goal approved');
       }
+      return true;
     } catch (e) {
       final message = e is StateError
           ? 'Failed to approve goal: ${e.message}'
@@ -1085,10 +1308,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       if (mounted) {
         await _showCenterNotice(context, message);
       }
+      return false;
     }
   }
 
-  Future<void> _rejectGoal(String goalId, {required String reason}) async {
+  /// Returns true only when Firestore rejection succeeded (sheet may close).
+  Future<bool> _rejectGoal(String goalId, {required String reason}) async {
     try {
       final manager = fb.FirebaseAuth.instance.currentUser;
       final managerName = manager?.displayName ?? 'Manager';
@@ -1101,6 +1326,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       if (mounted) {
         await _showCenterNotice(context, 'Goal rejected');
       }
+      return true;
     } catch (e) {
       final message = e is StateError
           ? 'Failed to reject goal: ${e.message}'
@@ -1108,6 +1334,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       if (mounted) {
         await _showCenterNotice(context, message);
       }
+      return false;
     }
   }
 
@@ -1345,242 +1572,30 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
                   .toList();
 
-              if (_unreadOnly && !_showArchived) {
-                items = items.where((a) => !a.isRead).toList();
-              }
-              if (_priorityFilter != null) {
-                items = items
-                    .where((a) => a.priority == _priorityFilter)
-                    .toList();
-              }
-              if (_search.isNotEmpty) {
-                final q = _search.toLowerCase();
-                items = items
-                    .where(
-                      (a) =>
-                          a.title.toLowerCase().contains(q) ||
-                          a.message.toLowerCase().contains(q),
-                    )
-                    .toList();
-              }
-
-              // Apply audience filter if specified
-              if (_audienceFilter != null) {
-                items = items
-                    .where((a) => a.audience == _audienceFilter)
-                    .toList();
-              }
-
-              // Apply type filter so each tab shows the right information
-              if (_typeFilter == 'alert') {
-                // Alerts: manager-facing alerts that are NOT nudges and NOT approval requests
-                items = items.where((a) {
-                  return a.type != AlertType.managerNudge &&
-                      a.type != AlertType.goalApprovalRequested;
-                }).toList();
-              } else if (_typeFilter == 'approval_request') {
-                // Approvals:
-                // - Inbox: pending approval requests.
-                // - Archived: finalized approval decisions (approved/rejected).
-                items = items.where((a) {
-                  if (_showArchived) {
-                    return a.type == AlertType.goalApprovalApproved ||
-                        a.type == AlertType.goalApprovalRejected;
-                  }
-                  return a.type == AlertType.goalApprovalRequested;
-                }).toList();
-              } else if (_typeFilter == 'nudge') {
-                // Nudges: only manager nudge alerts (nudge feedback is added in the nudge UI branch)
-                items = items
-                    .where((a) => a.type == AlertType.managerNudge)
-                    .toList();
-              }
-              // _typeFilter == null means All: show everything, no type filter
-
-              // When showing All or Alerts, sort so urgent alerts appear first
-              if (_typeFilter == null || _typeFilter == 'alert') {
-                final priorityOrder = {
-                  AlertPriority.urgent: 0,
-                  AlertPriority.high: 1,
-                  AlertPriority.medium: 2,
-                  AlertPriority.low: 3,
-                };
-                items = List<Alert>.from(items)
-                  ..sort((a, b) {
-                    final p = priorityOrder[a.priority]!.compareTo(
-                      priorityOrder[b.priority]!,
+              if (widget.forAdminOversight && !_showArchived) {
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _adminPendingGoalsStream(),
+                  builder: (context, pendingSnapshot) {
+                    final pendingDocs = pendingSnapshot.data?.docs ?? const [];
+                    final mergedItems = _mergeAdminPendingGoalFallbackAlerts(
+                      baseItems: items,
+                      goalDocs: pendingDocs,
+                      adminUserId: user.uid,
                     );
-                    if (p != 0) return p;
-                    return b.createdAt.compareTo(a.createdAt);
-                  });
-              }
-
-              if (_typeFilter == 'nudge') {
-                _ensureNudgeFeedbackStream(
-                  managerId: user.uid,
-                  managerName: user.displayName,
-                  limit: 200,
-                );
-                return StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: _nudgeFeedbackStream,
-                  initialData: _lastNudgeFeedbackMaps,
-                  builder: (context, fbSnap) {
-                    final feedbackMaps =
-                        fbSnap.data ?? const <Map<String, dynamic>>[];
-                    if (fbSnap.hasData) {
-                      // Cache last good value so we don't flash empty UI during
-                      // transient reconnects / stream resubscriptions.
-                      _lastNudgeFeedbackMaps = feedbackMaps;
-                    }
-                    final rawFeedback = feedbackMaps
-                        .map(_NudgeFeedback.fromMap)
-                        .toList();
-
-                    final managerNameLower = (user.displayName ?? '')
-                        .toLowerCase()
-                        .trim();
-                    final feedback = rawFeedback.where((f) {
-                      final meta = f.metadata;
-                      final mid = (meta['managerId'] ?? meta['senderId'])
-                          ?.toString();
-                      final mname =
-                          (meta['managerNameLower'] ??
-                                  meta['managerName'] ??
-                                  meta['senderNameLower'] ??
-                                  meta['senderName'])
-                              ?.toString()
-                              .toLowerCase()
-                              .trim();
-
-                      // Match by manager ID if available
-                      if (mid != null && mid.isNotEmpty) {
-                        return mid == user.uid;
-                      }
-
-                      // Match by manager name if available
-                      if (managerNameLower.isNotEmpty &&
-                          mname != null &&
-                          mname.isNotEmpty) {
-                        return mname == managerNameLower;
-                      }
-
-                      // If no manager metadata, exclude to avoid showing other managers' reactions
-                      return false;
-                    }).toList();
-                    _prefetchEmployeeNames(feedback);
-
-                    final hPad = AppSpacing.screenPadding.left;
-                    final widgets = <Widget>[];
-
-                    widgets.add(
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          hPad,
-                          AppSpacing.lg,
-                          hPad,
-                          AppSpacing.sm,
-                        ),
-                        child: Text(
-                          'Nudge Feedback',
-                          style: AppTypography.heading4.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    );
-
-                    if (feedback.isEmpty) {
-                      widgets.add(
-                        Padding(
-                          padding: AppSpacing.screenPadding,
-                          child: Text(
-                            'No replies or reactions yet.',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ),
-                      );
-                    } else {
-                      widgets.addAll(
-                        feedback.map(
-                          (f) => Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: hPad,
-                              vertical: AppSpacing.xs,
-                            ),
-                            child: _buildNudgeFeedbackCard(f),
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (items.isNotEmpty) {
-                      widgets.add(
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            hPad,
-                            AppSpacing.lg,
-                            hPad,
-                            AppSpacing.sm,
-                          ),
-                          child: Text(
-                            'Manager Nudges',
-                            style: AppTypography.heading4.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      );
-                      widgets.addAll(
-                        items.map(
-                          (a) => Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: hPad,
-                              vertical: AppSpacing.xs,
-                            ),
-                            child: _buildInboxCard(a),
-                          ),
-                        ),
-                      );
-                    }
-
-                    return ListView(
-                      padding: EdgeInsets.zero,
-                      children: widgets,
+                    return _buildInboxListContent(
+                      sourceItems: mergedItems,
+                      user: user,
                     );
                   },
                 );
               }
 
-              if (items.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: AppSpacing.screenPadding,
-                    child: Text(
-                      _showArchived
-                          ? 'No archived messages found.'
-                          : 'No inbox items match your filters.',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              return ListView.separated(
-                padding: AppSpacing.screenPadding,
-                itemCount: items.length,
-                separatorBuilder: (_, _) =>
-                    const SizedBox(height: AppSpacing.sm),
-                itemBuilder: (context, i) => _buildInboxCard(items[i]),
+              return _buildInboxListContent(
+                sourceItems: items,
+                user: user,
               );
             },
           ),
-        ),
       ),
     );
   }
@@ -1697,6 +1712,222 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     );
   }
 
+  Widget _buildInboxListContent({
+    required List<Alert> sourceItems,
+    required fb.User user,
+  }) {
+    var items = List<Alert>.from(sourceItems);
+
+    if (_unreadOnly && !_showArchived) {
+      items = items.where((a) => !a.isRead).toList();
+    }
+    if (_priorityFilter != null) {
+      items = items.where((a) => a.priority == _priorityFilter).toList();
+    }
+    if (_search.isNotEmpty) {
+      final q = _search.toLowerCase();
+      items = items
+          .where(
+            (a) =>
+                a.title.toLowerCase().contains(q) ||
+                a.message.toLowerCase().contains(q),
+          )
+          .toList();
+    }
+
+    // Apply audience filter if specified
+    if (_audienceFilter != null) {
+      items = items.where((a) => a.audience == _audienceFilter).toList();
+    }
+
+    // Apply type filter so each tab shows the right information
+    if (_typeFilter == 'alert') {
+      // Alerts: manager-facing alerts that are NOT nudges and NOT approval requests
+      items = items.where((a) {
+        return a.type != AlertType.managerNudge &&
+            a.type != AlertType.goalApprovalRequested;
+      }).toList();
+    } else if (_typeFilter == 'approval_request') {
+      // Approvals: only goal approval requests
+      items = items.where((a) => a.type == AlertType.goalApprovalRequested).toList();
+    } else if (_typeFilter == 'nudge') {
+      // Nudges: only manager nudge alerts (nudge feedback is added in the nudge UI branch)
+      items = items.where((a) => a.type == AlertType.managerNudge).toList();
+    }
+    // _typeFilter == null means All: show everything, no type filter
+
+    // When showing All or Alerts, sort so urgent alerts appear first
+    if (_typeFilter == null || _typeFilter == 'alert') {
+      final priorityOrder = {
+        AlertPriority.urgent: 0,
+        AlertPriority.high: 1,
+        AlertPriority.medium: 2,
+        AlertPriority.low: 3,
+      };
+      items = List<Alert>.from(items)
+        ..sort((a, b) {
+          final p = priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!);
+          if (p != 0) return p;
+          return b.createdAt.compareTo(a.createdAt);
+        });
+    }
+
+    if (_typeFilter == 'nudge') {
+      _ensureNudgeFeedbackStream(
+        managerId: user.uid,
+        managerName: user.displayName,
+        limit: 200,
+      );
+      return StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _nudgeFeedbackStream,
+        initialData: _lastNudgeFeedbackMaps,
+        builder: (context, fbSnap) {
+          final feedbackMaps = fbSnap.data ?? const <Map<String, dynamic>>[];
+          if (fbSnap.hasData) {
+            // Cache last good value so we don't flash empty UI during
+            // transient reconnects / stream resubscriptions.
+            _lastNudgeFeedbackMaps = feedbackMaps;
+          }
+          final rawFeedback = feedbackMaps.map(_NudgeFeedback.fromMap).toList();
+
+          final managerNameLower = (user.displayName ?? '').toLowerCase().trim();
+          final feedback = rawFeedback.where((f) {
+            final meta = f.metadata;
+            final mid = (meta['managerId'] ?? meta['senderId'])?.toString();
+            final mname =
+                (meta['managerNameLower'] ??
+                        meta['managerName'] ??
+                        meta['senderNameLower'] ??
+                        meta['senderName'])
+                    ?.toString()
+                    .toLowerCase()
+                    .trim();
+
+            // Match by manager ID if available
+            if (mid != null && mid.isNotEmpty) {
+              return mid == user.uid;
+            }
+
+            // Match by manager name if available
+            if (managerNameLower.isNotEmpty && mname != null && mname.isNotEmpty) {
+              return mname == managerNameLower;
+            }
+
+            // If no manager metadata, exclude to avoid showing other managers' reactions
+            return false;
+          }).toList();
+          _prefetchEmployeeNames(feedback);
+
+          final hPad = AppSpacing.screenPadding.left;
+          final widgets = <Widget>[];
+
+          widgets.add(
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                hPad,
+                AppSpacing.lg,
+                hPad,
+                AppSpacing.sm,
+              ),
+              child: Text(
+                'Nudge Feedback',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          );
+
+          if (feedback.isEmpty) {
+            widgets.add(
+              Padding(
+                padding: AppSpacing.screenPadding,
+                child: Text(
+                  'No replies or reactions yet.',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: Colors.white70,
+                  ),
+                ),
+              ),
+            );
+          } else {
+            widgets.addAll(
+              feedback.map(
+                (f) => Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: hPad,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: _buildNudgeFeedbackCard(f),
+                ),
+              ),
+            );
+          }
+
+          if (items.isNotEmpty) {
+            widgets.add(
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  hPad,
+                  AppSpacing.lg,
+                  hPad,
+                  AppSpacing.sm,
+                ),
+                child: Text(
+                  'Manager Nudges',
+                  style: AppTypography.heading4.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            );
+            widgets.addAll(
+              items.map(
+                (a) => Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: hPad,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: _buildInboxCard(a),
+                ),
+              ),
+            );
+          }
+
+          return ListView(
+            padding: EdgeInsets.zero,
+            children: widgets,
+          );
+        },
+      );
+    }
+
+    if (items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: AppSpacing.screenPadding,
+          child: Text(
+            _showArchived
+                ? 'No archived messages found.'
+                : 'No inbox items match your filters.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: Colors.white70,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: AppSpacing.screenPadding,
+      itemCount: items.length,
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (context, i) => _buildInboxCard(items[i]),
+    );
+  }
+
   Widget _buildInboxCard(Alert alert) {
     if (alert.type == AlertType.goalApprovalRequested &&
         _hasValidGoalId(alert)) {
@@ -1755,6 +1986,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             style: AppTypography.bodySmall.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 8),
+          if (alert.type == AlertType.goalApprovalRequested) ...[
+            _buildRequestedByLine(alert),
+            const SizedBox(height: 8),
+          ],
           Row(
             children: [
               Text(
@@ -1997,6 +2232,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.bodySmall.copyWith(color: Colors.white70),
               ),
+              const SizedBox(height: 8),
+              _buildRequestedByLine(alert),
               const SizedBox(height: 8),
               Row(
                 children: [

@@ -24,6 +24,18 @@ class RoleService {
     return r;
   }
 
+  /// Admin portal / Firestore `isAdmin()` alignment: exact `admin` plus common aliases.
+  /// Matches [DatabaseService] admin-like detection for approval privileges.
+  static bool isAdminPortalRole(String? role) {
+    final r = role?.trim().toLowerCase();
+    if (r == null || r.isEmpty) return false;
+    return r == 'admin' ||
+        r == 'administrator' ||
+        r == 'super_admin' ||
+        r == 'superadmin' ||
+        r.contains('admin');
+  }
+
   Future<String?> _inferRoleFromOnboarding({
     required String userId,
     required String? email,
@@ -346,7 +358,8 @@ class _RoleGateState extends State<RoleGate> {
                 role == 'manager') ||
             (widget.requiredRole == RequiredRole.employee &&
                 role == 'employee') ||
-            (widget.requiredRole == RequiredRole.admin && role == 'admin');
+            (widget.requiredRole == RequiredRole.admin &&
+                RoleService.isAdminPortalRole(role));
         if (ok) return widget.child;
         return widget.unauthorized ?? _Unauthorized(role: role);
       },

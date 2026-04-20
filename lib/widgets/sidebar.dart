@@ -61,6 +61,8 @@ class ResponsiveSidebar extends StatefulWidget {
 }
 
 class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
+  // Temporary UX override: keep non-mobile sidebar expanded.
+  static const bool _disableSidebarCollapseTemporarily = true;
   final ScrollController _scrollController = ScrollController();
   int? _previousTutorialStep;
   bool _isProfileIncomplete = false;
@@ -195,7 +197,9 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
           valueListenable: SidebarState.instance.isCollapsed,
           builder: (context, collapsed, _) {
             // Allow toggling on medium/large screens; always collapsed on small screens
-            final effectiveCollapsed = isSmall ? true : collapsed;
+            final effectiveCollapsed = isSmall
+                ? true
+                : (_disableSidebarCollapseTemporarily ? false : collapsed);
 
             final Widget column = _SidebarLightMode(
               light: sidebarLight,
@@ -286,25 +290,26 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                           collapsed: effectiveCollapsed,
                           onTap: widget.onLogout,
                         ),
-                        _CollapseToggle(
-                          collapsed: effectiveCollapsed,
-                          tutorialKey:
-                              widget.sidebarTutorialKeys != null &&
-                                  widget.tutorialStepIndex != null &&
-                                  widget.tutorialStepIndex == widget.items.length &&
-                                  widget.tutorialStepIndex! <
-                                      widget.sidebarTutorialKeys!.length
-                              ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
-                              : null,
-                          showTutorial:
-                              widget.tutorialStepIndex != null &&
-                              widget.tutorialStepIndex == widget.items.length,
-                          onTutorialNext: widget.onTutorialNext,
-                          onTutorialSkip: widget.onTutorialSkip,
-                          isLastTutorialStep:
-                              widget.tutorialStepIndex != null &&
-                              widget.tutorialStepIndex == widget.items.length,
-                        ),
+                        if (!_disableSidebarCollapseTemporarily)
+                          _CollapseToggle(
+                            collapsed: effectiveCollapsed,
+                            tutorialKey:
+                                widget.sidebarTutorialKeys != null &&
+                                    widget.tutorialStepIndex != null &&
+                                    widget.tutorialStepIndex == widget.items.length &&
+                                    widget.tutorialStepIndex! <
+                                        widget.sidebarTutorialKeys!.length
+                                ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
+                                : null,
+                            showTutorial:
+                                widget.tutorialStepIndex != null &&
+                                widget.tutorialStepIndex == widget.items.length,
+                            onTutorialNext: widget.onTutorialNext,
+                            onTutorialSkip: widget.onTutorialSkip,
+                            isLastTutorialStep:
+                                widget.tutorialStepIndex != null &&
+                                widget.tutorialStepIndex == widget.items.length,
+                          ),
                       ],
                     ),
                   ),
@@ -363,7 +368,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
       child: GestureDetector(
         onTap: () {
           // Toggle collapse/expand when logo is tapped (medium/large screens)
-          if (!MediaQuery.of(context).size.width.isNaN) {
+          if (!_disableSidebarCollapseTemporarily &&
+              !MediaQuery.of(context).size.width.isNaN) {
             SidebarState.instance.isCollapsed.value =
                 !SidebarState.instance.isCollapsed.value;
           }
