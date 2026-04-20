@@ -1690,27 +1690,30 @@ class ManagerRealtimeService {
     List<Alert> allEmployeeAlerts,
   ) async {
     try {
+      final meaningfulGoals =
+          allEmployeeGoals.where((g) => g.isDisplayableGoal).toList();
       final startDate = _getStartDateForFilter(timeFilter);
 
-      final goals = allEmployeeGoals.where((g) {
+      final goals = meaningfulGoals.where((g) {
         final createdRecently = g.createdAt.isAfter(startDate);
-        final isActive = g.status != GoalStatus.completed;
+        final isActive =
+            !_isGoalCompleted(g) && g.status != GoalStatus.paused;
         return createdRecently || isActive;
       }).toList();
 
-      final completedGoals = allEmployeeGoals
+      final completedGoals = meaningfulGoals
           .where((g) => _isGoalCompleted(g))
           .length;
-      final overdueGoals = allEmployeeGoals
+      final overdueGoals = meaningfulGoals
           .where(
             (g) =>
                 !_isGoalCompleted(g) && g.targetDate.isBefore(DateTime.now()),
           )
           .length;
 
-      final avgProgress = allEmployeeGoals.isNotEmpty
-          ? allEmployeeGoals.map((g) => g.progress).fold(0.0, (a, b) => a + b) /
-                allEmployeeGoals.length
+      final avgProgress = meaningfulGoals.isNotEmpty
+          ? meaningfulGoals.map((g) => g.progress).fold(0.0, (a, b) => a + b) /
+                meaningfulGoals.length
           : 0.0;
 
       allEmployeeActivities.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -1775,7 +1778,7 @@ class ManagerRealtimeService {
 
       final engagementScore = (weeklyActivityCount / 7) * 100.0;
 
-      final status = _determineEmployeeStatus(allEmployeeGoals, lastActivity);
+      final status = _determineEmployeeStatus(meaningfulGoals, lastActivity);
 
       return EmployeeData(
         profile: profile,
@@ -1854,7 +1857,9 @@ class ManagerRealtimeService {
   }
 
   static bool _isGoalCompleted(Goal goal) {
-    return goal.status == GoalStatus.completed || goal.progress >= 100;
+    return goal.status == GoalStatus.completed ||
+        goal.status == GoalStatus.acknowledged ||
+        goal.progress >= 100;
   }
 
   // Calculate streak days from activity documents

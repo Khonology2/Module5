@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web/web.dart' as web;
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/kpa_excellence_surface.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/workspace_aware_builder.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -119,6 +120,40 @@ Color _pdpCardBorder(bool light) =>
     light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
 Color _pdpEvidenceInnerBg(bool light) =>
     light ? const Color(0xFFF2F2F2) : const Color(0xFF2A3411);
+
+/// KPA excellence row header height (Figma ~74.54px). Surface tokens: [KpaExcellenceSurface].
+const double _kpiExcellenceHeaderHeight = 74.54;
+/// Leading icon badge (Figma ~63×62); use square box so [BoxShape.circle] reads cleanly.
+const double _kpiExcellenceIconSize = 62;
+/// Padding inside the white circle — keep small so the red asset reads large (Figma: fills most of the disc).
+const double _kpaIconInnerPadding = 5.0;
+
+/// PNG paths under [assets/] for each KPA row (aligned with dashboard / manager KPI usage).
+const String _kpaIconOperational =
+    'assets/Goal_Target/Goal_Target_White_Badge_Red.png';
+const String _kpaIconCustomer =
+    'assets/Approved_Tick/Approved_White_Badge_Red.png';
+const String _kpaIconFinancial = 'assets/Star.png';
+const String _kpaIconOrganisational = _kpaIconOperational;
+const String _kpaIconPeople = _kpaIconCustomer;
+
+/// KPI title (Figma): Poppins 700, 12.29px, line height 9.38px, letter-spacing 1%, small caps.
+const double _kpaTitleFontSize = 12.29;
+const double _kpaTitleLineHeightPx = 9.38;
+/// Horizontal space from icon badge to title (Figma ~16–20px).
+const double _kpiIconToTitleGap = 18;
+
+TextStyle _kpaExcellenceTitleStyle(bool light) {
+  return TextStyle(
+    fontFamily: AppTypography.fontFamily,
+    fontWeight: AppTypography.fontWeightBold,
+    fontSize: _kpaTitleFontSize,
+    height: _kpaTitleLineHeightPx / _kpaTitleFontSize,
+    letterSpacing: _kpaTitleFontSize * 0.01,
+    fontFeatures: const [FontFeature('smcp')],
+    color: _pdpFg(light),
+  );
+}
 
 // Status badge helper methods (mirrored from GoalDetailScreen)
 Color _getGoalStatusColor(GoalStatus status) {
@@ -1046,6 +1081,17 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     return ValueListenableBuilder<bool>(
       valueListenable: employeeDashboardLightModeNotifier,
       builder: (context, light, _) {
+        final user = FirebaseAuth.instance.currentUser;
+        String userName = 'Name Surname';
+        if ((user?.displayName ?? '').trim().isNotEmpty) {
+          userName = user!.displayName!.trim();
+        } else if ((user?.email ?? '').trim().isNotEmpty) {
+          userName = user!.email!.split('@').first;
+        }
+        final headingTitle = managerOwnGoalsOnly
+            ? 'Employee Personal Development Plan'
+            : 'My Personal Development Plan';
+
         return PopScope(
           canPop: false, // Prevents popping if we handle it explicitly
           onPopInvokedWithResult: (bool didPop, dynamic result) {
@@ -1075,16 +1121,36 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'My Personal Development Plan',
-                      style: AppTypography.heading2.copyWith(
-                        color: _pdpFg(light),
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            headingTitle,
+                            style: AppTypography.heading4.copyWith(
+                              color: _pdpFg(light),
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            'Hello, $userName',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: _pdpFg(light),
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 20),
                     _buildExcellenceArea(
                       light: light,
                       title: 'Operational Excellence',
+                      iconAsset: _kpaIconOperational,
                       expanded: _isOperationalExpanded,
                       onToggle: (v) =>
                           setState(() => _isOperationalExpanded = v),
@@ -1094,6 +1160,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     _buildExcellenceArea(
                       light: light,
                       title: 'Customer Excellence',
+                      iconAsset: _kpaIconCustomer,
                       expanded: _isCustomerExpanded,
                       onToggle: (v) => setState(() => _isCustomerExpanded = v),
                       managerOwnGoalsOnly: managerOwnGoalsOnly,
@@ -1102,6 +1169,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     _buildExcellenceArea(
                       light: light,
                       title: 'Financial Excellence',
+                      iconAsset: _kpaIconFinancial,
                       expanded: _isFinancialExpanded,
                       onToggle: (v) => setState(() => _isFinancialExpanded = v),
                       managerOwnGoalsOnly: managerOwnGoalsOnly,
@@ -1109,16 +1177,8 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     const SizedBox(height: 20),
                     _buildExcellenceArea(
                       light: light,
-                      title: 'Operational Excellence',
-                      expanded: _isOperationalExpanded,
-                      onToggle: (v) =>
-                          setState(() => _isOperationalExpanded = v),
-                      managerOwnGoalsOnly: managerOwnGoalsOnly,
-                    ),
-                    const SizedBox(height: 20),
-                    _buildExcellenceArea(
-                      light: light,
                       title: 'Organisational Excellence',
+                      iconAsset: _kpaIconOrganisational,
                       expanded: _isOrganisationalExpanded,
                       onToggle: (v) =>
                           setState(() => _isOrganisationalExpanded = v),
@@ -1128,6 +1188,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     _buildExcellenceArea(
                       light: light,
                       title: 'People Excellence',
+                      iconAsset: _kpaIconPeople,
                       expanded: _isPeopleExpanded,
                       onToggle: (v) => setState(() => _isPeopleExpanded = v),
                       managerOwnGoalsOnly: managerOwnGoalsOnly,
@@ -1143,55 +1204,103 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     );
   }
 
+  Widget _buildKpaLeadingIcon(String iconAsset) {
+    final inner = _kpiExcellenceIconSize - 2 * _kpaIconInnerPadding;
+    // Fixed badge size; image fills inner square so glyphs stay large and visible (matches Figma).
+    return SizedBox(
+      width: _kpiExcellenceIconSize,
+      height: _kpiExcellenceIconSize,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(_kpaIconInnerPadding),
+          child: Image.asset(
+            iconAsset,
+            width: inner,
+            height: inner,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            filterQuality: FilterQuality.high,
+            isAntiAlias: true,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildExcellenceArea({
     required bool light,
     required String title,
+    required String iconAsset,
     required bool expanded,
     required ValueChanged<bool> onToggle,
     required bool managerOwnGoalsOnly,
   }) {
+    final radius = KpaExcellenceSurface.borderRadiusGeometry;
     return Material(
       color: Colors.transparent,
       child: Container(
-        decoration: BoxDecoration(
-          color: _pdpCardBg(light),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _pdpCardBorder(light)),
-        ),
-        child: Column(
-          children: [
-            ListTile(
-              title: Text(
-                title,
-                style: TextStyle(
-                  color: _pdpFg(light),
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+        decoration: KpaExcellenceSurface.cardDecoration(light),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: _kpiExcellenceHeaderHeight,
+                child: InkWell(
+                  onTap: () => onToggle(!expanded),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _buildKpaLeadingIcon(iconAsset),
+                        SizedBox(width: _kpiIconToTitleGap),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                title,
+                                style: _kpaExcellenceTitleStyle(light),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          expanded
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
+                          color: _pdpFg(light),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              subtitle: Text(
-                'Key Performance Area/Key Performance Indicator',
-                style: TextStyle(color: _pdpMuted(light), fontSize: 12),
-              ),
-              trailing: Icon(
-                expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                color: _pdpFg(light),
-              ),
-              onTap: () => onToggle(!expanded),
-            ),
-            if (expanded)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 8.0,
+              if (expanded)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
+                  child: _buildGoalsForExcellence(
+                    title,
+                    light,
+                    managerOwnGoalsOnly,
+                  ),
                 ),
-                child: _buildGoalsForExcellence(
-                  title,
-                  light,
-                  managerOwnGoalsOnly,
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

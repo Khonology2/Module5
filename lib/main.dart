@@ -549,7 +549,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/manager_gw_menu_my_pdp': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
-                  child: const MyGoalWorkspaceScreen(
+                  child: const EmployeeDashboardScreen(
                     forManagerGwMenu: true,
                     managerGwMenuRoute: '/manager_gw_menu_my_pdp',
                   ),
@@ -572,7 +572,10 @@ class _MyAppState extends State<MyApp> {
                     title: 'Leaderboard',
                     currentRouteName: '/manager_gw_menu_leaderboard',
                     items: SidebarConfig.managerItems,
-                    body: const ManagerLeaderboardScreen(embedded: true),
+                    body: const ManagerLeaderboardScreen(
+                      embedded: true,
+                      compareManagers: true,
+                    ),
                   ),
                 ),
                 '/manager_gw_menu_badges': (context) => RoleGate(

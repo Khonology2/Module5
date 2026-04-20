@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:pdh/widgets/sidebar.dart'; // Import ResponsiveSidebar
 import 'package:pdh/manager_review_team_dashboard_screen.dart'; // Import ManagerReviewTeamDashboardScreen
 import 'package:pdh/manager_dashboard_screen.dart'; // New Manager Dashboard
@@ -21,6 +23,7 @@ import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
 import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/employee_profile_screen.dart';
+import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
@@ -29,6 +32,7 @@ import 'dart:developer' as developer;
 import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerPortalScreen extends StatefulWidget {
@@ -41,9 +45,41 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
+  final WorkspaceContextService _workspaceService = WorkspaceContextService();
 
   /// Incremented each time we navigate to manager_alerts_nudges so the screen loads fresh data.
   int _alertsScreenKey = 0;
+
+  // Routes managed inside manager portal shell. Used for URL sync/deep-link.
+  static const Set<String> _portalRoutes = {
+    '/dashboard',
+    '/my_pdp',
+    '/manager_profile',
+    '/team_challenges_seasons',
+    '/progress_visuals',
+    '/manager_alerts_nudges',
+    '/manager_inbox',
+    '/alerts_nudges',
+    '/manager_badges_points',
+    '/badges_points',
+    '/manager_leaderboard',
+    '/repository_audit',
+    '/settings',
+    '/manager_review_team_dashboard',
+    '/manager_gw_menu_dashboard',
+    '/manager_gw_menu_goal_workspace',
+    '/manager_gw_menu_alerts',
+    '/manager_gw_menu_my_pdp',
+    '/manager_gw_menu_progress',
+    '/manager_gw_menu_leaderboard',
+    '/manager_gw_menu_badges',
+    '/manager_gw_menu_season_challenges',
+    '/manager_gw_menu_repository',
+    '/my_goal_workspace',
+    '/leaderboard',
+    '/season_challenges',
+    '/my_profile',
+  };
 
   // Tutorial state
   bool _shouldShowTutorial = false;
@@ -52,6 +88,23 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     12,
     (index) => GlobalKey(),
   );
+
+  /// Matches [MainLayout]’s `AppSpacing.screenPadding` for bodies that do not
+  /// apply their own full-bleed inset (e.g. [MyPdpScreen] uses zero scroll padding).
+  static EdgeInsets _portalMainContentPadding(String route) {
+    switch (route) {
+      case '/my_pdp':
+      case '/manager_gw_menu_goal_workspace':
+        return AppSpacing.screenPadding;
+      default:
+        return EdgeInsets.zero;
+    } 
+  }
+
+  static bool _shouldShowPortalTopActions(String route) {
+    // Dashboard renders top actions in-header to align with title.
+    return route != '/dashboard';
+  }
 
   Widget _getBodyWidget() {
     switch (_currentRoute) {
@@ -81,7 +134,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_leaderboard':
         return const ManagerLeaderboardScreen(embedded: true);
       case '/repository_audit':
-        return const RepositoryAuditScreen();
+        return const RepositoryAuditScreen(forManagerWorkspace: true);
       case '/settings':
         return const SettingsScreen();
       case '/manager_review_team_dashboard':
@@ -113,7 +166,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           forManagerGwMenu: true,
         );
       case '/manager_gw_menu_leaderboard':
-        return const ManagerLeaderboardScreen(embedded: true);
+        return const ManagerLeaderboardScreen(
+          embedded: true,
+          compareManagers: true,
+        );
       case '/manager_gw_menu_badges':
         return const BadgesPointsScreen(
           embedded: true,
@@ -138,17 +194,82 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/my_profile':
         return const EmployeeProfileScreen(embedded: true);
       default:
-        return const ManagerDashboardScreen();
+        return const ManagerDashboardScreen(embedded: true);
     }
   }
 
+  bool _isMyWorkspaceRoute(String route) {
+    switch (route) {
+      case '/manager_gw_menu_dashboard':
+      case '/manager_gw_menu_goal_workspace':
+      case '/manager_gw_menu_alerts':
+      case '/manager_gw_menu_my_pdp':
+      case '/manager_gw_menu_progress':
+      case '/manager_gw_menu_leaderboard':
+      case '/manager_gw_menu_badges':
+      case '/manager_gw_menu_season_challenges':
+      case '/manager_gw_menu_repository':
+      case '/employee_dashboard':
+      case '/my_pdp':
+      case '/alerts_nudges':
+      case '/my_goal_workspace':
+      case '/leaderboard':
+      case '/badges_points':
+      case '/season_challenges':
+      case '/my_profile':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  void _syncWorkspaceContextForRoute(String route) {
+    _workspaceService.switchToContext(
+      _isMyWorkspaceRoute(route)
+          ? WorkspaceContext.myWorkspace
+          : WorkspaceContext.managerWorkspace,
+    );
+  }
+
   void _onNavigate(String route) {
+    _syncWorkspaceContextForRoute(route);
     setState(() {
       if (route == '/manager_alerts_nudges') {
         _alertsScreenKey++;
       }
       _currentRoute = route;
     });
+    _syncPortalUrl(route);
+  }
+
+  bool _isPortalRoute(String route) => _portalRoutes.contains(route);
+
+  String? _routeFromPortalUrl() {
+    // Hash strategy URL example:
+    // http://localhost:64790/#/manager_portal?screen=/manager_inbox
+    final fragment = Uri.base.fragment;
+    if (fragment.isEmpty) return null;
+    final normalized = fragment.startsWith('/') ? fragment : '/$fragment';
+    try {
+      final parsed = Uri.parse(normalized);
+      if (parsed.path != '/manager_portal') return null;
+      final screen = parsed.queryParameters['screen'];
+      if (screen == null || screen.trim().isEmpty) return null;
+      final decoded = Uri.decodeComponent(screen).trim();
+      return _isPortalRoute(decoded) ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _syncPortalUrl(String route) {
+    if (!kIsWeb) return;
+    final location = '/manager_portal?screen=${Uri.encodeComponent(route)}';
+    SystemNavigator.routeInformationUpdated(
+      uri: Uri.parse(location),
+      replace: true,
+      state: <String, dynamic>{'screen': route},
+    );
   }
 
   Future<void> _onLogout() async {
@@ -207,13 +328,19 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_didInitFromArgs) {
+      var initial = _routeFromPortalUrl();
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Map<String, dynamic>) {
-        final initial = args['initialRoute'] as String?;
-        if (initial != null && initial.isNotEmpty && initial != _currentRoute) {
-          _currentRoute = initial;
+        final argRoute = args['initialRoute'] as String?;
+        if (argRoute != null && argRoute.isNotEmpty) {
+          initial = argRoute;
         }
       }
+      if (initial != null && initial.isNotEmpty && _isPortalRoute(initial)) {
+        _currentRoute = initial;
+      }
+      _syncWorkspaceContextForRoute(_currentRoute);
+      _syncPortalUrl(_currentRoute);
       _didInitFromArgs = true;
     }
     // Set system UI overlay style here if needed to ensure consistency across the portal
@@ -236,20 +363,27 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                   onNavigate: _onNavigate,
                   currentRouteName: _currentRoute,
                   onLogout: _onLogout,
-                  tutorialStepIndex:
-                      _shouldShowTutorial ? _currentTutorialStep : null,
+                  tutorialStepIndex: _shouldShowTutorial
+                      ? _currentTutorialStep
+                      : null,
                   sidebarTutorialKeys:
                       _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-                          ? _sidebarTutorialKeys
-                          : null,
-                  onTutorialNext:
-                      _shouldShowTutorial ? _moveToNextTutorialStep : null,
+                      ? _sidebarTutorialKeys
+                      : null,
+                  onTutorialNext: _shouldShowTutorial
+                      ? _moveToNextTutorialStep
+                      : null,
                   onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
                 ),
-                Expanded(child: _getBodyWidget()),
+                Expanded(
+                  child: Padding(
+                    padding: _portalMainContentPadding(_currentRoute),
+                    child: _getBodyWidget(),
+                  ),
+                ),
               ],
             ),
-            if (_currentRoute != '/dashboard')
+            if (_shouldShowPortalTopActions(_currentRoute))
               Positioned(
                 top: 24,
                 right: 24,
