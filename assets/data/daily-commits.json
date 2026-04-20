@@ -1,17 +1,7 @@
 {
-<<<<<<< HEAD
-  "version": "2026.04.DA9.SIT",
-  "generated_at": "2026-04-20T14:48:05Z",
-=======
-  "version": "2026.04.DA8.SIT",
-  "generated_at": "2026-04-20T11:50:36Z",
->>>>>>> 0839a2dbccd4780f5446cb55cd4af027cf29e17f
+  "version": "2026.04.DA7.SIT",
+  "generated_at": "2026-04-20T15:00:43Z",
   "commits": [
-    {
-      "author": "GitHub Action",
-      "message": "Update daily commits data []",
-      "timestamp": "2026-02-24T06:19:19Z"
-    },
     {
       "author": "Nathi2266",
       "message": "feat: enhance manager dashboard with new embedded rendering logic and update asset paths for improved UI consistency",
@@ -19,15 +9,8 @@
     },
     {
       "author": "Nathi2266",
-<<<<<<< HEAD
       "message": "feat: add manager dashboard assets to pubspec.yaml",
       "timestamp": "2026-04-20T16:47:08+02:00"
-    }
-  ],
-  "total_commits": 9,
-=======
-      "message": "feat: enhance dropdowns with isExpanded property for better UI layout",
-      "timestamp": "2026-04-15T09:22:46+02:00"
     },
     {
       "author": "BhutSipho",
@@ -55,7 +38,6 @@
       "timestamp": "2026-04-20T09:54:11+02:00"
     }
   ],
-  "total_commits": 8,
->>>>>>> 0839a2dbccd4780f5446cb55cd4af027cf29e17f
+  "total_commits": 7,
   "date_range": "2026-04-20"
 }
