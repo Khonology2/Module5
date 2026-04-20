@@ -8,6 +8,8 @@ import 'package:pdh/design_system/app_breakpoints.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class AppScaffold extends StatelessWidget {
+  // Temporary UX override: keep non-mobile sidebar expanded.
+  static const bool _disableSidebarCollapseTemporarily = true;
   const AppScaffold({
     super.key,
     required this.title,
@@ -143,8 +145,10 @@ class AppScaffold extends StatelessWidget {
                       Icons.menu,
                       color: light ? Colors.black : AppColors.textPrimary,
                     ),
-                    onPressed: () => SidebarState.instance.isCollapsed.value =
-                        !SidebarState.instance.isCollapsed.value,
+                    onPressed: _disableSidebarCollapseTemporarily
+                        ? null
+                        : () => SidebarState.instance.isCollapsed.value =
+                              !SidebarState.instance.isCollapsed.value,
                   );
                 },
               ),
@@ -157,7 +161,9 @@ class AppScaffold extends StatelessWidget {
         child: ValueListenableBuilder<bool>(
           valueListenable: SidebarState.instance.isCollapsed,
           builder: (context, collapsed, _) {
-            final effectiveCollapsed = isMedium ? true : collapsed;
+            final effectiveCollapsed = isMedium
+                ? true
+                : (_disableSidebarCollapseTemporarily ? false : collapsed);
             final sidebarWidth = AppBreakpoints.getResponsiveSidebarWidth(
               context,
               effectiveCollapsed,
