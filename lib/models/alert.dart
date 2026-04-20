@@ -126,6 +126,22 @@ class Alert {
     if (topBadgeCategory != null && actionData['badgeCategory'] == null) {
       actionData['badgeCategory'] = topBadgeCategory.toString();
     }
+    // Keep workflow diagnostics queryable across old/new records by ensuring
+    // key approval-routing fields are always available in actionData.
+    final topRequestedByUserId = data['requestedByUserId'];
+    if (topRequestedByUserId != null &&
+        actionData['requestedByUserId'] == null) {
+      actionData['requestedByUserId'] = topRequestedByUserId.toString();
+    }
+    final topRequiredApproverRole = data['requiredApproverRole'];
+    if (topRequiredApproverRole != null &&
+        actionData['requiredApproverRole'] == null) {
+      actionData['requiredApproverRole'] = topRequiredApproverRole.toString();
+    }
+    final topApprovalChain = data['approvalChain'];
+    if (topApprovalChain != null && actionData['approvalChain'] == null) {
+      actionData['approvalChain'] = topApprovalChain.toString();
+    }
 
     return Alert(
       id: doc.id,
@@ -186,6 +202,10 @@ class Alert {
   }
 
   Map<String, dynamic> toFirestore() {
+    final requestedByUserId = actionData?['requestedByUserId']?.toString();
+    final requiredApproverRole =
+        actionData?['requiredApproverRole']?.toString();
+    final approvalChain = actionData?['approvalChain']?.toString();
     return {
       'userId': userId,
       'type': type.name,
@@ -203,6 +223,12 @@ class Alert {
       'relatedGoalId': relatedGoalId,
       'fromUserId': fromUserId,
       'fromUserName': fromUserName,
+      if (requestedByUserId != null && requestedByUserId.isNotEmpty)
+        'requestedByUserId': requestedByUserId,
+      if (requiredApproverRole != null && requiredApproverRole.isNotEmpty)
+        'requiredApproverRole': requiredApproverRole,
+      if (approvalChain != null && approvalChain.isNotEmpty)
+        'approvalChain': approvalChain,
     };
   }
 

@@ -427,59 +427,175 @@ class AlertService {
     await _createAlert(alert);
   }
 
-  static Future<void> createGoalApprovalRequestedAlert({
+  static Future<Map<String, dynamic>> createGoalApprovalRequestedAlert({
     required String employeeId,
     required String goalId,
     required String goalTitle,
     String approverRole = 'manager',
   }) async {
     try {
+      bool roleMatchesApprover(String role, String approverRoleNormalized) {
+        final normalized = role.trim().toLowerCase();
+        if (approverRoleNormalized == 'admin') {
+          return normalized == 'admin' ||
+              normalized == 'administrator' ||
+              normalized == 'super_admin' ||
+              normalized == 'superadmin' ||
+              normalized.contains('admin');
+        }
+        if (approverRoleNormalized == 'manager') {
+          return normalized == 'manager' ||
+              normalized == 'line_manager' ||
+              normalized == 'linemanager' ||
+              normalized.contains('manager');
+        }
+        return normalized == approverRoleNormalized;
+      }
+
       final userDoc = await _firestore
           .collection('users')
           .doc(employeeId)
           .get();
-      final employeeName = userDoc.data()?['displayName'] ?? 'An employee';
+      final employeeData = userDoc.data() ?? const <String, dynamic>{};
+      final employeeName = employeeData['displayName'] ?? 'An employee';
+      final managerId = (employeeData['managerId'] as String?)?.trim();
 
       final normalizedApproverRole = approverRole.trim().toLowerCase();
-      final directRecipients = await _firestore
-          .collection('users')
-          .where('role', isEqualTo: normalizedApproverRole)
-          .get();
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> recipientsDocs =
-          directRecipients.docs;
+      final usersCol = _firestore.collection('users');
+      final recipientsById = <String>{};
+      final recipientEmailsById = <String, String>{};
+
+      if (normalizedApproverRole == 'admin') {
+        // Force rule for manager-as-employee flow:
+        // every admin-like account oversees manager goals, so approvals are
+        // never blocked by a single mapping/department assignment.
+        final allUsers = await usersCol.get();
+        for (final doc in allUsers.docs) {
+          final data = doc.data();
+          final role = (data['role'] ?? '').toString();
+          final email = (data['email'] ?? '').toString().trim();
+          final isAdminFlag = data['isAdmin'] == true;
+          final canApproveManagerGoals = data['canApproveManagerGoals'] == true;
+          final permissions = (data['permissions'] is List)
+              ? (data['permissions'] as List)
+                    .map((e) => e.toString().toLowerCase())
+                    .toList()
+              : const <String>[];
+          final hasApprovalPermission =
+              permissions.contains('approve_manager_goals') ||
+              permissions.contains('approve_goals');
+
+          if (roleMatchesApprover(role, normalizedApproverRole) ||
+              isAdminFlag ||
+              canApproveManagerGoals ||
+              hasApprovalPermission) {
+            recipientsById.add(doc.id);
+            if (email.isNotEmpty) {
+              recipientEmailsById[doc.id] = email;
+            }
+          }
+        }
+      } else {
+        // Employee -> manager: keep assigned manager as first target.
+        if (managerId != null && managerId.isNotEmpty) {
+          final mgrDoc = await usersCol.doc(managerId).get();
+          if (mgrDoc.exists) {
+            final data = mgrDoc.data() ?? const <String, dynamic>{};
+            final role = (data['role'] as String? ?? '').trim().toLowerCase();
+            if (roleMatchesApprover(role, normalizedApproverRole)) {
+              recipientsById.add(mgrDoc.id);
+              final email = (data['email'] ?? '').toString().trim();
+              if (email.isNotEmpty) {
+                recipientEmailsById[mgrDoc.id] = email;
+              }
+            }
+          }
+        }
+
+        // Fallback: all users with expected approver role.
+        if (recipientsById.isEmpty) {
+          final allUsers = await usersCol.get();
+          for (final doc in allUsers.docs) {
+            final data = doc.data();
+            final role = (data['role'] ?? '').toString();
+            if (roleMatchesApprover(role, normalizedApproverRole)) {
+              recipientsById.add(doc.id);
+              final email = (data['email'] ?? '').toString().trim();
+              if (email.isNotEmpty) {
+                recipientEmailsById[doc.id] = email;
+              }
+            }
+          }
+        }
+      }
 
       // Fallback for legacy/inconsistent role casing in Firestore data
       // (e.g. "Admin", "ADMIN ", " Manager").
-      if (recipientsDocs.isEmpty) {
-        final allUsers = await _firestore.collection('users').get();
+      if (recipientsById.isEmpty) {
+        final allUsers = await usersCol.get();
         final normalized = allUsers.docs.where((doc) {
           final role = (doc.data()['role'] ?? '')
               .toString()
               .trim()
               .toLowerCase();
-          return role == normalizedApproverRole;
+          return roleMatchesApprover(role, normalizedApproverRole);
         }).toList();
-        recipientsDocs = normalized;
+        for (final doc in normalized) {
+          recipientsById.add(doc.id);
+          final email = (doc.data()['email'] ?? '').toString().trim();
+          if (email.isNotEmpty) {
+            recipientEmailsById[doc.id] = email;
+          }
+        }
       }
 
-      if (recipientsDocs.isEmpty) {
+      final recipientIds = recipientsById.toList();
+
+      if (recipientIds.isEmpty) {
         developer.log(
           'WARNING: No $normalizedApproverRole users found to notify for goal approval',
         );
         developer.log(
           'Employee ID: $employeeId, Goal ID: $goalId, Goal Title: $goalTitle',
         );
-        return;
+
+        // Surface a clear personal alert so the submitter knows why no inbox
+        // approval appeared (instead of silently failing).
+        final fallbackActionRoute = await _alertsRouteForRecipient(employeeId);
+        final configAlert = Alert(
+          id: '',
+          userId: employeeId,
+          type: AlertType.managerGeneral,
+          audience: _determineAudience(
+            AlertType.managerGeneral,
+            isForManager: true,
+          ),
+          priority: AlertPriority.high,
+          title: 'Approval Routing Needs Attention',
+          message:
+              'No $normalizedApproverRole account was found for goal "$goalTitle". Please contact support/admin.',
+          actionText: 'View Goal',
+          actionRoute: fallbackActionRoute,
+          actionData: {'goalId': goalId},
+          createdAt: DateTime.now(),
+          relatedGoalId: goalId,
+          expiresAt: DateTime.now().add(const Duration(days: 7)),
+        );
+        await _createAlert(configAlert);
+        throw Exception(
+          'No approver recipients resolved for role: $normalizedApproverRole',
+        );
       }
 
       developer.log(
-        'Found ${recipientsDocs.length} $normalizedApproverRole(s) to notify for goal approval',
+        'Found ${recipientIds.length} $normalizedApproverRole(s) to notify for goal approval',
       );
 
-      for (final recipient in recipientsDocs) {
+      var successfulWrites = 0;
+      for (final recipientId in recipientIds) {
         final alert = Alert(
           id: '',
-          userId: recipient.id,
+          userId: recipientId,
           type: AlertType.goalApprovalRequested,
           audience: _determineAudience(
             AlertType.goalApprovalRequested,
@@ -493,15 +609,41 @@ class AlertService {
           actionRoute: normalizedApproverRole == 'admin'
               ? '/admin_inbox'
               : '/manager_inbox',
+          actionData: {
+            'goalId': goalId,
+            'requestedByUserId': employeeId,
+            'requiredApproverRole': normalizedApproverRole,
+            'approvalChain': normalizedApproverRole == 'admin'
+                ? 'manager_to_admin'
+                : 'employee_to_manager',
+          },
           createdAt: DateTime.now(),
+          fromUserId: employeeId,
+          fromUserName: employeeName.toString(),
           relatedGoalId: goalId,
           expiresAt: DateTime.now().add(const Duration(days: 14)),
         );
-        await _createAlert(alert);
+        await _createAlertStrict(alert);
+        successfulWrites++;
+      }
+
+      if (successfulWrites == 0) {
+        throw Exception(
+          'Approval alert dispatch failed: no recipient alerts were persisted',
+        );
       }
       developer.log(
-        'Successfully created approval request alerts for ${recipientsDocs.length} $normalizedApproverRole(s)',
+        'Successfully created approval request alerts for $successfulWrites/${recipientIds.length} $normalizedApproverRole(s)',
       );
+      return {
+        'approverRole': normalizedApproverRole,
+        'recipientIds': recipientIds,
+        'recipientEmails': recipientIds
+            .map((id) => recipientEmailsById[id])
+            .whereType<String>()
+            .toList(),
+        'successfulWrites': successfulWrites,
+      };
     } catch (e) {
       developer.log('Error creating approval request alerts: $e');
       rethrow; // Re-throw to help with debugging
@@ -1090,12 +1232,16 @@ class AlertService {
   }
 
   // Core alert management
+  static Future<void> _createAlertStrict(Alert alert) async {
+    await FirestoreSafe.addDoc<Map<String, dynamic>>(
+      _firestore.collection('alerts'),
+      alert.toFirestore(),
+    );
+  }
+
   static Future<void> _createAlert(Alert alert) async {
     try {
-      await FirestoreSafe.addDoc<Map<String, dynamic>>(
-        _firestore.collection('alerts'),
-        alert.toFirestore(),
-      );
+      await _createAlertStrict(alert);
 
       // Send email notification via free Vercel API (no billing required)
       try {
