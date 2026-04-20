@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.DA8.SIT",
-  "generated_at": "2026-04-20T14:47:30Z",
+  "version": "2026.04.DA9.SIT",
+  "generated_at": "2026-04-20T14:48:05Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -39,10 +39,15 @@
     },
     {
       "author": "Nathi2266",
+      "message": "feat: enhance manager dashboard with new embedded rendering logic and update asset paths for improved UI consistency",
+      "timestamp": "2026-04-20T16:47:35+02:00"
+    },
+    {
+      "author": "Nathi2266",
       "message": "feat: add manager dashboard assets to pubspec.yaml",
       "timestamp": "2026-04-20T16:47:08+02:00"
     }
   ],
-  "total_commits": 8,
+  "total_commits": 9,
   "date_range": "2026-04-20"
 }
