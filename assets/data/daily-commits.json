@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.CC9.SIT",
-  "generated_at": "2026-04-15T08:13:04Z",
+  "version": "2026.04.DA8.SIT",
+  "generated_at": "2026-04-20T14:47:30Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -39,15 +39,10 @@
     },
     {
       "author": "Nathi2266",
-      "message": "feat: update dependencies and enhance UI with new message and notification icons",
-      "timestamp": "2026-04-15T10:12:42+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: enhance dropdowns with isExpanded property for better UI layout",
-      "timestamp": "2026-04-15T09:22:46+02:00"
+      "message": "feat: add manager dashboard assets to pubspec.yaml",
+      "timestamp": "2026-04-20T16:47:08+02:00"
     }
   ],
-  "total_commits": 9,
-  "date_range": "2026-04-15"
+  "total_commits": 8,
+  "date_range": "2026-04-20"
 }
