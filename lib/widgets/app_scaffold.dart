@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -47,13 +46,8 @@ class AppScaffold extends StatelessWidget {
     }
 
     Widget maybeFocusTraversal(Widget child) {
-      // Web can hit a focus/layout assertion during view focus changes when
-      // traversal policies query semantic bounds too early.
-      if (kIsWeb) return child;
-      return FocusTraversalGroup(
-        policy: WidgetOrderTraversalPolicy(),
-        child: child,
-      );
+      // Keep content unwrapped to avoid web focus traversal null crashes.
+      return child;
     }
 
     final isSmall = AppBreakpoints.isSmall(context);
@@ -113,13 +107,7 @@ class AppScaffold extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Positioned.fill(
-                child: maybeFocusTraversal(
-                  Focus(
-                    canRequestFocus: true,
-                    descendantsAreFocusable: true,
-                    child: content,
-                  ),
-                ),
+                child: maybeFocusTraversal(content),
               ),
               if (topRightAction != null)
                 Positioned(top: 24, right: 24, child: topRightAction!),
