@@ -118,9 +118,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           backgroundColor: DashboardChrome.cardFill,
           content: Text(
             message,
-            style: AppTypography.bodyMedium.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
           ),
           actions: [
             TextButton(
@@ -211,6 +209,28 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       default:
         return false;
     }
+  }
+
+  /// Hide persisted [AlertType.goalOverdue] rows when the goal is no longer
+  /// overdue-relevant (e.g. manager-acknowledged) or is missing from the
+  /// employee's active goal set.
+  bool _isSuppressedStaleGoalOverdueAlert(Alert a, EmployeeData e) {
+    if (a.type != AlertType.goalOverdue) return false;
+    final rid = a.relatedGoalId?.trim();
+    if (rid == null || rid.isEmpty) return false;
+    if (e.isPlaceholder) return false;
+    Goal? match;
+    for (final g in e.goals) {
+      if (g.id == rid) {
+        match = g;
+        break;
+      }
+    }
+    if (match == null) return true;
+    final now = DateTime.now();
+    if (!match.isEligibleForOverdueTeamAlert) return true;
+    if (!match.targetDate.isBefore(now)) return true;
+    return false;
   }
 
   Future<void> _rescheduleGoal(
@@ -310,9 +330,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           padding: AppSpacing.screenPadding,
           child: Text(
             'Sign in to view approvals.',
-            style: AppTypography.bodyMedium.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
           ),
         ),
       );
@@ -345,9 +363,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           padding: AppSpacing.screenPadding,
           child: Text(
             'No approvals yet',
-            style: AppTypography.bodyMedium.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
           ),
         ),
       );
@@ -375,9 +391,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 decoration: BoxDecoration(
                   color: DashboardChrome.cardFill,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: DashboardChrome.border,
-                  ),
+                  border: Border.all(color: DashboardChrome.border),
                 ),
                 child: ListTile(
                   leading: isApproved
@@ -772,6 +786,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               if (widget.forAdminOversight && !_isAdminOversightTeamAlert(a)) {
                 continue;
               }
+              if (_isSuppressedStaleGoalOverdueAlert(a, e)) continue;
               if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
               if (a.id.isNotEmpty) seenAlertIds.add(a.id);
               combinedAlerts.add(a);
@@ -803,9 +818,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             // Synthetic overdue: one per overdue goal per employee so "Overdue goals" filter shows all
             final goals = e.goals;
             for (final goal in goals) {
-              final isCompleted =
-                  goal.status == GoalStatus.completed || goal.progress >= 100;
-              if (isCompleted) continue;
+              if (!goal.isEligibleForOverdueTeamAlert) continue;
               if (!goal.targetDate.isBefore(now)) continue;
               final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
               if (!seenAlertIds.add(id)) continue;
@@ -1197,9 +1210,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           ),
           Text(
             title,
-            style: AppTypography.bodySmall.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
             textAlign: TextAlign.center,
           ),
           if (subtitle != null) ...[
@@ -1366,15 +1377,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: DashboardChrome.border,
-                      ),
+                      borderSide: BorderSide(color: DashboardChrome.border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: DashboardChrome.border,
-                      ),
+                      borderSide: BorderSide(color: DashboardChrome.border),
                     ),
                     filled: true,
                     fillColor: DashboardChrome.cardFill,
@@ -1411,25 +1418,18 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   onChanged: (value) => setState(() => _searchQuery = value),
                   decoration: InputDecoration(
                     hintText: 'Search employees or goals...',
-                    prefixIcon: Icon(
-                      Icons.search,
-                      color: DashboardChrome.fg,
-                    ),
+                    prefixIcon: Icon(Icons.search, color: DashboardChrome.fg),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 12,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: DashboardChrome.border,
-                      ),
+                      borderSide: BorderSide(color: DashboardChrome.border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: DashboardChrome.border,
-                      ),
+                      borderSide: BorderSide(color: DashboardChrome.border),
                     ),
                     filled: true,
                     fillColor: DashboardChrome.cardFill,
@@ -1465,9 +1465,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       backgroundColor: DashboardChrome.cardFill,
       selectedColor: AppColors.activeColor,
       side: BorderSide(
-        color: selected
-            ? AppColors.activeColor
-            : DashboardChrome.border,
+        color: selected ? AppColors.activeColor : DashboardChrome.border,
       ),
     );
   }
@@ -1480,9 +1478,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           padding: AppSpacing.screenPadding,
           child: Text(
             'Please sign in to view team supervision alerts',
-            style: AppTypography.bodyMedium.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
           ),
         ),
       );
@@ -1534,6 +1530,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             if (widget.forAdminOversight && !_isAdminOversightTeamAlert(a)) {
               continue;
             }
+            if (_isSuppressedStaleGoalOverdueAlert(a, e)) continue;
             if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
             if (a.id.isNotEmpty) seenAlertIds.add(a.id);
             allAlerts.add(a);
@@ -1563,9 +1560,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             );
           }
           for (final goal in e.goals) {
-            final isCompleted =
-                goal.status == GoalStatus.completed || goal.progress >= 100;
-            if (isCompleted) continue;
+            if (!goal.isEligibleForOverdueTeamAlert) continue;
             if (!goal.targetDate.isBefore(now)) continue;
             final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
             if (!seenAlertIds.add(id)) continue;
@@ -1936,9 +1931,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           const SizedBox(height: 4),
           Text(
             alert.message,
-            style: AppTypography.bodySmall.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
           ),
 
           const SizedBox(height: 12),
@@ -1953,7 +1946,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     Icon(
                       Icons.access_time,
                       size: 16,
-                      color: AppColors.textSecondary,
+                      color: DashboardChrome.fg,
                     ),
                     const SizedBox(width: 4),
                     Flexible(
@@ -2209,9 +2202,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           const SizedBox(height: 8),
           Text(
             'No supervision alerts at this time. Your team is performing well!',
-            style: AppTypography.bodyMedium.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
             textAlign: TextAlign.center,
           ),
         ],
@@ -2591,10 +2582,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   onChanged: (value) => setState(() => _searchQuery = value),
                   decoration: InputDecoration(
                     hintText: 'Search team members...',
-                    prefixIcon: Icon(
-                      Icons.search,
-                      color: DashboardChrome.fg,
-                    ),
+                    prefixIcon: Icon(Icons.search, color: DashboardChrome.fg),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(color: AppColors.borderColor),
@@ -3012,9 +3000,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: AppTypography.bodySmall.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
           ),
         ],
       ],
@@ -3110,9 +3096,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   decoration: BoxDecoration(
                     color: DashboardChrome.cardFill,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: DashboardChrome.border,
-                    ),
+                    border: Border.all(color: DashboardChrome.border),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -3222,6 +3206,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     for (final employee in employees) {
       final urgentAlerts = employee.recentAlerts.where((alert) {
         if (alert.priority != AlertPriority.urgent) return false;
+        if (_isSuppressedStaleGoalOverdueAlert(alert, employee)) return false;
         if (managerId == null || alert.fromUserId == null) return true;
         return alert.fromUserId == managerId;
       }).length;
@@ -3278,24 +3263,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.notifications_off,
-            size: 48,
-            color: DashboardChrome.fg,
-          ),
+          Icon(Icons.notifications_off, size: 48, color: DashboardChrome.fg),
           const SizedBox(height: 16),
           Text(
             'No Team Alerts',
-            style: AppTypography.heading4.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: DashboardChrome.fg),
           ),
           const SizedBox(height: 8),
           Text(
             'Your team doesn\'t have any alerts right now.',
-            style: AppTypography.bodyMedium.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
             textAlign: TextAlign.center,
           ),
         ],
@@ -3317,16 +3294,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           const SizedBox(height: 16),
           Text(
             'No Team Members',
-            style: AppTypography.heading4.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.heading4.copyWith(color: DashboardChrome.fg),
           ),
           const SizedBox(height: 8),
           Text(
             'You don\'t have any team members to send nudges to.',
-            style: AppTypography.bodyMedium.copyWith(
-              color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
             textAlign: TextAlign.center,
           ),
         ],
@@ -3602,7 +3575,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         final recommendations = <String>[];
         final inactivityDays = now.difference(employee.lastActivity).inDays;
         final employeeAlerts = <Alert>[
-          ...employee.recentAlerts,
+          ...employee.recentAlerts
+              .where((a) => !_isSuppressedStaleGoalOverdueAlert(a, employee)),
           ...alertsByUser[employee.profile.uid] ?? const <Alert>[],
         ];
         final urgentCount = employeeAlerts

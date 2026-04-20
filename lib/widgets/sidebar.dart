@@ -212,22 +212,53 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                     child: ListView(
                       controller: _scrollController,
                       padding: AppSpacing.sidebarContentPadding,
-                      children: _currentItems.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final it = entry.value;
-                        // Check if this is the My Profile route and profile is incomplete
-                        final bool showProfileIndicator =
-                            (it.route == '/my_profile' ||
-                                it.route == '/manager_profile') &&
-                            _isProfileIncomplete;
+                      children: [
+                        // Build nav entries first.
+                        ..._currentItems.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final it = entry.value;
+                          // Show profile warning marker when profile is incomplete.
+                          final bool showProfileIndicator =
+                              (it.route == '/my_profile' ||
+                                  it.route == '/manager_profile') &&
+                              _isProfileIncomplete;
 
-                        if (it.children != null && it.children!.isNotEmpty) {
-                          return _ExpandableNavGroup(
-                            key: ValueKey('expand_${it.route}_$index'),
-                            parent: it,
-                            currentRouteName: widget.currentRouteName,
+                          if (it.children != null && it.children!.isNotEmpty) {
+                            return _ExpandableNavGroup(
+                              key: ValueKey('expand_${it.route}_$index'),
+                              parent: it,
+                              currentRouteName: widget.currentRouteName,
+                              collapsed: effectiveCollapsed,
+                              onNavigate: widget.onNavigate,
+                              showProfileIndicator: showProfileIndicator,
+                              tutorialKey:
+                                  widget.sidebarTutorialKeys != null &&
+                                      index < widget.sidebarTutorialKeys!.length
+                                  ? widget.sidebarTutorialKeys![index]
+                                  : null,
+                              showTutorial:
+                                  widget.tutorialStepIndex != null &&
+                                  widget.tutorialStepIndex == index,
+                              onTutorialNext: widget.onTutorialNext,
+                              onTutorialSkip: widget.onTutorialSkip,
+                              isLastTutorialStep:
+                                  widget.tutorialStepIndex != null &&
+                                  widget.tutorialStepIndex ==
+                                      widget.items.length - 1,
+                            );
+                          }
+
+                          return _NavTile(
+                            key: ValueKey('nav_${it.route}_$index'),
+                            icon: it.icon,
+                            iconWidget: it.iconWidget,
+                            assetWhite: it.assetWhite,
+                            assetRed: it.assetRed,
+                            label: it.label,
+                            route: it.route,
+                            isActive: widget.currentRouteName == it.route,
                             collapsed: effectiveCollapsed,
-                            onNavigate: widget.onNavigate,
+                            onTap: () => widget.onNavigate(it.route),
                             showProfileIndicator: showProfileIndicator,
                             tutorialKey:
                                 widget.sidebarTutorialKeys != null &&
@@ -244,65 +275,39 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                                 widget.tutorialStepIndex ==
                                     widget.items.length - 1,
                           );
-                        }
-
-                        return _NavTile(
-                          key: ValueKey('nav_${it.route}_$index'),
-                          icon: it.icon,
-                          iconWidget: it.iconWidget,
-                          assetWhite: it.assetWhite,
-                          assetRed: it.assetRed,
-                          label: it.label,
-                          route: it.route,
-                          isActive: widget.currentRouteName == it.route,
+                        }),
+                        // Keep footer actions inside the scroll area to prevent
+                        // overflow/duplication effects on shorter viewports.
+                        _NavTile(
+                          key: const ValueKey('nav_logout'),
+                          icon: Icons.exit_to_app,
+                          label: AppLocalizations.of(context).employee_drawer_exit,
+                          route: '__logout__',
+                          isActive: false,
                           collapsed: effectiveCollapsed,
-                          onTap: () => widget.onNavigate(it.route),
-                          showProfileIndicator: showProfileIndicator,
+                          onTap: widget.onLogout,
+                        ),
+                        _CollapseToggle(
+                          collapsed: effectiveCollapsed,
                           tutorialKey:
                               widget.sidebarTutorialKeys != null &&
-                                  index < widget.sidebarTutorialKeys!.length
-                              ? widget.sidebarTutorialKeys![index]
+                                  widget.tutorialStepIndex != null &&
+                                  widget.tutorialStepIndex == widget.items.length &&
+                                  widget.tutorialStepIndex! <
+                                      widget.sidebarTutorialKeys!.length
+                              ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
                               : null,
                           showTutorial:
                               widget.tutorialStepIndex != null &&
-                              widget.tutorialStepIndex == index,
+                              widget.tutorialStepIndex == widget.items.length,
                           onTutorialNext: widget.onTutorialNext,
                           onTutorialSkip: widget.onTutorialSkip,
                           isLastTutorialStep:
                               widget.tutorialStepIndex != null &&
-                              widget.tutorialStepIndex ==
-                                  widget.items.length - 1,
-                        );
-                      }).toList(),
+                              widget.tutorialStepIndex == widget.items.length,
+                        ),
+                      ],
                     ),
-                  ),
-                  _NavTile(
-                    key: const ValueKey('nav_logout'),
-                    icon: Icons.exit_to_app,
-                    label: AppLocalizations.of(context).employee_drawer_exit,
-                    route: '__logout__',
-                    isActive: false,
-                    collapsed: effectiveCollapsed,
-                    onTap: widget.onLogout,
-                  ),
-                  _CollapseToggle(
-                    collapsed: effectiveCollapsed,
-                    tutorialKey:
-                        widget.sidebarTutorialKeys != null &&
-                            widget.tutorialStepIndex != null &&
-                            widget.tutorialStepIndex == widget.items.length &&
-                            widget.tutorialStepIndex! <
-                                widget.sidebarTutorialKeys!.length
-                        ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
-                        : null,
-                    showTutorial:
-                        widget.tutorialStepIndex != null &&
-                        widget.tutorialStepIndex == widget.items.length,
-                    onTutorialNext: widget.onTutorialNext,
-                    onTutorialSkip: widget.onTutorialSkip,
-                    isLastTutorialStep:
-                        widget.tutorialStepIndex != null &&
-                        widget.tutorialStepIndex == widget.items.length,
                   ),
                 ],
               ),

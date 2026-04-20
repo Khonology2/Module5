@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/services/workspace_context_service.dart';
+import 'package:pdh/services/role_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 
@@ -33,6 +34,24 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
     }
   }
 
+  void _navigateToWorkspace(
+    BuildContext buildContext,
+    WorkspaceContext workspaceContext,
+  ) {
+    final role = RoleService.instance.cachedRole?.toLowerCase();
+
+    if (role == 'manager') {
+      final initialRoute = workspaceContext == WorkspaceContext.myWorkspace
+          ? '/manager_gw_menu_dashboard'
+          : '/dashboard';
+      Navigator.pushReplacementNamed(
+        buildContext,
+        '/manager_portal',
+        arguments: {'initialRoute': initialRoute},
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Only show switcher if user can access manager workspace
@@ -56,9 +75,10 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
           // My Workspace option
           Expanded(
             child: GestureDetector(
-              onTap: () => _workspaceService.switchToContext(
-                WorkspaceContext.myWorkspace,
-              ),
+              onTap: () {
+                _workspaceService.switchToContext(WorkspaceContext.myWorkspace);
+                _navigateToWorkspace(context, WorkspaceContext.myWorkspace);
+              },
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -89,9 +109,15 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
           // Manager Workspace option
           Expanded(
             child: GestureDetector(
-              onTap: () => _workspaceService.switchToContext(
-                WorkspaceContext.managerWorkspace,
-              ),
+              onTap: () {
+                _workspaceService.switchToContext(
+                  WorkspaceContext.managerWorkspace,
+                );
+                _navigateToWorkspace(
+                  context,
+                  WorkspaceContext.managerWorkspace,
+                );
+              },
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,

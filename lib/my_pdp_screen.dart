@@ -1283,10 +1283,10 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     managerOwnGoalsOnly,
                   ),
                 ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 

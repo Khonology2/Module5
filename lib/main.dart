@@ -549,7 +549,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/manager_gw_menu_my_pdp': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
-                  child: const MyGoalWorkspaceScreen(
+                  child: const EmployeeDashboardScreen(
                     forManagerGwMenu: true,
                     managerGwMenuRoute: '/manager_gw_menu_my_pdp',
                   ),

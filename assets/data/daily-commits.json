@@ -1,31 +1,11 @@
 {
-  "version": "2026.04.CE26.SIT",
-  "generated_at": "2026-04-17T16:44:16Z",
+  "version": "2026.04.CE14.SIT",
+  "generated_at": "2026-04-17T08:23:02Z",
   "commits": [
     {
       "author": "GitHub Action",
       "message": "Update daily commits data []",
       "timestamp": "2026-02-24T06:19:19Z"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Merge All Branches",
-      "timestamp": "2026-04-10T16:38:35+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Pubspec-Update",
-      "timestamp": "2026-04-10T13:25:41+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Fix: Screens Rendering Incorrect Data",
-      "timestamp": "2026-04-10T12:50:42+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Fix:Layout Overflow Issue On Manager Profile",
-      "timestamp": "2026-04-10T10:34:55+02:00"
     },
     {
       "author": "Nathi2266",
@@ -39,100 +19,60 @@
     },
     {
       "author": "Thembelihle",
-      "message": "Fix: Ensure mounted checks are performed in AlertsNudgesScreen to prevent potential errors when navigating or displaying modals. Clean up code formatting in ManagerInboxScreen, ManagerPortalScreen, and MyPdpScreen for improved readability.",
-      "timestamp": "2026-04-17T18:43:52+02:00"
+      "message": "feature - enhance manager inbox alert handling with improved context switching mode.",
+      "timestamp": "2026-04-16T23:00:20+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - Enhance badge tracking error handling in ManagerAlertsNudgesScreen and ManagerEmployeeDetailScreen to ensure primary actions are not affected by badge tracking failures, improving user experience and logging for debugging.",
-      "timestamp": "2026-04-09T10:11:42+02:00"
+      "message": "Feature -  Enhance progress visuals screen by integrating a comprehensive activity breakdown and log, improving user engagement with detailed insights into recent activities and patterns.",
+      "timestamp": "2026-04-02T11:49:07+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - Refactor ManagerInboxScreen to enhance alert processing by adding meeting end time calculations and archiving logic, improving the relevance of alerts displayed to managers.",
-      "timestamp": "2026-04-08T13:47:20+02:00"
+      "message": "Feature - Add recent activity trend visualization and update latest actions display in the progress visuals screen, enhancing user insights into recent activities and actions taken.",
+      "timestamp": "2026-04-02T11:16:30+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - Update ManagerLeaderboardScreen to support comparison of managers, enhancing data stream handling and UI messaging based on selected context.",
-      "timestamp": "2026-04-08T13:36:44+02:00"
+      "message": "Feature - Add activity filters to the progress visuals screen, allowing users to customize their view based on selected time periods.",
+      "timestamp": "2026-04-02T10:52:31+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - Refactor ManagerLeaderboardScreen to improve time filter handling, streamline data stream management, and enhance UI layout by removing redundant header elements and adding a filters bar.",
-      "timestamp": "2026-04-08T13:30:32+02:00"
+      "message": "Feature - Refactor admin progress view to enhance supervision capabilities, including detailed activity summaries and breakdowns, while improving loading states and UI responsiveness.",
+      "timestamp": "2026-04-02T10:44:16+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - Enhance ManagerLeaderboardScreen with inline stat chips for displaying employee metrics and refactor metric text handling for improved readability.",
-      "timestamp": "2026-04-08T13:24:42+02:00"
+      "message": "Feature - Refactor progress visuals screen to implement a personal view for admin users, enhancing goal tracking and insights while improving layout and responsiveness.",
+      "timestamp": "2026-04-02T10:28:16+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - Refactor ManagerLeaderboardScreen to replace manager terminology with employee, updating data streams and UI elements accordingly.",
-      "timestamp": "2026-04-08T13:08:57+02:00"
+      "message": "Refactor progress visuals screen to consolidate goal status and engagement sections, improving layout responsiveness and updating growth indicator calculations for better trend analysis.",
+      "timestamp": "2026-04-02T10:20:41+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature -  Update badge awarding logic to include admin role alongside manager for improved badge celebration handling.",
-      "timestamp": "2026-04-08T12:50:47+02:00"
+      "message": "Feature - emove emojis from section titles in progress visuals screen for cleaner UI",
+      "timestamp": "2026-04-02T10:07:47+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature -  Update AdminBadgesPointsScreen to utilize forAdminSelf flag and adjust navigation and display logic in ManagerBadgesPointsScreen for admin oversight.",
-      "timestamp": "2026-04-08T12:48:01+02:00"
+      "message": "Feature - update progress visuals to support admin-specific analytics and enhance UI elements",
+      "timestamp": "2026-04-02T10:00:01+02:00"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature - mplement handling for one-on-one alerts, allowing users to respond to meeting requests with options to accept, acknowledge, or suggest new times based on meeting status.",
-      "timestamp": "2026-04-07T14:56:27+02:00"
+      "author": "BhutSipho",
+      "message": "Fix: Duplicated Icons",
+      "timestamp": "2026-04-17T10:22:16+02:00"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature -  Update action route logic for manager oversight and adjust alert action routes in alerts and manager inbox screens.",
-      "timestamp": "2026-04-07T14:32:19+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - Refactor alert filtering logic and improve code formatting in manager inbox screen. Adjusted comments",
-      "timestamp": "2026-04-07T14:03:10+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Fix import formatting in manager_inbox_screen.dart for consistency.",
-      "timestamp": "2026-04-17T18:00:55+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Refactor alert filtering logic in ManagerInboxScreen to clarify inbox and archived views. Improve code readability by formatting and consolidating navigation arguments.",
-      "timestamp": "2026-04-07T14:03:10+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - Add initial employee and meeting ID support for admin team review and dashboard screens.",
-      "timestamp": "2026-04-07T13:47:05+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Add functionality for starting 1:1 meetings with admins and update alert action routes based on user role.",
-      "timestamp": "2026-04-07T13:39:14+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Enhance alert filtering logic and update user alerts stream to support customizable item limits.",
-      "timestamp": "2026-04-07T13:23:21+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature - Refactor alert handling for goal approvals and rejections.",
-      "timestamp": "2026-04-07T12:54:08+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "feature - Refactor alert handling for goal approvals and rejections.",
-      "timestamp": "2026-04-07T12:54:08+02:00"
+      "author": "BhutSipho",
+      "message": "Fixed ContextSwitcher Conflicts Into Sipho-s14",
+      "timestamp": "2026-04-17T09:31:56+02:00"
     }
   ],
-  "total_commits": 26,
+  "total_commits": 14,
   "date_range": "2026-04-17"
 }

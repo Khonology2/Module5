@@ -75,6 +75,22 @@ class Goal {
   final DateTime? approvalRequestedAt;
   final String? rejectionReason;
 
+  /// Goals that are finished, acknowledged, paused, or already at 100% must not
+  /// drive overdue / team supervision alerts (matches manager PDP semantics).
+  bool get isEligibleForOverdueTeamAlert {
+    if (progress >= 100) return false;
+    if (status == GoalStatus.completed || status == GoalStatus.acknowledged) {
+      return false;
+    }
+    if (status == GoalStatus.paused) return false;
+    return true;
+  }
+
+  /// Partial/empty `goals` documents sometimes exist in Firestore; never show
+  /// them in team review, PDP lists, or aggregates.
+  bool get isDisplayableGoal =>
+      title.trim().isNotEmpty || description.trim().isNotEmpty;
+
   const Goal({
     required this.id,
     required this.userId,
