@@ -239,6 +239,11 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
 
   bool _isPortalRoute(String route) => _portalRoutes.contains(route);
 
+  bool _shouldShowPortalTopActions(String route) {
+    // Keep dashboard hero area uncluttered; show quick actions elsewhere.
+    return route != '/dashboard';
+  }
+
   String? _routeFromPortalUrl() {
     // Hash strategy URL example:
     // http://localhost:64790/#/manager_portal?screen=/manager_inbox
