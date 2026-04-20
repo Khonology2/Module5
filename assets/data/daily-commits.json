@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.DA7.SIT",
-  "generated_at": "2026-04-20T08:32:55Z",
+  "version": "2026.04.DA8.SIT",
+  "generated_at": "2026-04-20T10:43:45Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -29,6 +29,11 @@
     },
     {
       "author": "Thembelihle",
+      "message": "Feature: Enhance alert handling in ManagerInboxScreen and AlertsNudgesScreen by adding goal approval alert types and refining admin inbox eligibility checks.",
+      "timestamp": "2026-04-20T12:43:20+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "Feature -  Add personalized greeting and dynamic heading to MyPdpScreen, removing unused subtitle style for improved UI clarity.",
       "timestamp": "2026-04-20T10:32:06+02:00"
     },
@@ -38,6 +43,6 @@
       "timestamp": "2026-04-20T09:54:11+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 8,
   "date_range": "2026-04-20"
 }
