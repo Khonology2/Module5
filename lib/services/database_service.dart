@@ -44,6 +44,26 @@ class DatabaseService {
     }
   }
 
+  // Role normalization used by approval routing so alias roles
+  // (e.g. line_manager, super_admin) still follow the correct chain.
+  static bool _isAdminLikeRole(String role) {
+    final normalized = role.trim().toLowerCase();
+    return normalized == 'admin' ||
+        normalized == 'administrator' ||
+        normalized == 'super_admin' ||
+        normalized == 'superadmin' ||
+        normalized.contains('admin');
+  }
+
+  static bool _isManagerLikeRole(String role) {
+    final normalized = role.trim().toLowerCase();
+    if (_isAdminLikeRole(normalized)) return false;
+    return normalized == 'manager' ||
+        normalized == 'line_manager' ||
+        normalized == 'linemanager' ||
+        normalized.contains('manager');
+  }
+
   static Future<Map<String, dynamic>> _getUserPrivacySettings(
     String uid,
   ) async {
@@ -355,7 +375,8 @@ class DatabaseService {
   }) async {
     final firestore = FirebaseFirestore.instance;
     final goalRef = firestore.collection('goals').doc(goalId);
-    final approverRole = (await _getUserRole(managerId)).trim().toLowerCase();
+    final approverRoleRaw =
+        (await _getUserRole(managerId)).trim().toLowerCase();
     Map<String, dynamic>? goalData;
     await firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(goalRef);
@@ -377,19 +398,24 @@ class DatabaseService {
       final goalOwnerDoc = await transaction.get(
         firestore.collection('users').doc(goalOwnerId),
       );
-      final goalOwnerRole = (goalOwnerDoc.data()?['role'] ?? 'employee')
+      final goalOwnerRoleRaw = (goalOwnerDoc.data()?['role'] ?? 'employee')
           .toString()
           .trim()
           .toLowerCase();
+      final goalOwnerIsManagerLike =
+          _isManagerLikeRole(goalOwnerRoleRaw);
+      final approverIsAdminLike = _isAdminLikeRole(approverRoleRaw);
+      final approverIsManagerLike =
+          _isManagerLikeRole(approverRoleRaw);
 
-      // Manager-created goals must be approved by admins only.
-      if (goalOwnerRole == 'manager' && approverRole != 'admin') {
+      // Manager-created goals must be approved by admins only (any admin-like role).
+      if (goalOwnerIsManagerLike && !approverIsAdminLike) {
         throw StateError('Manager-created goals must be approved by an admin');
       }
       // Employee goals can be approved by manager or admin.
-      if (goalOwnerRole != 'manager' &&
-          approverRole != 'manager' &&
-          approverRole != 'admin') {
+      if (!goalOwnerIsManagerLike &&
+          !approverIsManagerLike &&
+          !approverIsAdminLike) {
         throw StateError('You do not have permission to approve this goal');
       }
 
@@ -446,6 +472,19 @@ class DatabaseService {
       );
     } catch (_) {}
 
+    // Mirror approval into audit_entries so Repository & Audit + orderBy(submittedDate) feeds work.
+    try {
+      await _logGoalApprovedToAuditEntries(
+        goalId: goalId,
+        goalTitle: (goalData!['title'] ?? '') as String,
+        employeeUserId: (goalData!['userId'] ?? '') as String,
+        employeeName: employeeName,
+        department: department,
+        approvedByUid: managerId,
+        approvedByName: managerName,
+      );
+    } catch (_) {}
+
     // Create approval alert for EMPLOYEE (existing functionality)
     try {
       await AlertService.createGoalApprovalDecisionAlert(
@@ -482,7 +521,8 @@ class DatabaseService {
   }) async {
     final firestore = FirebaseFirestore.instance;
     final goalRef = firestore.collection('goals').doc(goalId);
-    final approverRole = (await _getUserRole(managerId)).trim().toLowerCase();
+    final approverRoleRaw =
+        (await _getUserRole(managerId)).trim().toLowerCase();
     Map<String, dynamic>? goalData;
     await firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(goalRef);
@@ -504,19 +544,24 @@ class DatabaseService {
       final goalOwnerDoc = await transaction.get(
         firestore.collection('users').doc(goalOwnerId),
       );
-      final goalOwnerRole = (goalOwnerDoc.data()?['role'] ?? 'employee')
+      final goalOwnerRoleRaw = (goalOwnerDoc.data()?['role'] ?? 'employee')
           .toString()
           .trim()
           .toLowerCase();
+      final goalOwnerIsManagerLike =
+          _isManagerLikeRole(goalOwnerRoleRaw);
+      final approverIsAdminLike = _isAdminLikeRole(approverRoleRaw);
+      final approverIsManagerLike =
+          _isManagerLikeRole(approverRoleRaw);
 
-      // Manager-created goals must be reviewed by admins only.
-      if (goalOwnerRole == 'manager' && approverRole != 'admin') {
+      // Manager-created goals must be reviewed by admins only (any admin-like role).
+      if (goalOwnerIsManagerLike && !approverIsAdminLike) {
         throw StateError('Manager-created goals must be rejected by an admin');
       }
       // Employee goals can be rejected by manager or admin.
-      if (goalOwnerRole != 'manager' &&
-          approverRole != 'manager' &&
-          approverRole != 'admin') {
+      if (!goalOwnerIsManagerLike &&
+          !approverIsManagerLike &&
+          !approverIsAdminLike) {
         throw StateError('You do not have permission to reject this goal');
       }
 
@@ -552,13 +597,33 @@ class DatabaseService {
       );
     } catch (_) {}
 
-    // Log goal rejection to audit trail
+    // Log goal rejection to audit trail (include owner labels like approvals)
+    String ownerName = '';
+    String ownerDept = '';
+    try {
+      final ownerId = (goalData!['userId'] ?? '').toString();
+      if (ownerId.isNotEmpty) {
+        final od =
+            await firestore.collection('users').doc(ownerId).get();
+        final odMap = od.data() ?? {};
+        ownerName =
+            odMap['displayName'] ??
+            odMap['fullName'] ??
+            odMap['name'] ??
+            odMap['email'] ??
+            '';
+        ownerDept = odMap['department']?.toString() ?? '';
+      }
+    } catch (_) {}
+
     try {
       await _logGoalRejected(
         goalId: goalId,
         goalTitle: (goalData!['title'] ?? '') as String? ?? '',
         userId: (goalData!['userId'] ?? '') as String? ?? '',
         rejectionReason: reason ?? '',
+        ownerDisplayName: ownerName,
+        ownerDepartment: ownerDept,
       );
     } catch (e) {
       developer.log('Error logging goal rejection: $e');
@@ -642,7 +707,11 @@ class DatabaseService {
     return getUserGoalsStreamForViewer(viewerId: viewer, targetUserId: uid);
   }
 
-  static Future<String> createGoal(Goal goal) async {
+  static Future<String> createGoal(
+    Goal goal, {
+    String? sourceWorkspace,
+    String? sourceRoute,
+  }) async {
     const int maxAttempts = 3;
     const List<int> retryDelaysMs = [250, 500];
 
@@ -663,10 +732,15 @@ class DatabaseService {
       'approvedByName': null,
       'approvedAt': null,
       'rejectionReason': null,
+      if (sourceWorkspace != null && sourceWorkspace.trim().isNotEmpty)
+        'sourceWorkspace': sourceWorkspace.trim(),
+      if (sourceRoute != null && sourceRoute.trim().isNotEmpty)
+        'sourceRoute': sourceRoute.trim(),
     };
 
     final col = FirebaseFirestore.instance.collection('goals');
     Object? lastError;
+    String? createdGoalId;
 
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -675,20 +749,7 @@ class DatabaseService {
             .timeout(const Duration(seconds: 8));
         developer.log('Goal created successfully: ${docRef.id}');
         lastError = null;
-
-        // Auto-request approval asynchronously
-        // ignore: unawaited_futures
-        Future(() async {
-          try {
-            await requestGoalApproval(
-              goalId: docRef.id,
-              userId: goal.userId,
-              goalTitle: goal.title,
-            );
-          } catch (e) {
-            developer.log('Error requesting goal approval: $e');
-          }
-        });
+        createdGoalId = docRef.id;
         // Log goal creation to audit trail
         // ignore: unawaited_futures
         Future(() async {
@@ -702,8 +763,7 @@ class DatabaseService {
             developer.log('Error logging goal creation: $e');
           }
         });
-
-        return docRef.id;
+        break;
       } catch (e) {
         lastError = e;
         developer.log(
@@ -730,32 +790,117 @@ class DatabaseService {
     if (lastError != null) {
       throw lastError;
     }
-    throw StateError('Goal create failed after $maxAttempts attempts');
+    if (createdGoalId == null) {
+      throw StateError('Goal create failed after $maxAttempts attempts');
+    }
+
+    // Reliability layer:
+    // Ensure approval request dispatch is completed before returning so
+    // "goal created" and "approval requested" do not silently drift apart.
+    const int approvalDispatchAttempts = 3;
+    var approvalErrorText = '';
+    var approvalSent = false;
+    for (int i = 0; i < approvalDispatchAttempts; i++) {
+      try {
+        await requestGoalApproval(
+          goalId: createdGoalId,
+          userId: goal.userId,
+          goalTitle: goal.title,
+          sourceWorkspace: sourceWorkspace,
+        );
+        approvalSent = true;
+        break;
+      } catch (e) {
+        approvalErrorText = e.toString();
+        developer.log(
+          'Goal approval dispatch attempt ${i + 1}/$approvalDispatchAttempts failed for $createdGoalId: $e',
+        );
+        if (i < approvalDispatchAttempts - 1) {
+          await Future.delayed(
+            Duration(milliseconds: retryDelaysMs[i.clamp(0, retryDelaysMs.length - 1)]),
+          );
+        }
+      }
+    }
+
+    await FirebaseFirestore.instance.collection('goals').doc(createdGoalId).set({
+      'approvalDispatchStatus': approvalSent ? 'sent' : 'failed',
+      'approvalDispatchUpdatedAt': FieldValue.serverTimestamp(),
+      if (!approvalSent) 'approvalDispatchError': approvalErrorText,
+    }, SetOptions(merge: true));
+
+    return createdGoalId;
   }
 
   static Future<void> requestGoalApproval({
     required String goalId,
     required String userId,
     required String goalTitle,
+    String? sourceWorkspace,
   }) async {
     final ownerRole = (await _getUserRole(userId)).trim().toLowerCase();
-    final requiredApproverRole = ownerRole == 'manager' ? 'admin' : 'manager';
+    final requiredApproverRole = _isManagerLikeRole(ownerRole)
+        ? 'admin'
+        : 'manager';
 
     Future<void> attempt(int attemptCount) async {
       final ref = FirebaseFirestore.instance.collection('goals').doc(goalId);
       try {
+        Map<String, dynamic>? dispatchResult;
         await ref.set({
           'approvalStatus': GoalApprovalStatus.pending.name,
           'approvalRequestedAt': FieldValue.serverTimestamp(),
           'requiredApproverRole': requiredApproverRole,
+          'approvalRoleResolvedFrom': ownerRole,
+          if (sourceWorkspace != null && sourceWorkspace.trim().isNotEmpty)
+            'approvalSourceWorkspace': sourceWorkspace.trim(),
         }, SetOptions(merge: true));
 
-        await AlertService.createGoalApprovalRequestedAlert(
+        dispatchResult = await AlertService.createGoalApprovalRequestedAlert(
           employeeId: userId,
           goalId: goalId,
           goalTitle: goalTitle,
           approverRole: requiredApproverRole,
         );
+        await ref.set({
+          'approvalDispatchRecipients':
+              List<String>.from(dispatchResult['recipientIds'] ?? const []),
+          'approvalDispatchRecipientEmails':
+              List<String>.from(dispatchResult['recipientEmails'] ?? const []),
+          'approvalDispatchWriteCount': dispatchResult['successfulWrites'] ?? 0,
+          'approvalDispatchApproverRole':
+              dispatchResult['approverRole'] ?? requiredApproverRole,
+          'approvalDispatchUpdatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        // Persist the "submitted for approval" transition as a first-class audit row.
+        try {
+          String ownerName = '';
+          String ownerDept = '';
+          final ownerDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .get();
+          final ownerMap = ownerDoc.data() ?? const <String, dynamic>{};
+          ownerName =
+              (ownerMap['displayName'] ??
+                      ownerMap['fullName'] ??
+                      ownerMap['name'] ??
+                      ownerMap['email'] ??
+                      '')
+                  .toString();
+          ownerDept = (ownerMap['department'] ?? '').toString();
+          await _logGoalSubmittedToAuditEntries(
+            goalId: goalId,
+            goalTitle: goalTitle,
+            userId: userId,
+            userDisplayName: ownerName,
+            userDepartment: ownerDept,
+            requiredApproverRole: requiredApproverRole,
+          );
+        } catch (e) {
+          developer.log('Error logging goal submission: $e');
+        }
       } catch (e) {
         if (_isFirestoreInternalAssertion(e) && attemptCount < 1) {
           await Future.delayed(const Duration(milliseconds: 200));
@@ -1695,12 +1840,23 @@ class DatabaseService {
     final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
     int completionAward = 0;
     bool isSeasonGoalFlag = false;
+    String goalTitleForAudit = '';
+    String ownerNameForAudit = '';
+    String ownerDeptForAudit = '';
     await FirebaseFirestore.instance.runTransaction((tx) async {
       final snap = await tx.get(goalRef);
       if (!snap.exists) {
         throw Exception('Goal not found');
       }
       final data = snap.data() as Map<String, dynamic>;
+      goalTitleForAudit = (data['title'] ?? '').toString();
+      ownerNameForAudit =
+          (data['userDisplayName'] ??
+                  data['userName'] ??
+                  data['ownerName'] ??
+                  '')
+              .toString();
+      ownerDeptForAudit = (data['userDepartment'] ?? '').toString();
       final bool isSeasonComplete = (data['isSeasonGoal'] == true);
       isSeasonGoalFlag = isSeasonComplete;
       final approval = (data['approvalStatus'] ?? 'pending').toString();
@@ -1789,6 +1945,50 @@ class DatabaseService {
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_completed');
     await BadgeService.checkAndAwardBadgesV2(userId);
+
+    // Persist completion lifecycle event for repository/audit history.
+    try {
+      if (goalTitleForAudit.isEmpty) {
+        final goalDoc = await goalRef.get();
+        final d = goalDoc.data() ?? const <String, dynamic>{};
+        goalTitleForAudit = (d['title'] ?? '').toString();
+        ownerNameForAudit =
+            (d['userDisplayName'] ??
+                    d['userName'] ??
+                    d['ownerName'] ??
+                    ownerNameForAudit)
+                .toString();
+        ownerDeptForAudit = (d['userDepartment'] ?? ownerDeptForAudit).toString();
+      }
+      if (ownerNameForAudit.trim().isEmpty || ownerDeptForAudit.trim().isEmpty) {
+        final ownerDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .get();
+        final owner = ownerDoc.data() ?? const <String, dynamic>{};
+        if (ownerNameForAudit.trim().isEmpty) {
+          ownerNameForAudit =
+              (owner['displayName'] ??
+                      owner['fullName'] ??
+                      owner['name'] ??
+                      owner['email'] ??
+                      '')
+                  .toString();
+        }
+        if (ownerDeptForAudit.trim().isEmpty) {
+          ownerDeptForAudit = (owner['department'] ?? '').toString();
+        }
+      }
+      await _logGoalCompletedToAuditEntries(
+        goalId: goalId,
+        goalTitle: goalTitleForAudit,
+        userId: userId,
+        userDisplayName: ownerNameForAudit,
+        userDepartment: ownerDeptForAudit,
+      );
+    } catch (e) {
+      developer.log('Error logging goal completion lifecycle event: $e');
+    }
   }
 
   static Future<void> updateUserPoints(
@@ -2192,25 +2392,80 @@ class DatabaseService {
     };
   }
 
+  /// Log goal approval to audit_entries (parallel to approved_goals_audit collection).
+  static Future<void> _logGoalApprovedToAuditEntries({
+    required String goalId,
+    required String goalTitle,
+    required String employeeUserId,
+    required String employeeName,
+    required String department,
+    required String approvedByUid,
+    required String approvedByName,
+  }) async {
+    try {
+      final ts = FieldValue.serverTimestamp();
+      final event = <String, dynamic>{
+        'action': 'goal_approved',
+        'goalId': goalId,
+        'goalTitle': goalTitle,
+        'userId': employeeUserId,
+        'userDisplayName': employeeName.isNotEmpty ? employeeName : 'Unknown',
+        'userDepartment': department.isNotEmpty ? department : 'Unknown',
+        'submittedDate': ts,
+        'timestamp': ts,
+        'approvedDate': ts,
+        'description': 'Goal approved: $goalTitle',
+        'metadata': <String, dynamic>{
+          'goalTitle': goalTitle,
+          'goalId': goalId,
+          'approvedBy': approvedByUid,
+          'approvedByName': approvedByName,
+        },
+        'status': 'approved',
+        'acknowledgedBy': approvedByName,
+      };
+
+      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      developer.log('Goal approval logged to audit_entries: $goalTitle');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error logging goal approval to audit_entries: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
   /// Log goal rejection to audit_entries collection
   static Future<void> _logGoalRejected({
     required String goalId,
     required String goalTitle,
     required String userId,
     required String rejectionReason,
+    String ownerDisplayName = '',
+    String ownerDepartment = '',
   }) async {
     try {
+      final ts = FieldValue.serverTimestamp();
       final event = {
         'action': 'goal_rejected',
         'goalId': goalId,
+        'goalTitle': goalTitle,
         'userId': userId,
-        'timestamp': FieldValue.serverTimestamp(),
+        'userDisplayName': ownerDisplayName.isNotEmpty
+            ? ownerDisplayName
+            : 'Unknown',
+        'userDepartment':
+            ownerDepartment.isNotEmpty ? ownerDepartment : 'Unknown',
+        'submittedDate': ts,
+        'timestamp': ts,
         'description': 'Goal rejected: $goalTitle',
         'metadata': {
           'goalTitle': goalTitle,
           'goalId': goalId,
           'rejectionReason': rejectionReason,
         },
+        'rejectionReason': rejectionReason,
         'status': 'rejected',
       };
 
@@ -2232,11 +2487,14 @@ class DatabaseService {
     required String userId,
   }) async {
     try {
+      final ts = FieldValue.serverTimestamp();
       final event = {
         'action': 'goal_created',
         'goalId': goalId,
+        'goalTitle': goalTitle,
         'userId': userId,
-        'timestamp': FieldValue.serverTimestamp(),
+        'submittedDate': ts,
+        'timestamp': ts,
         'description': 'Goal created: $goalTitle',
         'metadata': {'goalTitle': goalTitle, 'goalId': goalId},
         'status': 'pending', // Goals start as pending approval
@@ -2247,6 +2505,88 @@ class DatabaseService {
     } catch (e, stackTrace) {
       developer.log(
         'Error logging goal creation: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  /// Log goal submission to approval chain (employee->manager or manager->admin).
+  static Future<void> _logGoalSubmittedToAuditEntries({
+    required String goalId,
+    required String goalTitle,
+    required String userId,
+    required String userDisplayName,
+    required String userDepartment,
+    required String requiredApproverRole,
+  }) async {
+    try {
+      final ts = FieldValue.serverTimestamp();
+      final approverRole = requiredApproverRole.trim().toLowerCase();
+      final chain = approverRole.contains('admin')
+          ? 'manager_to_admin'
+          : 'employee_to_manager';
+      final event = <String, dynamic>{
+        'action': 'goal_submitted',
+        'goalId': goalId,
+        'goalTitle': goalTitle,
+        'userId': userId,
+        'userDisplayName': userDisplayName.isNotEmpty
+            ? userDisplayName
+            : 'Unknown User',
+        'userDepartment': userDepartment.isNotEmpty ? userDepartment : 'Unknown',
+        'requiredApproverRole': approverRole.isNotEmpty
+            ? approverRole
+            : 'manager',
+        'approvalChain': chain,
+        'submittedDate': ts,
+        'timestamp': ts,
+        'description': 'Goal submitted for approval: $goalTitle',
+        'status': 'pending',
+      };
+      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      developer.log(
+        'Goal submission logged to audit_entries: $goalTitle ($chain)',
+      );
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error logging goal submission to audit_entries: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  static Future<void> _logGoalCompletedToAuditEntries({
+    required String goalId,
+    required String goalTitle,
+    required String userId,
+    required String userDisplayName,
+    required String userDepartment,
+  }) async {
+    try {
+      final ts = FieldValue.serverTimestamp();
+      final event = <String, dynamic>{
+        'action': 'goal_completed',
+        'goalId': goalId,
+        'goalTitle': goalTitle,
+        'userId': userId,
+        'userDisplayName': userDisplayName.trim().isNotEmpty
+            ? userDisplayName.trim()
+            : 'Unknown User',
+        'userDepartment': userDepartment.trim().isNotEmpty
+            ? userDepartment.trim()
+            : 'Unknown',
+        'submittedDate': ts,
+        'timestamp': ts,
+        'completedDate': ts,
+        'description': 'Goal completed: $goalTitle',
+        'status': 'completed',
+      };
+      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error logging goal completion to audit_entries: $e',
         error: e,
         stackTrace: stackTrace,
       );
