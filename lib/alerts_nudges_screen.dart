@@ -80,6 +80,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     // In Manager Workspace (employee-style), hide supervisor/team-context alerts.
     if (alert.audience == AlertAudience.team) return true;
     switch (alert.type) {
+      case AlertType.goalApprovalRequested:
       case AlertType.inactivity:
       case AlertType.milestoneRisk:
       case AlertType.seasonJoined:

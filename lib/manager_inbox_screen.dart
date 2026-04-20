@@ -174,10 +174,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   DateTime? _scheduledEndForOneOnOneAlert(Alert alert) {
     final m = alert.actionData;
     if (m == null) return null;
-    final end = _parseAlertActionDate(m['proposedEndDateTime']) ??
+    final end =
+        _parseAlertActionDate(m['proposedEndDateTime']) ??
         _parseAlertActionDate(m['meetingEndDateTime']);
     if (end != null) return end;
-    final start = _parseAlertActionDate(m['proposedStartDateTime']) ??
+    final start =
+        _parseAlertActionDate(m['proposedStartDateTime']) ??
         _parseAlertActionDate(m['proposedDateTime']) ??
         _parseAlertActionDate(m['meetingStartDateTime']);
     if (start != null) {
@@ -202,7 +204,26 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   /// Admin inbox: personal notifications, goal approvals, 1:1s, and manager/supervision
   /// work — not the full employee Alerts & Nudges feed.
+  bool _isManagerAsEmployeeGoalDecisionAlert(Alert alert) {
+    if (alert.type != AlertType.goalApprovalApproved &&
+        alert.type != AlertType.goalApprovalRejected) {
+      return false;
+    }
+    // Employee-persona decision copy for personal goals.
+    final title = alert.title.toLowerCase();
+    final msg = alert.message.toLowerCase();
+    return title.contains('goal approved') ||
+        title.contains('goal rejected') ||
+        msg.contains('your goal');
+  }
+
   bool _isAdminInboxEligibleAlert(Alert alert) {
+    // Admin oversight inbox should not include manager-as-employee goal decision
+    // notifications (e.g. "Your goal ... was rejected").
+    if (_isManagerAsEmployeeGoalDecisionAlert(alert)) {
+      return false;
+    }
+
     switch (alert.type) {
       case AlertType.goalApprovalRequested:
       case AlertType.goalApprovalApproved:
