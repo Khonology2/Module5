@@ -248,7 +248,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     if (alert.userId != managerId) return false;
 
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
-    if (!isAdminOversight &&
+    if (!widget.forAdminOversight &&
         alert.actionRoute == _managerWorkspaceAlertsRoute) {
       return false;
     }
