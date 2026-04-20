@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.DA7.SIT",
-  "generated_at": "2026-04-20T15:00:43Z",
+  "version": "2026.04.DA8.SIT",
+  "generated_at": "2026-04-20T11:50:36Z",
   "commits": [
     {
       "author": "Nathi2266",
@@ -11,6 +11,16 @@
       "author": "Nathi2266",
       "message": "feat: add manager dashboard assets to pubspec.yaml",
       "timestamp": "2026-04-20T16:47:08+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - update asset paths for dashboard stat tiles to improve icon representation",
+      "timestamp": "2026-04-20T18:10:22+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Enhancement: Add method to determine visibility of portal top actions based on route and fix layout in ManagerInboxScreen.",
+      "timestamp": "2026-04-20T17:27:07+02:00"
     },
     {
       "author": "BhutSipho",
@@ -38,6 +48,6 @@
       "timestamp": "2026-04-20T09:54:11+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 8,
   "date_range": "2026-04-20"
 }

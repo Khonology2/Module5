@@ -101,11 +101,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     } 
   }
 
-  static bool _shouldShowPortalTopActions(String route) {
-    // Dashboard renders top actions in-header to align with title.
-    return route != '/dashboard';
-  }
-
   Widget _getBodyWidget() {
     switch (_currentRoute) {
       case '/dashboard':
@@ -243,6 +238,11 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   bool _isPortalRoute(String route) => _portalRoutes.contains(route);
+
+  bool _shouldShowPortalTopActions(String route) {
+    // Keep dashboard hero area uncluttered; show quick actions elsewhere.
+    return route != '/dashboard';
+  }
 
   String? _routeFromPortalUrl() {
     // Hash strategy URL example:
