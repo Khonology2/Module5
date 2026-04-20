@@ -744,8 +744,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$activeToday',
         icon: Icons.calendar_today,
-        assetPath:
-            'assets/Goal_Target/Goal_Target_White_Badge_Red.png',
+        assetPath: 'assets/Sprints.png',
         accent: AppColors.activeColor,
       ),
       _topStatTile(
@@ -769,7 +768,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$inactive',
         icon: Icons.priority_high,
-        assetPath: 'assets/Team_Meeting/Team.png',
+        assetPath:
+            'assets/Cancel_Exit_Escape/Cancel_Exit_Escape_White_Badge_Red.png',
         accent: AppColors.warningColor,
       ),
       _topStatTile(
@@ -782,7 +782,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         value: '$overdue',
         icon: Icons.remove_red_eye,
         assetPath:
-            'assets/Goal_Target/Goal_Target_White_Badge_Red.png',
+            'assets/Concentration_Key_Focus/Concentration_Key Focus_White_Badge_Red.png',
         accent: AppColors.dangerColor,
       ),
       _topStatTile(
@@ -794,8 +794,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$atRisk',
         icon: Icons.error_outline,
-        assetPath:
-            'assets/Task_Management/Task_Management_White_Badge_Red.png',
+        assetPath: 'assets/Warning _Error/Warning_Error_White Badge_Red.png',
         accent: AppColors.dangerColor,
       ),
       _topStatTile(
@@ -807,7 +806,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$onTrack',
         icon: Icons.rocket_launch,
-        assetPath: 'assets/Badge.png',
+        assetPath:
+            'assets/Project_Direction_Acceleration/Project_Direction_Acceleration_White_Badge_Red.png',
         accent: AppColors.successColor,
       ),
     ];
