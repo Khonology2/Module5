@@ -174,10 +174,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   DateTime? _scheduledEndForOneOnOneAlert(Alert alert) {
     final m = alert.actionData;
     if (m == null) return null;
-    final end = _parseAlertActionDate(m['proposedEndDateTime']) ??
+    final end =
+        _parseAlertActionDate(m['proposedEndDateTime']) ??
         _parseAlertActionDate(m['meetingEndDateTime']);
     if (end != null) return end;
-    final start = _parseAlertActionDate(m['proposedStartDateTime']) ??
+    final start =
+        _parseAlertActionDate(m['proposedStartDateTime']) ??
         _parseAlertActionDate(m['proposedDateTime']) ??
         _parseAlertActionDate(m['meetingStartDateTime']);
     if (start != null) {
@@ -202,7 +204,26 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   /// Admin inbox: personal notifications, goal approvals, 1:1s, and manager/supervision
   /// work — not the full employee Alerts & Nudges feed.
+  bool _isManagerAsEmployeeGoalDecisionAlert(Alert alert) {
+    if (alert.type != AlertType.goalApprovalApproved &&
+        alert.type != AlertType.goalApprovalRejected) {
+      return false;
+    }
+    // Employee-persona decision copy for personal goals.
+    final title = alert.title.toLowerCase();
+    final msg = alert.message.toLowerCase();
+    return title.contains('goal approved') ||
+        title.contains('goal rejected') ||
+        msg.contains('your goal');
+  }
+
   bool _isAdminInboxEligibleAlert(Alert alert) {
+    // Admin oversight inbox should not include manager-as-employee goal decision
+    // notifications (e.g. "Your goal ... was rejected").
+    if (_isManagerAsEmployeeGoalDecisionAlert(alert)) {
+      return false;
+    }
+
     switch (alert.type) {
       case AlertType.goalApprovalRequested:
       case AlertType.goalApprovalApproved:
@@ -248,7 +269,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     if (alert.userId != managerId) return false;
 
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
-    if (alert.actionRoute == _managerWorkspaceAlertsRoute) return false;
+    if (!widget.forAdminOversight &&
+        alert.actionRoute == _managerWorkspaceAlertsRoute) {
+      return false;
+    }
 
     if (widget.forAdminOversight && !_isAdminInboxEligibleAlert(alert)) {
       return false;
@@ -356,9 +380,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       return;
     }
 
-    Navigator.pushNamed(context, '/admin_portal', arguments: {
-      'initialRoute': '/admin_dashboard',
-    });
+    Navigator.pushNamed(
+      context,
+      '/admin_portal',
+      arguments: {'initialRoute': '/admin_dashboard'},
+    );
   }
 
   String? _normalizeGoalId(dynamic raw) {
@@ -579,9 +605,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         .trim();
     if (badgeId.isEmpty) {
       if (widget.forAdminOversight) {
-        Navigator.pushNamed(context, '/admin_portal', arguments: {
-          'initialRoute': '/admin_badges_points',
-        });
+        Navigator.pushNamed(
+          context,
+          '/admin_portal',
+          arguments: {'initialRoute': '/admin_badges_points'},
+        );
       } else {
         Navigator.pushNamed(
           context,
@@ -626,9 +654,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
     if (!mounted) return;
     if (widget.forAdminOversight) {
-      Navigator.pushNamed(context, '/admin_portal', arguments: {
-        'initialRoute': '/admin_badges_points',
-      });
+      Navigator.pushNamed(
+        context,
+        '/admin_portal',
+        arguments: {'initialRoute': '/admin_badges_points'},
+      );
       return;
     }
     Navigator.push(
@@ -685,9 +715,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   void initState() {
     super.initState();
     _redirectIfManager();
-    // Run migration for existing approved goals
+    // Run migration for existing finalized goals (approved/rejected)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      AlertService.migrateExistingApprovedGoalAlerts();
+      AlertService.migrateExistingFinalizedGoalAlerts();
     });
   }
 
@@ -1395,9 +1425,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           padding: AppSpacing.screenPadding,
           child: Text(
             'Please sign in to view inbox',
-            style: AppTypography.bodyMedium.copyWith(
-            color: DashboardChrome.fg,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
           ),
         ),
       );
@@ -1518,8 +1546,17 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             ),
           ];
         },
-        body: StreamBuilder<List<Alert>>(
-            stream: AlertService.getUserAlertsStream(user.uid),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 1.1,
+              colors: [Color(0x880A0F1F), Color(0x88040610)],
+              stops: [0.0, 1.0],
+            ),
+          ),
+          child: StreamBuilder<List<Alert>>(
+            stream: AlertService.getUserAlertsStream(user.uid, maxItems: null),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
@@ -1535,15 +1572,70 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
                   .toList();
 
-              if (widget.forAdminOversight && !_showArchived) {
-                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _adminPendingGoalsStream(),
-                  builder: (context, pendingSnapshot) {
-                    final pendingDocs = pendingSnapshot.data?.docs ?? const [];
-                    final mergedItems = _mergeAdminPendingGoalFallbackAlerts(
-                      baseItems: items,
-                      goalDocs: pendingDocs,
-                      adminUserId: user.uid,
+              if (_unreadOnly && !_showArchived) {
+                items = items.where((a) => !a.isRead).toList();
+              }
+              if (_priorityFilter != null) {
+                items = items
+                    .where((a) => a.priority == _priorityFilter)
+                    .toList();
+              }
+              if (_search.isNotEmpty) {
+                final q = _search.toLowerCase();
+                items = items
+                    .where(
+                      (a) =>
+                          a.title.toLowerCase().contains(q) ||
+                          a.message.toLowerCase().contains(q),
+                    )
+                    .toList();
+              }
+
+              // Apply audience filter if specified
+              if (_audienceFilter != null) {
+                items = items
+                    .where((a) => a.audience == _audienceFilter)
+                    .toList();
+              }
+
+              // Apply type filter so each tab shows the right information
+              if (_typeFilter == 'alert') {
+                // Alerts: manager-facing alerts that are NOT nudges and NOT approval requests
+                items = items.where((a) {
+                  return a.type != AlertType.managerNudge &&
+                      a.type != AlertType.goalApprovalRequested;
+                }).toList();
+              } else if (_typeFilter == 'approval_request') {
+                // Approvals:
+                // - Inbox: pending approval requests.
+                // - Archived: finalized approval decisions (approved/rejected).
+                items = items.where((a) {
+                  if (_showArchived) {
+                    return a.type == AlertType.goalApprovalApproved ||
+                        a.type == AlertType.goalApprovalRejected;
+                  }
+                  return a.type == AlertType.goalApprovalRequested;
+                }).toList();
+              } else if (_typeFilter == 'nudge') {
+                // Nudges: only manager nudge alerts (nudge feedback is added in the nudge UI branch)
+                items = items
+                    .where((a) => a.type == AlertType.managerNudge)
+                    .toList();
+              }
+              // _typeFilter == null means All: show everything, no type filter
+
+              // When showing All or Alerts, sort so urgent alerts appear first
+              if (_typeFilter == null || _typeFilter == 'alert') {
+                final priorityOrder = {
+                  AlertPriority.urgent: 0,
+                  AlertPriority.high: 1,
+                  AlertPriority.medium: 2,
+                  AlertPriority.low: 3,
+                };
+                items = List<Alert>.from(items)
+                  ..sort((a, b) {
+                    final p = priorityOrder[a.priority]!.compareTo(
+                      priorityOrder[b.priority]!,
                     );
                     return _buildInboxListContent(
                       sourceItems: mergedItems,
@@ -1559,6 +1651,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               );
             },
           ),
+        ),
       ),
     );
   }
@@ -1974,9 +2067,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   onPressed: () {
                     _navigateInboxByAlertRoute(
                       '/manager_review_team_dashboard',
-                      arguments: {
-                        'goalId': alert.relatedGoalId,
-                      },
+                      arguments: {'goalId': alert.relatedGoalId},
                     );
                   },
                   icon: const Icon(Icons.flag_outlined),
@@ -1992,9 +2083,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     if (alert.relatedGoalId != null) {
                       _navigateInboxByAlertRoute(
                         '/manager_review_team_dashboard',
-                        arguments: {
-                          'goalId': alert.relatedGoalId,
-                        },
+                        arguments: {'goalId': alert.relatedGoalId},
                       );
                     }
                   },
@@ -2011,11 +2100,23 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               else if (alert.actionText != null && alert.actionRoute != null)
                 TextButton.icon(
                   onPressed: () {
-                    final route = alert.actionRoute!;
+                    String route = alert.actionRoute!;
                     Object? args;
 
+                    // Backward-compat: older admin meeting alerts pointed to inbox.
+                    // Route those to Team Review so "Review" opens actionable UI.
+                    if (widget.forAdminOversight &&
+                        (alert.type == AlertType.oneOnOneRequested ||
+                            alert.type == AlertType.oneOnOneProposed ||
+                            alert.type == AlertType.oneOnOneAccepted ||
+                            alert.type == AlertType.oneOnOneRescheduled) &&
+                        route == '/admin_inbox') {
+                      route = '/admin_team_review';
+                    }
+
                     // Deep-link 1:1 meeting alerts into the Review Team Dashboard.
-                    if (route == '/manager_review_team_dashboard') {
+                    if (route == '/manager_review_team_dashboard' ||
+                        route == '/admin_team_review') {
                       final data =
                           alert.actionData ?? const <String, dynamic>{};
                       final meetingId = data['meetingId']?.toString().trim();
@@ -2058,9 +2159,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       if (alert.relatedGoalId != null) {
                         _navigateInboxByAlertRoute(
                           '/manager_review_team_dashboard',
-                          arguments: {
-                            'goalId': alert.relatedGoalId,
-                          },
+                          arguments: {'goalId': alert.relatedGoalId},
                         );
                       }
                     } else if (actionLower.contains('leaderboard')) {
@@ -2475,9 +2574,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     return BoxDecoration(
       color: DashboardChrome.cardFill,
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(
-        color: borderColor ?? DashboardChrome.border,
-      ),
+      border: Border.all(color: borderColor ?? DashboardChrome.border),
     );
   }
 

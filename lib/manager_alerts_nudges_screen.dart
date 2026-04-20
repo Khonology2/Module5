@@ -294,14 +294,22 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
       final manager = FirebaseAuth.instance.currentUser;
       if (manager != null) {
-        await ManagerBadgeEvaluator.logReplanHelped(
-          managerId: manager.uid,
-          goalId: goalId,
-          note: (note != null && note.isNotEmpty)
-              ? 'Rescheduled: $note'
-              : 'Rescheduled from Team Alerts',
-        );
-        await ManagerBadgeEvaluator.evaluate(manager.uid);
+        try {
+          await ManagerBadgeEvaluator.logReplanHelped(
+            managerId: manager.uid,
+            goalId: goalId,
+            note: (note != null && note.isNotEmpty)
+                ? 'Rescheduled: $note'
+                : 'Rescheduled from Team Alerts',
+          );
+          await ManagerBadgeEvaluator.evaluate(manager.uid);
+        } catch (badgeError) {
+          // Keep action success even if badge tracking is blocked by rules.
+          developer.log(
+            'Badge tracking failed after team-alerts reschedule: $badgeError',
+            name: 'ManagerAlertsNudgesScreen',
+          );
+        }
       }
 
       if (context.mounted) {
@@ -2479,12 +2487,20 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
       final manager = FirebaseAuth.instance.currentUser;
       if (manager != null) {
-        await ManagerBadgeEvaluator.logReplanHelped(
-          managerId: manager.uid,
-          goalId: goalId,
-          note: 'Extended deadline from Team Alerts',
-        );
-        await ManagerBadgeEvaluator.evaluate(manager.uid);
+        try {
+          await ManagerBadgeEvaluator.logReplanHelped(
+            managerId: manager.uid,
+            goalId: goalId,
+            note: 'Extended deadline from Team Alerts',
+          );
+          await ManagerBadgeEvaluator.evaluate(manager.uid);
+        } catch (badgeError) {
+          // Keep action success even if badge tracking is blocked by rules.
+          developer.log(
+            'Badge tracking failed after team-alerts extend: $badgeError',
+            name: 'ManagerAlertsNudgesScreen',
+          );
+        }
       }
 
       if (context.mounted) {

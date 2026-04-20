@@ -98,7 +98,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return AppSpacing.screenPadding;
       default:
         return EdgeInsets.zero;
-    }
+    } 
   }
 
   Widget _getBodyWidget() {
@@ -161,7 +161,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           forManagerGwMenu: true,
         );
       case '/manager_gw_menu_leaderboard':
-        return const ManagerLeaderboardScreen(embedded: true);
+        return const ManagerLeaderboardScreen(
+          embedded: true,
+          compareManagers: true,
+        );
       case '/manager_gw_menu_badges':
         return const BadgesPointsScreen(
           embedded: true,
@@ -186,11 +189,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/my_profile':
         return const EmployeeProfileScreen(embedded: true);
       default:
-        return const ManagerDashboardScreen();
+        return const ManagerDashboardScreen(embedded: true);
     }
   }
 
-  /// Determines whether [route] belongs to manager "My Workspace" screens.
   bool _isMyWorkspaceRoute(String route) {
     switch (route) {
       case '/manager_gw_menu_dashboard':
@@ -216,19 +218,12 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     }
   }
 
-  /// Keeps the switcher state aligned with whichever route is currently active.
   void _syncWorkspaceContextForRoute(String route) {
     _workspaceService.switchToContext(
       _isMyWorkspaceRoute(route)
           ? WorkspaceContext.myWorkspace
           : WorkspaceContext.managerWorkspace,
     );
-  }
-
-  /// Portal-level top-right actions should only render on manager workspace
-  /// routes; my-workspace pages already render their own action icons.
-  bool _shouldShowPortalTopActions(String route) {
-    return route != '/dashboard' && !_isMyWorkspaceRoute(route);
   }
 
   void _onNavigate(String route) {
