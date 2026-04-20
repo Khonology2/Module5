@@ -155,16 +155,6 @@ TextStyle _kpaExcellenceTitleStyle(bool light) {
   );
 }
 
-TextStyle _kpaExcellenceSubtitleStyle(bool light) {
-  return TextStyle(
-    fontFamily: AppTypography.fontFamily,
-    fontWeight: AppTypography.fontWeightNormal,
-    fontSize: 11,
-    height: 1.35,
-    color: _pdpMuted(light),
-  );
-}
-
 // Status badge helper methods (mirrored from GoalDetailScreen)
 Color _getGoalStatusColor(GoalStatus status) {
   switch (status) {
@@ -1091,6 +1081,17 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     return ValueListenableBuilder<bool>(
       valueListenable: employeeDashboardLightModeNotifier,
       builder: (context, light, _) {
+        final user = FirebaseAuth.instance.currentUser;
+        String userName = 'Name Surname';
+        if ((user?.displayName ?? '').trim().isNotEmpty) {
+          userName = user!.displayName!.trim();
+        } else if ((user?.email ?? '').trim().isNotEmpty) {
+          userName = user!.email!.split('@').first;
+        }
+        final headingTitle = managerOwnGoalsOnly
+            ? 'Employee Personal Development Plan'
+            : 'My Personal Development Plan';
+
         return PopScope(
           canPop: false, // Prevents popping if we handle it explicitly
           onPopInvokedWithResult: (bool didPop, dynamic result) {
@@ -1120,11 +1121,30 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'My Personal Development Plan',
-                      style: AppTypography.heading2.copyWith(
-                        color: _pdpFg(light),
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            headingTitle,
+                            style: AppTypography.heading4.copyWith(
+                              color: _pdpFg(light),
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            'Hello, $userName',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: _pdpFg(light),
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 20),
                     _buildExcellenceArea(
@@ -1252,10 +1272,6 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                               Text(
                                 title,
                                 style: _kpaExcellenceTitleStyle(light),
-                              ),
-                              Text(
-                                'Additional description information can be included.',
-                                style: _kpaExcellenceSubtitleStyle(light),
                               ),
                             ],
                           ),
