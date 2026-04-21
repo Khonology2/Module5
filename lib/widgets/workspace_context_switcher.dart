@@ -3,6 +3,8 @@ import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/widgets/sidebar.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 /// Workspace context switcher widget for the sidebar
 class WorkspaceContextSwitcher extends StatefulWidget {
@@ -54,6 +56,51 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = !employeeDashboardLightModeNotifier.value;
+    final switcherTextColor = isDark ? Colors.white : const Color(0xFF000000);
+    final switcherBorderColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : const Color(0xFF000000);
+    final myWorkspaceTextColor = _workspaceService.isMyWorkspace
+        ? Colors.white
+        : switcherTextColor;
+    final managerWorkspaceTextColor = _workspaceService.isManagerWorkspace
+        ? Colors.white
+        : switcherTextColor;
+    final contextPaddingH = 12.0;
+    final contextPaddingV = 8.0;
+    // #region agent log
+    debugPrint(
+      '[sidebar-debug] switcher isDark=$isDark '
+      'lightNotifier=${employeeDashboardLightModeNotifier.value} '
+      'switcherTextColor=${switcherTextColor.toARGB32().toRadixString(16)} '
+      'switcherBorderColor=${switcherBorderColor.toARGB32().toRadixString(16)} '
+      'myWorkspaceTextColor=${myWorkspaceTextColor.toARGB32().toRadixString(16)} '
+      'managerWorkspaceTextColor=${managerWorkspaceTextColor.toARGB32().toRadixString(16)} '
+      'contextPaddingH=$contextPaddingH contextPaddingV=$contextPaddingV',
+    );
+    postSidebarDebugLog(
+      runId: 'pre-fix-2',
+      hypothesisId: 'H3_H4',
+      location: 'lib/widgets/workspace_context_switcher.dart:build',
+      message: 'Workspace switcher text color inputs',
+      data: <String, dynamic>{
+        'isDark': isDark,
+        'lightNotifier': employeeDashboardLightModeNotifier.value,
+        'switcherTextColor': switcherTextColor.toARGB32().toRadixString(16),
+        'switcherBorderColor': switcherBorderColor.toARGB32().toRadixString(16),
+        'myWorkspaceTextColor': myWorkspaceTextColor.toARGB32().toRadixString(16),
+        'managerWorkspaceTextColor': managerWorkspaceTextColor
+            .toARGB32()
+            .toRadixString(16),
+        'isMyWorkspace': _workspaceService.isMyWorkspace,
+        'isManagerWorkspace': _workspaceService.isManagerWorkspace,
+        'contextPaddingH': contextPaddingH,
+        'contextPaddingV': contextPaddingV,
+      },
+    );
+    // #endregion
+
     // Only show switcher if user can access manager workspace
     if (!_workspaceService.canAccessManagerWorkspace) {
       return const SizedBox.shrink();
@@ -66,7 +113,7 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
         color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(25),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
+          color: switcherBorderColor,
           width: 1,
         ),
       ),
@@ -80,9 +127,9 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
                 _navigateToWorkspace(context, WorkspaceContext.myWorkspace);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+                padding: EdgeInsets.symmetric(
+                  horizontal: contextPaddingH,
+                  vertical: contextPaddingV,
                 ),
                 decoration: BoxDecoration(
                   color: _workspaceService.isMyWorkspace
@@ -94,9 +141,7 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
                   'My Workspace',
                   textAlign: TextAlign.center,
                   style: AppTypography.bodySmall.copyWith(
-                    color: _workspaceService.isMyWorkspace
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.7),
+                    color: myWorkspaceTextColor,
                     fontWeight: _workspaceService.isMyWorkspace
                         ? FontWeight.w600
                         : FontWeight.w400,
@@ -119,9 +164,9 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
                 );
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+                padding: EdgeInsets.symmetric(
+                  horizontal: contextPaddingH,
+                  vertical: contextPaddingV,
                 ),
                 decoration: BoxDecoration(
                   color: _workspaceService.isManagerWorkspace
@@ -133,9 +178,7 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
                   'Manager Workspace',
                   textAlign: TextAlign.center,
                   style: AppTypography.bodySmall.copyWith(
-                    color: _workspaceService.isManagerWorkspace
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.7),
+                    color: managerWorkspaceTextColor,
                     fontWeight: _workspaceService.isManagerWorkspace
                         ? FontWeight.w600
                         : FontWeight.w400,

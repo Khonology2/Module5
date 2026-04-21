@@ -22,6 +22,7 @@ import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/messages_icon.dart';
+import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
@@ -693,6 +694,19 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   }
 
   Widget _buildDashboardHeader() {
+    // #region agent log
+    postSidebarDebugLog(
+      runId: 'pre-fix-5',
+      hypothesisId: 'Hdup',
+      location: 'lib/manager_dashboard_screen.dart:_buildDashboardHeader',
+      message: 'Manager dashboard header icons rendered',
+      data: <String, dynamic>{
+        'forAdminOversight': widget.forAdminOversight,
+        'rendersMessagesIcon': true,
+        'rendersNotificationsBell': true,
+      },
+    );
+    // #endregion
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [

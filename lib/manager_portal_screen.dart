@@ -240,8 +240,23 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   bool _isPortalRoute(String route) => _portalRoutes.contains(route);
 
   bool _shouldShowPortalTopActions(String route) {
-    // Keep dashboard hero area uncluttered; show quick actions elsewhere.
-    return route != '/dashboard';
+    // Keep dashboard-style screens uncluttered because those screens already
+    // render their own message/notification icons in their header.
+    final show = route != '/dashboard' && route != '/manager_gw_menu_dashboard';
+    // #region agent log
+    postSidebarDebugLog(
+      runId: 'pre-fix-5',
+      hypothesisId: 'Hdup',
+      location: 'lib/manager_portal_screen.dart:_shouldShowPortalTopActions',
+      message: 'Portal top actions visibility decision',
+      data: <String, dynamic>{
+        'route': route,
+        'showTopActions': show,
+        'workspace': _workspaceService.currentContext.name,
+      },
+    );
+    // #endregion
+    return show;
   }
 
   String? _routeFromPortalUrl() {
@@ -356,6 +371,23 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       body: DashboardThemedBackground(
         child: Stack(
           children: [
+            // #region agent log
+            Builder(
+              builder: (context) {
+                postSidebarDebugLog(
+                  runId: 'pre-fix-5',
+                  hypothesisId: 'Hdup',
+                  location: 'lib/manager_portal_screen.dart:build',
+                  message: 'Manager portal build route state',
+                  data: <String, dynamic>{
+                    'currentRoute': _currentRoute,
+                    'workspace': _workspaceService.currentContext.name,
+                  },
+                );
+                return const SizedBox.shrink();
+              },
+            ),
+            // #endregion
             Row(
               children: [
                 ResponsiveSidebar(

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:http/http.dart' as http;
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -34,6 +37,40 @@ class _SidebarLightMode extends InheritedWidget {
       light != oldWidget.light;
 }
 
+// #region agent log
+void postSidebarDebugLog({
+  required String runId,
+  required String hypothesisId,
+  required String location,
+  required String message,
+  required Map<String, dynamic> data,
+}) {
+  final payload = <String, dynamic>{
+    'sessionId': '182693',
+    'runId': runId,
+    'hypothesisId': hypothesisId,
+    'location': location,
+    'message': message,
+    'data': data,
+    'timestamp': DateTime.now().millisecondsSinceEpoch,
+  };
+  unawaited(
+    Future<void>(() async {
+      try {
+        await http.post(
+          Uri.parse('http://127.0.0.1:7413/ingest/4c092313-279a-400c-82c7-76b9943fcc16'),
+          headers: const {
+            'Content-Type': 'application/json',
+            'X-Debug-Session-Id': '182693',
+          },
+          body: jsonEncode(payload),
+        );
+      } catch (_) {}
+    }),
+  );
+}
+// #endregion
+
 class ResponsiveSidebar extends StatefulWidget {
   const ResponsiveSidebar({
     super.key,
@@ -63,9 +100,11 @@ class ResponsiveSidebar extends StatefulWidget {
 class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   // Temporary UX override: keep non-mobile sidebar expanded.
   static const bool _disableSidebarCollapseTemporarily = true;
+  static const double _sidebarZoomFactor = 0.8;
   final ScrollController _scrollController = ScrollController();
   int? _previousTutorialStep;
   bool _isProfileIncomplete = false;
+  bool _didLogZoomMetrics = false;
   final WorkspaceContextService _workspaceService = WorkspaceContextService();
   List<SidebarItem> _currentItems = [];
 
@@ -210,8 +249,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   final isUltraCompact = constraints.maxHeight < 580;
 
                   final double sidebarIconSize = isUltraCompact
-                      ? 15
-                      : (isVeryCompact ? 16 : (isCompact ? 18 : 20));
+                      ? 20
+                      : (isVeryCompact ? 22 : (isCompact ? 24 : 26));
                   final double navTileHeight = isUltraCompact
                       ? 32
                       : (isVeryCompact ? 36 : (isCompact ? 40 : 44));
@@ -219,8 +258,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       ? 1.5
                       : (isVeryCompact ? 2 : 3);
                   final double navFontSize = isUltraCompact
-                      ? 9.8
-                      : (isVeryCompact ? 10.5 : 11.2);
+                      ? 11.2
+                      : (isVeryCompact ? 12.0 : 12.8);
                   final double sectionGap = isUltraCompact
                       ? 2
                       : (isVeryCompact ? 4 : 6);
@@ -235,6 +274,56 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   final bottomEntries = entries
                       .where((e) => _isBottomPinnedItem(e.value.route))
                       .toList();
+
+                  // #region agent log
+                  if (!_didLogZoomMetrics) {
+                    final bottomRoutes = bottomEntries
+                        .map((e) => e.value.route)
+                        .toList(growable: false);
+                    debugPrint(
+                      '[sidebar-debug] sizing zoom=$_sidebarZoomFactor '
+                      'iconSize=$sidebarIconSize navFontSize=$navFontSize '
+                      'mainCount=${mainEntries.length} bottomCount=${bottomEntries.length} '
+                      'bottomRoutes=$bottomRoutes',
+                    );
+                    postSidebarDebugLog(
+                      runId: 'pre-fix-4',
+                      hypothesisId: 'H1_H2_H3',
+                      location: 'lib/widgets/sidebar.dart:LayoutBuilder',
+                      message: 'Sidebar sizing and pinned-bottom composition',
+                      data: <String, dynamic>{
+                        'zoomFactor': _sidebarZoomFactor,
+                        'iconSize': sidebarIconSize,
+                        'navFontSize': navFontSize,
+                        'mainCount': mainEntries.length,
+                        'bottomCount': bottomEntries.length,
+                        'bottomRoutes': bottomRoutes,
+                        'logoutRoute': '__logout__',
+                        'collapseTogglePresent': true,
+                      },
+                    );
+                    _didLogZoomMetrics = true;
+                  }
+                  postSidebarDebugLog(
+                    runId: 'pre-fix-6',
+                    hypothesisId: 'Hspacing',
+                    location: 'lib/widgets/sidebar.dart:LayoutBuilder',
+                    message: 'Sidebar vertical spacing metrics',
+                    data: <String, dynamic>{
+                      'maxHeight': constraints.maxHeight,
+                      'isCompact': isCompact,
+                      'isVeryCompact': isVeryCompact,
+                      'isUltraCompact': isUltraCompact,
+                      'sectionGap': sectionGap,
+                      'bottomGap': bottomGap,
+                      'navVerticalPadding': navVerticalPadding,
+                      'mainEntriesCount': mainEntries.length,
+                      'bottomEntriesCount': bottomEntries.length,
+                      'hasWorkspaceSwitcher':
+                          _workspaceService.canAccessManagerWorkspace,
+                    },
+                  );
+                  // #endregion
 
                   Widget buildEntry(MapEntry<int, SidebarItem> entry) {
                     final index = entry.key;
@@ -312,7 +401,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                         isVeryCompact: isVeryCompact,
                       ),
                       SizedBox(height: sectionGap),
-                      const WorkspaceContextSwitcher(),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: WorkspaceContextSwitcher(),
+                      ),
                       SizedBox(height: sectionGap),
                       Expanded(
                         child: ListView(
@@ -323,39 +415,51 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                           children: mainEntries.map(buildEntry).toList(),
                         ),
                       ),
-                      SizedBox(height: bottomGap),
-                      ...bottomEntries.map(buildEntry),
-                      _NavTile(
-                        key: const ValueKey('nav_logout'),
-                        icon: Icons.exit_to_app,
-                        label: AppLocalizations.of(context).employee_drawer_exit,
-                        route: '__logout__',
-                        isActive: false,
-                        collapsed: effectiveCollapsed,
-                        onTap: widget.onLogout,
-                        navVerticalPadding: navVerticalPadding,
-                        navFontSize: navFontSize,
-                        iconSize: sidebarIconSize,
-                      ),
-                      _CollapseToggle(
-                        collapsed: effectiveCollapsed,
-                        tileHeight: navTileHeight,
-                        tutorialKey:
-                            widget.sidebarTutorialKeys != null &&
-                                widget.tutorialStepIndex != null &&
-                                widget.tutorialStepIndex == widget.items.length &&
-                                widget.tutorialStepIndex! <
-                                    widget.sidebarTutorialKeys!.length
-                            ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
-                            : null,
-                        showTutorial:
-                            widget.tutorialStepIndex != null &&
-                            widget.tutorialStepIndex == widget.items.length,
-                        onTutorialNext: widget.onTutorialNext,
-                        onTutorialSkip: widget.onTutorialSkip,
-                        isLastTutorialStep:
-                            widget.tutorialStepIndex != null &&
-                            widget.tutorialStepIndex == widget.items.length,
+                      Padding(
+                        padding: EdgeInsets.only(bottom: bottomGap),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ...bottomEntries.map(buildEntry),
+                            _NavTile(
+                              key: const ValueKey('nav_logout'),
+                              icon: Icons.exit_to_app,
+                              assetWhite: 'assets/manager_sidebar/12.png',
+                              assetRed: 'assets/manager_sidebar/12.png',
+                              label:
+                                  AppLocalizations.of(context).employee_drawer_exit,
+                              route: '__logout__',
+                              isActive: false,
+                              collapsed: effectiveCollapsed,
+                              onTap: widget.onLogout,
+                              navVerticalPadding: navVerticalPadding,
+                              navFontSize: navFontSize,
+                              iconSize: sidebarIconSize,
+                            ),
+                            _CollapseToggle(
+                              collapsed: effectiveCollapsed,
+                              tileHeight: navTileHeight,
+                              tutorialKey:
+                                  widget.sidebarTutorialKeys != null &&
+                                      widget.tutorialStepIndex != null &&
+                                      widget.tutorialStepIndex ==
+                                          widget.items.length &&
+                                      widget.tutorialStepIndex! <
+                                          widget.sidebarTutorialKeys!.length
+                                  ? widget.sidebarTutorialKeys![
+                                      widget.tutorialStepIndex!]
+                                  : null,
+                              showTutorial:
+                                  widget.tutorialStepIndex != null &&
+                                  widget.tutorialStepIndex == widget.items.length,
+                              onTutorialNext: widget.onTutorialNext,
+                              onTutorialSkip: widget.onTutorialSkip,
+                              isLastTutorialStep:
+                                  widget.tutorialStepIndex != null &&
+                                  widget.tutorialStepIndex == widget.items.length,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   );
@@ -366,7 +470,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
             final Widget shell = Container(
               width: isSmall
                   ? double.infinity
-                  : (effectiveCollapsed ? 72 : 280),
+                  : ((effectiveCollapsed ? 72 : 280) * _sidebarZoomFactor),
               decoration: BoxDecoration(
                 color: sidebarLight
                     ? Colors.white
@@ -382,6 +486,34 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
               ),
               child: column,
             );
+
+            // #region agent log
+            if (!_didLogZoomMetrics) {
+              _didLogZoomMetrics = true;
+              debugPrint(
+                '[sidebar-debug] zoom factor=$_sidebarZoomFactor '
+                'isSmall=$isSmall collapsed=$effectiveCollapsed '
+                'baseWidth=${effectiveCollapsed ? 72 : 280} '
+                'renderedWidth=${isSmall ? -1 : ((effectiveCollapsed ? 72 : 280) * _sidebarZoomFactor)}',
+              );
+              postSidebarDebugLog(
+                runId: 'pre-fix-3',
+                hypothesisId: 'H5',
+                location: 'lib/widgets/sidebar.dart:_ResponsiveSidebarState.build',
+                message: 'Sidebar zoom and width metrics',
+                data: <String, dynamic>{
+                  'zoomFactor': _sidebarZoomFactor,
+                  'isSmall': isSmall,
+                  'effectiveCollapsed': effectiveCollapsed,
+                  'baseWidth': effectiveCollapsed ? 72 : 280,
+                        'renderedWidth': isSmall
+                            ? -1
+                            : ((effectiveCollapsed ? 72 : 280) *
+                                  _sidebarZoomFactor),
+                },
+              );
+            }
+            // #endregion
 
             return ClipRRect(
               child: sidebarLight
@@ -412,9 +544,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     required bool isUltraCompact,
     required bool isVeryCompact,
   }) {
-    final Color textColor = sidebarLight
-        ? const Color(0xFF000000)
-        : AppColors.textPrimary;
+    final isDark = !sidebarLight;
+    final Color welcomeTextColor = isDark
+        ? Colors.white
+        : const Color(0xFF000000);
 
     // Expanded header needs room for logo + welcome text (fixed height was causing
     // RenderFlex overflow on web when text wrapped to two lines).
@@ -424,6 +557,23 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     final double logoBoxHeight = collapsed
         ? (isUltraCompact ? 52.0 : 64.0)
         : (isVeryCompact ? 48.0 : 56.0);
+
+    // #region agent log
+    postSidebarDebugLog(
+      runId: 'pre-fix-4',
+      hypothesisId: 'H4',
+      location: 'lib/widgets/sidebar.dart:_buildHeader',
+      message: 'Header layout metrics',
+      data: <String, dynamic>{
+        'collapsed': collapsed,
+        'isUltraCompact': isUltraCompact,
+        'isVeryCompact': isVeryCompact,
+        'headerHeight': headerHeight,
+        'logoBoxHeight': logoBoxHeight,
+        'welcomeTextColor': welcomeTextColor.toARGB32().toRadixString(16),
+      },
+    );
+    // #endregion
 
     return Container(
       height: headerHeight,
@@ -476,16 +626,33 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   const SizedBox(height: 2),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      'Welcome to Personal Development Hub',
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: textColor,
-                        fontWeight: FontWeight.w700,
-                        height: 1.25,
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                      'Welcome',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: welcomeTextColor,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Personal Development Hub',
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: welcomeTextColor,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -718,6 +885,7 @@ class _NavTile extends StatefulWidget {
 
 class _NavTileState extends State<_NavTile> {
   bool hovering = false;
+  bool _didLogRender = false;
 
   bool get _hasIcon =>
       widget.icon != null ||
@@ -809,12 +977,44 @@ class _NavTileState extends State<_NavTile> {
     }
 
     final bool sidebarLight = _SidebarLightMode.of(context);
-    final Color labelColor = isSelected
-        ? Colors.white
-        : (sidebarLight ? const Color(0xFF000000) : AppColors.textPrimary);
+    final isDark = !sidebarLight;
+    final Color unselectedColor = isDark ? Colors.white : const Color(0xFF000000);
+    final Color subItemUnselectedColor = isDark
+        ? Colors.white.withValues(alpha: 0.9)
+        : const Color(0xFF000000);
+    final Color labelColor = isDark
+        ? (isSelected ? Colors.white : (widget.isChild
+              ? subItemUnselectedColor
+              : unselectedColor))
+        : const Color(0xFF000000);
     final Color hoverFill = sidebarLight
         ? const Color(0xFFE8E8E8)
         : AppColors.hoverColor;
+
+    // #region agent log
+    if (!_didLogRender && (isSelected || widget.route == '/employee_dashboard')) {
+      _didLogRender = true;
+      debugPrint(
+        '[sidebar-debug] route=${widget.route} selected=$isSelected '
+        'sidebarLight=$sidebarLight isDark=$isDark '
+        'labelColor=${labelColor.toARGB32().toRadixString(16)}',
+      );
+      postSidebarDebugLog(
+        runId: 'pre-fix-1',
+        hypothesisId: 'H1_H2',
+        location: 'lib/widgets/sidebar.dart:_NavTileState.build',
+        message: 'Computed nav label color inputs',
+        data: <String, dynamic>{
+          'route': widget.route,
+          'label': label,
+          'isSelected': isSelected,
+          'sidebarLight': sidebarLight,
+          'isDark': isDark,
+          'labelColor': labelColor.toARGB32().toRadixString(16),
+        },
+      );
+    }
+    // #endregion
 
     Widget navTileContent = Padding(
       padding: widget.isChild
@@ -913,14 +1113,17 @@ class _NavTileState extends State<_NavTile> {
                             Flexible(
                               child: Text(
                                 label,
-                                style:
-                                    (isSelected
-                                            ? AppTypography.navigationActive
-                                            : AppTypography.navigation)
-                                        .copyWith(
-                                          color: labelColor,
-                                          fontSize: widget.navFontSize,
-                                        ),
+                                style: AppTypography.navigation.copyWith(
+                                  color: isDark
+                                      ? (isSelected
+                                          ? Colors.white
+                                          : labelColor)
+                                      : const Color(0xFF000000),
+                                  fontSize: widget.navFontSize,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w800
+                                      : FontWeight.bold,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
                                 softWrap: false,
@@ -1116,18 +1319,6 @@ class _NavTileState extends State<_NavTile> {
           ),
         ),
       );
-      if (sidebarLight) {
-        final bool whiteOnRed = isSelected && !widget.collapsed;
-        if (!useRed && !whiteOnRed) {
-          img = ColorFiltered(
-            colorFilter: const ColorFilter.mode(
-              Color(0xFF000000),
-              BlendMode.srcIn,
-            ),
-            child: img,
-          );
-        }
-      }
       return img;
     }
     if (widget.iconWidget != null) {
