@@ -3,7 +3,6 @@ import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
-import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 /// Workspace context switcher widget for the sidebar
@@ -69,37 +68,6 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
         : switcherTextColor;
     final contextPaddingH = 12.0;
     final contextPaddingV = 8.0;
-    // #region agent log
-    debugPrint(
-      '[sidebar-debug] switcher isDark=$isDark '
-      'lightNotifier=${employeeDashboardLightModeNotifier.value} '
-      'switcherTextColor=${switcherTextColor.toARGB32().toRadixString(16)} '
-      'switcherBorderColor=${switcherBorderColor.toARGB32().toRadixString(16)} '
-      'myWorkspaceTextColor=${myWorkspaceTextColor.toARGB32().toRadixString(16)} '
-      'managerWorkspaceTextColor=${managerWorkspaceTextColor.toARGB32().toRadixString(16)} '
-      'contextPaddingH=$contextPaddingH contextPaddingV=$contextPaddingV',
-    );
-    postSidebarDebugLog(
-      runId: 'pre-fix-2',
-      hypothesisId: 'H3_H4',
-      location: 'lib/widgets/workspace_context_switcher.dart:build',
-      message: 'Workspace switcher text color inputs',
-      data: <String, dynamic>{
-        'isDark': isDark,
-        'lightNotifier': employeeDashboardLightModeNotifier.value,
-        'switcherTextColor': switcherTextColor.toARGB32().toRadixString(16),
-        'switcherBorderColor': switcherBorderColor.toARGB32().toRadixString(16),
-        'myWorkspaceTextColor': myWorkspaceTextColor.toARGB32().toRadixString(16),
-        'managerWorkspaceTextColor': managerWorkspaceTextColor
-            .toARGB32()
-            .toRadixString(16),
-        'isMyWorkspace': _workspaceService.isMyWorkspace,
-        'isManagerWorkspace': _workspaceService.isManagerWorkspace,
-        'contextPaddingH': contextPaddingH,
-        'contextPaddingV': contextPaddingV,
-      },
-    );
-    // #endregion
 
     // Only show switcher if user can access manager workspace
     if (!_workspaceService.canAccessManagerWorkspace) {
