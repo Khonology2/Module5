@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.DA10.SIT",
-  "generated_at": "2026-04-20T16:11:07Z",
+  "version": "2026.04.DB6.SIT",
+  "generated_at": "2026-04-21T14:11:19Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -18,24 +18,9 @@
       "timestamp": "2026-04-15T09:22:46+02:00"
     },
     {
-      "author": "Thembelihle",
-      "message": "Feature - update asset paths for dashboard stat tiles to improve icon representation",
-      "timestamp": "2026-04-20T18:10:22+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Enhancement: Add method to determine visibility of portal top actions based on route and fix layout in ManagerInboxScreen.",
-      "timestamp": "2026-04-20T17:27:07+02:00"
-    },
-    {
       "author": "BhutSipho",
       "message": "sidebar collapse implementation and temporarily force it to stay expanded",
       "timestamp": "2026-04-20T13:30:19+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature: Enhance alert handling in ManagerInboxScreen and AlertsNudgesScreen by adding goal approval alert types and refining admin inbox eligibility checks.",
-      "timestamp": "2026-04-20T12:43:20+02:00"
     },
     {
       "author": "BhutSipho",
@@ -44,15 +29,10 @@
     },
     {
       "author": "Thembelihle",
-      "message": "Feature -  Add personalized greeting and dynamic heading to MyPdpScreen, removing unused subtitle style for improved UI clarity.",
-      "timestamp": "2026-04-20T10:32:06+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Refactor: Update condition for alert routing in ManagerInboxScreen to use widget.forAdminOversight for improved clarity and functionality.",
-      "timestamp": "2026-04-20T09:54:11+02:00"
+      "message": "Feature - add new assets for recent activities and progress visuals, and refactor dashboard layout for improved readability.",
+      "timestamp": "2026-04-21T16:10:47+02:00"
     }
   ],
-  "total_commits": 10,
-  "date_range": "2026-04-20"
+  "total_commits": 6,
+  "date_range": "2026-04-21"
 }
