@@ -3,7 +3,6 @@ import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
-import 'package:pdh/design_system/app_breakpoints.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class AppScaffold extends StatelessWidget {
@@ -52,8 +51,9 @@ class AppScaffold extends StatelessWidget {
       return child;
     }
 
-    final isSmall = AppBreakpoints.isSmall(context);
-    final isMedium = AppBreakpoints.isMedium(context);
+    final width = MediaQuery.of(context).size.width;
+    final isSmall = width <= 768;
+    final isMedium = width > 768 && width < 1000;
 
     if (isSmall) {
       return Scaffold(
@@ -85,7 +85,9 @@ class AppScaffold extends StatelessWidget {
           builder: (context, light, _) {
             return Drawer(
               elevation: 12,
-              backgroundColor: light ? Colors.white : AppColors.backgroundColor,
+              backgroundColor: light
+                  ? const Color(0xFFF3F4F6)
+                  : AppColors.backgroundColor,
               child: SafeArea(
                 child: ResponsiveSidebar(
                   items: items,
@@ -152,10 +154,7 @@ class AppScaffold extends StatelessWidget {
             final effectiveCollapsed = isMedium
                 ? true
                 : (_disableSidebarCollapseTemporarily ? false : collapsed);
-            final sidebarWidth = AppBreakpoints.getResponsiveSidebarWidth(
-              context,
-              effectiveCollapsed,
-            );
+            final sidebarWidth = effectiveCollapsed ? 72.0 : 240.0;
 
             return Row(
               children: [

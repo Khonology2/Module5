@@ -5,7 +5,6 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
-import 'package:pdh/design_system/app_breakpoints.dart';
 import 'package:pdh/services/profile_completion_service.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
@@ -32,6 +31,12 @@ class _SidebarLightMode extends InheritedWidget {
   @override
   bool updateShouldNotify(_SidebarLightMode oldWidget) =>
       light != oldWidget.light;
+}
+
+bool _isRouteActive(String? currentRoute, String targetRoute) {
+  if (currentRoute == null || currentRoute.isEmpty) return false;
+  if (currentRoute == targetRoute) return true;
+  return currentRoute.startsWith('$targetRoute/');
 }
 
 class ResponsiveSidebar extends StatefulWidget {
@@ -64,6 +69,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   // Temporary UX override: keep non-mobile sidebar expanded.
   static const bool _disableSidebarCollapseTemporarily = true;
   static const double _sidebarZoomFactor = 0.8;
+  static const double _desktopSidebarWidth = 240;
   final ScrollController _scrollController = ScrollController();
   int? _previousTutorialStep;
   bool _isProfileIncomplete = false;
@@ -188,8 +194,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
 
   @override
   Widget build(BuildContext context) {
-    // Use design system breakpoints
-    final isSmall = AppBreakpoints.isSmall(context);
+    final isSmall = MediaQuery.of(context).size.width <= 768;
 
     return ValueListenableBuilder<bool>(
       valueListenable: employeeDashboardLightModeNotifier,
@@ -206,19 +211,18 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
               light: sidebarLight,
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final isCompact = constraints.maxHeight < 760;
                   final isVeryCompact = constraints.maxHeight < 660;
                   final isUltraCompact = constraints.maxHeight < 580;
 
                   final double sidebarIconSize = isUltraCompact
-                      ? 20
-                      : (isVeryCompact ? 22 : (isCompact ? 24 : 26));
+                      ? 16
+                      : (isVeryCompact ? 17 : 18);
                   final double navVerticalPadding = isUltraCompact
-                      ? 1.5
-                      : (isVeryCompact ? 2 : 2.4);
+                      ? 2.5
+                      : (isVeryCompact ? 3 : 4);
                   final double navFontSize = isUltraCompact
-                      ? 11.2
-                      : (isVeryCompact ? 12.0 : 12.8);
+                      ? 12.5
+                      : (isVeryCompact ? 12.8 : 13.0);
                   final double sectionGap = isUltraCompact
                       ? 2
                       : (isVeryCompact ? 4 : 6);
@@ -278,7 +282,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       assetRed: it.assetRed,
                       label: it.label,
                       route: it.route,
-                      isActive: widget.currentRouteName == it.route,
+                      isActive: _isRouteActive(widget.currentRouteName, it.route),
                       collapsed: effectiveCollapsed,
                       onTap: () => widget.onNavigate(it.route),
                       showProfileIndicator: showProfileIndicator,
@@ -359,7 +363,9 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
             final Widget shell = Container(
               width: isSmall
                   ? double.infinity
-                  : ((effectiveCollapsed ? 72 : 280) * _sidebarZoomFactor),
+                  : (effectiveCollapsed
+                        ? (72 * _sidebarZoomFactor)
+                        : _desktopSidebarWidth),
               decoration: BoxDecoration(
                 color: sidebarLight
                     ? Colors.white
@@ -560,6 +566,7 @@ class _NavTile extends StatefulWidget {
 
 class _NavTileState extends State<_NavTile> {
   bool hovering = false;
+  static const Color _activeSideAccent = Color(0xFFE53935);
 
   bool get _hasIcon =>
       widget.icon != null ||
@@ -662,19 +669,19 @@ class _NavTileState extends State<_NavTile> {
               : unselectedColor))
         : const Color(0xFF000000);
     final Color hoverFill = sidebarLight
-        ? const Color(0xFFE8E8E8)
-        : AppColors.hoverColor;
+        ? const Color(0x10E53935)
+        : Colors.white.withValues(alpha: 0.08);
 
     Widget navTileContent = Padding(
       padding: widget.isChild
           ? EdgeInsets.only(
-              left: 36,
-              right: 12,
+              left: 28,
+              right: 10,
               top: widget.navVerticalPadding,
               bottom: widget.navVerticalPadding,
             )
           : EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
+              horizontal: 10,
               vertical: widget.navVerticalPadding,
             ),
       child: MouseRegion(
@@ -684,116 +691,116 @@ class _NavTileState extends State<_NavTile> {
           message: isCollapsed ? label : '',
           child: InkWell(
             onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             child: Container(
-              height: math.max(32, widget.iconSize + 14),
+              height: math.max(34, widget.iconSize + 16),
               decoration: BoxDecoration(
-                // When expanded: highlight background for active
-                // When collapsed: keep background transparent for a clean mini look
-                color: !isCollapsed
-                    ? (isSelected
-                          ? AppColors.activeColor
-                          : (isHovered ? hoverFill : Colors.transparent))
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: (!isCollapsed && (isSelected || isHovered))
-                    ? [
-                        BoxShadow(
-                          color:
-                              (isSelected
-                                      ? AppColors.activeColor
-                                      : (sidebarLight
-                                            ? hoverFill
-                                            : AppColors.hoverColor))
-                                  .withValues(alpha: 0x35),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
+                color: isSelected
+                    ? _activeSideAccent.withValues(alpha: 0.08)
+                    : (isHovered ? hoverFill : Colors.transparent),
+                borderRadius: BorderRadius.circular(8),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: isCollapsed
-                  ? Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        if (_hasIcon) _buildIcon(isSelected, sidebarLight),
-                        if (widget.showProfileIndicator)
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: AppColors.activeColor,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: sidebarLight
-                                      ? Colors.white
-                                      : _ResponsiveSidebarState.backgroundColor,
-                                  width: 1.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        // If there isn't enough width to safely render icon + label,
-                        // fall back to icon-only to avoid overflows during animations/resizes.
-                        final bool tooNarrow = constraints.maxWidth < 80;
-                        if (tooNarrow && _hasIcon) {
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [_buildIcon(isSelected, sidebarLight)],
-                          );
-                        }
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.max,
-                          children: [
-                            if (_hasIcon) ...[
-                              _buildIcon(isSelected, sidebarLight),
-                              const SizedBox(width: AppSpacing.xs),
-                            ],
-                            Flexible(
-                              child: Text(
-                                label,
-                                style: AppTypography.navigation.copyWith(
-                                  color: isDark
-                                      ? (isSelected
-                                          ? Colors.white
-                                          : labelColor)
-                                      : const Color(0xFF000000),
-                                  fontSize: widget.navFontSize,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w800
-                                      : FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                                softWrap: false,
-                              ),
-                            ),
-                            if (widget.showProfileIndicator) ...[
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.error,
-                                size: 16,
-                                color: AppColors.activeColor,
-                              ),
-                            ],
-                            if (widget.trailing != null) ...[
-                              const SizedBox(width: AppSpacing.xs),
-                              widget.trailing!,
-                            ],
-                          ],
-                        );
-                      },
+              child: Stack(
+                children: [
+                  if (isSelected && !isCollapsed)
+                    Positioned(
+                      left: 0,
+                      top: 8,
+                      bottom: 8,
+                      child: Container(
+                        width: 3,
+                        decoration: BoxDecoration(
+                          color: _activeSideAccent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
+                    child: isCollapsed
+                        ? Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              if (_hasIcon) _buildIcon(isSelected, sidebarLight),
+                              if (widget.showProfileIndicator)
+                                Positioned(
+                                  top: 0,
+                                  right: 0,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.activeColor,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: sidebarLight
+                                            ? Colors.white
+                                            : _ResponsiveSidebarState.backgroundColor,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final bool tooNarrow = constraints.maxWidth < 80;
+                              if (tooNarrow && _hasIcon) {
+                                return Row(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [_buildIcon(isSelected, sidebarLight)],
+                                );
+                              }
+                              return Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.max,
+                                children: [
+                                  if (_hasIcon) ...[
+                                    _buildIcon(isSelected, sidebarLight),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Flexible(
+                                    child: Text(
+                                      label,
+                                      style: AppTypography.navigation.copyWith(
+                                        color: isDark
+                                            ? (isSelected ? Colors.white : labelColor)
+                                            : const Color(0xFF000000),
+                                        fontSize: widget.navFontSize,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w700
+                                            : FontWeight.w600,
+                                        height: 1.15,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                    ),
+                                  ),
+                                  if (widget.showProfileIndicator) ...[
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.error,
+                                      size: 14,
+                                      color: AppColors.activeColor,
+                                    ),
+                                  ],
+                                  if (widget.trailing != null) ...[
+                                    const SizedBox(width: 6),
+                                    widget.trailing!,
+                                  ],
+                                ],
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1036,7 +1043,7 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
         assetRed: parent.assetRed,
         label: parent.label,
         route: parent.route,
-        isActive: widget.currentRouteName == parent.route,
+        isActive: _isRouteActive(widget.currentRouteName, parent.route),
         collapsed: widget.collapsed,
         onTap: () => widget.onNavigate(parent.route),
         showProfileIndicator: widget.showProfileIndicator,
@@ -1051,7 +1058,7 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
       );
     }
 
-    final isActive = widget.currentRouteName == parent.route;
+    final isActive = _isRouteActive(widget.currentRouteName, parent.route);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -1101,7 +1108,7 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
               assetRed: child.assetRed,
               label: child.label,
               route: child.route,
-              isActive: widget.currentRouteName == child.route,
+              isActive: _isRouteActive(widget.currentRouteName, child.route),
               collapsed: widget.collapsed,
               onTap: () => widget.onNavigate(child.route),
               isChild: true,
