@@ -31,6 +31,7 @@ class ManagerDashboardScreen extends StatefulWidget {
 
   /// When true, admin is viewing this screen; data shows managers (not employees).
   final bool forAdminOversight;
+
   /// When set with [forAdminOversight], show data for this manager only (future use).
   final String? selectedManagerId;
 
@@ -415,8 +416,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             );
           }
           if (!employeesSnap.hasData) {
-            final timedOut = _employeesLoadWatch.elapsed >
-                const Duration(seconds: 12);
+            final timedOut =
+                _employeesLoadWatch.elapsed > const Duration(seconds: 12);
             if (timedOut) {
               return Center(
                 child: ConstrainedBox(
@@ -449,7 +450,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                               ElevatedButton(
                                 onPressed: () {
                                   setState(() {
-                                    _employeesStream = _realtime.employeesStream();
+                                    _employeesStream = _realtime
+                                        .employeesStream();
                                     _employeesLoadWatch
                                       ..reset()
                                       ..start();
@@ -514,8 +516,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               final topGridColumns = width >= 920
                   ? 3
                   : width >= 640
-                      ? 2
-                      : 1;
+                  ? 2
+                  : 1;
               final middleTwoColumns = width >= 920;
 
               final now = DateTime.now();
@@ -595,7 +597,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
                   const SizedBox(height: AppSpacing.lg),
 
-                  _buildBottomKpisAndHealth(metrics, employees, maxWidth: width),
+                  _buildBottomKpisAndHealth(
+                    metrics,
+                    employees,
+                    maxWidth: width,
+                  ),
 
                   const SizedBox(height: AppSpacing.xxl),
                 ],
@@ -651,7 +657,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   // Dark mode: reduce alpha so the background image remains visible.
   // "Drop opacity by 40%" => keep ~60% opacity (alpha 0x99).
   Color _dashboardCardFill() {
-    return DashboardChrome.light ? const Color(0x99FFFFFF) : const Color(0x993D3F40);
+    return DashboardChrome.light
+        ? const Color(0x99FFFFFF)
+        : const Color(0x993D3F40);
   }
 
   Color _dashboardCardBorder() {
@@ -697,7 +705,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             children: [
               Text(
                 'Manager Dashboard',
-                style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
+                style: AppTypography.heading2.copyWith(
+                  color: DashboardChrome.fg,
+                ),
               ),
               const SizedBox(width: 12),
               Flexible(
@@ -744,7 +754,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$activeToday',
         icon: Icons.calendar_today,
-        assetPath: 'assets/Sprints.png',
+        assetPath: 'assets/Project_Management/Management_White_Badge_Red.png',
         accent: AppColors.activeColor,
       ),
       _topStatTile(
@@ -768,8 +778,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$inactive',
         icon: Icons.priority_high,
-        assetPath:
-            'assets/Cancel_Exit_Escape/Cancel_Exit_Escape_White_Badge_Red.png',
+        assetPath: 'assets/Warning _Error/Warning_Error_White Badge_Red.png',
         accent: AppColors.warningColor,
       ),
       _topStatTile(
@@ -871,7 +880,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             // Always use dashboard asset icons so light/dark mode stays consistent.
             Padding(
               padding: const EdgeInsets.only(right: 2),
-              child: _assetIcon(assetPath, size: 64),
+              child: _assetIcon(assetPath, size: 68),
             )
           else
             Container(
@@ -908,10 +917,15 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         children: [
           Row(
             children: [
-              widget.forAdminOversight
-                  ? _assetIcon('assets/bell_icon.png', size: 26)
-                  : const Icon(Icons.notifications_none,
-                      color: AppColors.dangerColor),
+              Image.asset(
+                'assets/Data_Approval/Recent_activities..png',
+                width: 61,
+                height: 62,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox(width: 61, height: 62);
+                },
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -936,7 +950,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           if (top.isEmpty)
             Text(
               'No recent activities yet.',
-              style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
+              style: AppTypography.bodyMedium.copyWith(
+                color: DashboardChrome.fg,
+              ),
             )
           else
             ...top.map(
@@ -945,15 +961,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    widget.forAdminOversight
-                        ? _assetIcon('assets/bell_icon.png', size: 22)
-                        : Icon(
-                            Icons.check_box,
-                            size: 18,
-                            color: DashboardChrome.light
-                                ? AppColors.dangerColor
-                                : AppColors.activeColor,
-                          ),
+                    _assetIcon(
+                      'assets/Data_Approval/Recent_activities..png',
+                      size: 22,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: RichText(
@@ -1076,7 +1087,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           tiles: [
             _smallKpiTile('Total', '$totalEmployees'),
             _smallKpiTile('Active', '$activeEmployees'),
-            _smallKpiTile('Average Progress', '${avgProgress.toStringAsFixed(0)}'),
+            _smallKpiTile(
+              'Average Progress',
+              '${avgProgress.toStringAsFixed(0)}',
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -1135,7 +1149,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
   // _buildWelcomeCard removed (dashboard now uses _buildDashboardHeader).
 
-
   Widget _buildDailyMotivationCard() {
     return _card(
       child: Row(
@@ -1156,8 +1169,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 const SizedBox(height: 2),
                 Text(
                   'Lead by example, and let your team grow today!',
-                  style:
-                      AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: DashboardChrome.fg,
+                  ),
                 ),
               ],
             ),
@@ -1569,8 +1583,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       String? assetPath,
       bool filled = false,
     }) {
-      final fill =
-          filled ? AppColors.dangerColor : _dashboardCardFill();
+      final fill = filled ? AppColors.dangerColor : _dashboardCardFill();
       final fg = filled ? Colors.white : DashboardChrome.fg;
       return _ManagerQuickActionTile(
         label: label,
@@ -1590,23 +1603,18 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         label: 'Goal Workspace',
         icon: Icons.flag_outlined,
         assetPath: 'assets/Project_Management/Management_White_Badge_Red.png',
-        onTap: () => Navigator.pushNamed(
-          context,
-          '/my_goal_workspace',
-        ),
+        onTap: () => Navigator.pushNamed(context, '/my_goal_workspace'),
       ),
       actionTile(
         label: 'Progress Visuals',
         icon: Icons.insights_outlined,
-        assetPath:
-            'assets/Process_Flows_Automation/Process_Flows_Automation_White_Badge_Red.png',
+        assetPath: 'assets/Download_Arrow/ProgressVisuals.png',
         onTap: () => Navigator.pushNamed(context, '/progress_visuals'),
       ),
       actionTile(
         label: 'Leaderboard',
         icon: Icons.attribution_outlined,
-        assetPath:
-            'assets/Project_Direction_Acceleration/Project_Direction_Acceleration_White_Badge_Red.png',
+        assetPath: 'assets/Tag_Channel Handle/Leaderboard.png',
         onTap: () => Navigator.pushNamed(context, '/manager_leaderboard'),
       ),
       actionTile(
@@ -1646,14 +1654,16 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         children: [
           Row(
             children: [
-              widget.forAdminOversight
-                  ? _assetIcon('assets/Innovation_Brainstorm.png', size: 26)
-                  : const Icon(Icons.emoji_objects_outlined,
-                      color: AppColors.dangerColor),
+              _assetIcon(
+                'assets/Innovation_Brainstorm/Innovation_Brainstorm_White_Badge_Red.png',
+                size: 69,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Quick Action',
-                style: AppTypography.heading4.copyWith(color: DashboardChrome.fg),
+                style: AppTypography.heading4.copyWith(
+                  color: DashboardChrome.fg,
+                ),
               ),
             ],
           ),
@@ -1666,6 +1676,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             ]),
             style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
           ),
+          const SizedBox(height: 10),
+          Divider(color: Colors.white, thickness: 0.61, height: 0.61),
           const SizedBox(height: AppSpacing.md),
           if (expand)
             Expanded(child: grid(shrinkWrap: false))
@@ -1701,7 +1713,8 @@ class _ManagerQuickActionTile extends StatefulWidget {
   final double iconSize;
 
   @override
-  State<_ManagerQuickActionTile> createState() => _ManagerQuickActionTileState();
+  State<_ManagerQuickActionTile> createState() =>
+      _ManagerQuickActionTileState();
 }
 
 class _ManagerQuickActionTileState extends State<_ManagerQuickActionTile> {
@@ -1710,13 +1723,7 @@ class _ManagerQuickActionTileState extends State<_ManagerQuickActionTile> {
   @override
   Widget build(BuildContext context) {
     final bgColor = _hover ? _kQuickActionHoverRed : widget.baseFill;
-    final borderColor = _hover
-        ? _kQuickActionHoverRed
-        : (widget.filled
-              ? AppColors.dangerColor
-              : (widget.light
-                    ? const Color(0x33000000)
-                    : Colors.white.withValues(alpha: 0.25)));
+    final borderColor = _kQuickActionHoverRed;
     final fg = _hover ? Colors.white : widget.baseFg;
 
     return MouseRegion(
