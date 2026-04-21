@@ -215,23 +215,20 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   final isUltraCompact = constraints.maxHeight < 580;
 
                   final double sidebarIconSize = isUltraCompact
-                      ? 16
-                      : (isVeryCompact ? 17 : 18);
+                      ? 18
+                      : (isVeryCompact ? 19 : 20);
                   final double navVerticalPadding = isUltraCompact
-                      ? 2.5
-                      : (isVeryCompact ? 3 : 4);
+                      ? 0.5
+                      : (isVeryCompact ? 1.0 : 1.5);
                   final double navFontSize = isUltraCompact
-                      ? 12.5
-                      : (isVeryCompact ? 12.8 : 13.0);
+                      ? 11.8
+                      : (isVeryCompact ? 12.2 : 12.8);
                   final double sectionGap = isUltraCompact
-                      ? 2
-                      : (isVeryCompact ? 4 : 6);
+                      ? 0.5
+                      : (isVeryCompact ? 1 : 2);
                   final double bottomGap = isUltraCompact
                       ? 6
                       : (isVeryCompact ? 8 : 10);
-                  final double footerSeparationGap = isUltraCompact
-                      ? 20
-                      : (isVeryCompact ? 36 : 56);
                   final entries = _currentItems.asMap().entries.toList();
                   final mainEntries = entries
                       .where((e) => !_isBottomPinnedItem(e.value.route))
@@ -314,42 +311,42 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                         isUltraCompact: isUltraCompact,
                         isVeryCompact: isVeryCompact,
                       ),
-                      SizedBox(height: sectionGap),
+                      SizedBox(height: sectionGap * 0.5),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 8),
                         child: WorkspaceContextSwitcher(),
                       ),
                       SizedBox(height: sectionGap),
                       Expanded(
-                        child: ListView(
-                          controller: _scrollController,
-                          padding: EdgeInsets.symmetric(
-                            vertical: navVerticalPadding,
-                          ),
-                          children: mainEntries.map(buildEntry).toList(),
-                        ),
-                      ),
-                      SizedBox(height: footerSeparationGap),
-                      Padding(
-                        padding: EdgeInsets.only(bottom: bottomGap),
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            ...bottomEntries.map(buildEntry),
-                            _NavTile(
-                              key: const ValueKey('nav_logout'),
-                              icon: Icons.exit_to_app,
-                              assetWhite: 'assets/manager_sidebar/12.png',
-                              assetRed: 'assets/manager_sidebar/12.png',
-                              label:
-                                  AppLocalizations.of(context).employee_drawer_exit,
-                              route: '__logout__',
-                              isActive: false,
-                              collapsed: effectiveCollapsed,
-                              onTap: widget.onLogout,
-                              navVerticalPadding: navVerticalPadding,
-                              navFontSize: navFontSize,
-                              iconSize: sidebarIconSize,
+                            ...mainEntries.map(buildEntry),
+                            const SizedBox(height: 20),
+                            const Spacer(),
+                            Padding(
+                              padding: EdgeInsets.only(bottom: bottomGap),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ...bottomEntries.map(buildEntry),
+                                  _NavTile(
+                                    key: const ValueKey('nav_logout'),
+                                    icon: Icons.exit_to_app,
+                                    assetWhite: 'assets/manager_sidebar/12.png',
+                                    assetRed: 'assets/manager_sidebar/12.png',
+                                    label: AppLocalizations.of(
+                                      context,
+                                    ).employee_drawer_exit,
+                                    route: '__logout__',
+                                    isActive: false,
+                                    collapsed: effectiveCollapsed,
+                                    onTap: widget.onLogout,
+                                    navVerticalPadding: navVerticalPadding,
+                                    navFontSize: navFontSize,
+                                    iconSize: sidebarIconSize,
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -420,7 +417,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     // RenderFlex overflow on web when text wrapped to two lines).
     final double headerHeight = collapsed
         ? (isUltraCompact ? 52.0 : 64.0)
-        : (isVeryCompact ? 102.0 : 118.0);
+        : (isVeryCompact ? 96.0 : 108.0);
     final double logoBoxHeight = collapsed
         ? (isUltraCompact ? 52.0 : 64.0)
         : (isVeryCompact ? 48.0 : 56.0);
@@ -473,7 +470,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   ),
                 ),
                 if (!collapsed) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Column(
@@ -490,7 +487,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                             height: 1.2,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 1),
                         Text(
                           'Personal Development Hub',
                           textAlign: TextAlign.center,
@@ -669,8 +666,11 @@ class _NavTileState extends State<_NavTile> {
               : unselectedColor))
         : const Color(0xFF000000);
     final Color hoverFill = sidebarLight
-        ? const Color(0x10E53935)
+        ? const Color(0x14000000)
         : Colors.white.withValues(alpha: 0.08);
+    final Color activeFill = sidebarLight
+        ? const Color(0x1A000000)
+        : Colors.white.withValues(alpha: 0.10);
 
     Widget navTileContent = Padding(
       padding: widget.isChild
@@ -693,10 +693,10 @@ class _NavTileState extends State<_NavTile> {
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              height: math.max(34, widget.iconSize + 16),
+              height: math.max(30, widget.iconSize + 12),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? _activeSideAccent.withValues(alpha: 0.08)
+                    ? activeFill
                     : (isHovered ? hoverFill : Colors.transparent),
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -718,7 +718,7 @@ class _NavTileState extends State<_NavTile> {
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
-                      vertical: 10,
+                      vertical: 6,
                     ),
                     child: isCollapsed
                         ? Stack(
@@ -770,7 +770,9 @@ class _NavTileState extends State<_NavTile> {
                                       style: AppTypography.navigation.copyWith(
                                         color: isDark
                                             ? (isSelected ? Colors.white : labelColor)
-                                            : const Color(0xFF000000),
+                                            : (isSelected
+                                                  ? Colors.white
+                                                  : const Color(0xFF000000)),
                                         fontSize: widget.navFontSize,
                                         fontWeight: isSelected
                                             ? FontWeight.w700
