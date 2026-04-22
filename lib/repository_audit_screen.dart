@@ -82,6 +82,7 @@ class RepositoryAuditScreen extends StatefulWidget {
 class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   // Add state for milestone audits with caching
   List<Map<String, dynamic>> _milestoneAudits = [];
+  List<Map<String, dynamic>> _rawMilestoneAudits = [];
   bool _isLoadingMilestones = false;
   bool _hasLoadedOnce = false; // Prevent repeated loading
   bool _isManager = false; // Track current user role
@@ -266,7 +267,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               limit: widget.forAdminOversight ? 400 : 120,
             );
       setState(() {
-        _milestoneAudits = _filterMilestoneAuditsForCurrentView(audits);
+        _rawMilestoneAudits = audits;
+        _milestoneAudits = _filterMilestoneAuditsForCurrentView(_rawMilestoneAudits);
         _isLoadingMilestones = false;
         _hasLoadedOnce = true;
       });
@@ -700,8 +702,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           setState(() {
             _unifiedEntriesOnly = entries;
             _allAuditEntries = _rebuildAllAuditEntries();
+            _rawMilestoneAudits = milestoneAudits;
             _milestoneAudits =
-                _filterMilestoneAuditsForCurrentView(milestoneAudits);
+                _filterMilestoneAuditsForCurrentView(_rawMilestoneAudits);
             _isLoadingMilestones = false;
             _hasLoadedOnce = true;
           });
@@ -731,13 +734,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
   List<AuditEntry> _scopedAuditEntriesForCurrentView() {
     if (!widget.forAdminOversight) return _allAuditEntries;
+    // Admin Repository & Audit is manager-oversight only.
+    final managerOwned = _allAuditEntries.where(_entryIsManagerOwnedGoal).toList();
     switch (_adminGoalOwnerFilter) {
       case _AdminGoalOwnerFilter.all:
-        return _allAuditEntries;
+        return managerOwned;
       case _AdminGoalOwnerFilter.managerOwners:
-        return _allAuditEntries.where(_entryIsManagerOwnedGoal).toList();
+        return managerOwned;
       case _AdminGoalOwnerFilter.employeeOwners:
-        return _allAuditEntries.where(_entryIsEmployeeOwnedGoal).toList();
+        // Employee-owned goals are intentionally hidden in admin manager-oversight view.
+        return const <AuditEntry>[];
     }
   }
 
@@ -882,58 +888,25 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     final fg = _RepoAuditChrome.fg;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Goal owner scope',
-            style: TextStyle(
-              color: fg,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: _RepoAuditChrome.cardFill,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _RepoAuditChrome.border),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.supervisor_account, color: fg, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Admin oversight scope: manager-owned goals and milestones only.',
+                style: TextStyle(color: fg, fontSize: 12),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ChoiceChip(
-                label: const Text('All'),
-                selected: _adminGoalOwnerFilter == _AdminGoalOwnerFilter.all,
-                onSelected: (_) => setState(
-                  () => _adminGoalOwnerFilter = _AdminGoalOwnerFilter.all,
-                ),
-              ),
-              ChoiceChip(
-                label: const Text('Manager-owned goals'),
-                selected:
-                    _adminGoalOwnerFilter ==
-                    _AdminGoalOwnerFilter.managerOwners,
-                onSelected: (_) => setState(
-                  () =>
-                      _adminGoalOwnerFilter = _AdminGoalOwnerFilter.managerOwners,
-                ),
-              ),
-              ChoiceChip(
-                label: const Text('Employee-owned goals'),
-                selected:
-                    _adminGoalOwnerFilter ==
-                    _AdminGoalOwnerFilter.employeeOwners,
-                onSelected: (_) => setState(
-                  () =>
-                      _adminGoalOwnerFilter =
-                          _AdminGoalOwnerFilter.employeeOwners,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Uses goal owner uid → users.role (manager vs employee PDP goals).',
-            style: TextStyle(color: fg.withValues(alpha: 0.75), fontSize: 11),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1196,9 +1169,34 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           _goalOwnerNameByGoalId[gid] = _displayNameByUserId[ownerId] ?? '';
         }
       }
+      // Hydrate owner roles for admin manager-only filtering.
+      final ownerIds = _goalOwnerIdByGoalId.values
+          .where((id) => id.isNotEmpty && !_goalOwnerRoleByUid.containsKey(id))
+          .toSet()
+          .toList();
+      for (var i = 0; i < ownerIds.length; i += 10) {
+        final chunk = ownerIds.sublist(
+          i,
+          i + 10 > ownerIds.length ? ownerIds.length : i + 10,
+        );
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+        for (final d in snap.docs) {
+          final raw =
+              (d.data()['role'] ?? 'employee').toString().trim().toLowerCase();
+          _goalOwnerRoleByUid[d.id] = raw;
+        }
+      }
 
       if (!mounted) return;
-      setState(() {});
+      setState(() {
+        // Re-derive filtered milestone list now that owner/role identity is hydrated.
+        _milestoneAudits = _filterMilestoneAuditsForCurrentView(
+          _rawMilestoneAudits,
+        );
+      });
     } catch (e, st) {
       developer.log(
         'Milestone identity hydration failed: $e',
@@ -1297,7 +1295,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   List<Map<String, dynamic>> _filterMilestoneAuditsForCurrentView(
     List<Map<String, dynamic>> audits,
   ) {
-    final scoped = audits.where(_shouldIncludeAuditDataForCurrentView).toList();
+    final scoped = audits.where(_shouldIncludeAuditDataForCurrentView).where((a) {
+      if (!widget.forAdminOversight) return true;
+      return _milestoneBelongsToManagerOwner(a);
+    }).toList();
     final seen = <String>{};
     final out = <Map<String, dynamic>>[];
     for (final row in scoped) {
@@ -1315,6 +1316,28 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       out.add(row);
     }
     return out;
+  }
+
+  bool _milestoneBelongsToManagerOwner(Map<String, dynamic> audit) {
+    if (!widget.forAdminOversight) return true;
+    final metadata = _asMap(audit['metadata']);
+    final ownerId = _firstNonEmpty(
+      [
+        audit['goalOwnerId']?.toString(),
+        metadata['goalOwnerId']?.toString(),
+        _goalOwnerIdByGoalId[(audit['goalId'] ?? '').toString().trim()],
+      ],
+      fallback: '',
+    );
+    if (ownerId.isEmpty) {
+      // Legacy fallback: if actor user is manager-like, keep row visible.
+      final actorId = (audit['userId'] ?? '').toString().trim();
+      if (actorId.isEmpty) return false;
+      final actorRole = _goalOwnerRoleByUid[actorId];
+      return _roleLooksManager(actorRole);
+    }
+    final role = _goalOwnerRoleByUid[ownerId];
+    return _roleLooksManager(role);
   }
 
   @override
@@ -1836,16 +1859,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               : 'Requested by: $requesterLabel',
           style: TextStyle(color: _RepoAuditChrome.fg),
         ),
-        if (widget.forAdminOversight && entry.userId.isNotEmpty)
-          Text(
-            _goalOwnerRoleCaption(entry.userId).isEmpty
-                ? 'Owner role: loading…'
-                : 'Owner role: ${_goalOwnerRoleCaption(entry.userId)}',
-            style: TextStyle(
-              color: _RepoAuditChrome.fg.withValues(alpha: 0.9),
-              fontSize: 12,
-            ),
-          ),
         if (entry.acknowledgedBy != null && entry.acknowledgedBy!.isNotEmpty)
           Text(
             'Acknowledged by: ${entry.acknowledgedBy}',
