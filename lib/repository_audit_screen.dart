@@ -36,6 +36,10 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'dart:html'
     as html; // Keep using dart:html for now until migration to package:web is complete
 
+enum _AdminGoalOwnerFilter { all, managerOwners, employeeOwners }
+
+enum RepositoryAuditViewMode { personal, managerTeam, adminOversight }
+
 class _RepoAuditChrome {
   _RepoAuditChrome._();
 
@@ -55,10 +59,15 @@ class _RepoAuditChrome {
       : null;
 }
 class RepositoryAuditScreen extends StatefulWidget {
-  const RepositoryAuditScreen({super.key, this.forAdminOversight = false});
+  const RepositoryAuditScreen({
+    super.key,
+    this.forAdminOversight = false,
+    this.forManagerWorkspace = false,
+  });
 
   /// When true, render the same view used for managers (admin oversight screens).
   final bool forAdminOversight;
+  final bool forManagerWorkspace;
 
   @override
   State<RepositoryAuditScreen> createState() => _RepositoryAuditScreenState();
@@ -73,6 +82,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   bool _isManager = false; // Track current user role
   bool _isInitializing = true; // Track initialization state
   String? _lastError; // Track last error for debugging
+  bool _milestoneLoadInFlight = false;
+  String? _currentUserId;
+  String? _currentUserDepartment;
+  final Set<String> _teamMemberIds = <String>{};
+  final Set<String> _personalGoalIds = <String>{};
+  bool _personalGoalIndexHealthy = true;
 
   final TextEditingController _searchController = TextEditingController();
   String? _statusFilter;
@@ -263,8 +278,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
       if (mounted) {
         setState(() {
+          _currentUserId = user.uid;
+          _currentUserDepartment = department?.trim();
           _isManager = widget.forAdminOversight || role == 'manager';
         });
+      }
+      await _loadPersonalGoalIds(user.uid);
+      await _loadTeamMemberIds(user.uid);
+      if (widget.forAdminOversight) {
+        await _loadGoalsDocumentApprovalFallbackForAdmin();
       }
     } catch (e) {
       developer.log(
@@ -1755,8 +1777,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  Widget _buildHeader() {
-    final isManager = _isManager;
+  Widget _buildHeader({required bool isManagerView}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -2017,7 +2038,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildAuditDetails(AuditEntry entry) {
-    final requesterLabel = _resolvedEntryDisplayName(entry);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
