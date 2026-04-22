@@ -240,8 +240,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   bool _isPortalRoute(String route) => _portalRoutes.contains(route);
 
   bool _shouldShowPortalTopActions(String route) {
-    // Keep dashboard hero area uncluttered; show quick actions elsewhere.
-    return route != '/dashboard';
+    // Keep dashboard-style screens uncluttered because those screens already
+    // render their own message/notification icons in their header.
+    final show = route != '/dashboard' && route != '/manager_gw_menu_dashboard';
+    return show;
   }
 
   String? _routeFromPortalUrl() {

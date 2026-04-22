@@ -334,6 +334,41 @@ class _MyAppState extends State<MyApp> {
                   child: child,
                 );
               },
+              onGenerateRoute: (settings) {
+                final name = settings.name;
+                if (name != null && name.contains('?')) {
+                  try {
+                    final parsed = Uri.parse(name);
+                    if (parsed.path == '/manager_portal') {
+                      final screen = parsed.queryParameters['screen'];
+                      final decodedScreen = (screen == null || screen.isEmpty)
+                          ? null
+                          : Uri.decodeComponent(screen);
+                      final existingArgs = settings.arguments is Map<String, dynamic>
+                          ? (settings.arguments as Map<String, dynamic>)
+                          : <String, dynamic>{};
+                      final mergedArgs = <String, dynamic>{
+                        ...existingArgs,
+                        if (decodedScreen != null && decodedScreen.isNotEmpty)
+                          'initialRoute': decodedScreen,
+                      };
+                      return MaterialPageRoute(
+                        settings: RouteSettings(
+                          name: '/manager_portal',
+                          arguments: mergedArgs,
+                        ),
+                        builder: (context) => RoleGate(
+                          requiredRole: RequiredRole.manager,
+                          child: const ManagerPortalScreen(),
+                        ),
+                      );
+                    }
+                  } catch (_) {
+                    // Fall through to default route handling.
+                  }
+                }
+                return null;
+              },
               routes: {
                 '/landing': (context) => const PersonalDevelopmentHubScreen(),
                 '/': (context) => const AuthWrapper(),
