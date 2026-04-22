@@ -7,13 +7,9 @@ import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/auth_service.dart';
-import 'package:pdh/services/role_service.dart';
-import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/employee_profile_screen.dart';
-import 'package:pdh/manager_profile_screen.dart';
+import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
@@ -83,22 +79,22 @@ class MainLayout extends StatelessWidget {
       showAppBar: false,
       items: sidebarItems,
       currentRouteName: currentRouteName,
-      topRightAction: currentRouteName == '/my_profile'
-          ? null
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const NotificationsBell(),
-                const SizedBox(width: 8),
-                _ProfileButton(),
-              ],
-            ),
+      topRightAction: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          MessagesIcon(),
+          SizedBox(width: 8),
+          NotificationsBell(),
+        ],
+      ),
       tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
       sidebarTutorialKeys: null,
       onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
       onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
       onNavigate: (route) {
-        if (ModalRoute.of(context)?.settings.name != route) {
+        final activeRoute = ModalRoute.of(context)?.settings.name ?? currentRouteName;
+        debugPrint('[MainLayout] navigate from=$activeRoute to=$route');
+        if (activeRoute != route) {
           Navigator.pushNamed(context, route);
         }
       },
@@ -130,91 +126,6 @@ class MainLayout extends StatelessWidget {
           );
         },
       ),
-    );
-  }
-
-  List<SidebarItem> _getSidebarItems() {
-    // Check if current user is a manager
-    final role = RoleService.instance.cachedRole;
-    if (role == 'manager') {
-      return SidebarConfig.managerItems;
-    }
-    // Default to employee items for employees and any other roles
-    return SidebarConfig.employeeItems;
-  }
-}
-
-class _ProfileButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<String?>(
-      stream: RoleService.instance.roleStream(),
-      builder: (context, snapshot) {
-        final user = FirebaseAuth.instance.currentUser;
-        final isManager =
-            (snapshot.data ?? RoleService.instance.cachedRole) == 'manager';
-
-        return FutureBuilder<String?>(
-          future: user != null
-              ? DatabaseService.getUserNameFromOnboarding(
-                  userId: user.uid,
-                  email: user.email,
-                )
-              : Future.value(null),
-          builder: (context, nameSnapshot) {
-            String userName = 'User';
-            if (nameSnapshot.hasData &&
-                nameSnapshot.data != null &&
-                nameSnapshot.data!.isNotEmpty) {
-              userName = nameSnapshot.data!;
-            } else if (user?.displayName != null &&
-                user!.displayName!.isNotEmpty) {
-              userName = user.displayName!;
-            } else if (user?.email != null && user!.email!.isNotEmpty) {
-              userName = user.email!.split('@').first;
-            }
-
-            return InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => isManager
-                        ? const ManagerProfileScreen()
-                        : const EmployeeProfileScreen(),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2A3652),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0x1FFFFFFF)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.person, color: Colors.white, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      userName,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 }

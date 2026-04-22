@@ -15,20 +15,21 @@ import 'package:pdh/badges_points_screen.dart'; // Import BadgesPointsScreen
 import 'package:pdh/employee_dashboard_screen.dart'; // Manager GW menu dashboard (reuse employee UI)
 import 'package:pdh/employee_season_challenges_screen.dart'; // Manager GW menu season challenges
 import 'package:pdh/manager_badges_points_screen.dart'; // Import ManagerBadgesPointsScreen
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/auth_service.dart';
-import 'package:pdh/services/database_service.dart'; // Import DatabaseService for onboarding data
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
-import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/leaderboard_screen.dart';
+import 'package:pdh/employee_profile_screen.dart';
+import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerPortalScreen extends StatefulWidget {
@@ -41,6 +42,8 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
+  final WorkspaceContextService _workspaceService = WorkspaceContextService();
+
   /// Incremented each time we navigate to manager_alerts_nudges so the screen loads fresh data.
   int _alertsScreenKey = 0;
 
@@ -51,6 +54,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     12,
     (index) => GlobalKey(),
   );
+
+  /// Matches [MainLayout]’s `AppSpacing.screenPadding` for bodies that do not
+  /// apply their own full-bleed inset (e.g. [MyPdpScreen] uses zero scroll padding).
+  static EdgeInsets _portalMainContentPadding(String route) {
+    switch (route) {
+      case '/my_pdp':
+      case '/manager_gw_menu_goal_workspace':
+        return AppSpacing.screenPadding;
+      default:
+        return EdgeInsets.zero;
+    }
+  }
 
   Widget _getBodyWidget() {
     switch (_currentRoute) {
@@ -127,12 +142,64 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         );
       case '/manager_gw_menu_repository':
         return const RepositoryAuditScreen();
+      // My Workspace routes for managers
+      case '/my_goal_workspace':
+        return const MyGoalWorkspaceScreen(embedded: true);
+      case '/leaderboard':
+        return const LeaderboardScreen();
+      case '/season_challenges':
+        return const EmployeeSeasonChallengesScreen(embedded: true);
+      case '/my_profile':
+        return const EmployeeProfileScreen(embedded: true);
       default:
-        return const ManagerDashboardScreen();
+        return const ManagerDashboardScreen(embedded: true);
     }
   }
 
+  /// Determines whether [route] belongs to manager "My Workspace" screens.
+  bool _isMyWorkspaceRoute(String route) {
+    switch (route) {
+      case '/manager_gw_menu_dashboard':
+      case '/manager_gw_menu_goal_workspace':
+      case '/manager_gw_menu_alerts':
+      case '/manager_gw_menu_my_pdp':
+      case '/manager_gw_menu_progress':
+      case '/manager_gw_menu_leaderboard':
+      case '/manager_gw_menu_badges':
+      case '/manager_gw_menu_season_challenges':
+      case '/manager_gw_menu_repository':
+      case '/employee_dashboard':
+      case '/my_pdp':
+      case '/alerts_nudges':
+      case '/my_goal_workspace':
+      case '/leaderboard':
+      case '/badges_points':
+      case '/season_challenges':
+      case '/my_profile':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /// Keeps the switcher state aligned with whichever route is currently active.
+  void _syncWorkspaceContextForRoute(String route) {
+    _workspaceService.switchToContext(
+      _isMyWorkspaceRoute(route)
+          ? WorkspaceContext.myWorkspace
+          : WorkspaceContext.managerWorkspace,
+    );
+  }
+
+  /// Portal-level top-right actions should only render on manager workspace
+  /// routes; my-workspace pages already render their own action icons.
+  bool _shouldShowPortalTopActions(String route) {
+    return route != '/dashboard' && !_isMyWorkspaceRoute(route);
+  }
+
   void _onNavigate(String route) {
+    debugPrint('[ManagerPortal] navigate from=$_currentRoute to=$route');
+    _syncWorkspaceContextForRoute(route);
     setState(() {
       if (route == '/manager_alerts_nudges') {
         _alertsScreenKey++;
@@ -179,6 +246,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   @override
+  void dispose() {
+    // Cancel any pending operations
+    _shouldShowTutorial = false;
+    _currentTutorialStep = 0;
+
+    // Clean up tutorial keys
+    _sidebarTutorialKeys.clear();
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!_didInitFromArgs) {
       final args = ModalRoute.of(context)?.settings.arguments;
@@ -188,6 +267,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           _currentRoute = initial;
         }
       }
+      _syncWorkspaceContextForRoute(_currentRoute);
       _didInitFromArgs = true;
     }
     // Set system UI overlay style here if needed to ensure consistency across the portal
@@ -210,31 +290,39 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                   onNavigate: _onNavigate,
                   currentRouteName: _currentRoute,
                   onLogout: _onLogout,
-                  tutorialStepIndex:
-                      _shouldShowTutorial ? _currentTutorialStep : null,
+                  tutorialStepIndex: _shouldShowTutorial
+                      ? _currentTutorialStep
+                      : null,
                   sidebarTutorialKeys:
                       _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-                          ? _sidebarTutorialKeys
-                          : null,
-                  onTutorialNext:
-                      _shouldShowTutorial ? _moveToNextTutorialStep : null,
+                      ? _sidebarTutorialKeys
+                      : null,
+                  onTutorialNext: _shouldShowTutorial
+                      ? _moveToNextTutorialStep
+                      : null,
                   onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
                 ),
-                Expanded(child: _getBodyWidget()),
+                Expanded(
+                  child: Padding(
+                    padding: _portalMainContentPadding(_currentRoute),
+                    child: _getBodyWidget(),
+                  ),
+                ),
               ],
             ),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const NotificationsBell(),
-                  const SizedBox(width: 8),
-                  _buildProfileButton(context),
-                ],
+            if (_shouldShowPortalTopActions(_currentRoute))
+              Positioned(
+                top: 24,
+                right: 24,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const MessagesIcon(),
+                    const SizedBox(width: 8),
+                    const NotificationsBell(),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -473,58 +561,4 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     }
   }
 
-  Widget _buildProfileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    
-    return FutureBuilder<String?>(
-      future: user != null
-          ? DatabaseService.getUserNameFromOnboarding(
-              userId: user.uid,
-              email: user.email,
-            )
-          : Future.value(null),
-      builder: (context, snapshot) {
-        String userName = 'User';
-        if (snapshot.hasData &&
-            snapshot.data != null &&
-            snapshot.data!.isNotEmpty) {
-          userName = snapshot.data!;
-        } else if (user?.displayName != null &&
-            user!.displayName!.isNotEmpty) {
-          userName = user.displayName!;
-        } else if (user?.email != null && user!.email!.isNotEmpty) {
-          userName = user.email!.split('@').first;
-        }
-        
-        return InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ManagerProfileScreen()),
-            );
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.elevatedBackground,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.borderColor),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.person, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  userName,
-                  style: AppTypography.bodySmall.copyWith(color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 }

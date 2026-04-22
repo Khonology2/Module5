@@ -870,8 +870,8 @@ Guidelines:
       );
 
       // Convert empty string to null for profilePhotoUrl
-      final profilePhotoUrlValue = (_profilePhotoUrl?.isEmpty ?? true) 
-          ? null 
+      final profilePhotoUrlValue = (_profilePhotoUrl?.isEmpty ?? true)
+          ? null
           : _profilePhotoUrl;
 
       final updatedProfile = existingUserProfile.copyWith(
@@ -896,12 +896,12 @@ Guidelines:
       );
 
       await DatabaseService.updateUserProfile(updatedProfile);
-      
+
       // Clear the profile cache to ensure fresh data on next fetch
       // This ensures the sidebar will see the updated profile when it checks completion
       final cache = PerformanceCacheService();
       cache.clearAll();
-      
+
       if (!mounted) return;
       if (showDialog) {
         _showAlertDialog(
@@ -917,232 +917,225 @@ Guidelines:
   }
 
   Widget _buildProfileContent() {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 1000),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(12.0),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          padding: const EdgeInsets.all(40.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Profile Photo Section - Centered at the top
-              Center(
-                child: Column(
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+      constraints: const BoxConstraints(maxWidth: 1000),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      padding: const EdgeInsets.all(40.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Profile Photo Section - Centered at the top
+          Center(
+            child: Column(
+              children: [
+                Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      width: 2,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child:
+                        (_profilePhotoUrl != null &&
+                            _profilePhotoUrl!.isNotEmpty)
+                        ? Image.network(
+                            _profilePhotoUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Image.asset(
+                                  'assets/Account_User_Profile/Profile.png',
+                                  fit: BoxFit.cover,
+                                ),
+                          )
+                        : Image.asset(
+                            'assets/Account_User_Profile/Profile.png',
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 160,
-                      height: 160,
-                      decoration: BoxDecoration(
-                        color: Colors.white10,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 2,
+                    ElevatedButton(
+                      onPressed: _pickAndUploadImage,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white10,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      child: ClipOval(
-                        child:
-                            (_profilePhotoUrl != null &&
-                                _profilePhotoUrl!.isNotEmpty)
-                            ? Image.network(
-                                _profilePhotoUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Image.asset(
-                                      'assets/Account_User_Profile/Profile.png',
-                                      fit: BoxFit.cover,
-                                    ),
-                              )
-                            : Image.asset(
-                                'assets/Account_User_Profile/Profile.png',
-                                fit: BoxFit.cover,
-                              ),
+                      child: const Text(
+                        'Upload Photo',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ElevatedButton(
-                          onPressed: _pickAndUploadImage,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white10,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
-                            ),
-                          ),
-                          child: const Text(
-                            'Upload Photo',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if ((_profilePhotoUrl ?? '').isNotEmpty)
-                          TextButton(
-                            onPressed: _removeProfilePhoto,
-                            child: const Text('Remove Photo'),
-                          ),
-                      ],
-                    ),
+                    const SizedBox(width: 8),
+                    if ((_profilePhotoUrl ?? '').isNotEmpty)
+                      TextButton(
+                        onPressed: _removeProfilePhoto,
+                        child: const Text('Remove Photo'),
+                      ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 40.0),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40.0),
 
-              // Basic Information Section
-              _buildCardSection(
-                title: 'Basic Information',
-                children: [
-                  _buildInputLabel('Full Name'),
-                  const SizedBox(height: 8),
-                  _buildTextField(
-                    controller: _fullNameController,
-                    hintText: 'Enter your full name',
-                  ),
-                  const SizedBox(height: 16),
-                  _buildJobTitleDropdown(),
-                  const SizedBox(height: 16),
-                  _buildDepartmentDropdown(),
-                  const SizedBox(height: 16),
-                  _buildInputLabel('Email Address'),
-                  const SizedBox(height: 8),
-                  _buildTextField(
-                    controller: _workEmailController,
-                    hintText: 'Work Email',
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                ],
+          // Basic Information Section
+          _buildCardSection(
+            title: 'Basic Information',
+            children: [
+              _buildInputLabel('Full Name'),
+              const SizedBox(height: 8),
+              _buildTextField(
+                controller: _fullNameController,
+                hintText: 'Enter your full name',
               ),
-
-              // Development & Skills Context Section
-              _buildCardSection(
-                title: 'Development & Skills Context',
-                children: [
-                  _buildTaggableInput(
-                    label: 'Current Skills / Strengths (taggable list)',
-                    controller: _skillsInputController,
-                    list: _skills,
-                    onAdd: () => _addTag(_skillsInputController, _skills),
-                  ),
-                  _buildTaggableInput(
-                    label:
-                        'Areas for Development (self-identified growth areas)',
-                    controller: _developmentInputController,
-                    list: _developmentAreas,
-                    onAdd: () =>
-                        _addTag(_developmentInputController, _developmentAreas),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildActionButton(
-                    text: '✨ Generate Personalized Development Plan ✨',
-                    onPressed: _isGeneratingDevelopmentPlan
-                        ? null
-                        : _generateDevelopmentPlan,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDevelopmentPlanSummaryCard(),
-                  const SizedBox(height: 16),
-                  _buildTextArea(
-                    controller: _careerAspirationsController,
-                    hintText: 'Career Aspirations / Future Role',
-                  ),
-                  _buildTextArea(
-                    controller: _currentProjectsController,
-                    hintText: 'Current Projects / Focus Areas (optional)',
-                  ),
-                ],
-              ),
-
-              // Goal & Learning Preferences Section
-              _buildCardSection(
-                title: 'Goal & Learning Preferences',
-                children: [
-                  _buildLearningStyleDropdown(),
-                  _buildPreferredDevActivitiesCheckboxes(),
-                  const SizedBox(height: 16),
-                  _buildTextArea(
-                    controller: _shortGoalsController,
-                    hintText: 'Short-Term Goals (next 3–6 months)',
-                  ),
-                  _buildTextArea(
-                    controller: _longGoalsController,
-                    hintText: 'Long-Term Goals (1–3 years)',
-                  ),
-                  const SizedBox(height: 16),
-                  _buildNotificationPreferencesDropdown(),
-                ],
-              ),
-
-              // Action Buttons
-              const SizedBox(height: 32.0),
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 500),
-                  child: AnimatedScale(
-                    scale: _saveButtonScale,
-                    duration: const Duration(milliseconds: 150),
-                    curve: Curves.easeOut,
-                    child: Container(
-                      width: double.infinity,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(28),
-                        color: const Color(0xFFC10D00),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFC10D00).withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: TextButton(
-                        onPressed: () async {
-                          // Pop-out animation
-                          setState(() {
-                            _saveButtonScale = 1.1;
-                          });
-                          await Future.delayed(
-                            const Duration(milliseconds: 150),
-                          );
-                          setState(() {
-                            _saveButtonScale = 1.0;
-                          });
-                          // Save profile after animation
-                          _saveProfile();
-                        },
-                        child: const Text(
-                          'Save Profile',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Poppins',
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              const SizedBox(height: 16),
+              _buildJobTitleDropdown(),
+              const SizedBox(height: 16),
+              _buildDepartmentDropdown(),
+              const SizedBox(height: 16),
+              _buildInputLabel('Email Address'),
+              const SizedBox(height: 8),
+              _buildTextField(
+                controller: _workEmailController,
+                hintText: 'Work Email',
+                keyboardType: TextInputType.emailAddress,
               ),
             ],
           ),
-        ),
+
+          // Development & Skills Context Section
+          _buildCardSection(
+            title: 'Development & Skills Context',
+            children: [
+              _buildTaggableInput(
+                label: 'Current Skills / Strengths (taggable list)',
+                controller: _skillsInputController,
+                list: _skills,
+                onAdd: () => _addTag(_skillsInputController, _skills),
+              ),
+              _buildTaggableInput(
+                label: 'Areas for Development (self-identified growth areas)',
+                controller: _developmentInputController,
+                list: _developmentAreas,
+                onAdd: () =>
+                    _addTag(_developmentInputController, _developmentAreas),
+              ),
+              const SizedBox(height: 16),
+              _buildActionButton(
+                text: '✨ Generate Personalized Development Plan ✨',
+                onPressed: _isGeneratingDevelopmentPlan
+                    ? null
+                    : _generateDevelopmentPlan,
+              ),
+              const SizedBox(height: 12),
+              _buildDevelopmentPlanSummaryCard(),
+              const SizedBox(height: 16),
+              _buildTextArea(
+                controller: _careerAspirationsController,
+                hintText: 'Career Aspirations / Future Role',
+              ),
+              _buildTextArea(
+                controller: _currentProjectsController,
+                hintText: 'Current Projects / Focus Areas (optional)',
+              ),
+            ],
+          ),
+
+          // Goal & Learning Preferences Section
+          _buildCardSection(
+            title: 'Goal & Learning Preferences',
+            children: [
+              _buildLearningStyleDropdown(),
+              _buildPreferredDevActivitiesCheckboxes(),
+              const SizedBox(height: 16),
+              _buildTextArea(
+                controller: _shortGoalsController,
+                hintText: 'Short-Term Goals (next 3–6 months)',
+              ),
+              _buildTextArea(
+                controller: _longGoalsController,
+                hintText: 'Long-Term Goals (1–3 years)',
+              ),
+              const SizedBox(height: 16),
+              _buildNotificationPreferencesDropdown(),
+            ],
+          ),
+
+          // Action Buttons
+          const SizedBox(height: 32.0),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: AnimatedScale(
+                scale: _saveButtonScale,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+                child: Container(
+                  width: double.infinity,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    color: const Color(0xFFC10D00),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFC10D00).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: TextButton(
+                    onPressed: () async {
+                      // Pop-out animation
+                      setState(() {
+                        _saveButtonScale = 1.1;
+                      });
+                      await Future.delayed(const Duration(milliseconds: 150));
+                      setState(() {
+                        _saveButtonScale = 1.0;
+                      });
+                      // Save profile after animation
+                      _saveProfile();
+                    },
+                    child: const Text(
+                      'Save Profile',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Poppins',
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1204,7 +1197,10 @@ Guidelines:
             await _onWillPop();
           }
         },
-        child: _buildProfileContent(),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: _buildProfileContent(),
+        ),
       );
     }
 
@@ -1321,6 +1317,7 @@ Guidelines:
       ),
       child: DropdownButtonFormField<String>(
         value: _selectedJobTitle,
+        isExpanded: true,
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           labelText: 'Job Title / Role',
@@ -1364,6 +1361,7 @@ Guidelines:
       ),
       child: DropdownButtonFormField<String>(
         value: _selectedDepartment,
+        isExpanded: true,
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           labelText: 'Department / Team',
@@ -1513,7 +1511,8 @@ Guidelines:
         ),
       ),
       child: DropdownButtonFormField<String>(
-        value: _selectedLearningStyle, // Use value instead of initialValue for controlled state
+        value:
+            _selectedLearningStyle, // Use value instead of initialValue for controlled state
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           hintText: 'Select Learning Style',

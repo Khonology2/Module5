@@ -78,44 +78,59 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundColor.withValues(alpha: 0.95),
-      appBar: AppBar(
-        backgroundColor: AppColors.elevatedBackground.withValues(alpha: 0.9),
-        elevation: 0,
-        title: Text(
-          'Milestone Audit Trail',
-          style: AppTypography.heading2.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
+    // Return content without Scaffold - MainLayout already provides Scaffold via AppScaffold
+    return Column(
+      children: [
+        // Custom header with TabBar (since we don't have AppBar)
+        Container(
+          color: AppColors.elevatedBackground.withValues(alpha: 0.9),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Milestone Audit Trail',
+                      style: AppTypography.heading2.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.refresh, color: AppColors.activeColor),
+                    onPressed: _loadAuditCounts,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TabBar(
+                controller: _tabController,
+                labelStyle: AppTypography.bodyLarge.copyWith(
+                  color: AppColors.activeColor,
+                  fontWeight: FontWeight.bold,
+                ),
+                unselectedLabelStyle: AppTypography.bodyLarge.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                indicatorColor: AppColors.activeColor,
+                tabs: const [
+                  Tab(text: 'Timeline'),
+                  Tab(text: 'Statistics'),
+                ],
+              ),
+            ],
           ),
         ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelStyle: AppTypography.bodyLarge.copyWith(
-            color: AppColors.activeColor,
-            fontWeight: FontWeight.bold,
+        // Tab content
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [_buildTimelineTab(), _buildStatisticsTab()],
           ),
-          unselectedLabelStyle: AppTypography.bodyLarge.copyWith(
-            color: AppColors.textSecondary,
-          ),
-          indicatorColor: AppColors.activeColor,
-          tabs: const [
-            Tab(text: 'Timeline'),
-            Tab(text: 'Statistics'),
-          ],
         ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh, color: AppColors.activeColor),
-            onPressed: _loadAuditCounts,
-          ),
-        ],
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildTimelineTab(), _buildStatisticsTab()],
-      ),
+      ],
     );
   }
 

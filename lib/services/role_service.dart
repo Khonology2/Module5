@@ -417,13 +417,19 @@ class _RoleGateState extends State<RoleGate> {
       }
       final ok =
           (widget.requiredRole == RequiredRole.manager && role == 'manager') ||
-          (widget.requiredRole == RequiredRole.employee && role == 'employee');
+          (widget.requiredRole == RequiredRole.employee && role == 'employee') ||
+          (widget.requiredRole == RequiredRole.admin && role == 'admin');
       if (ok) return widget.child;
       SchedulerBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
+          final targetRoute = role == 'manager'
+              ? '/manager_portal'
+              : role == 'admin'
+              ? '/admin_dashboard'
+              : '/employee_dashboard';
           Navigator.pushReplacementNamed(
             context,
-            role == 'manager' ? '/manager_portal' : '/employee_dashboard',
+            targetRoute,
           );
         }
       });

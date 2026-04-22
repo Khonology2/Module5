@@ -78,6 +78,17 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   final TextEditingController _longGoalsController = TextEditingController();
   final TextEditingController _badgeNameController = TextEditingController();
 
+  // Focus nodes for proper focus management
+  final FocusNode _fullNameFocusNode = FocusNode();
+  final FocusNode _workEmailFocusNode = FocusNode();
+  final FocusNode _skillsInputFocusNode = FocusNode();
+  final FocusNode _developmentInputFocusNode = FocusNode();
+  final FocusNode _careerAspirationsFocusNode = FocusNode();
+  final FocusNode _currentProjectsFocusNode = FocusNode();
+  final FocusNode _shortGoalsFocusNode = FocusNode();
+  final FocusNode _longGoalsFocusNode = FocusNode();
+  final FocusNode _badgeNameFocusNode = FocusNode();
+
   // AI profile helper controllers (used in the question sheet)
   final TextEditingController _aiSkillsController = TextEditingController();
   final TextEditingController _aiDevelopmentAreasController =
@@ -103,6 +114,35 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   void initState() {
     super.initState();
     _loadUserProfile();
+  }
+
+  @override
+  void dispose() {
+    // Dispose focus nodes
+    _fullNameFocusNode.dispose();
+    _workEmailFocusNode.dispose();
+    _skillsInputFocusNode.dispose();
+    _developmentInputFocusNode.dispose();
+    _careerAspirationsFocusNode.dispose();
+    _currentProjectsFocusNode.dispose();
+    _shortGoalsFocusNode.dispose();
+    _longGoalsFocusNode.dispose();
+    _badgeNameFocusNode.dispose();
+
+    // Dispose controllers
+    _fullNameController.dispose();
+    _workEmailController.dispose();
+    _skillsInputController.dispose();
+    _developmentInputController.dispose();
+    _careerAspirationsController.dispose();
+    _currentProjectsController.dispose();
+    _shortGoalsController.dispose();
+    _longGoalsController.dispose();
+    _badgeNameController.dispose();
+    _aiSkillsController.dispose();
+    _aiDevelopmentAreasController.dispose();
+
+    super.dispose();
   }
 
   Future<void> _removeProfilePhoto() async {
@@ -253,23 +293,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         );
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _fullNameController.dispose();
-    _workEmailController.dispose();
-    _phoneNumberController.dispose();
-    _skillsInputController.dispose();
-    _developmentInputController.dispose();
-    _careerAspirationsController.dispose();
-    _currentProjectsController.dispose();
-    _shortGoalsController.dispose();
-    _longGoalsController.dispose();
-    _badgeNameController.dispose();
-    _aiSkillsController.dispose();
-    _aiDevelopmentAreasController.dispose();
-    super.dispose();
   }
 
   void _mergeTagValues(List<String> target, List<String> additions) {
@@ -1049,6 +1072,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     int maxLines = 1,
     TextInputAction? textInputAction,
     void Function(String)? onSubmitted,
+    FocusNode? focusNode,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1058,6 +1082,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       ),
       child: TextFormField(
         controller: controller,
+        focusNode: focusNode,
         readOnly: readOnly,
         keyboardType: keyboardType,
         maxLines: maxLines,
@@ -1104,6 +1129,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         ),
         child: DropdownButtonFormField<String>(
           value: _selectedJobTitle,
+          isExpanded: true,
           style: TextStyle(color: _fg),
           decoration: InputDecoration(
             hintText: 'Select Job Title',
@@ -1164,6 +1190,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
             'Select department',
             style: TextStyle(color: Colors.white30),
           ),
+          isExpanded: true,
           dropdownColor: const Color(0xFF1F2840),
           style: const TextStyle(color: Colors.white, fontSize: 16),
           icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
@@ -1216,6 +1243,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         // Input field for adding new tags
         _buildInputField(
           controller: controller,
+          focusNode: controller == _skillsInputController
+              ? _skillsInputFocusNode
+              : _developmentInputFocusNode,
           hintText: hintText,
           keyboardType: TextInputType.text,
           textInputAction: TextInputAction.done,
@@ -1639,6 +1669,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Preferred Badge Display Name'),
                     _buildInputField(
                       controller: _badgeNameController,
+                      focusNode: _badgeNameFocusNode,
                       hintText: 'e.g., Super Coder',
                     ),
                     const SizedBox(height: 24),
@@ -1735,7 +1766,13 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         builder: (context, light, _) {
           return EmployeeDashboardThemeScope(
             light: light,
-            child: _buildProfileContent(),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 16.0,
+              ),
+              child: _buildProfileContent(),
+            ),
           );
         },
       );

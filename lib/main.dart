@@ -60,6 +60,7 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
+import 'package:pdh/services/deployment_freshness_service.dart';
 import 'dart:ui' as ui;
 
 final GlobalKey<NavigatorState> navigatorKey =
@@ -151,7 +152,8 @@ void main() async {
   // third-party storage; serve the app from your own domain or allow storage for the site.
   if (kIsWeb) {
     try {
-      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+      // Keep auth scoped to current tab/session to avoid stale cross-session state.
+      await FirebaseAuth.instance.setPersistence(Persistence.SESSION);
     } catch (_) {
       // Non-web or older SDKs will ignore
     }
@@ -241,6 +243,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     ShowcaseView.register();
+    DeploymentFreshnessService.instance.start();
     _initializeSpeechRecognition();
     _initializeLocale(); // Load persisted language
     _speechRecognitionService.speechCommands.listen((command) {
@@ -308,6 +311,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
+    DeploymentFreshnessService.instance.stop();
     _speechRecognitionService.dispose();
     super.dispose();
   }
@@ -723,42 +727,14 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
   late AnimationController _animationController;
   late Animation<double> _expandAnimation;
 
-  static const List<String> _allowedRoutes = [
-    '/dashboard',
-    '/my_pdp',
-    '/my_profile',
-    '/manager_profile',
-    '/my_goal_workspace',
-    '/progress_visuals',
-    '/alerts_nudges',
-    '/badges_points',
-    '/leaderboard',
-    '/repository_audit',
-    '/settings',
-    '/gamification',
-    '/season_challenge',
-    '/manager_review_team_dashboard',
-    '/employee_dashboard',
-    '/employee_portal',
-    '/manager_portal',
-    '/manager_gw_menu_dashboard',
-    '/manager_gw_menu_goal_workspace',
-    '/manager_gw_menu_alerts',
-    '/manager_gw_menu_my_pdp',
-    '/manager_gw_menu_progress',
-    '/manager_gw_menu_leaderboard',
-    '/manager_gw_menu_badges',
-    '/manager_gw_menu_season_challenges',
-    '/manager_gw_menu_repository',
-    // Admin portal routes (show chat FAB on admin pages too)
-    '/admin_portal',
-    '/admin_dashboard',
-    '/admin_profile',
-    '/admin_inbox',
-    '/org_leaderboard',
-    '/admin_settings',
-    '/manager_oversight',
-  ];
+  static const Set<String> _hiddenRoutes = {
+    '/',
+    '/landing',
+    '/register',
+    '/sign_in',
+    '/ai_chatbot',
+    '/team_chats',
+  };
 
   @override
   void initState() {
@@ -805,10 +781,8 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.currentRoute == null ||
-        !_allowedRoutes.contains(widget.currentRoute) ||
-        widget.currentRoute == '/ai_chatbot' ||
-        widget.currentRoute == '/team_chats') {
+    final route = widget.currentRoute;
+    if (route == null || _hiddenRoutes.contains(route)) {
       return const SizedBox.shrink();
     }
 
@@ -818,19 +792,19 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
     return Positioned(
       bottom: 20,
       right: 20,
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Expanded child buttons (Team Chat above, Chatbot above that)
+          // Expanded child buttons (open leftward from the bottom-right dropdown).
           SizeTransition(
             sizeFactor: _expandAnimation,
-            axisAlignment: -1,
-            child: Column(
+            axis: Axis.horizontal,
+            axisAlignment: 1,
+            child: Row(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const SizedBox(height: spacing),
+                const SizedBox(width: spacing),
                 ValueListenableBuilder<bool>(
                   valueListenable: employeeDashboardLightModeNotifier,
                   builder: (context, light, _) {
@@ -850,7 +824,7 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
                     );
                   },
                 ),
-                const SizedBox(height: spacing),
+                const SizedBox(width: spacing),
                 _MiniFab(
                   size: miniFabSize,
                   onTap: _openTeamChat,
@@ -866,7 +840,7 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
                   ),
                   backgroundColor: AppColors.activeColor,
                 ),
-                const SizedBox(height: spacing),
+                const SizedBox(width: spacing),
                 _MiniFab(
                   size: miniFabSize,
                   onTap: _openChatbot,
@@ -883,10 +857,11 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
                   ),
                   backgroundColor: Colors.white,
                 ),
-                const SizedBox(height: spacing),
+                const SizedBox(width: spacing),
               ],
             ),
           ),
+          const SizedBox(width: spacing),
           // Main dropdown – arrow icon only, no background
           Material(
             color: Colors.transparent,
@@ -896,7 +871,9 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Icon(
-                  _expanded ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                  _expanded
+                      ? Icons.arrow_left_rounded
+                      : Icons.arrow_drop_down,
                   color: Colors.white,
                   size: 32,
                 ),

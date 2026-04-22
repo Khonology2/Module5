@@ -3,7 +3,7 @@ name: Generate Daily Commits
 on:
   push:
     branches:
-      - pdh-deployed-backup-v3
+      - deployed-v2
   schedule:
     # Run daily at 4:30 PM UTC (2:30 PM SAST, 6:30 AM PST)
     - cron: '30 16 * * *'
@@ -18,6 +18,9 @@ permissions:
   contents: write
   actions: write
 
+env:
+  TARGET_DEPLOY_BRANCH: deployed-v2
+
 jobs:
   generate-commits:
     runs-on: ubuntu-latest
@@ -28,7 +31,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.TARGET_DEPLOY_BRANCH }}
           fetch-depth: 0
+
+      - name: Sync deploy branch tip
+        run: |
+          set -euo pipefail
+          git fetch origin "${TARGET_DEPLOY_BRANCH}"
+          git checkout "${TARGET_DEPLOY_BRANCH}"
+          git reset --hard "origin/${TARGET_DEPLOY_BRANCH}"
 
       - name: Setup Node.js for commit processing
         uses: actions/setup-node@v4
@@ -111,7 +122,7 @@ jobs:
             echo ""
             echo "- **Version:** \`${VERSION_SHORT}\`"
             echo "- **Full version string:** \`${VERSION}\`"
-            echo "- **Branch:** \`${GITHUB_REF_NAME}\`"
+            echo "- **Branch:** \`${TARGET_DEPLOY_BRANCH}\`"
             echo "- **Feature commit:** ${FEATURE_COMMIT}"
             echo "- **Commits since feature:** ${COMMITS_SINCE_FEATURE}"
             echo "- **Commits today (UTC):** ${COMMIT_COUNT}"
@@ -140,19 +151,15 @@ jobs:
             git config --local user.name "GitHub Action"
             git add assets/data/daily-commits.json
             git commit -m "chore: update daily commits data [${TODAY}] [skip ci]" || echo "No changes to commit"
-            git pull --rebase origin "$GITHUB_REF_NAME" || git pull origin "$GITHUB_REF_NAME" || echo "Pull failed, attempting push anyway"
-            git push || echo "Push failed - likely due to no changes or permissions"
+            git pull --rebase origin "${TARGET_DEPLOY_BRANCH}" || git pull origin "${TARGET_DEPLOY_BRANCH}" || echo "Pull failed, attempting push anyway"
+            git push origin "HEAD:${TARGET_DEPLOY_BRANCH}" || echo "Push failed - likely due to no changes or permissions"
           fi
 
-      - name: Trigger deploy workflow
-        if: github.event_name == 'push' && github.ref_name == 'pdh-deployed-backup-v3'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          curl -sS -X POST \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/dispatches" \
-            -d "{\"ref\":\"${GITHUB_REF_NAME}\"}"
-          echo "Deploy workflow dispatched for branch ${GITHUB_REF_NAME}"
+  deploy-after-generate:
+    name: Deploy after commits update
+    needs: generate-commits
+    uses: ./.github/workflows/deploy.yml
+    with:
+      deploy_branch: deployed-v2
+    secrets: inherit
+

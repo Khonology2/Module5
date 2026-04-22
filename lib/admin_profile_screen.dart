@@ -1203,6 +1203,7 @@ Guidelines:
       ),
       child: DropdownButtonFormField<String>(
         value: _selectedJobTitle,
+        isExpanded: true,
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           labelText: 'Job Title / Role',
@@ -1246,6 +1247,7 @@ Guidelines:
       ),
       child: DropdownButtonFormField<String>(
         value: _selectedDepartment,
+        isExpanded: true,
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           labelText: 'Department / Team',

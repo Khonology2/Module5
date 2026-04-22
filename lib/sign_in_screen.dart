@@ -131,6 +131,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     if (!context.mounted) return;
 
     try {
+      // Always reset role/session cache before role resolution for this login.
+      RoleService.instance.clearCache();
       // Get user's role from database and ensure it's cached
       final role = await RoleService.instance.getRole(refresh: true);
 

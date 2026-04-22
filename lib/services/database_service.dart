@@ -104,6 +104,7 @@ class DatabaseService {
         .get();
     var goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
     // Removed in-memory sort - using Firestore orderBy instead
+    goals = goals.where((g) => g.isDisplayableGoal).toList();
 
     // If teamShare is disabled, hide completed goals from non-owners/non-managers
     if (!isOwner && viewerRole != 'manager' && settings['teamShare'] == false) {
@@ -178,7 +179,7 @@ class DatabaseService {
               return <Goal>[];
             }
           }
-          return goals;
+          return goals.where((g) => g.isDisplayableGoal).toList();
         });
   }
 
