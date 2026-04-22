@@ -1,62 +1,23 @@
 {
-<<<<<<< HEAD
-  "version": "2026.04.DA8.SIT",
-  "generated_at": "2026-04-20T13:19:15Z",
-=======
-  "version": "2026.04.DA14.SIT",
-  "generated_at": "2026-04-20T11:31:00Z",
->>>>>>> 7f073fc3 (docs: update daily commits data [skip ci])
+  "version": "2026.04.DC3.SIT",
+  "generated_at": "2026-04-22T08:57:02Z",
   "commits": [
     {
-      "author": "GitHub Action",
-      "message": "Update daily commits data []",
-      "timestamp": "2026-02-24T06:19:19Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: update dependencies and enhance UI with new message and notification icons",
-      "timestamp": "2026-04-15T10:12:42+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: enhance dropdowns with isExpanded property for better UI layout",
-      "timestamp": "2026-04-15T09:22:46+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature: Enhance alert handling in ManagerInboxScreen and AlertsNudgesScreen by adding goal approval alert types and refining admin inbox eligibility checks.",
-      "timestamp": "2026-04-20T12:43:20+02:00"
+      "author": "BhutSipho",
+      "message": "Fix: Request Acknowledgement Button",
+      "timestamp": "2026-04-22T10:46:12+02:00"
     },
     {
       "author": "BhutSipho",
-      "message": "Fix: Admin Repository Screen Now Rendering Readable Cards",
-      "timestamp": "2026-04-20T12:35:45+02:00"
+      "message": "Enforce acknowledgement request workflow and re-request controls.",
+      "timestamp": "2026-04-21T10:28:04+02:00"
     },
     {
       "author": "BhutSipho",
       "message": "sidebar collapse implementation and temporarily force it to stay expanded",
       "timestamp": "2026-04-20T13:30:19+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Update: Repository & Audit Render According To Persona",
-      "timestamp": "2026-04-20T11:33:06+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Feature -  Add personalized greeting and dynamic heading to MyPdpScreen, removing unused subtitle style for improved UI clarity.",
-      "timestamp": "2026-04-20T10:32:06+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "Refactor: Update condition for alert routing in ManagerInboxScreen to use widget.forAdminOversight for improved clarity and functionality.",
-      "timestamp": "2026-04-20T09:54:11+02:00"
     }
   ],
-<<<<<<< HEAD
-  "total_commits": 8,
-=======
-  "total_commits": 14,
->>>>>>> 7f073fc3 (docs: update daily commits data [skip ci])
-  "date_range": "2026-04-20"
+  "total_commits": 3,
+  "date_range": "2026-04-22"
 }
