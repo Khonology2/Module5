@@ -215,8 +215,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   final isUltraCompact = constraints.maxHeight < 580;
 
                   final double sidebarIconSize = isUltraCompact
-                      ? 18
-                      : (isVeryCompact ? 19 : 20);
+                      ? 23.5
+                      : (isVeryCompact ? 24.5 : 26.0);
                   final double navVerticalPadding = isUltraCompact
                       ? 0.5
                       : (isVeryCompact ? 1.0 : 1.5);
@@ -563,7 +563,7 @@ class _NavTile extends StatefulWidget {
 
 class _NavTileState extends State<_NavTile> {
   bool hovering = false;
-  static const Color _activeSideAccent = Color(0xFFE53935);
+  static const Color _activeSideAccent = Color(0xFFC10D00);
 
   bool get _hasIcon =>
       widget.icon != null ||
@@ -668,9 +668,7 @@ class _NavTileState extends State<_NavTile> {
     final Color hoverFill = sidebarLight
         ? const Color(0x14000000)
         : Colors.white.withValues(alpha: 0.08);
-    final Color activeFill = sidebarLight
-        ? const Color(0x1A000000)
-        : Colors.white.withValues(alpha: 0.10);
+    const Color activeFill = _activeSideAccent;
 
     Widget navTileContent = Padding(
       padding: widget.isChild
