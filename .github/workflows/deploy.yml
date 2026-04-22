@@ -264,6 +264,8 @@ jobs:
           VERSION_URL="${BASE_URL}/version.json"
           SHA_URL="${BASE_URL}/.ci-source-commit"
           echo "Verifying live deploy at ${VERSION_URL} (and fallback ${SHA_URL})"
+          FIRST_SEEN_LIVE_SHA=""
+          VERIFIED_ATTEMPT=""
 
           # Render deploy can take time to become live; poll for up to 5 minutes.
           for i in $(seq 1 30); do
@@ -301,7 +303,17 @@ jobs:
               LIVE_SHA="$LIVE_SHA_FROM_STAMP"
             fi
 
+            if [ -n "$LIVE_SHA" ] && [ -z "$FIRST_SEEN_LIVE_SHA" ]; then
+              FIRST_SEEN_LIVE_SHA="$LIVE_SHA"
+            fi
+
             if [ -n "$LIVE_SHA" ] && [ "$LIVE_SHA" = "$EXPECTED_SHA" ]; then
+              VERIFIED_ATTEMPT="$i"
+              {
+                echo "LIVE_SHA_FIRST_SEEN=${FIRST_SEEN_LIVE_SHA:-unknown}"
+                echo "LIVE_SHA_VERIFIED_ATTEMPT=${VERIFIED_ATTEMPT}"
+                echo "LIVE_SHA_EXPECTED=${EXPECTED_SHA}"
+              } >> "$GITHUB_ENV"
               echo "Live SHA verified: $LIVE_SHA"
               exit 0
             fi
@@ -322,6 +334,11 @@ jobs:
           echo "version.json URL: $VERSION_URL"
           echo "stamp URL: $SHA_URL"
           echo "If body samples look like HTML, RENDER_SITE_URL likely points to the wrong service URL."
+          {
+            echo "LIVE_SHA_FIRST_SEEN=${FIRST_SEEN_LIVE_SHA:-missing}"
+            echo "LIVE_SHA_VERIFIED_ATTEMPT=not-verified"
+            echo "LIVE_SHA_EXPECTED=${EXPECTED_SHA}"
+          } >> "$GITHUB_ENV"
           exit 1
 
       - name: Deploy summary
@@ -413,6 +430,9 @@ jobs:
             echo "- **Start**: \`${RENDER_DEPLOY_START_ISO:-unknown}\`"
             echo "- **End**: \`${RENDER_DEPLOY_END_ISO:-unknown}\`"
             echo "- **Duration**: \`${RENDER_DEPLOY_SECONDS:-unknown}s\`"
+            if [ -n "${LIVE_SHA_EXPECTED:-}" ]; then
+              echo "- **Live SHA promotion**: \`${LIVE_SHA_FIRST_SEEN:-unknown}\` -> \`${LIVE_SHA_EXPECTED}\` (attempt \`${LIVE_SHA_VERIFIED_ATTEMPT:-unknown}\`)"
+            fi
             if [ -n "${RENDER_DEPLOY_BODY:-}" ]; then
               echo ""
               echo "**Deploy hook response body (truncated)**"
