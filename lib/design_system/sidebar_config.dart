@@ -63,8 +63,8 @@ class SidebarConfig {
       route: '/employee_dashboard',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/Profile_White.png',
-      red: 'assets/Khonodemy Icons/Profile_Red.png',
+      white: 'assets/Data_Approval/data.png',
+      red: 'assets/Data_Approval/data.png',
       label: 'Goal Workspace',
       route: '/my_pdp',
     ),
@@ -74,8 +74,8 @@ class SidebarConfig {
       route: '/alerts_nudges',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
-      red: 'assets/Khonodemy Icons/GoalWorkspace_Red.png',
+      white: 'assets/Business_Growth_Development/growth.png',
+      red: 'assets/Business_Growth_Development/growth.png',
       label: 'My PDP',
       route: '/my_goal_workspace',
     ),
@@ -115,8 +115,8 @@ class SidebarConfig {
       route: '/manager_gw_menu_dashboard',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/Profile_White.png',
-      red: 'assets/Khonodemy Icons/Profile_Red.png',
+      white: 'assets/Data_Approval/data.png',
+      red: 'assets/Data_Approval/data.png',
       label: 'Goal Workspace',
       route: '/manager_gw_menu_goal_workspace',
     ),
@@ -126,8 +126,8 @@ class SidebarConfig {
       route: '/manager_gw_menu_alerts',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
-      red: 'assets/Khonodemy Icons/GoalWorkspace_Red.png',
+      white: 'assets/Business_Growth_Development/growth.png',
+      red: 'assets/Business_Growth_Development/growth.png',
       label: 'My PDP',
       route: '/manager_gw_menu_my_pdp',
     ),

@@ -211,24 +211,28 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
               light: sidebarLight,
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final isVeryCompact = constraints.maxHeight < 660;
-                  final isUltraCompact = constraints.maxHeight < 580;
+                  final isVeryCompact = constraints.maxHeight < 760;
+                  final isUltraCompact = constraints.maxHeight < 680;
 
                   final double sidebarIconSize = isUltraCompact
-                      ? 23.5
-                      : (isVeryCompact ? 24.5 : 26.0);
+                      ? 21.0
+                      : (isVeryCompact ? 23.0 : 26.0);
                   final double navVerticalPadding = isUltraCompact
-                      ? 0.5
-                      : (isVeryCompact ? 1.0 : 1.5);
+                      ? 0.25
+                      : (isVeryCompact ? 0.5 : 1.0);
                   final double navFontSize = isUltraCompact
-                      ? 11.8
-                      : (isVeryCompact ? 12.2 : 12.8);
+                      ? 11.2
+                      : (isVeryCompact ? 11.8 : 12.8);
                   final double sectionGap = isUltraCompact
                       ? 0.5
                       : (isVeryCompact ? 1 : 2);
                   final double bottomGap = isUltraCompact
                       ? 6
                       : (isVeryCompact ? 8 : 10);
+                  final double profileSectionTopGap =
+                      _workspaceService.currentContext ==
+                          WorkspaceContext.myWorkspace
+                      ? 46 : 20;
                   final entries = _currentItems.asMap().entries.toList();
                   final mainEntries = entries
                       .where((e) => !_isBottomPinnedItem(e.value.route))
@@ -319,9 +323,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       SizedBox(height: sectionGap),
                       Expanded(
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             ...mainEntries.map(buildEntry),
-                            const SizedBox(height: 20),
+                            SizedBox(height: profileSectionTopGap),
                             const Spacer(),
                             Padding(
                               padding: EdgeInsets.only(bottom: bottomGap),
@@ -417,10 +422,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     // RenderFlex overflow on web when text wrapped to two lines).
     final double headerHeight = collapsed
         ? (isUltraCompact ? 52.0 : 64.0)
-        : (isVeryCompact ? 96.0 : 108.0);
+        : (isVeryCompact ? 84.0 : 102.0);
     final double logoBoxHeight = collapsed
         ? (isUltraCompact ? 52.0 : 64.0)
-        : (isVeryCompact ? 48.0 : 56.0);
+        : (isVeryCompact ? 42.0 : 52.0);
 
     return Container(
       height: headerHeight,
@@ -691,7 +696,7 @@ class _NavTileState extends State<_NavTile> {
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              height: math.max(30, widget.iconSize + 12),
+              height: math.max(28, widget.iconSize + 8),
               decoration: BoxDecoration(
                 color: isSelected
                     ? activeFill
@@ -716,7 +721,7 @@ class _NavTileState extends State<_NavTile> {
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
-                      vertical: 6,
+                      vertical: 4,
                     ),
                     child: isCollapsed
                         ? Stack(
