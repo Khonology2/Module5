@@ -1,7 +1,12 @@
 {
-  "version": "2026.04.DC7.SIT",
-  "generated_at": "2026-04-22T11:25:14Z",
+  "version": "2026.04.DC8.SIT",
+  "generated_at": "2026-04-22T12:15:03Z",
   "commits": [
+    {
+      "author": "Thembelihle",
+      "message": "chore: update package versions and sha256 checksums in pubspec.lock",
+      "timestamp": "2026-04-22T14:14:40+02:00"
+    },
     {
       "author": "Thembelihle",
       "message": "Refactor inbox item sorting logic to prioritize by created date when priorities are equal.",
@@ -38,6 +43,6 @@
       "timestamp": "2026-04-22T09:05:31+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 8,
   "date_range": "2026-04-22"
 }
