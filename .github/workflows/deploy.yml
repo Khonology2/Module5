@@ -262,17 +262,19 @@ jobs:
 
           BASE_URL="${RENDER_SITE_URL%/}"
           VERSION_URL="${BASE_URL}/version.json"
-          echo "Verifying live deploy at ${VERSION_URL}"
+          SHA_URL="${BASE_URL}/.ci-source-commit"
+          echo "Verifying live deploy at ${VERSION_URL} (and fallback ${SHA_URL})"
 
           # Render deploy can take time to become live; poll for up to 5 minutes.
           for i in $(seq 1 30); do
-            BODY_FILE="$(mktemp)"
-            HTTP_CODE="$(curl -sS -o "$BODY_FILE" -w "%{http_code}" "$VERSION_URL" || true)"
-            BODY="$(tr -d '\r' < "$BODY_FILE" | head -c 4000 || true)"
-            rm -f "$BODY_FILE" || true
+            VERSION_BODY_FILE="$(mktemp)"
+            VERSION_HTTP_CODE="$(curl -sS -o "$VERSION_BODY_FILE" -w "%{http_code}" "$VERSION_URL" || true)"
+            VERSION_BODY="$(tr -d '\r' < "$VERSION_BODY_FILE" | head -c 4000 || true)"
+            rm -f "$VERSION_BODY_FILE" || true
 
-            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-              LIVE_SHA="$(python3 - <<'PY'
+            LIVE_SHA_FROM_VERSION=""
+            if [ "$VERSION_HTTP_CODE" -ge 200 ] && [ "$VERSION_HTTP_CODE" -lt 300 ]; then
+              LIVE_SHA_FROM_VERSION="$(python3 - <<'PY'
           import json,sys
           raw = sys.stdin.read().strip()
           try:
@@ -281,16 +283,35 @@ jobs:
           except Exception:
               print("")
           PY
-              <<<"$BODY")"
+              <<<"$VERSION_BODY")"
+            fi
 
-              if [ -n "$LIVE_SHA" ] && [ "$LIVE_SHA" = "$EXPECTED_SHA" ]; then
-                echo "Live SHA verified: $LIVE_SHA"
-                exit 0
-              fi
+            SHA_BODY_FILE="$(mktemp)"
+            SHA_HTTP_CODE="$(curl -sS -o "$SHA_BODY_FILE" -w "%{http_code}" "$SHA_URL" || true)"
+            SHA_BODY="$(tr -d '\r' < "$SHA_BODY_FILE" | head -c 4000 || true)"
+            rm -f "$SHA_BODY_FILE" || true
 
-              echo "Attempt $i/30: live SHA '${LIVE_SHA:-<missing>}' != expected '$EXPECTED_SHA'"
-            else
-              echo "Attempt $i/30: version.json not ready yet (HTTP $HTTP_CODE)"
+            LIVE_SHA_FROM_STAMP=""
+            if [ "$SHA_HTTP_CODE" -ge 200 ] && [ "$SHA_HTTP_CODE" -lt 300 ]; then
+              LIVE_SHA_FROM_STAMP="$(printf '%s' "$SHA_BODY" | tr -d '\r\n' | sed -nE 's/^([0-9a-f]{40}).*/\1/p')"
+            fi
+
+            LIVE_SHA="$LIVE_SHA_FROM_VERSION"
+            if [ -z "$LIVE_SHA" ]; then
+              LIVE_SHA="$LIVE_SHA_FROM_STAMP"
+            fi
+
+            if [ -n "$LIVE_SHA" ] && [ "$LIVE_SHA" = "$EXPECTED_SHA" ]; then
+              echo "Live SHA verified: $LIVE_SHA"
+              exit 0
+            fi
+
+            echo "Attempt $i/30: live SHA '${LIVE_SHA:-<missing>}' != expected '$EXPECTED_SHA'"
+            echo " - version.json HTTP: $VERSION_HTTP_CODE"
+            echo " - .ci-source-commit HTTP: $SHA_HTTP_CODE"
+            if [ "$i" -eq 1 ] || [ "$i" -eq 30 ]; then
+              echo " - version.json body sample: ${VERSION_BODY:0:160}"
+              echo " - .ci-source-commit body sample: ${SHA_BODY:0:160}"
             fi
 
             sleep 10
@@ -298,7 +319,9 @@ jobs:
 
           echo "::error::Live site did not report expected SHA in version.json"
           echo "Expected: $EXPECTED_SHA"
-          echo "URL: $VERSION_URL"
+          echo "version.json URL: $VERSION_URL"
+          echo "stamp URL: $SHA_URL"
+          echo "If body samples look like HTML, RENDER_SITE_URL likely points to the wrong service URL."
           exit 1
 
       - name: Deploy summary
