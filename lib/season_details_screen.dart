@@ -5,6 +5,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/season_celebration_screen.dart';
+import 'package:pdh/utils/attachment_opener_io.dart';
 
 class SeasonDetailsScreen extends StatefulWidget {
   final Season season;
@@ -669,6 +670,33 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               ),
             ],
           ),
+          if (_linkedCourseChallengeCount(season) > 0) ...[
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Linked Courses',
+                    value: '${_linkedCourseChallengeCount(season)}',
+                    subtitle: 'Course-based challenges',
+                    icon: Icons.school,
+                    color: AppColors.infoColor,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Pending Proofs',
+                    value: '${_proofSubmissionCount(season, ChallengeSubmissionStatus.submitted)}',
+                    subtitle:
+                        '${_proofSubmissionCount(season, ChallengeSubmissionStatus.approved)} approved',
+                    icon: Icons.fact_check,
+                    color: AppColors.warningColor,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: AppSpacing.xl),
 
           // Challenge Progress
@@ -1013,8 +1041,161 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               ),
             );
           }),
+          if (challenge.resources.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Linked Resources',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            ...challenge.resources.map((resource) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Icon(Icons.link, color: AppColors.infoColor, size: 16),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        '${resource.title.isNotEmpty ? resource.title : challenge.title} • ${resource.provider}${resource.isFreeResource ? ' • Free' : ''}',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _openLinkedResource(resource.url),
+                      child: const Text('Open'),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+          if (challenge.proofRequired) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Proof Review',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Required proof: ${challenge.proofType ?? 'Completion evidence'}',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _buildProofReviewPanel(season, challenge),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildProofReviewPanel(Season season, SeasonChallenge challenge) {
+    final submissions = <MapEntry<SeasonParticipation, SeasonChallengeSubmission>>[];
+    for (final participation in season.participations.values) {
+      final submission = participation.challengeSubmissions[challenge.id];
+      if (submission != null) {
+        submissions.add(MapEntry(participation, submission));
+      }
+    }
+
+    if (submissions.isEmpty) {
+      return Text(
+        'No proof submissions yet.',
+        style: AppTypography.bodySmall.copyWith(
+          color: AppColors.textSecondary,
+        ),
+      );
+    }
+
+    return Column(
+      children: submissions.map((entry) {
+        final participant = entry.key;
+        final submission = entry.value;
+        final isPending = submission.status == ChallengeSubmissionStatus.submitted;
+        return Container(
+          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      participant.userName,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  _buildSubmissionStatusChip(submission.status),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                submission.evidence,
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              if (submission.feedback?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Feedback: ${submission.feedback}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.warningColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              if (isPending) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _reviewSubmission(
+                        season: season,
+                        challenge: challenge,
+                        participant: participant,
+                        approved: false,
+                      ),
+                      icon: const Icon(Icons.reply, size: 16),
+                      label: const Text('Request Update'),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    ElevatedButton.icon(
+                      onPressed: () => _reviewSubmission(
+                        season: season,
+                        challenge: challenge,
+                        participant: participant,
+                        approved: true,
+                      ),
+                      icon: const Icon(Icons.check, size: 16),
+                      label: const Text('Approve'),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -1218,6 +1399,125 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
         return AppColors.dangerColor; // Bronze
       default:
         return AppColors.activeColor;
+    }
+  }
+
+  int _linkedCourseChallengeCount(Season season) {
+    return season.challenges.where((challenge) => challenge.resources.isNotEmpty).length;
+  }
+
+  int _proofSubmissionCount(
+    Season season,
+    ChallengeSubmissionStatus status,
+  ) {
+    var count = 0;
+    for (final participation in season.participations.values) {
+      for (final submission in participation.challengeSubmissions.values) {
+        if (submission.status == status) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  Widget _buildSubmissionStatusChip(ChallengeSubmissionStatus status) {
+    final (label, color) = switch (status) {
+      ChallengeSubmissionStatus.notSubmitted => ('Not submitted', AppColors.textSecondary),
+      ChallengeSubmissionStatus.submitted => ('Pending', AppColors.warningColor),
+      ChallengeSubmissionStatus.approved => ('Approved', AppColors.successColor),
+      ChallengeSubmissionStatus.rejected => ('Needs updates', AppColors.dangerColor),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.bodySmall.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openLinkedResource(String url) async {
+    final opened = await openAttachmentUrl(url);
+    if (!mounted || opened) return;
+    await _showCenterNotice(context, 'Unable to open the linked resource.');
+  }
+
+  Future<void> _reviewSubmission({
+    required Season season,
+    required SeasonChallenge challenge,
+    required SeasonParticipation participant,
+    required bool approved,
+  }) async {
+    final feedbackController = TextEditingController();
+    try {
+      final shouldProceed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: Text(approved ? 'Approve proof' : 'Request update'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  approved
+                      ? 'Approve ${participant.userName}\'s submission for "${challenge.title}"?'
+                      : 'Add optional feedback for ${participant.userName}.',
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: feedbackController,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Feedback',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(approved ? 'Approve' : 'Send back'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldProceed != true) return;
+      await SeasonService.reviewChallengeProof(
+        seasonId: season.id,
+        employeeId: participant.userId,
+        challengeId: challenge.id,
+        approved: approved,
+        feedback: feedbackController.text.trim(),
+      );
+      if (!mounted) return;
+      await _showCenterNotice(
+        context,
+        approved ? 'Proof approved.' : 'Feedback sent to employee.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Unable to review submission: $e');
+    } finally {
+      feedbackController.dispose();
     }
   }
 }

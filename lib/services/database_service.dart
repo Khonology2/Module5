@@ -964,6 +964,7 @@ class DatabaseService {
       milestone: milestone,
       evidenceList: [evidence], // Create list with single evidence
     );
+    await _syncSeasonGoalFromGoalState(goalId);
   }
 
   // NEW: Submit multiple milestone evidence files - simplified to avoid Firestore race conditions
@@ -1040,6 +1041,8 @@ class DatabaseService {
     }
 
     await attempt(0);
+
+    await _syncSeasonGoalFromGoalState(goalId);
 
     // Note: Audit trail and notifications removed to prevent Firestore race conditions
     // The core functionality (evidence submission) works consistently this way
@@ -1153,6 +1156,8 @@ class DatabaseService {
         );
         // Don't fail the whole operation if notification fails
       }
+
+      await _syncSeasonGoalFromGoalState(goalId);
 
       developer.log('Milestone acknowledged: $milestoneId by $managerName');
     } catch (e) {
@@ -1434,6 +1439,7 @@ class DatabaseService {
     GoalMilestoneStatus? previousStatus,
   }) async {
     await _syncGoalProgressWithMilestones(goalId);
+    await _syncSeasonGoalFromGoalState(goalId);
     if (milestone.status == GoalMilestoneStatus.completed &&
         previousStatus != GoalMilestoneStatus.completed) {
       await _handleMilestoneCompletion(goalId, milestone);
@@ -1502,7 +1508,8 @@ class DatabaseService {
       final total = snapshot.docs.length;
       final completed = snapshot.docs.where((doc) {
         final status = (doc.data()['status'] ?? '').toString();
-        return status == GoalMilestoneStatus.completed.name;
+        return status == GoalMilestoneStatus.completed.name ||
+            status == GoalMilestoneStatus.completedAcknowledged.name;
       }).length;
 
       final int rawPercent = total == 0
@@ -1540,6 +1547,152 @@ class DatabaseService {
     } catch (e) {
       developer.log('syncGoalProgressWithMilestones error: $e');
     }
+  }
+
+  static Future<void> _syncSeasonGoalFromGoalState(String goalId) async {
+    try {
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      if (!goalSnap.exists) return;
+      final goalData = goalSnap.data() ?? const <String, dynamic>{};
+      if (goalData['isSeasonGoal'] != true) return;
+
+      final seasonId = (goalData['seasonId'] ?? '').toString().trim();
+      final challengeId = (goalData['challengeId'] ?? '').toString().trim();
+      final userId = (goalData['userId'] ?? '').toString().trim();
+      if (seasonId.isEmpty || challengeId.isEmpty || userId.isEmpty) return;
+
+      final season = await SeasonService.getSeason(seasonId);
+      if (season == null) return;
+      SeasonChallenge? challenge;
+      for (final candidate in season.challenges) {
+        if (candidate.id == challengeId) {
+          challenge = candidate;
+          break;
+        }
+      }
+      if (challenge == null) return;
+
+      final participation = season.participations[userId];
+      final goalProgress = _coerceInt(goalData['progress']);
+      final goalStatus = (goalData['status'] ?? '').toString();
+      final goalHasEvidence =
+          goalData['evidence'] is List && (goalData['evidence'] as List).isNotEmpty;
+
+      final goalMilestoneSnap = await _goalMilestonesRef(goalId).get();
+      final goalMilestoneData = goalMilestoneSnap.docs
+          .map((doc) => doc.data())
+          .toList(growable: false);
+
+      final hasPendingReview = goalMilestoneData.any(
+        (data) => (data['status'] ?? '').toString() ==
+            GoalMilestoneStatus.pendingManagerReview.name,
+      );
+      final hasAcknowledgedMilestone = goalMilestoneData.any((data) {
+        final rawStatus = (data['status'] ?? '').toString();
+        return rawStatus == GoalMilestoneStatus.completedAcknowledged.name ||
+            rawStatus == GoalMilestoneStatus.completed.name;
+      });
+      final hasStartedCustomMilestone = goalMilestoneData.any((data) {
+        final rawStatus = (data['status'] ?? '').toString();
+        return rawStatus == GoalMilestoneStatus.inProgress.name ||
+            rawStatus == GoalMilestoneStatus.pendingManagerReview.name ||
+            rawStatus == GoalMilestoneStatus.completed.name ||
+            rawStatus == GoalMilestoneStatus.completedAcknowledged.name;
+      });
+
+      for (final milestone in challenge.milestones) {
+        final desiredStatus = _deriveSeasonMilestoneStatusFromGoal(
+          milestone: milestone,
+          goalProgress: goalProgress,
+          goalStatus: goalStatus,
+          goalHasEvidence: goalHasEvidence,
+          hasPendingReview: hasPendingReview,
+          hasAcknowledgedMilestone: hasAcknowledgedMilestone,
+          hasStartedCustomMilestone: hasStartedCustomMilestone,
+        );
+        final currentStatus =
+            participation?.milestoneProgress['${challenge.id}.${milestone.id}'] ??
+            participation?.milestoneProgress[milestone.id];
+        if (desiredStatus == null || currentStatus == desiredStatus) {
+          continue;
+        }
+        if (currentStatus == MilestoneStatus.completed &&
+            desiredStatus != MilestoneStatus.completed) {
+          continue;
+        }
+
+        await SeasonService.updateMilestoneProgress(
+          seasonId: seasonId,
+          userId: userId,
+          milestoneId: milestone.id,
+          status: desiredStatus,
+          notifyManager: desiredStatus == MilestoneStatus.completed,
+          syncGoalProgress: false,
+        );
+      }
+    } catch (e) {
+      developer.log('syncSeasonGoalFromGoalState error: $e');
+    }
+  }
+
+  static MilestoneStatus? _deriveSeasonMilestoneStatusFromGoal({
+    required SeasonMilestone milestone,
+    required int goalProgress,
+    required String goalStatus,
+    required bool goalHasEvidence,
+    required bool hasPendingReview,
+    required bool hasAcknowledgedMilestone,
+    required bool hasStartedCustomMilestone,
+  }) {
+    final criteria = milestone.criteria;
+    if (criteria['managerReview'] == true || criteria['proofApproval'] == true) {
+      if (hasAcknowledgedMilestone) {
+        return MilestoneStatus.completed;
+      }
+      if (hasPendingReview || goalHasEvidence) {
+        return MilestoneStatus.inProgress;
+      }
+      return MilestoneStatus.notStarted;
+    }
+
+    final progressThreshold = criteria['progress'];
+    if (progressThreshold is num) {
+      if (goalProgress >= progressThreshold.round()) {
+        return MilestoneStatus.completed;
+      }
+      if (goalProgress > 0) {
+        return MilestoneStatus.inProgress;
+      }
+      return MilestoneStatus.notStarted;
+    }
+
+    final action = (criteria['action'] ?? '').toString();
+    final hasStartedGoal = goalProgress > 0 ||
+        goalStatus == GoalStatus.inProgress.name ||
+        goalStatus == GoalStatus.completed.name ||
+        goalStatus == GoalStatus.acknowledged.name;
+    if (action == 'start_learning' ||
+        action == 'project_start' ||
+        action == 'goal_set' ||
+        action == 'skill_assessment') {
+      return hasStartedGoal ? MilestoneStatus.completed : MilestoneStatus.notStarted;
+    }
+    if (action == 'project_complete') {
+      if (goalProgress >= 100) return MilestoneStatus.completed;
+      if (hasStartedGoal) return MilestoneStatus.inProgress;
+      return MilestoneStatus.notStarted;
+    }
+
+    if (hasStartedCustomMilestone) {
+      return MilestoneStatus.inProgress;
+    }
+    if (hasStartedGoal) {
+      return MilestoneStatus.inProgress;
+    }
+    return MilestoneStatus.notStarted;
   }
 
   static Future<void> attachGoalEvidence({
@@ -1676,62 +1829,7 @@ class DatabaseService {
       developer.log('updateGoalProgress lastActivity update failed: $e');
     }
 
-    // If this goal is linked to a Season challenge, sync milestone progress there
-    try {
-      final goalSnap = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      final goal = goalSnap.data();
-      if (goal != null && (goal['isSeasonGoal'] == true)) {
-        final String? seasonId = goal['seasonId'] as String?;
-        final String? challengeId = goal['challengeId'] as String?;
-        final String? uId = (userId ?? goal['userId']) as String?;
-        final dynamic p = goal['progress'];
-        final int pNow = p is int ? p : (p is num ? p.round() : 0);
-        if (seasonId != null &&
-            challengeId != null &&
-            uId != null &&
-            uId.isNotEmpty) {
-          // Load season to discover milestone criteria thresholds
-          final season = await SeasonService.getSeason(seasonId);
-          if (season != null) {
-            final challenge = season.challenges.firstWhere(
-              (c) => c.id == challengeId,
-              orElse: () => season.challenges.first,
-            );
-            for (final m in challenge.milestones) {
-              final crit = m.criteria;
-              final num? threshold = (crit['progress'] is num)
-                  ? crit['progress'] as num
-                  : null;
-              if (threshold != null && pNow >= threshold.round()) {
-                await SeasonService.updateMilestoneProgress(
-                  seasonId: seasonId,
-                  userId: uId,
-                  milestoneId: m.id,
-                  status: MilestoneStatus.completed,
-                );
-              } else if (pNow > 0 && threshold == null) {
-                final String? action = crit['action'] is String
-                    ? crit['action'] as String
-                    : null;
-                await SeasonService.updateMilestoneProgress(
-                  seasonId: seasonId,
-                  userId: uId,
-                  milestoneId: m.id,
-                  status: action == 'project_start'
-                      ? MilestoneStatus.completed
-                      : MilestoneStatus.inProgress,
-                );
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      developer.log('updateGoalProgress season sync failed: $e');
-    }
+    await _syncSeasonGoalFromGoalState(goalId);
 
     // Create alerts after transaction if 50% milestone reached
     try {

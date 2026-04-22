@@ -1596,6 +1596,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               );
             },
           ),
+        ),
       ),
     );
   }

@@ -11,7 +11,6 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/models/goal.dart';
-import 'package:pdh/widgets/season_milestone_progress_card.dart';
 import 'package:pdh/season_celebration_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
@@ -382,6 +381,9 @@ class _EmployeeSeasonChallengesScreenState
 
   Widget _buildAvailableSeasonCard(Season season) {
     final daysLeft = season.endDate.difference(DateTime.now()).inDays;
+    final linkedCourseCount = season.challenges
+        .where((challenge) => challenge.resources.isNotEmpty)
+        .length;
     // final progress = _calculateSeasonProgress(season);
 
     return _glassCard(
@@ -448,6 +450,15 @@ class _EmployeeSeasonChallengesScreenState
                 '${season.challenges.length} challenges',
                 style: AppTypography.caption.copyWith(color: _SeasonChrome.fg),
               ),
+              if (linkedCourseCount > 0) ...[
+                const SizedBox(width: AppSpacing.md),
+                Icon(Icons.school, size: 16, color: _SeasonChrome.fg),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  '$linkedCourseCount course links',
+                  style: AppTypography.caption.copyWith(color: _SeasonChrome.fg),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -605,6 +616,7 @@ class _EmployeeSeasonChallengesScreenState
     final progress = totalMilestones > 0
         ? completedMilestones / totalMilestones
         : 0.0;
+    final submission = participation?.challengeSubmissions[challenge.id];
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -646,6 +658,49 @@ class _EmployeeSeasonChallengesScreenState
               style: AppTypography.bodySmall.copyWith(color: _SeasonChrome.fg),
             ),
           ],
+          if (challenge.resources.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.xs.toDouble(),
+              runSpacing: AppSpacing.xs.toDouble(),
+              children: challenge.resources.map((resource) {
+                final label = resource.provider.isNotEmpty
+                    ? '${resource.provider}${resource.isFreeResource ? ' • Free' : ''}'
+                    : (resource.isFreeResource ? 'Free resource' : 'External resource');
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.infoColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    label,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.infoColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          if (challenge.proofRequired) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              submission == null
+                  ? 'Proof required: ${challenge.proofType ?? 'Completion evidence'}'
+                  : 'Proof status: ${_submissionStatusLabel(submission.status)}',
+              style: AppTypography.caption.copyWith(
+                color: submission?.status == ChallengeSubmissionStatus.approved
+                    ? AppColors.successColor
+                    : AppColors.warningColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.xs),
           LinearProgressIndicator(
             value: progress,
@@ -666,9 +721,9 @@ class _EmployeeSeasonChallengesScreenState
               OutlinedButton.icon(
                 onPressed: _currentUserId == null
                     ? null
-                    : () => _openMilestoneSheet(season, challenge),
-                icon: const Icon(Icons.edit, size: 16),
-                label: const Text('Update'),
+                    : () => _openChallengeGoal(season, challenge),
+                icon: const Icon(Icons.track_changes, size: 16),
+                label: const Text('Update Goal'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.activeColor,
                   side: BorderSide(color: AppColors.activeColor),
@@ -698,26 +753,35 @@ class _EmployeeSeasonChallengesScreenState
     return completed;
   }
 
-  void _openMilestoneSheet(Season season, SeasonChallenge challenge) {
+  String _submissionStatusLabel(ChallengeSubmissionStatus status) {
+    switch (status) {
+      case ChallengeSubmissionStatus.notSubmitted:
+        return 'Not submitted';
+      case ChallengeSubmissionStatus.submitted:
+        return 'Pending review';
+      case ChallengeSubmissionStatus.approved:
+        return 'Approved';
+      case ChallengeSubmissionStatus.rejected:
+        return 'Needs updates';
+    }
+  }
+
+  Future<void> _openChallengeGoal(
+    Season season,
+    SeasonChallenge challenge,
+  ) async {
     if (_currentUserId == null) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: SeasonMilestoneProgressCard(
-              season: season,
-              challenge: challenge,
-              userId: _currentUserId!,
-            ),
-          ),
-        );
-      },
-    );
+    try {
+      await _openSeasonGoalDetail(season, preferredChallengeId: challenge.id);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to open goal: $e'),
+          backgroundColor: AppColors.dangerColor,
+        ),
+      );
+    }
   }
 
   Widget _buildCompletedSeasonCard(Season season) {
@@ -1005,42 +1069,7 @@ class _EmployeeSeasonChallengesScreenState
   Future<void> _viewSeasonDetails(Season season) async {
     if (_currentUserId == null) return;
     try {
-      // Load this user's goals for the season
-      final snap = await FirebaseFirestore.instance
-          .collection('goals')
-          .where('userId', isEqualTo: _currentUserId)
-          .where('seasonId', isEqualTo: season.id)
-          .where('isSeasonGoal', isEqualTo: true)
-          .get();
-
-      if (snap.docs.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No season goals found for "${season.title}" yet.'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-        return;
-      }
-
-      // Prefer the first non-completed goal, else the first one
-      final docs = snap.docs;
-      var selected = docs.first;
-      for (final d in docs) {
-        final status = (d.data()['status'] ?? 'notStarted').toString();
-        if (status != 'completed') {
-          selected = d;
-          break;
-        }
-      }
-
-      final goal = Goal.fromFirestore(selected);
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
-      );
+      await _openSeasonGoalDetail(season);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1062,11 +1091,82 @@ class _EmployeeSeasonChallengesScreenState
   }
 
   void _completeSeasonGoals(Season season) {
-    // Navigate to season goal completion screen
-    Navigator.pushNamed(
+    _openSeasonGoalDetail(season);
+  }
+
+  Future<void> _openSeasonGoalDetail(
+    Season season, {
+    String? preferredChallengeId,
+  }) async {
+    final currentUserId = _currentUserId;
+    if (currentUserId == null) return;
+
+    final userName = _currentUserName ?? 'Employee';
+    await SeasonService.ensureSeasonGoalsForEmployee(
+      season: season,
+      userId: currentUserId,
+      userName: userName,
+    );
+
+    final snap = await FirebaseFirestore.instance
+        .collection('goals')
+        .where('userId', isEqualTo: currentUserId)
+        .where('seasonId', isEqualTo: season.id)
+        .where('isSeasonGoal', isEqualTo: true)
+        .get();
+
+    if (snap.docs.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No season goals found for "${season.title}" yet.'),
+          backgroundColor: AppColors.dangerColor,
+        ),
+      );
+      return;
+    }
+
+    final docs = snap.docs;
+    QueryDocumentSnapshot<Map<String, dynamic>>? selected;
+
+    if (preferredChallengeId != null) {
+      for (final doc in docs) {
+        final challengeId = (doc.data()['challengeId'] ?? '').toString();
+        if (challengeId == preferredChallengeId) {
+          selected = doc;
+          break;
+        }
+      }
+    }
+
+    selected ??= docs.first;
+    for (final doc in docs) {
+      final status = (doc.data()['status'] ?? 'notStarted').toString();
+      final isPreferredMatch =
+          preferredChallengeId == null ||
+          (doc.data()['challengeId'] ?? '').toString() == preferredChallengeId;
+      if (isPreferredMatch && status != 'completed') {
+        selected = doc;
+        break;
+      }
+    }
+
+    if (selected == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to open a goal for "${season.title}".'),
+          backgroundColor: AppColors.dangerColor,
+        ),
+      );
+      return;
+    }
+
+    final goal = Goal.fromFirestore(selected);
+    if (!mounted) return;
+    await Navigator.push(
       context,
-      '/season_goal_completion',
-      arguments: {'seasonId': season.id},
+      MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
     );
   }
 }

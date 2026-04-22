@@ -1182,35 +1182,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildGoalMilestonesSection() {
-    if (_isSeasonGoal) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Season Challenge Milestones',
-              style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'This goal is linked to a Season Challenge. Milestones are predefined by your manager. '
-              'Use the Season Challenges → My Seasons screen to update milestone progress.',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
     final user = FirebaseAuth.instance.currentUser;
     final bool isOwner = user?.uid == currentGoal.userId;
     final bool isGoalCompleted = currentGoal.status == GoalStatus.completed;
@@ -1239,9 +1210,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      isOwner
-                          ? 'Break this goal into concrete steps with target dates.'
-                          : 'View the employee-defined checkpoints for this goal.',
+                      _isSeasonGoal
+                          ? (isOwner
+                                ? 'Update this season challenge here. Goal progress automatically syncs the season milestones, and any checkpoints you add here can be reviewed by your manager or admin.'
+                                : 'Review the employee checkpoints and evidence submitted for this season challenge.')
+                          : (isOwner
+                                ? 'Break this goal into concrete steps with target dates.'
+                                : 'View the employee-defined checkpoints for this goal.'),
                       style: AppTypography.bodySmall.copyWith(
                         color: AppColors.textSecondary,
                       ),
