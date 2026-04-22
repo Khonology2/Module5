@@ -5,14 +5,15 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
-import 'package:pdh/services/profile_completion_service.dart';
+import 'package:pdh/design_system/app_breakpoints.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
+import 'package:pdh/services/profile_completion_service.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/workspace_context_switcher.dart';
 import 'package:pdh/services/workspace_context_service.dart';
-import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/services/role_service.dart';
 
 /// Light palette for the nav rail (white panel, black labels), driven by
 /// [employeeDashboardLightModeNotifier] with the employee dashboard light toggle.
@@ -79,6 +80,24 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   // Dark-mode sidebar surface shared across employee/manager/admin.
   static const Color backgroundColor = Color(0xFF3D3F40);
 
+  void _logSidebar(String message) {
+    debugPrint('[Sidebar] $message');
+  }
+
+  /// Global showcase (employee / manager sidebar tutorials via
+  /// `ShowcaseView.get().startShowCase`) uses a full-screen barrier that blocks taps
+  /// on other sidebar items. Body widgets (e.g. notification bell) can still receive taps.
+  /// This widget is used for employee, manager, and admin sidebars (portal screens and
+  /// `AppScaffold`); dismiss before every sidebar navigation so all roles behave consistently.
+  void _sidebarNavigate(String route) {
+    try {
+      ShowcaseView.get().dismiss();
+    } catch (_) {
+      // No active showcase or API unavailable — safe to ignore.
+    }
+    widget.onNavigate(route);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -126,12 +145,20 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   }
 
   void _updateItems() {
-    _currentItems = SidebarConfig.getItemsForCurrentWorkspace();
+    // Always use the nav items provided by the current page/portal.
+    // This preserves correct route mapping for manager/admin/employee contexts.
+    _currentItems = widget.items;
+    _logSidebar(
+      'items updated count=${_currentItems.length}, currentRoute=${widget.currentRouteName}',
+    );
   }
 
   @override
   void didUpdateWidget(ResponsiveSidebar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.items, widget.items)) {
+      _updateItems();
+    }
 
     // Only proceed if the widget is still in the tree
     if (!mounted) return;
@@ -196,12 +223,19 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   Widget build(BuildContext context) {
     final isSmall = MediaQuery.of(context).size.width <= 768;
 
-    return ValueListenableBuilder<bool>(
-      valueListenable: employeeDashboardLightModeNotifier,
-      builder: (context, sidebarLight, _) {
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      initialData: RoleService.instance.cachedRole,
+      builder: (context, roleSnapshot) {
+        if (roleSnapshot.hasError) {
+          _logSidebar('role stream error: ${roleSnapshot.error}');
+        }
         return ValueListenableBuilder<bool>(
-          valueListenable: SidebarState.instance.isCollapsed,
-          builder: (context, collapsed, _) {
+          valueListenable: employeeDashboardLightModeNotifier,
+          builder: (context, sidebarLight, _) {
+            return ValueListenableBuilder<bool>(
+              valueListenable: SidebarState.instance.isCollapsed,
+              builder: (context, collapsed, _) {
             // Allow toggling on medium/large screens; always collapsed on small screens
             final effectiveCollapsed = isSmall
                 ? true
@@ -214,146 +248,101 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   final isVeryCompact = constraints.maxHeight < 760;
                   final isUltraCompact = constraints.maxHeight < 680;
 
-                  final double sidebarIconSize = isUltraCompact
-                      ? 21.0
-                      : (isVeryCompact ? 23.0 : 26.0);
-                  final double navVerticalPadding = isUltraCompact
-                      ? 0.25
-                      : (isVeryCompact ? 0.5 : 1.0);
-                  final double navFontSize = isUltraCompact
-                      ? 11.2
-                      : (isVeryCompact ? 11.8 : 12.8);
-                  final double sectionGap = isUltraCompact
-                      ? 0.5
-                      : (isVeryCompact ? 1 : 2);
-                  final double bottomGap = isUltraCompact
-                      ? 6
-                      : (isVeryCompact ? 8 : 10);
-                  final double profileSectionTopGap =
-                      _workspaceService.currentContext ==
-                          WorkspaceContext.myWorkspace
-                      ? 46 : 20;
-                  final entries = _currentItems.asMap().entries.toList();
-                  final mainEntries = entries
-                      .where((e) => !_isBottomPinnedItem(e.value.route))
-                      .toList();
-                  final bottomEntries = entries
-                      .where((e) => _isBottomPinnedItem(e.value.route))
-                      .toList();
-                  Widget buildEntry(MapEntry<int, SidebarItem> entry) {
-                    final index = entry.key;
-                    final it = entry.value;
-                    final bool showProfileIndicator =
-                        (it.route == '/my_profile' ||
-                            it.route == '/manager_profile') &&
-                        _isProfileIncomplete;
+                          if (it.children != null && it.children!.isNotEmpty) {
+                            return _ExpandableNavGroup(
+                              key: ValueKey('expand_${it.route}_$index'),
+                              parent: it,
+                              currentRouteName: widget.currentRouteName,
+                              collapsed: effectiveCollapsed,
+                              onNavigate: _sidebarNavigate,
+                              showProfileIndicator: showProfileIndicator,
+                              tutorialKey:
+                                  widget.sidebarTutorialKeys != null &&
+                                      index < widget.sidebarTutorialKeys!.length
+                                  ? widget.sidebarTutorialKeys![index]
+                                  : null,
+                              showTutorial:
+                                  widget.tutorialStepIndex != null &&
+                                  widget.tutorialStepIndex == index,
+                              onTutorialNext: widget.onTutorialNext,
+                              onTutorialSkip: widget.onTutorialSkip,
+                              isLastTutorialStep:
+                                  widget.tutorialStepIndex != null &&
+                                  widget.tutorialStepIndex ==
+                                      _currentItems.length - 1,
+                            );
+                          }
 
-                    if (it.children != null && it.children!.isNotEmpty) {
-                      return _ExpandableNavGroup(
-                        key: ValueKey('expand_${it.route}_$index'),
-                        parent: it,
-                        currentRouteName: widget.currentRouteName,
-                        collapsed: effectiveCollapsed,
-                        onNavigate: widget.onNavigate,
-                        showProfileIndicator: showProfileIndicator,
-                        navVerticalPadding: navVerticalPadding,
-                        navFontSize: navFontSize,
-                        iconSize: sidebarIconSize,
-                        tutorialKey:
-                            widget.sidebarTutorialKeys != null &&
-                                index < widget.sidebarTutorialKeys!.length
-                            ? widget.sidebarTutorialKeys![index]
-                            : null,
-                        showTutorial:
-                            widget.tutorialStepIndex != null &&
-                            widget.tutorialStepIndex == index,
-                        onTutorialNext: widget.onTutorialNext,
-                        onTutorialSkip: widget.onTutorialSkip,
-                        isLastTutorialStep:
-                            widget.tutorialStepIndex != null &&
-                            widget.tutorialStepIndex == widget.items.length - 1,
-                      );
-                    }
-
-                    return _NavTile(
-                      key: ValueKey('nav_${it.route}_$index'),
-                      icon: it.icon,
-                      iconWidget: it.iconWidget,
-                      assetWhite: it.assetWhite,
-                      assetRed: it.assetRed,
-                      label: it.label,
-                      route: it.route,
-                      isActive: _isRouteActive(widget.currentRouteName, it.route),
-                      collapsed: effectiveCollapsed,
-                      onTap: () => widget.onNavigate(it.route),
-                      showProfileIndicator: showProfileIndicator,
-                      navVerticalPadding: navVerticalPadding,
-                      navFontSize: navFontSize,
-                      iconSize: sidebarIconSize,
-                      tutorialKey:
-                          widget.sidebarTutorialKeys != null &&
-                              index < widget.sidebarTutorialKeys!.length
-                          ? widget.sidebarTutorialKeys![index]
-                          : null,
-                      showTutorial:
-                          widget.tutorialStepIndex != null &&
-                          widget.tutorialStepIndex == index,
-                      onTutorialNext: widget.onTutorialNext,
-                      onTutorialSkip: widget.onTutorialSkip,
-                      isLastTutorialStep:
-                          widget.tutorialStepIndex != null &&
-                          widget.tutorialStepIndex == widget.items.length - 1,
-                    );
-                  }
-
-                  return Column(
-                    children: [
-                      _buildHeader(
-                        context,
-                        effectiveCollapsed,
-                        sidebarLight,
-                        isUltraCompact: isUltraCompact,
-                        isVeryCompact: isVeryCompact,
-                      ),
-                      SizedBox(height: sectionGap * 0.5),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: WorkspaceContextSwitcher(),
-                      ),
-                      SizedBox(height: sectionGap),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            ...mainEntries.map(buildEntry),
-                            SizedBox(height: profileSectionTopGap),
-                            const Spacer(),
-                            Padding(
-                              padding: EdgeInsets.only(bottom: bottomGap),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ...bottomEntries.map(buildEntry),
-                                  _NavTile(
-                                    key: const ValueKey('nav_logout'),
-                                    icon: Icons.exit_to_app,
-                                    assetWhite: 'assets/manager_sidebar/12.png',
-                                    assetRed: 'assets/manager_sidebar/12.png',
-                                    label: AppLocalizations.of(
-                                      context,
-                                    ).employee_drawer_exit,
-                                    route: '__logout__',
-                                    isActive: false,
-                                    collapsed: effectiveCollapsed,
-                                    onTap: widget.onLogout,
-                                    navVerticalPadding: navVerticalPadding,
-                                    navFontSize: navFontSize,
-                                    iconSize: sidebarIconSize,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                          return _NavTile(
+                            key: ValueKey('nav_${it.route}_$index'),
+                            icon: it.icon,
+                            iconWidget: it.iconWidget,
+                            assetWhite: it.assetWhite,
+                            assetRed: it.assetRed,
+                            label: it.label,
+                            route: it.route,
+                            isActive: widget.currentRouteName == it.route,
+                            collapsed: effectiveCollapsed,
+                            onTap: () {
+                              _logSidebar(
+                                'tap route=${it.route} from=${widget.currentRouteName}',
+                              );
+                              try {
+                                _sidebarNavigate(it.route);
+                              } catch (e, st) {
+                                _logSidebar('onNavigate error route=${it.route}: $e');
+                                debugPrint(st.toString());
+                              }
+                            },
+                            showProfileIndicator: showProfileIndicator,
+                            tutorialKey:
+                                widget.sidebarTutorialKeys != null &&
+                                    index < widget.sidebarTutorialKeys!.length
+                                ? widget.sidebarTutorialKeys![index]
+                                : null,
+                            showTutorial:
+                                widget.tutorialStepIndex != null &&
+                                widget.tutorialStepIndex == index,
+                            onTutorialNext: widget.onTutorialNext,
+                            onTutorialSkip: widget.onTutorialSkip,
+                            isLastTutorialStep:
+                                widget.tutorialStepIndex != null &&
+                                widget.tutorialStepIndex ==
+                                    _currentItems.length - 1,
+                          );
+                        }),
+                        // Keep footer actions inside the scroll area to prevent
+                        // overflow/duplication effects on shorter viewports.
+                        _NavTile(
+                          key: const ValueKey('nav_logout'),
+                          icon: Icons.exit_to_app,
+                          label: AppLocalizations.of(context).employee_drawer_exit,
+                          route: '__logout__',
+                          isActive: false,
+                          collapsed: effectiveCollapsed,
+                          onTap: () {
+                            _logSidebar('tap logout');
+                            widget.onLogout();
+                          },
+                        ),
+                        _CollapseToggle(
+                          collapsed: effectiveCollapsed,
+                          tutorialKey:
+                              widget.sidebarTutorialKeys != null &&
+                                  widget.tutorialStepIndex != null &&
+                                  widget.tutorialStepIndex == _currentItems.length &&
+                                  widget.tutorialStepIndex! <
+                                      widget.sidebarTutorialKeys!.length
+                              ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
+                              : null,
+                          showTutorial:
+                              widget.tutorialStepIndex != null &&
+                              widget.tutorialStepIndex == _currentItems.length,
+                          onTutorialNext: widget.onTutorialNext,
+                          onTutorialSkip: widget.onTutorialSkip,
+                          isLastTutorialStep:
+                              widget.tutorialStepIndex != null &&
+                              widget.tutorialStepIndex == _currentItems.length,
                         ),
                       ),
                     ],
@@ -391,6 +380,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: shell,
                     ),
+            );
+              },
             );
           },
         );
@@ -517,6 +508,171 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   }
 }
 
+class _CollapseToggle extends StatelessWidget {
+  const _CollapseToggle({
+    required this.collapsed,
+    this.tutorialKey,
+    this.showTutorial = false,
+    this.onTutorialNext,
+    this.onTutorialSkip,
+    this.isLastTutorialStep = false,
+  });
+  final bool collapsed;
+  final GlobalKey? tutorialKey;
+  final bool showTutorial;
+  final VoidCallback? onTutorialNext;
+  final VoidCallback? onTutorialSkip;
+  final bool isLastTutorialStep;
+
+  @override
+  Widget build(BuildContext context) {
+    final light = _SidebarLightMode.of(context);
+    Widget collapseWidget = InkWell(
+      onTap: () => SidebarState.instance.isCollapsed.value =
+          !SidebarState.instance.isCollapsed.value,
+      child: Container(
+        height: 44,
+        alignment: Alignment.center,
+        child: Icon(
+          collapsed ? Icons.chevron_right : Icons.chevron_left,
+          color: light ? Colors.black : AppColors.textPrimary,
+        ),
+      ),
+    );
+
+    // Wrap with showcase if tutorial is active
+    if (showTutorial && tutorialKey != null && onTutorialNext != null) {
+      try {
+        final step = EmployeeSidebarTutorialConfig.steps.firstWhere(
+          (s) => s.route == '__collapse_toggle__',
+        );
+
+        final customTooltip = Container(
+          constraints: const BoxConstraints(maxWidth: 240),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: _ResponsiveSidebarState.backgroundColor.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: AppColors.activeColor.withValues(alpha: 0.5),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // AI Avatar GIF at the top - centered and circular
+              Center(
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/videos/Ai_Avatar.gif',
+                    width: 36,
+                    height: 36,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Title - compact
+              Text(
+                step.title,
+                style: AppTypography.heading4.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 5),
+              // Description - compact
+              Text(
+                step.description,
+                style: AppTypography.bodyMedium.copyWith(
+                  fontSize: 12,
+                  height: 1.3,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10),
+              // Action buttons row - compact
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Skip button
+                  Flexible(
+                    child: TextButton(
+                      onPressed: onTutorialSkip ?? onTutorialNext!,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Skip', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  // Next button
+                  Flexible(
+                    child: ElevatedButton(
+                      onPressed: onTutorialNext!,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        isLastTutorialStep ? 'Finish' : 'Next',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        return Showcase.withWidget(
+          key: tutorialKey!,
+          targetShapeBorder: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
+          overlayColor: Colors.transparent,
+          overlayOpacity: 0.0,
+          container: customTooltip,
+          onBarrierClick: onTutorialNext!,
+          onTargetClick: onTutorialNext!,
+          disposeOnTap: true,
+          child: collapseWidget,
+        );
+      } catch (e) {
+        return collapseWidget;
+      }
+    }
+
+    return collapseWidget;
+  }
+}
+
 class _NavTile extends StatefulWidget {
   const _NavTile({
     super.key,
@@ -581,79 +737,85 @@ class _NavTileState extends State<_NavTile> {
     final bool isSelected = widget.isActive;
     final bool isCollapsed = widget.collapsed;
 
-    final localizations = AppLocalizations.of(context);
+    AppLocalizations? localizations;
+    try {
+      localizations = AppLocalizations.of(context);
+    } catch (e) {
+      debugPrint('[Sidebar] localization unavailable in NavTile: $e');
+      localizations = null;
+    }
     String label = widget.label;
     switch (widget.route) {
       case '/employee_dashboard':
       case '/dashboard':
-        label = localizations.nav_dashboard;
+        label = localizations?.nav_dashboard ?? widget.label;
         break;
       case '/my_pdp':
         // Manager sidebar dropdown parent uses "Manager Workspace"; employee uses Goal Workspace.
         if (widget.label != 'Manager Workspace') {
-          label = localizations.nav_goal_workspace;
+          label = localizations?.nav_goal_workspace ?? widget.label;
         }
         break;
       case '/my_profile':
-        label = localizations.nav_my_profile;
+        label = localizations?.nav_my_profile ?? widget.label;
         break;
       case '/my_goal_workspace':
-        label = localizations.nav_my_pdp;
+        label = localizations?.nav_my_pdp ?? widget.label;
         break;
       case '/progress_visuals':
-        label = localizations.nav_progress_visuals;
+        label = localizations?.nav_progress_visuals ?? widget.label;
         break;
       case '/alerts_nudges':
-        label = localizations.nav_alerts_nudges;
+        label = localizations?.nav_alerts_nudges ?? widget.label;
         break;
       case '/badges_points':
       case '/manager_badges_points':
-        label = localizations.nav_badges_points;
+        label = localizations?.nav_badges_points ?? widget.label;
         break;
       case '/season_challenges':
-        label = localizations.nav_season_challenges;
+        label = localizations?.nav_season_challenges ?? widget.label;
         break;
       case '/leaderboard':
       case '/manager_leaderboard':
-        label = localizations.nav_leaderboard;
+        label = localizations?.nav_leaderboard ?? widget.label;
         break;
       case '/repository_audit':
-        label = localizations.nav_repository_audit;
+        label = localizations?.nav_repository_audit ?? widget.label;
         break;
       case '/settings':
-        label = localizations.nav_settings_privacy;
+        label = localizations?.nav_settings_privacy ?? widget.label;
         break;
       case '/team_challenges_seasons':
-        label = localizations.nav_team_challenges;
+        label = localizations?.nav_team_challenges ?? widget.label;
         break;
       case '/manager_alerts_nudges':
-        label = localizations.nav_team_alerts_nudges;
+        label = localizations?.nav_team_alerts_nudges ?? widget.label;
         break;
       case '/manager_inbox':
-        label = localizations.nav_manager_inbox;
+        label = localizations?.nav_manager_inbox ?? widget.label;
         break;
       case '/manager_review_team_dashboard':
         // Use the updated manager label without requiring l10n regeneration.
         label = 'Team Review';
         break;
       case '/admin_dashboard':
-        label = localizations.nav_dashboard;
+        label = localizations?.nav_dashboard ?? widget.label;
         break;
       case '/user_management':
-        label = localizations.nav_user_management;
+        label = localizations?.nav_user_management ?? widget.label;
         break;
       case '/analytics':
       case '/admin_analytics':
-        label = localizations.nav_analytics;
+        label = localizations?.nav_analytics ?? widget.label;
         break;
       case '/system_settings':
-        label = localizations.nav_system_settings;
+        label = localizations?.nav_system_settings ?? widget.label;
         break;
       case '/security':
-        label = localizations.nav_security;
+        label = localizations?.nav_security ?? widget.label;
         break;
       case '/backup':
-        label = localizations.nav_backup_restore;
+        label = localizations?.nav_backup_restore ?? widget.label;
         break;
       default:
         break;
@@ -936,8 +1098,6 @@ class _NavTileState extends State<_NavTile> {
 
         return Showcase.withWidget(
           key: widget.tutorialKey!,
-          width: 260,
-          height: 200,
           targetShapeBorder: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(8)),
           ),

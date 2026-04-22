@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
+// ignore: unnecessary_import
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/scheduler.dart';
@@ -10,13 +12,15 @@ class RoleService {
   RoleService._internal();
   static final RoleService instance = RoleService._internal();
 
-  String? _cachedRole; // 'manager' | 'employee'
+  String? _cachedRole; // 'manager' | 'employee' | 'admin'
   Stream<String?>? _roleBroadcast;
   String? _currentUserId; // Track which user the stream is for
   String? _onboardingInferAttemptedUserId;
   String? _onboardingCachedRole;
+  String? _roleOverride;
 
   String? get cachedRole => _cachedRole;
+  String? get roleOverride => _roleOverride;
 
   String? _normalizeRole(dynamic role) {
     final r = role?.toString().trim().toLowerCase();
@@ -53,12 +57,10 @@ class RoleService {
           .doc(userId)
           .get();
 
-      Map<String, dynamic>? onboardingData =
-          byId.exists ? byId.data() : null;
+      Map<String, dynamic>? onboardingData = byId.exists ? byId.data() : null;
 
       // If not found by UID, try by email.
-      if (onboardingData == null &&
-          (email ?? '').trim().isNotEmpty) {
+      if (onboardingData == null && (email ?? '').trim().isNotEmpty) {
         final byEmail = await FirebaseFirestore.instance
             .collection('onboarding')
             .where('email', isEqualTo: email!.trim())
@@ -232,7 +234,18 @@ class RoleService {
   // Method to clear cache (useful for sign out)
   void clearCache() {
     _cachedRole = null;
+    _roleOverride = null;
     _clearStream();
+  }
+
+  void setRoleOverride(String role) {
+    final r = _normalizeRole(role) ?? role;
+    _roleOverride = r;
+    _cachedRole = r;
+  }
+
+  void clearRoleOverride() {
+    _roleOverride = null;
   }
 
   // Method to ensure role is loaded and cached
@@ -246,9 +259,60 @@ class RoleService {
       }
     }
   }
+
+  // Method to set role directly using user_id (for token-based auth without Firebase Auth)
+  Future<void> setRoleByUserId(String userId, String role) async {
+    try {
+      // Store role in Firestore using user_id
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        'role': _normalizeRole(role) ?? role,
+        'user_id': userId,
+      }, SetOptions(merge: true));
+
+      // Cache the role locally
+      _cachedRole = _normalizeRole(role) ?? role;
+      debugPrint('RoleService: Role set to $role for user_id: $userId');
+    } catch (e) {
+      debugPrint('RoleService: Error setting role by user_id: $e');
+      // Still cache the role locally even if Firestore update fails
+      _cachedRole = _normalizeRole(role) ?? role;
+    }
+  }
+
+  // Method to get role by user_id (for token-based auth without Firebase Auth)
+  Future<String?> getRoleByUserId(String userId) async {
+    try {
+      final ref = FirebaseFirestore.instance.collection('users').doc(userId);
+      final snap = await ref.get();
+      String? role = _normalizeRole(snap.data()?['role'] as String?);
+      if (role != null && role.isNotEmpty) {
+        _cachedRole = role;
+        return role;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('RoleService: Error getting role by user_id: $e');
+      return null;
+    }
+  }
 }
 
 enum RequiredRole { manager, employee, admin, any }
+
+String? _normalizeRole(String? role) {
+  if (role == null) return null;
+  final r = role.trim();
+  if (r.isEmpty) return null;
+  final lower = r.toLowerCase();
+  if (lower.contains('staff')) return 'employee';
+  if (lower.contains('admin')) return 'admin';
+  if (lower.contains('manager')) return 'manager';
+  if (lower.contains('employee')) return 'employee';
+  if (lower == 'mgr') return 'manager';
+  if (lower == 'emp') return 'employee';
+  if (lower == 'adm') return 'admin';
+  return r;
+}
 
 class RoleGate extends StatefulWidget {
   final RequiredRole requiredRole;
@@ -268,6 +332,7 @@ class RoleGate extends StatefulWidget {
 
 class _RoleGateState extends State<RoleGate> {
   bool _isInitializing = true;
+  bool _hasTokenAuth = false;
 
   @override
   void initState() {
@@ -276,8 +341,42 @@ class _RoleGateState extends State<RoleGate> {
   }
 
   Future<void> _initializeRole() async {
-    // Ensure role is loaded before showing the stream
-    await RoleService.instance.ensureRoleLoaded();
+    // Check for Firebase Auth user first
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser != null) {
+      // Traditional Firebase Auth - ensure role is loaded
+      await RoleService.instance.ensureRoleLoaded();
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+        });
+      }
+      return;
+    }
+
+    // If no Firebase Auth user, check for token-based authentication
+    // Look for user document with tokenAuthenticated flag
+    try {
+      // Try to find a user document that was created via token authentication
+      // We'll check the cached role first, then query Firestore
+      if (RoleService.instance.cachedRole != null) {
+        // Role is already cached from token authentication
+        _hasTokenAuth = true;
+        if (mounted) {
+          setState(() {
+            _isInitializing = false;
+          });
+        }
+        return;
+      }
+
+      // If no cached role, the role should have been set by landing screen
+      // If it's not cached, we'll rely on the cached role check below
+      // The landing screen should have already set it via setRoleByUserId()
+    } catch (e) {
+      debugPrint('RoleGate: Error checking token auth: $e');
+    }
+
     if (mounted) {
       setState(() {
         _isInitializing = false;
@@ -297,8 +396,13 @@ class _RoleGateState extends State<RoleGate> {
       return Center(child: CircularProgressIndicator(color: Color(0xFFC10D00)));
     }
 
-    // If not authenticated, redirect to sign in
-    final isAuthenticated = FirebaseAuth.instance.currentUser != null;
+    // Check authentication - either Firebase Auth or token-based
+    final isFirebaseAuthenticated = FirebaseAuth.instance.currentUser != null;
+    final isAuthenticated =
+        isFirebaseAuthenticated ||
+        _hasTokenAuth ||
+        RoleService.instance.cachedRole != null;
+
     if (!isAuthenticated) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
@@ -312,11 +416,49 @@ class _RoleGateState extends State<RoleGate> {
       return const SizedBox.shrink();
     }
 
+    // For token-based auth, use cached role directly (no stream needed)
+    // For Firebase Auth, use the stream
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null && RoleService.instance.cachedRole != null) {
+      // Token-based authentication - use cached role
+      final role = RoleService.instance.cachedRole;
+      if (widget.requiredRole == RequiredRole.any) return widget.child;
+      if (role == null) {
+        if (widget.requiredRole == RequiredRole.employee) return widget.child;
+        return widget.unauthorized ?? _Unauthorized(role: role);
+      }
+      final ok =
+          (widget.requiredRole == RequiredRole.manager && role == 'manager') ||
+          (widget.requiredRole == RequiredRole.employee && role == 'employee') ||
+          (widget.requiredRole == RequiredRole.admin && role == 'admin');
+      if (ok) return widget.child;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          final targetRoute = role == 'manager'
+              ? '/manager_portal'
+              : role == 'admin'
+              ? '/admin_dashboard'
+              : '/employee_dashboard';
+          Navigator.pushReplacementNamed(
+            context,
+            targetRoute,
+          );
+        }
+      });
+      return const SizedBox.shrink();
+    }
+
+    // Firebase Auth - use stream
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       initialData: RoleService.instance.cachedRole,
       builder: (context, snapshot) {
-        final role = snapshot.data ?? RoleService.instance.cachedRole;
+        String? role = _normalizeRole(
+          snapshot.data ?? RoleService.instance.cachedRole,
+        );
+        if (RoleService.instance.roleOverride != null) {
+          role = RoleService.instance.roleOverride;
+        }
         if (widget.requiredRole == RequiredRole.any) return widget.child;
 
         final isLoading =
@@ -361,7 +503,15 @@ class _RoleGateState extends State<RoleGate> {
             (widget.requiredRole == RequiredRole.admin &&
                 RoleService.isAdminPortalRole(role));
         if (ok) return widget.child;
-        return widget.unauthorized ?? _Unauthorized(role: role);
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            Navigator.pushReplacementNamed(
+              context,
+              role == 'manager' ? '/manager_portal' : '/employee_dashboard',
+            );
+          }
+        });
+        return const SizedBox.shrink();
       },
     );
   }
@@ -488,7 +638,7 @@ class _Unauthorized extends StatelessWidget {
                   if (role == 'manager') {
                     Navigator.pushReplacementNamed(context, '/manager_portal');
                   } else if (role == 'admin') {
-                    Navigator.pushReplacementNamed(context, '/admin_portal');
+                    Navigator.pushReplacementNamed(context, '/admin_dashboard');
                   } else {
                     Navigator.pushReplacementNamed(context, '/employee_portal');
                   }

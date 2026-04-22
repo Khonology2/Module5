@@ -718,16 +718,20 @@ class AlertService {
         }
       }
 
-      Query mgrQuery = _firestore
+      QuerySnapshot mgrQuery = await _firestore
           .collection('users')
-          .where('role', isEqualTo: 'manager');
-      if (dept != null && dept.isNotEmpty) {
-        mgrQuery = mgrQuery.where('department', isEqualTo: dept);
-      }
-      final mgrs = await mgrQuery.get();
-      if (mgrs.docs.isEmpty) return;
+          .where('role', isEqualTo: 'manager')
+          .where('department', isEqualTo: dept)
+          .get();
 
-      for (final mgr in mgrs.docs) {
+      if (mgrQuery.docs.isEmpty) {
+        developer.log(
+          'WARNING: No managers found in department $dept to notify for milestone',
+        );
+        return;
+      }
+
+      for (final mgr in mgrQuery.docs) {
         await _firestore.collection('alerts').add({
           'userId': mgr.id,
           'type': AlertType.goalMilestoneCompleted.name,

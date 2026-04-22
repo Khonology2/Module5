@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:pdh/sign_in_screen.dart'; // Import LoginScreen which is the actual sign-in screen
+import 'package:pdh/sign_in_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/role_service.dart';
 
@@ -11,6 +11,13 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  String? _lastResolvedUid;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
@@ -18,7 +25,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            backgroundColor: Color(0xFF0A1931),
+            body: Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
+              ),
+            ),
           );
         }
 
@@ -26,15 +38,22 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // If no authenticated user, show the normal login screen
         if (user == null) {
+          if (_lastResolvedUid != null) {
+            RoleService.instance.clearCache();
+            _lastResolvedUid = null;
+          }
           return const LoginScreen();
+        }
+
+        if (_lastResolvedUid != user.uid) {
+          RoleService.instance.clearCache();
+          _lastResolvedUid = user.uid;
         }
 
         // User is signed in: determine their role and route them
         return FutureBuilder<String?>(
           future: () async {
-            await RoleService.instance.ensureRoleLoaded();
-            // ensureRoleLoaded caches the role; return cached value
-            return RoleService.instance.cachedRole;
+            return RoleService.instance.getRole(refresh: true);
           }(),
           builder: (context, roleSnapshot) {
             final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
@@ -64,7 +83,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             if (role == 'manager') {
               targetRoute = '/manager_portal';
             } else if (role == 'admin') {
-              targetRoute = '/admin_portal';
+              targetRoute = '/admin_dashboard';
             } else {
               targetRoute = '/employee_dashboard';
             }
