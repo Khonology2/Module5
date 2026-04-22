@@ -1819,7 +1819,11 @@ class _ManagerReviewTeamDashboardScreenState
       try {
         final m = await OneOnOneMeetingService.getMeeting(requestedMeetingId);
         final sameEmployee = m?.employeeId == employee.profile.uid;
-        final sameManager = managerId == null || m?.managerId == managerId;
+        // Admin oversight can review any manager-owned thread, so do not
+        // require the meeting's managerId to match the signed-in admin.
+        final sameManager = widget.forAdminOversight
+            ? true
+            : (managerId == null || m?.managerId == managerId);
         if (m != null && sameEmployee && sameManager) {
           existing = m;
         }

@@ -115,14 +115,40 @@ class FirestoreStreamBroker {
   Stream<QuerySnapshot> getAuditEntriesStream({
     String? userId,
     bool isManager = false,
+    bool includeTeamDataForManager = true,
+    /// Admin oversight: same as manager “all team” query — no userId filter on audit_entries.
+    bool organizationWideAudit = false,
+    String? managerDepartment,
+    bool strictManagerScope = false,
     int limit = 500,
   }) {
-    // For managers, we need to filter by their department or get all entries
-    // For now, let managers see all entries (can be refined later)
-    final whereConditions = isManager ? null : {'userId': userId};
+    Map<String, dynamic>? whereConditions;
+    if (organizationWideAudit) {
+      // Admin oversight is intentionally org-wide.
+      whereConditions = null;
+    } else if (isManager && includeTeamDataForManager) {
+      // Fail-closed for manager team scope when strict mode is requested.
+      final dept = (managerDepartment ?? '').trim();
+      if (strictManagerScope && dept.isEmpty) {
+        developer.log(
+          'Stream broker: strict manager scope requested without department; returning empty manager stream.',
+        );
+        return getSharedStream(
+          collection: 'audit_entries',
+          whereConditions: const {'userId': '__no_user__'},
+          orderBy: 'submittedDate',
+          descending: true,
+          limit: 1,
+        );
+      }
+      // Department scope is the tightest query we can safely apply here.
+      whereConditions = dept.isNotEmpty ? {'userDepartment': dept} : null;
+    } else {
+      whereConditions = {'userId': userId};
+    }
 
     developer.log(
-      'Stream broker: Getting audit entries - isManager: $isManager, userId: $userId, conditions: $whereConditions',
+      'Stream broker: Getting audit entries - isManager: $isManager, includeTeamDataForManager: $includeTeamDataForManager, organizationWideAudit: $organizationWideAudit, managerDepartment: $managerDepartment, strictManagerScope: $strictManagerScope, userId: $userId, conditions: $whereConditions',
     );
 
     return getSharedStream(

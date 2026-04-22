@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -29,6 +31,19 @@ class AdminPortalScreen extends StatefulWidget {
 class _AdminPortalScreenState extends State<AdminPortalScreen> {
   String _currentRoute = '/admin_dashboard';
   bool _didInitFromArgs = false;
+  static const Set<String> _adminPortalRoutes = {
+    '/admin_dashboard',
+    '/admin_inbox',
+    '/admin_team_alerts_nudges',
+    '/admin_team_challenges',
+    '/admin_team_review',
+    '/admin_progress_visuals',
+    '/org_leaderboard',
+    '/admin_badges_points',
+    '/admin_repository_audit',
+    '/admin_profile',
+    '/admin_settings',
+  };
   /// When set, admin oversight screens show data for this manager (Manager Workspace Oversight).
   String? _selectedManagerId;
   String? _initialReviewEmployeeId;
@@ -93,6 +108,37 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
     setState(() {
       _currentRoute = route;
     });
+    _syncAdminPortalUrl(route);
+  }
+
+  bool _isAdminPortalRoute(String route) => _adminPortalRoutes.contains(route);
+
+  String? _routeFromAdminPortalUrl() {
+    // Hash URL example:
+    // http://localhost:64790/#/admin_portal?screen=/admin_inbox
+    final fragment = Uri.base.fragment;
+    if (fragment.isEmpty) return null;
+    final normalized = fragment.startsWith('/') ? fragment : '/$fragment';
+    try {
+      final parsed = Uri.parse(normalized);
+      if (parsed.path != '/admin_portal') return null;
+      final screen = parsed.queryParameters['screen'];
+      if (screen == null || screen.trim().isEmpty) return null;
+      final decoded = Uri.decodeComponent(screen).trim();
+      return _isAdminPortalRoute(decoded) ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _syncAdminPortalUrl(String route) {
+    if (!kIsWeb) return;
+    final location = '/admin_portal?screen=${Uri.encodeComponent(route)}';
+    SystemNavigator.routeInformationUpdated(
+      uri: Uri.parse(location),
+      replace: true,
+      state: <String, dynamic>{'screen': route},
+    );
   }
 
   Future<void> _onLogout() async {
@@ -108,11 +154,12 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_didInitFromArgs) {
+      var initial = _routeFromAdminPortalUrl();
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Map<String, dynamic>) {
-        final initial = args['initialRoute'] as String?;
-        if (initial != null && initial.isNotEmpty) {
-          _currentRoute = initial;
+        final argInitial = args['initialRoute'] as String?;
+        if (argInitial != null && argInitial.isNotEmpty) {
+          initial = argInitial;
         }
         final selectedManagerRaw =
             args['selectedManagerId'] ?? args['employeeId'];
@@ -135,9 +182,13 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
             (routeName == '/admin_inbox' ||
                 routeName == '/org_leaderboard' ||
                 routeName == '/manager_oversight')) {
-          _currentRoute = routeName;
+          initial = routeName;
         }
       }
+      if (initial != null && initial.isNotEmpty && _isAdminPortalRoute(initial)) {
+        _currentRoute = initial;
+      }
+      _syncAdminPortalUrl(_currentRoute);
       _didInitFromArgs = true;
     }
     return Scaffold(

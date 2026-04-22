@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:pdh/widgets/sidebar.dart'; // Import ResponsiveSidebar
 import 'package:pdh/manager_review_team_dashboard_screen.dart'; // Import ManagerReviewTeamDashboardScreen
 import 'package:pdh/manager_dashboard_screen.dart'; // New Manager Dashboard
@@ -47,6 +49,37 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   /// Incremented each time we navigate to manager_alerts_nudges so the screen loads fresh data.
   int _alertsScreenKey = 0;
 
+  // Routes managed inside manager portal shell. Used for URL sync/deep-link.
+  static const Set<String> _portalRoutes = {
+    '/dashboard',
+    '/my_pdp',
+    '/manager_profile',
+    '/team_challenges_seasons',
+    '/progress_visuals',
+    '/manager_alerts_nudges',
+    '/manager_inbox',
+    '/alerts_nudges',
+    '/manager_badges_points',
+    '/badges_points',
+    '/manager_leaderboard',
+    '/repository_audit',
+    '/settings',
+    '/manager_review_team_dashboard',
+    '/manager_gw_menu_dashboard',
+    '/manager_gw_menu_goal_workspace',
+    '/manager_gw_menu_alerts',
+    '/manager_gw_menu_my_pdp',
+    '/manager_gw_menu_progress',
+    '/manager_gw_menu_leaderboard',
+    '/manager_gw_menu_badges',
+    '/manager_gw_menu_season_challenges',
+    '/manager_gw_menu_repository',
+    '/my_goal_workspace',
+    '/leaderboard',
+    '/season_challenges',
+    '/my_profile',
+  };
+
   // Tutorial state
   bool _shouldShowTutorial = false;
   int _currentTutorialStep = 0;
@@ -64,7 +97,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return AppSpacing.screenPadding;
       default:
         return EdgeInsets.zero;
-    }
+    } 
   }
 
   Widget _getBodyWidget() {
@@ -95,7 +128,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_leaderboard':
         return const ManagerLeaderboardScreen(embedded: true);
       case '/repository_audit':
-        return const RepositoryAuditScreen();
+        return const RepositoryAuditScreen(forManagerWorkspace: true);
       case '/settings':
         return const SettingsScreen();
       case '/manager_review_team_dashboard':
@@ -127,7 +160,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           forManagerGwMenu: true,
         );
       case '/manager_gw_menu_leaderboard':
-        return const ManagerLeaderboardScreen(embedded: true);
+        return const ManagerLeaderboardScreen(
+          embedded: true,
+          compareManagers: true,
+        );
       case '/manager_gw_menu_badges':
         return const BadgesPointsScreen(
           embedded: true,
@@ -156,7 +192,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     }
   }
 
-  /// Determines whether [route] belongs to manager "My Workspace" screens.
   bool _isMyWorkspaceRoute(String route) {
     switch (route) {
       case '/manager_gw_menu_dashboard':
@@ -182,19 +217,12 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     }
   }
 
-  /// Keeps the switcher state aligned with whichever route is currently active.
   void _syncWorkspaceContextForRoute(String route) {
     _workspaceService.switchToContext(
       _isMyWorkspaceRoute(route)
           ? WorkspaceContext.myWorkspace
           : WorkspaceContext.managerWorkspace,
     );
-  }
-
-  /// Portal-level top-right actions should only render on manager workspace
-  /// routes; my-workspace pages already render their own action icons.
-  bool _shouldShowPortalTopActions(String route) {
-    return route != '/dashboard' && !_isMyWorkspaceRoute(route);
   }
 
   void _onNavigate(String route) {
@@ -206,6 +234,44 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       }
       _currentRoute = route;
     });
+    _syncPortalUrl(route);
+  }
+
+  bool _isPortalRoute(String route) => _portalRoutes.contains(route);
+
+  bool _shouldShowPortalTopActions(String route) {
+    // Keep dashboard-style screens uncluttered because those screens already
+    // render their own message/notification icons in their header.
+    final show = route != '/dashboard' && route != '/manager_gw_menu_dashboard';
+    return show;
+  }
+
+  String? _routeFromPortalUrl() {
+    // Hash strategy URL example:
+    // http://localhost:64790/#/manager_portal?screen=/manager_inbox
+    final fragment = Uri.base.fragment;
+    if (fragment.isEmpty) return null;
+    final normalized = fragment.startsWith('/') ? fragment : '/$fragment';
+    try {
+      final parsed = Uri.parse(normalized);
+      if (parsed.path != '/manager_portal') return null;
+      final screen = parsed.queryParameters['screen'];
+      if (screen == null || screen.trim().isEmpty) return null;
+      final decoded = Uri.decodeComponent(screen).trim();
+      return _isPortalRoute(decoded) ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _syncPortalUrl(String route) {
+    if (!kIsWeb) return;
+    final location = '/manager_portal?screen=${Uri.encodeComponent(route)}';
+    SystemNavigator.routeInformationUpdated(
+      uri: Uri.parse(location),
+      replace: true,
+      state: <String, dynamic>{'screen': route},
+    );
   }
 
   Future<void> _onLogout() async {
@@ -260,14 +326,19 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_didInitFromArgs) {
+      var initial = _routeFromPortalUrl();
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Map<String, dynamic>) {
-        final initial = args['initialRoute'] as String?;
-        if (initial != null && initial.isNotEmpty && initial != _currentRoute) {
-          _currentRoute = initial;
+        final argRoute = args['initialRoute'] as String?;
+        if (argRoute != null && argRoute.isNotEmpty) {
+          initial = argRoute;
         }
       }
+      if (initial != null && initial.isNotEmpty && _isPortalRoute(initial)) {
+        _currentRoute = initial;
+      }
       _syncWorkspaceContextForRoute(_currentRoute);
+      _syncPortalUrl(_currentRoute);
       _didInitFromArgs = true;
     }
     // Set system UI overlay style here if needed to ensure consistency across the portal

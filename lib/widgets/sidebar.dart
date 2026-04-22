@@ -34,6 +34,12 @@ class _SidebarLightMode extends InheritedWidget {
       light != oldWidget.light;
 }
 
+bool _isRouteActive(String? currentRoute, String targetRoute) {
+  if (currentRoute == null || currentRoute.isEmpty) return false;
+  if (currentRoute == targetRoute) return true;
+  return currentRoute.startsWith('$targetRoute/');
+}
+
 class ResponsiveSidebar extends StatefulWidget {
   const ResponsiveSidebar({
     super.key,
@@ -61,6 +67,10 @@ class ResponsiveSidebar extends StatefulWidget {
 }
 
 class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
+  // Temporary UX override: keep non-mobile sidebar expanded.
+  static const bool _disableSidebarCollapseTemporarily = true;
+  static const double _sidebarZoomFactor = 0.8;
+  static const double _desktopSidebarWidth = 240;
   final ScrollController _scrollController = ScrollController();
   int? _previousTutorialStep;
   bool _isProfileIncomplete = false;
@@ -211,8 +221,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
 
   @override
   Widget build(BuildContext context) {
-    // Use design system breakpoints
-    final isSmall = AppBreakpoints.isSmall(context);
+    final isSmall = MediaQuery.of(context).size.width <= 768;
 
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
@@ -228,33 +237,16 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
               valueListenable: SidebarState.instance.isCollapsed,
               builder: (context, collapsed, _) {
             // Allow toggling on medium/large screens; always collapsed on small screens
-            final effectiveCollapsed = isSmall ? true : collapsed;
+            final effectiveCollapsed = isSmall
+                ? true
+                : (_disableSidebarCollapseTemporarily ? false : collapsed);
 
             final Widget column = _SidebarLightMode(
               light: sidebarLight,
-              child: Column(
-                children: [
-                  // Pass sidebarLight explicitly: builder `context` is above
-                  // [_SidebarLightMode], so inherited lookup would always be false.
-                  _buildHeader(context, effectiveCollapsed, sidebarLight),
-                  const SizedBox(height: AppSpacing.xs),
-                  // Workspace Context Switcher
-                  const WorkspaceContextSwitcher(),
-                  const SizedBox(height: AppSpacing.sm),
-                  Expanded(
-                    child: ListView(
-                      controller: _scrollController,
-                      padding: AppSpacing.sidebarContentPadding,
-                      children: [
-                        // Build nav entries first.
-                        ..._currentItems.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final it = entry.value;
-                          // Show profile warning marker when profile is incomplete.
-                          final bool showProfileIndicator =
-                              (it.route == '/my_profile' ||
-                                  it.route == '/manager_profile') &&
-                              _isProfileIncomplete;
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isVeryCompact = constraints.maxHeight < 760;
+                  final isUltraCompact = constraints.maxHeight < 680;
 
                           if (it.children != null && it.children!.isNotEmpty) {
                             return _ExpandableNavGroup(
@@ -352,17 +344,19 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                               widget.tutorialStepIndex != null &&
                               widget.tutorialStepIndex == _currentItems.length,
                         ),
-                      ],
-                    ),
-                  ),
-                ],
+                      ),
+                    ],
+                  );
+                },
               ),
             );
 
             final Widget shell = Container(
               width: isSmall
                   ? double.infinity
-                  : (effectiveCollapsed ? 72 : 280),
+                  : (effectiveCollapsed
+                        ? (72 * _sidebarZoomFactor)
+                        : _desktopSidebarWidth),
               decoration: BoxDecoration(
                 color: sidebarLight
                     ? Colors.white
@@ -395,15 +389,34 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, bool collapsed, bool sidebarLight) {
-    final Color textColor = sidebarLight
-        ? const Color(0xFF000000)
-        : AppColors.textPrimary;
+  bool _isBottomPinnedItem(String route) {
+    return route == '/my_profile' ||
+        route == '/manager_profile' ||
+        route == '/admin_profile' ||
+        route == '/settings' ||
+        route == '/admin_settings';
+  }
+
+  Widget _buildHeader(
+    BuildContext context,
+    bool collapsed,
+    bool sidebarLight, {
+    required bool isUltraCompact,
+    required bool isVeryCompact,
+  }) {
+    final isDark = !sidebarLight;
+    final Color welcomeTextColor = isDark
+        ? Colors.white
+        : const Color(0xFF000000);
 
     // Expanded header needs room for logo + welcome text (fixed height was causing
     // RenderFlex overflow on web when text wrapped to two lines).
-    final double headerHeight = collapsed ? 64.0 : 118.0;
-    final double logoBoxHeight = collapsed ? 64.0 : 56.0;
+    final double headerHeight = collapsed
+        ? (isUltraCompact ? 52.0 : 64.0)
+        : (isVeryCompact ? 84.0 : 102.0);
+    final double logoBoxHeight = collapsed
+        ? (isUltraCompact ? 52.0 : 64.0)
+        : (isVeryCompact ? 42.0 : 52.0);
 
     return Container(
       height: headerHeight,
@@ -412,7 +425,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
       child: GestureDetector(
         onTap: () {
           // Toggle collapse/expand when logo is tapped (medium/large screens)
-          if (!MediaQuery.of(context).size.width.isNaN) {
+          if (!_disableSidebarCollapseTemporarily &&
+              !MediaQuery.of(context).size.width.isNaN) {
             SidebarState.instance.isCollapsed.value =
                 !SidebarState.instance.isCollapsed.value;
           }
@@ -452,19 +466,36 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   ),
                 ),
                 if (!collapsed) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      'Welcome to Personal Development Hub',
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: textColor,
-                        fontWeight: FontWeight.w700,
-                        height: 1.25,
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                      'Welcome',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: welcomeTextColor,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          'Personal Development Hub',
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: welcomeTextColor,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -662,6 +693,9 @@ class _NavTile extends StatefulWidget {
     this.onTutorialNext,
     this.onTutorialSkip,
     this.isLastTutorialStep = false,
+    this.navVerticalPadding = 3,
+    this.navFontSize = 11.2,
+    this.iconSize = 20,
   }) : showProfileIndicator = showProfileIndicator ?? false;
   final IconData? icon;
   final Widget? iconWidget;
@@ -680,6 +714,9 @@ class _NavTile extends StatefulWidget {
   final VoidCallback? onTutorialNext;
   final VoidCallback? onTutorialSkip;
   final bool isLastTutorialStep;
+  final double navVerticalPadding;
+  final double navFontSize;
+  final double iconSize;
 
   @override
   State<_NavTile> createState() => _NavTileState();
@@ -687,6 +724,7 @@ class _NavTile extends StatefulWidget {
 
 class _NavTileState extends State<_NavTile> {
   bool hovering = false;
+  static const Color _activeSideAccent = Color(0xFFC10D00);
 
   bool get _hasIcon =>
       widget.icon != null ||
@@ -784,17 +822,33 @@ class _NavTileState extends State<_NavTile> {
     }
 
     final bool sidebarLight = _SidebarLightMode.of(context);
-    final Color labelColor = isSelected
-        ? Colors.white
-        : (sidebarLight ? const Color(0xFF000000) : AppColors.textPrimary);
+    final isDark = !sidebarLight;
+    final Color unselectedColor = isDark ? Colors.white : const Color(0xFF000000);
+    final Color subItemUnselectedColor = isDark
+        ? Colors.white.withValues(alpha: 0.9)
+        : const Color(0xFF000000);
+    final Color labelColor = isDark
+        ? (isSelected ? Colors.white : (widget.isChild
+              ? subItemUnselectedColor
+              : unselectedColor))
+        : const Color(0xFF000000);
     final Color hoverFill = sidebarLight
-        ? const Color(0xFFE8E8E8)
-        : AppColors.hoverColor;
+        ? const Color(0x14000000)
+        : Colors.white.withValues(alpha: 0.08);
+    const Color activeFill = _activeSideAccent;
 
     Widget navTileContent = Padding(
       padding: widget.isChild
-          ? const EdgeInsets.only(left: 36, right: 12, top: 4, bottom: 4)
-          : AppSpacing.sidebarItemPadding,
+          ? EdgeInsets.only(
+              left: 28,
+              right: 10,
+              top: widget.navVerticalPadding,
+              bottom: widget.navVerticalPadding,
+            )
+          : EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: widget.navVerticalPadding,
+            ),
       child: MouseRegion(
         onEnter: (_) => setState(() => hovering = true),
         onExit: (_) => setState(() => hovering = false),
@@ -802,110 +856,118 @@ class _NavTileState extends State<_NavTile> {
           message: isCollapsed ? label : '',
           child: InkWell(
             onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             child: Container(
-              height: 44,
+              height: math.max(28, widget.iconSize + 8),
               decoration: BoxDecoration(
-                // When expanded: highlight background for active
-                // When collapsed: keep background transparent for a clean mini look
-                color: !isCollapsed
-                    ? (isSelected
-                          ? AppColors.activeColor
-                          : (isHovered ? hoverFill : Colors.transparent))
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: (!isCollapsed && (isSelected || isHovered))
-                    ? [
-                        BoxShadow(
-                          color:
-                              (isSelected
-                                      ? AppColors.activeColor
-                                      : (sidebarLight
-                                            ? hoverFill
-                                            : AppColors.hoverColor))
-                                  .withValues(alpha: 0x35),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
+                color: isSelected
+                    ? activeFill
+                    : (isHovered ? hoverFill : Colors.transparent),
+                borderRadius: BorderRadius.circular(8),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: isCollapsed
-                  ? Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        if (_hasIcon) _buildIcon(isSelected, sidebarLight),
-                        if (widget.showProfileIndicator)
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: AppColors.activeColor,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: sidebarLight
-                                      ? Colors.white
-                                      : _ResponsiveSidebarState.backgroundColor,
-                                  width: 1.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        // If there isn't enough width to safely render icon + label,
-                        // fall back to icon-only to avoid overflows during animations/resizes.
-                        final bool tooNarrow = constraints.maxWidth < 80;
-                        if (tooNarrow && _hasIcon) {
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [_buildIcon(isSelected, sidebarLight)],
-                          );
-                        }
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.max,
-                          children: [
-                            if (_hasIcon) ...[
-                              _buildIcon(isSelected, sidebarLight),
-                              const SizedBox(width: AppSpacing.xs),
-                            ],
-                            Flexible(
-                              child: Text(
-                                label,
-                                style:
-                                    (isSelected
-                                            ? AppTypography.navigationActive
-                                            : AppTypography.navigation)
-                                        .copyWith(color: labelColor),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                                softWrap: false,
-                              ),
-                            ),
-                            if (widget.showProfileIndicator) ...[
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.error,
-                                size: 16,
-                                color: AppColors.activeColor,
-                              ),
-                            ],
-                            if (widget.trailing != null) ...[
-                              const SizedBox(width: AppSpacing.xs),
-                              widget.trailing!,
-                            ],
-                          ],
-                        );
-                      },
+              child: Stack(
+                children: [
+                  if (isSelected && !isCollapsed)
+                    Positioned(
+                      left: 0,
+                      top: 8,
+                      bottom: 8,
+                      child: Container(
+                        width: 3,
+                        decoration: BoxDecoration(
+                          color: _activeSideAccent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    child: isCollapsed
+                        ? Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              if (_hasIcon) _buildIcon(isSelected, sidebarLight),
+                              if (widget.showProfileIndicator)
+                                Positioned(
+                                  top: 0,
+                                  right: 0,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.activeColor,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: sidebarLight
+                                            ? Colors.white
+                                            : _ResponsiveSidebarState.backgroundColor,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final bool tooNarrow = constraints.maxWidth < 80;
+                              if (tooNarrow && _hasIcon) {
+                                return Row(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [_buildIcon(isSelected, sidebarLight)],
+                                );
+                              }
+                              return Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.max,
+                                children: [
+                                  if (_hasIcon) ...[
+                                    _buildIcon(isSelected, sidebarLight),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Flexible(
+                                    child: Text(
+                                      label,
+                                      style: AppTypography.navigation.copyWith(
+                                        color: isDark
+                                            ? (isSelected ? Colors.white : labelColor)
+                                            : (isSelected
+                                                  ? Colors.white
+                                                  : const Color(0xFF000000)),
+                                        fontSize: widget.navFontSize,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w700
+                                            : FontWeight.w600,
+                                        height: 1.15,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                    ),
+                                  ),
+                                  if (widget.showProfileIndicator) ...[
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.error,
+                                      size: 14,
+                                      color: AppColors.activeColor,
+                                    ),
+                                  ],
+                                  if (widget.trailing != null) ...[
+                                    const SizedBox(width: 6),
+                                    widget.trailing!,
+                                  ],
+                                ],
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1067,8 +1129,8 @@ class _NavTileState extends State<_NavTile> {
           isSelected && widget.collapsed && widget.assetRed != null;
       final String path = useRed ? widget.assetRed! : widget.assetWhite!;
       Widget img = SizedBox(
-        width: 24,
-        height: 24,
+        width: widget.iconSize,
+        height: widget.iconSize,
         child: FittedBox(
           fit: BoxFit.contain,
           child: Image.asset(
@@ -1078,18 +1140,6 @@ class _NavTileState extends State<_NavTile> {
           ),
         ),
       );
-      if (sidebarLight) {
-        final bool whiteOnRed = isSelected && !widget.collapsed;
-        if (!useRed && !whiteOnRed) {
-          img = ColorFiltered(
-            colorFilter: const ColorFilter.mode(
-              Color(0xFF000000),
-              BlendMode.srcIn,
-            ),
-            child: img,
-          );
-        }
-      }
       return img;
     }
     if (widget.iconWidget != null) {
@@ -1100,7 +1150,7 @@ class _NavTileState extends State<_NavTile> {
       color: (isSelected && widget.collapsed)
           ? AppColors.activeColor
           : (sidebarLight ? const Color(0xFF000000) : AppColors.textPrimary),
-      size: 24.0,
+      size: widget.iconSize,
     );
   }
 }
@@ -1118,6 +1168,9 @@ class _ExpandableNavGroup extends StatefulWidget {
     this.onTutorialNext,
     this.onTutorialSkip,
     this.isLastTutorialStep = false,
+    this.navVerticalPadding = 3,
+    this.navFontSize = 11.2,
+    this.iconSize = 20,
   });
 
   final SidebarItem parent;
@@ -1130,6 +1183,9 @@ class _ExpandableNavGroup extends StatefulWidget {
   final VoidCallback? onTutorialNext;
   final VoidCallback? onTutorialSkip;
   final bool isLastTutorialStep;
+  final double navVerticalPadding;
+  final double navFontSize;
+  final double iconSize;
 
   @override
   State<_ExpandableNavGroup> createState() => _ExpandableNavGroupState();
@@ -1152,7 +1208,7 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
         assetRed: parent.assetRed,
         label: parent.label,
         route: parent.route,
-        isActive: widget.currentRouteName == parent.route,
+        isActive: _isRouteActive(widget.currentRouteName, parent.route),
         collapsed: widget.collapsed,
         onTap: () => widget.onNavigate(parent.route),
         showProfileIndicator: widget.showProfileIndicator,
@@ -1161,10 +1217,13 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
         onTutorialNext: widget.onTutorialNext,
         onTutorialSkip: widget.onTutorialSkip,
         isLastTutorialStep: widget.isLastTutorialStep,
+        navVerticalPadding: widget.navVerticalPadding,
+        navFontSize: widget.navFontSize,
+        iconSize: widget.iconSize,
       );
     }
 
-    final isActive = widget.currentRouteName == parent.route;
+    final isActive = _isRouteActive(widget.currentRouteName, parent.route);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -1200,6 +1259,9 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
           onTutorialNext: widget.onTutorialNext,
           onTutorialSkip: widget.onTutorialSkip,
           isLastTutorialStep: widget.isLastTutorialStep,
+          navVerticalPadding: widget.navVerticalPadding,
+          navFontSize: widget.navFontSize,
+          iconSize: widget.iconSize,
         ),
         if (_expanded)
           ...children.map(
@@ -1211,11 +1273,14 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
               assetRed: child.assetRed,
               label: child.label,
               route: child.route,
-              isActive: widget.currentRouteName == child.route,
+              isActive: _isRouteActive(widget.currentRouteName, child.route),
               collapsed: widget.collapsed,
               onTap: () => widget.onNavigate(child.route),
               isChild: true,
               showProfileIndicator: false,
+              navVerticalPadding: widget.navVerticalPadding,
+              navFontSize: widget.navFontSize,
+              iconSize: widget.iconSize,
             ),
           ),
       ],

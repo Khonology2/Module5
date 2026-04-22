@@ -3,6 +3,7 @@ import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 /// Workspace context switcher widget for the sidebar
 class WorkspaceContextSwitcher extends StatefulWidget {

@@ -125,7 +125,8 @@ class Goal {
     final rawStatus = (data?['status'] ?? 'notStarted')
         .toString()
         .toLowerCase();
-    final rawApproval = (data?['approvalStatus'] ?? 'approved')
+    // Must match goals awaiting review: missing field means pending, not approved.
+    final rawApproval = (data?['approvalStatus'] ?? 'pending')
         .toString()
         .toLowerCase();
 

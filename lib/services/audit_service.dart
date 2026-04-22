@@ -91,7 +91,71 @@ class AuditService {
     }
   }
 
-  // Get audit entries stream for managers (temporarily unscoped to all entries)
+  // Re-request acknowledgement for a previously submitted goal.
+  // This intentionally updates the existing audit entry to prevent silent
+  // duplicate rows while still logging an explicit re-request event.
+  static Future<void> resubmitGoalForAudit({
+    required Goal goal,
+    required List<String> evidence,
+    required String reason,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      final normalizedReason = reason.trim();
+      if (normalizedReason.isEmpty) {
+        throw Exception('A reason is required to re-request acknowledgement');
+      }
+
+      final existingEntries = await _firestore
+          .collection('audit_entries')
+          .where('userId', isEqualTo: user.uid)
+          .where('goalId', isEqualTo: goal.id)
+          .orderBy('submittedDate', descending: true)
+          .limit(1)
+          .get();
+
+      if (existingEntries.docs.isEmpty) {
+        await submitGoalForAudit(goal, evidence);
+        return;
+      }
+
+      final entryRef = existingEntries.docs.first.reference;
+      final now = Timestamp.now();
+
+      await entryRef.set({
+        'goalTitle': goal.title,
+        'completedDate': now,
+        'submittedDate': now,
+        'status': 'pending',
+        'evidence': evidence,
+        'rejectionReason': null,
+        'verifiedDate': null,
+        'rejectedDate': null,
+        'approvedDate': null,
+        'lastRerequestReason': normalizedReason,
+        'lastRerequestedAt': now,
+        'rerequestCount': FieldValue.increment(1),
+      }, SetOptions(merge: true));
+
+      try {
+        final event = TimelineService.buildEvent(
+          eventType: 'submission',
+          description:
+              'Acknowledgement re-requested for "${goal.title}". Reason: $normalizedReason',
+        );
+        await TimelineService.logEvent(entryRef.id, event);
+      } catch (e) {
+        developer.log('Failed to log re-request timeline event: $e');
+      }
+    } catch (e) {
+      developer.log('Error re-requesting goal for audit: $e');
+      rethrow;
+    }
+  }
+
+  // Get audit entries stream for managers (department-scoped, fail-closed)
   static Stream<List<AuditEntry>> getManagerAuditEntriesStream({
     String? status,
     String? searchQuery,
@@ -106,16 +170,35 @@ class AuditService {
     }
 
     try {
-      Query query = _firestore.collection('audit_entries');
-
-      if (status != null && status.isNotEmpty) {
-        query = query.where('status', isEqualTo: status);
-      }
-
-      query = query.orderBy('submittedDate', descending: true).limit(200);
-
-      return query
+      return _firestore
+          .collection('users')
+          .doc(user.uid)
           .snapshots()
+          .asyncExpand((managerDoc) {
+            final dept = (managerDoc.data() ?? const {})['department']
+                    ?.toString()
+                    .trim() ??
+                '';
+            if (dept.isEmpty) {
+              developer.log(
+                'Manager audit entries: missing manager department; returning empty stream',
+                name: 'AuditService',
+              );
+              return Stream.value(const <QuerySnapshot<Map<String, dynamic>>>[]);
+            }
+
+            Query<Map<String, dynamic>> query = _firestore
+                .collection('audit_entries')
+                .where('userDepartment', isEqualTo: dept);
+
+            if (status != null && status.isNotEmpty) {
+              query = query.where('status', isEqualTo: status);
+            }
+
+            query = query.orderBy('submittedDate', descending: true).limit(200);
+            return query.snapshots().map((s) => [s]);
+          })
+          .expand((items) => items)
           .map((snapshot) {
             try {
               List<AuditEntry> entries = snapshot.docs

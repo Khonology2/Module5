@@ -4,10 +4,17 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function isSignedIn() { return request.auth != null; }
     function userId() { return request.auth.uid; }
-    function isAdmin() { 
-      return isSignedIn() && 
+    // Match app-side admin detection: literal `admin` plus common aliases (not custom claims).
+    function adminRoleMatches(role) {
+      return role == 'admin' ||
+             role == 'administrator' ||
+             role == 'super_admin' ||
+             role == 'superadmin';
+    }
+    function isAdmin() {
+      return isSignedIn() &&
              exists(/databases/$(database)/documents/users/$(userId())) &&
-             get(/databases/$(database)/documents/users/$(userId())).data.role == 'admin';
+             adminRoleMatches(get(/databases/$(database)/documents/users/$(userId())).data.role);
     }
     function isManager() {
       return isSignedIn() &&
@@ -623,6 +630,18 @@ service cloud.firestore {
 
     match /deleted_accounts/{docId} {
       allow read: if isSignedIn();
+    }
+
+    // Approval audit log (parallel to audit_entries lifecycle rows)
+    match /approved_goals_audit/{docId} {
+      allow read: if isSignedIn() && (
+        resource.data.employeeId == userId() ||
+        resource.data.approvedBy == userId() ||
+        isManager() ||
+        isAdmin()
+      );
+      allow create: if isSignedIn();
+      allow list: if isSignedIn() && (isManager() || isAdmin());
     }
 
     // Catch-all deny

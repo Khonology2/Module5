@@ -1864,7 +1864,15 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         },
       );
 
-      await DatabaseService.createGoal(goal);
+      await DatabaseService.createGoal(
+        goal,
+        // Trace the creation source so approval routing can be audited against
+        // manager My Workspace vs other entry points.
+        sourceWorkspace: widget.forManagerGwMenu
+            ? 'manager_my_workspace'
+            : 'employee_workspace',
+        sourceRoute: widget.managerGwMenuRoute ?? '/goal_workspace',
+      );
 
       if (mounted) {
         Navigator.of(context).pop();

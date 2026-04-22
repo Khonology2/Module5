@@ -15,11 +15,8 @@ import 'package:pdh/models/season.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart';
-import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/models/goal.dart';
-import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
-import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
@@ -51,11 +48,10 @@ class ManagerDashboardScreen extends StatefulWidget {
 
 class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
-  final WorkspaceContextService _workspaceService = WorkspaceContextService();
   String _managerName = 'Manager';
   late Stream<List<EmployeeData>> _employeesStream;
   // legacy: profile photo url (unused in redesigned dashboard)
-  String? _currentProfilePhotoUrl;
+  // String? _currentProfilePhotoUrl;
   final Stopwatch _employeesLoadWatch = Stopwatch()..start();
 
   // Tutorial state
@@ -110,12 +106,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       _redirectIfManagerStandalone();
     }
     _loadManagerName();
-
-    // Initialize workspace context if not already set
-    _workspaceService.initializeFromRole();
-
-    _workspaceService.addListener(_onWorkspaceChanged);
-    _updateDataStream();
+    if (widget.forAdminOversight) {
+      _employeesStream = ManagerRealtimeService.getManagersDataStream();
+    } else {
+      _employeesStream = _realtime.employeesStream();
+    }
     _employeesLoadWatch
       ..reset()
       ..start();
@@ -144,170 +139,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           _checkTutorial();
         }
       });
-    }
-  }
-
-  @override
-  void dispose() {
-    _workspaceService.removeListener(_onWorkspaceChanged);
-    super.dispose();
-  }
-
-  void _moveToNextTutorialStep() {
-    if (!mounted || !_shouldShowTutorial) return;
-
-    if (_currentTutorialStep < _sidebarTutorialKeys.length - 1) {
-      setState(() {
-        _currentTutorialStep++;
-      });
-
-      // Trigger showcase for next step
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted && _shouldShowTutorial) {
-          try {
-            final keyContext =
-                _sidebarTutorialKeys[_currentTutorialStep].currentContext;
-            if (keyContext != null) {
-              ShowCaseWidget.of(
-                context,
-              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
-            }
-          } catch (e) {
-            developer.log(
-              'Could not start showcase for step $_currentTutorialStep: $e',
-              name: 'ManagerDashboardScreen',
-            );
-          }
-        }
-      });
-    } else {
-      _skipTutorial();
-    }
-  }
-
-  void _skipTutorial() async {
-    if (!mounted) return;
-
-    try {
-      ShowCaseWidget.of(context).dismiss();
-    } catch (e) {
-      // Ignore errors when dismissing
-    }
-
-    await ManagerTutorialService.instance.markTutorialCompleted();
-
-    if (mounted) {
-      setState(() {
-        _shouldShowTutorial = false;
-        _currentTutorialStep = 0;
-      });
-    }
-  }
-
-  void _onWorkspaceChanged() {
-    if (mounted) {
-      setState(() {
-        _updateDataStream();
-        _employeesLoadWatch
-          ..reset()
-          ..start();
-      });
-
-      // Force immediate refresh of all workspace-dependent widgets
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {});
-        }
-      });
-    }
-  }
-
-  void _updateDataStream() {
-    if (widget.forAdminOversight) {
-      _employeesStream = ManagerRealtimeService.getManagersDataStream();
-    } else if (_workspaceService.isMyWorkspace) {
-      // Personal workspace - show personal data
-      _employeesStream = _getPersonalDataStream();
-    } else {
-      // Manager workspace - show team data
-      _employeesStream = _realtime.employeesStream();
-    }
-  }
-
-  Stream<List<EmployeeData>> _getPersonalDataStream() async* {
-    // For personal workspace, return stream with only the manager's data
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      // Get actual user profile data
-      final profile = await DatabaseService.getUserProfile(user.uid);
-
-      // Get actual goals for this user
-      final goals = await DatabaseService.getUserGoals(user.uid);
-
-      yield [
-        EmployeeData(
-          profile: profile,
-          goals: goals,
-          recentActivities: [],
-          recentAlerts: [],
-          completedGoalsCount: goals
-              .where((g) => g.status == GoalStatus.completed)
-              .length,
-          overdueGoalsCount: goals
-              .where(
-                (g) =>
-                    g.status == GoalStatus.inProgress &&
-                    g.targetDate.isBefore(DateTime.now()),
-              )
-              .length,
-          totalPoints: profile.totalPoints,
-          lastActivity: DateTime.now(),
-          avgProgress: goals.isNotEmpty
-              ? goals.map((g) => g.progress).reduce((a, b) => a + b) /
-                    goals.length
-              : 0.0,
-          streakDays: await StreakService.getCurrentStreak(user.uid),
-          status: EmployeeStatus.onTrack,
-          weeklyActivityCount: 0,
-          engagementScore: goals.isNotEmpty
-              ? (goals.where((g) => g.status == GoalStatus.completed).length /
-                        goals.length) *
-                    100.0
-              : 0.0,
-          motivationLevel: 'medium',
-        ),
-      ];
-    } catch (e) {
-      // Fallback to basic data if there's an error
-      yield [
-        EmployeeData(
-          profile: UserProfile(
-            uid: user.uid,
-            displayName: _managerName,
-            email: user.email ?? '',
-            totalPoints: 0,
-            level: 1,
-            badges: [],
-            role: 'manager',
-            profilePhotoUrl: _currentProfilePhotoUrl,
-          ),
-          goals: [],
-          recentActivities: [],
-          recentAlerts: [],
-          completedGoalsCount: 0,
-          overdueGoalsCount: 0,
-          totalPoints: 0,
-          lastActivity: DateTime.now(),
-          avgProgress: 0.0,
-          streakDays: 0, // Will be calculated when user has streak data
-          status: EmployeeStatus.onTrack,
-          weeklyActivityCount: 0,
-          engagementScore: 0.0, // No goals = no engagement
-          motivationLevel: 'medium',
-        ),
-      ];
     }
   }
 
@@ -496,6 +327,106 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         name: 'ManagerDashboardScreen',
         error: e,
       );
+    }
+  }
+
+  void _moveToNextTutorialStep() {
+    if (!mounted || !_shouldShowTutorial) return;
+
+    if (_currentTutorialStep < SidebarConfig.managerItems.length - 1) {
+      setState(() {
+        _currentTutorialStep++;
+      });
+
+      // Trigger showcase for next step
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && _shouldShowTutorial) {
+          try {
+            final keyContext =
+                _sidebarTutorialKeys[_currentTutorialStep].currentContext;
+            if (keyContext != null) {
+              ShowCaseWidget.of(
+                context,
+              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
+              developer.log(
+                'Started showcase for step $_currentTutorialStep',
+                name: 'ManagerDashboardScreen',
+              );
+            } else {
+              developer.log(
+                'Key not attached for step $_currentTutorialStep, retrying...',
+                name: 'ManagerDashboardScreen',
+              );
+              // Retry
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted && _shouldShowTutorial) {
+                  try {
+                    ShowCaseWidget.of(context).startShowCase([
+                      _sidebarTutorialKeys[_currentTutorialStep],
+                    ]);
+                  } catch (e) {
+                    developer.log(
+                      'Retry failed: $e',
+                      name: 'ManagerDashboardScreen',
+                    );
+                  }
+                }
+              });
+            }
+          } catch (e) {
+            developer.log(
+              'Could not start showcase for step $_currentTutorialStep: $e',
+              name: 'ManagerDashboardScreen',
+              error: e,
+            );
+          }
+        }
+      });
+    } else {
+      // Tutorial complete
+      _completeTutorial();
+    }
+  }
+
+  Future<void> _completeTutorial() async {
+    developer.log(
+      'Completing manager sidebar tutorial',
+      name: 'ManagerDashboardScreen',
+    );
+    await ManagerTutorialService.instance.markTutorialCompleted();
+
+    if (mounted) {
+      setState(() {
+        _shouldShowTutorial = false;
+        _currentTutorialStep = 0;
+      });
+    }
+  }
+
+  Future<void> _skipTutorial() async {
+    developer.log(
+      'Skipping manager sidebar tutorial',
+      name: 'ManagerDashboardScreen',
+    );
+
+    // Dismiss the current showcase overlay
+    try {
+      ShowCaseWidget.of(context).dismiss();
+    } catch (e) {
+      developer.log(
+        'Error dismissing showcase: $e',
+        name: 'ManagerDashboardScreen',
+      );
+    }
+
+    // Mark tutorial as completed
+    await ManagerTutorialService.instance.markTutorialCompleted();
+
+    if (mounted) {
+      setState(() {
+        _shouldShowTutorial = false;
+        _currentTutorialStep = 0;
+      });
     }
   }
 
@@ -713,8 +644,14 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       _maybeSyncMiddleHeights();
     });
 
-    if (widget.embedded) {
-      // ManagerPortal provides background + theme scope
+    final parentRouteName = ModalRoute.of(context)?.settings.name;
+    final shouldRenderEmbedded =
+        widget.embedded ||
+        parentRouteName == '/manager_portal' ||
+        parentRouteName == '/admin_portal';
+
+    if (shouldRenderEmbedded) {
+      // Manager/Admin portal provides outer scaffold + sidebar already.
       return content;
     }
 
@@ -801,7 +738,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             children: [
               Text(
                 'Manager Dashboard',
-                style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
+                style: AppTypography.heading2.copyWith(
+                  color: DashboardChrome.fg,
+                ),
               ),
               const SizedBox(width: 12),
               Flexible(
@@ -848,7 +787,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$activeToday',
         icon: Icons.calendar_today,
-        assetPath: 'assets/Task_Management/Task_Management_White_Badge_Red.png',
+        assetPath: 'assets/manager_dashboard/1.png',
         accent: AppColors.activeColor,
       ),
       _topStatTile(
@@ -860,7 +799,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$activeThisWeek',
         icon: Icons.check,
-        assetPath: 'assets/Approved_Tick/Approved_White_Badge_Red.png',
+        assetPath: 'assets/manager_dashboard/2.png',
         accent: AppColors.successColor,
       ),
       _topStatTile(
@@ -897,7 +836,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$atRisk',
         icon: Icons.error_outline,
-        assetPath: 'assets/Warning _Error/Warning_Error_White Badge_Red.png',
+        assetPath: 'assets/manager_dashboard/5.png',
         accent: AppColors.dangerColor,
       ),
       _topStatTile(
@@ -1010,12 +949,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         children: [
           Row(
             children: [
-              widget.forAdminOversight
-                  ? _assetIcon('assets/bell_icon.png', size: 26)
-                  : const Icon(
-                      Icons.notifications_none,
-                      color: AppColors.dangerColor,
-                    ),
+              const Icon(
+                Icons.notifications_none,
+                color: AppColors.dangerColor,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1051,15 +988,13 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    widget.forAdminOversight
-                        ? _assetIcon('assets/bell_icon.png', size: 22)
-                        : Icon(
-                            Icons.check_box,
-                            size: 18,
-                            color: DashboardChrome.light
-                                ? AppColors.dangerColor
-                                : AppColors.activeColor,
-                          ),
+                    Icon(
+                      Icons.check_box,
+                      size: 18,
+                      color: DashboardChrome.light
+                          ? AppColors.dangerColor
+                          : AppColors.activeColor,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: RichText(
@@ -1675,9 +1610,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       required String label,
       required VoidCallback onTap,
       required IconData icon,
-      String? assetPath,
+      required String assetPath,
       bool filled = false,
     }) {
+      bool hovering = false;
       final fill = filled ? AppColors.dangerColor : _dashboardCardFill();
       final fg = filled ? Colors.white : DashboardChrome.fg;
       return _ManagerQuickActionTile(
@@ -1697,13 +1633,13 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       actionTile(
         label: 'Goal Workspace',
         icon: Icons.flag_outlined,
-        assetPath: 'assets/Project_Management/Management_White_Badge_Red.png',
+        assetPath: 'assets/manager_dashboard/9.png',
         onTap: () => Navigator.pushNamed(context, '/my_goal_workspace'),
       ),
       actionTile(
         label: 'Progress Visuals',
         icon: Icons.insights_outlined,
-        assetPath: 'assets/Graphic_Image_Placeholder/Image_White_Badge_Red.png',
+        assetPath: 'assets/manager_dashboard/10.png',
         onTap: () => Navigator.pushNamed(context, '/progress_visuals'),
       ),
       actionTile(
@@ -1725,8 +1661,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     Widget grid({required bool shrinkWrap}) {
       return LayoutBuilder(
         builder: (context, constraints) {
-          // Match screenshot: buttons are taller than our previous ratio-based tiles.
-          final tileHeight = constraints.maxWidth >= 520 ? 64.0 : 60.0;
+          final tileHeight = constraints.maxWidth >= 520 ? 92.0 : 88.0;
           return GridView.builder(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
@@ -1750,12 +1685,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         children: [
           Row(
             children: [
-              widget.forAdminOversight
-                  ? _assetIcon('assets/Innovation_Brainstorm.png', size: 26)
-                  : const Icon(
-                      Icons.emoji_objects_outlined,
-                      color: AppColors.dangerColor,
-                    ),
+              _assetIcon('assets/manager_dashboard/8.png', size: 43),
               const SizedBox(width: 8),
               Text(
                 'Quick Action',
@@ -1774,6 +1704,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             ]),
             style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
           ),
+          const SizedBox(height: 10),
+          Divider(color: Colors.white, thickness: 0.61, height: 0.61),
           const SizedBox(height: AppSpacing.md),
           if (expand)
             Expanded(child: grid(shrinkWrap: false))

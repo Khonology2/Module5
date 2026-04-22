@@ -39,60 +39,68 @@ class SidebarConfig {
     );
   }
 
+  static SidebarItem itemWithManagerSidebarIcon({
+    required String number,
+    required String label,
+    required String route,
+  }) {
+    final iconPath = 'assets/manager_sidebar/$number.png';
+    return SidebarItem(
+      assetWhite: iconPath,
+      assetRed: iconPath,
+      label: label,
+      route: route,
+    );
+  }
+
   // ===== WORKSPACE-SPECIFIC ITEMS =====
 
   /// My Workspace items (for employees and managers when in my workspace context)
   static List<SidebarItem> get myWorkspaceItems => List.unmodifiable([
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Dashboard_White.png',
-      red: 'assets/Khonodemy Icons/Dashboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '1',
       label: 'Dashboard',
       route: '/employee_dashboard',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/Profile_White.png',
-      red: 'assets/Khonodemy Icons/Profile_Red.png',
+      white: 'assets/Data_Approval/data.png',
+      red: 'assets/Data_Approval/data.png',
       label: 'Goal Workspace',
       route: '/my_pdp',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
-      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '3',
       label: 'Alerts & Nudges',
       route: '/alerts_nudges',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
-      red: 'assets/Khonodemy Icons/GoalWorkspace_Red.png',
+      white: 'assets/Business_Growth_Development/growth.png',
+      red: 'assets/Business_Growth_Development/growth.png',
       label: 'My PDP',
       route: '/my_goal_workspace',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
-      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '6',
       label: 'Progress Visuals',
       route: '/progress_visuals',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
-      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '7',
       label: 'Leaderboard',
       route: '/leaderboard',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
-      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '8',
       label: 'Badges & Points',
       route: '/badges_points',
     ),
-    SidebarItem(
-      icon: Icons.emoji_events_outlined,
+    itemWithManagerSidebarIcon(
+      number: '4',
       label: 'Season Challenges',
       route: '/season_challenges',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
-      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '9',
       label: 'Repository & Audit',
       route: '/repository_audit',
     ),
@@ -101,56 +109,50 @@ class SidebarConfig {
   /// Manager "My Workspace" uses manager_gw_menu routes so navigation stays
   /// inside ManagerPortalScreen while showing employee-style screens.
   static List<SidebarItem> get managerMyWorkspaceItems => List.unmodifiable([
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Dashboard_White.png',
-      red: 'assets/Khonodemy Icons/Dashboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '1',
       label: 'Dashboard',
       route: '/manager_gw_menu_dashboard',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/Profile_White.png',
-      red: 'assets/Khonodemy Icons/Profile_Red.png',
+      white: 'assets/Data_Approval/data.png',
+      red: 'assets/Data_Approval/data.png',
       label: 'Goal Workspace',
       route: '/manager_gw_menu_goal_workspace',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
-      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '3',
       label: 'Alerts & Nudges',
       route: '/manager_gw_menu_alerts',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
-      red: 'assets/Khonodemy Icons/GoalWorkspace_Red.png',
+      white: 'assets/Business_Growth_Development/growth.png',
+      red: 'assets/Business_Growth_Development/growth.png',
       label: 'My PDP',
       route: '/manager_gw_menu_my_pdp',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
-      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '6',
       label: 'Progress Visuals',
       route: '/manager_gw_menu_progress',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
-      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '7',
       label: 'Leaderboard',
       route: '/manager_gw_menu_leaderboard',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
-      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '8',
       label: 'Badges & Points',
       route: '/manager_gw_menu_badges',
     ),
-    SidebarItem(
-      icon: Icons.emoji_events_outlined,
+    itemWithManagerSidebarIcon(
+      number: '4',
       label: 'Season Challenges',
       route: '/manager_gw_menu_season_challenges',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
-      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '9',
       label: 'Repository & Audit',
       route: '/manager_gw_menu_repository',
     ),
@@ -158,54 +160,48 @@ class SidebarConfig {
 
   /// Manager Workspace items (for managers when in manager workspace context)
   static List<SidebarItem> get managerWorkspaceItems => List.unmodifiable([
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Dashboard_White.png',
-      red: 'assets/Khonodemy Icons/Dashboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '1',
       label: 'Dashboard',
       route: '/dashboard',
     ),
-    const SidebarItem(
-      icon: Icons.inbox_outlined,
+    itemWithManagerSidebarIcon(
+      number: '2',
       label: 'Inbox',
       route: '/manager_inbox',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
-      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '3',
       label: 'Team Alerts & Nudges',
       route: '/manager_alerts_nudges',
     ),
-    SidebarItem(
-      icon: Icons.emoji_events,
+    itemWithManagerSidebarIcon(
+      number: '4',
       label: 'Team Challenges',
       route: '/team_challenges_seasons',
     ),
-    SidebarItem(
-      icon: Icons.groups,
+    itemWithManagerSidebarIcon(
+      number: '5',
       label: 'Team Review',
       route: '/manager_review_team_dashboard',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
-      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '6',
       label: 'Progress Visuals',
       route: '/progress_visuals',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
-      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '7',
       label: 'Leaderboard',
       route: '/manager_leaderboard',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
-      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '8',
       label: 'Badges & Points',
       route: '/manager_badges_points',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
-      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '9',
       label: 'Repository & Audit',
       route: '/repository_audit',
     ),
@@ -213,15 +209,13 @@ class SidebarConfig {
 
   /// Global navigation items (always visible at bottom)
   static List<SidebarItem> get globalItems => List.unmodifiable([
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Profile_White.png',
-      red: 'assets/Khonodemy Icons/Profile_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '10',
       label: 'My Profile',
       route: '/my_profile',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Settings_White.png',
-      red: 'assets/Khonodemy Icons/Settings_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '11',
       label: 'Settings & Privacy',
       route: '/settings',
     ),
@@ -231,9 +225,8 @@ class SidebarConfig {
   // Use getters to avoid mutable static list ordering issues during hot reload,
   // and to prevent accidental runtime mutations.
   static List<SidebarItem> get employeeItems => List.unmodifiable([
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Dashboard_White.png',
-      red: 'assets/Khonodemy Icons/Dashboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '1',
       label: 'Dashboard',
       route: '/employee_dashboard',
     ),
@@ -243,9 +236,8 @@ class SidebarConfig {
       label: 'Goal Workspace',
       route: '/my_pdp',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
-      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '3',
       label: 'Alerts & Nudges',
       route: '/alerts_nudges',
     ),
@@ -255,45 +247,39 @@ class SidebarConfig {
       label: 'My PDP',
       route: '/my_goal_workspace',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
-      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '6',
       label: 'Progress Visuals',
       route: '/progress_visuals',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
-      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '7',
       label: 'Leaderboard',
       route: '/leaderboard',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
-      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '8',
       label: 'Badges & Points',
       route: '/badges_points',
     ),
-    SidebarItem(
-      icon: Icons.emoji_events_outlined,
+    itemWithManagerSidebarIcon(
+      number: '4',
       label: 'Season Challenges',
       route: '/season_challenges',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
-      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '9',
       label: 'Repository & Audit',
       route: '/repository_audit',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Profile_White.png',
-      red: 'assets/Khonodemy Icons/Profile_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '10',
       label: 'My Profile',
       route: '/my_profile',
     ),
     // Goal Proof removed
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Settings_White.png',
-      red: 'assets/Khonodemy Icons/Settings_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '11',
       label: 'Settings & Privacy',
       route: '/settings',
     ),
@@ -301,65 +287,58 @@ class SidebarConfig {
 
   // ===== MANAGER SIDEBAR ITEMS =====
   static List<SidebarItem> get managerItems => List.unmodifiable([
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Dashboard_White.png',
-      red: 'assets/Khonodemy Icons/Dashboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '1',
       label: 'Dashboard',
       route: '/dashboard',
     ),
-    const SidebarItem(
-      icon: Icons.inbox_outlined,
+    itemWithManagerSidebarIcon(
+      number: '2',
       label: 'Inbox',
       route: '/manager_inbox',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
-      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '3',
       label: 'Team Alerts & Nudges',
       route: '/manager_alerts_nudges',
     ),
-    SidebarItem(
-      icon: Icons.emoji_events,
+    itemWithManagerSidebarIcon(
+      number: '4',
       label: 'Team Challenges',
       route: '/team_challenges_seasons',
     ),
-    SidebarItem(
-      icon: Icons.groups,
+    itemWithManagerSidebarIcon(
+      number: '5',
       label: 'Team Review',
       route: '/manager_review_team_dashboard',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
-      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '6',
       label: 'Progress Visuals',
       route: '/progress_visuals',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
-      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '7',
       label: 'Leaderboard',
       route: '/manager_leaderboard',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
-      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '8',
       label: 'Badges & Points',
       route: '/manager_badges_points',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
-      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '9',
       label: 'Repository & Audit',
       route: '/repository_audit',
     ),
-    SidebarItem(
-      icon: Icons.manage_accounts,
+    itemWithManagerSidebarIcon(
+      number: '10',
       label: 'My Profile',
       route: '/manager_profile',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Settings_White.png',
-      red: 'assets/Khonodemy Icons/Settings_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '11',
       label: 'Settings & Privacy',
       route: '/settings',
     ),
@@ -368,65 +347,58 @@ class SidebarConfig {
   // ===== ADMIN SIDEBAR ITEMS =====
   // Labels and order mirror manager sidebar (excluding Manager Workspace). Admin oversees managers.
   static List<SidebarItem> get adminItems => List.unmodifiable([
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Dashboard_White.png',
-      red: 'assets/Khonodemy Icons/Dashboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '1',
       label: 'Dashboard',
       route: '/admin_dashboard',
     ),
-    SidebarItem(
-      icon: Icons.inbox_outlined,
+    itemWithManagerSidebarIcon(
+      number: '2',
       label: 'Inbox',
       route: '/admin_inbox',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
-      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '3',
       label: 'Team Alerts & Nudges',
       route: '/admin_team_alerts_nudges',
     ),
-    SidebarItem(
-      icon: Icons.emoji_events,
+    itemWithManagerSidebarIcon(
+      number: '4',
       label: 'Team Challenges',
       route: '/admin_team_challenges',
     ),
-    SidebarItem(
-      icon: Icons.groups,
+    itemWithManagerSidebarIcon(
+      number: '5',
       label: 'Team Review',
       route: '/admin_team_review',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
-      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '6',
       label: 'Progress Visuals',
       route: '/admin_progress_visuals',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
-      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '7',
       label: 'Leaderboard',
       route: '/org_leaderboard',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
-      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '8',
       label: 'Badges & Points',
       route: '/admin_badges_points',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
-      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '9',
       label: 'Repository & Audit',
       route: '/admin_repository_audit',
     ),
-    SidebarItem(
-      icon: Icons.manage_accounts,
+    itemWithManagerSidebarIcon(
+      number: '10',
       label: 'My Profile',
       route: '/admin_profile',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Settings_White.png',
-      red: 'assets/Khonodemy Icons/Settings_Red.png',
+    itemWithManagerSidebarIcon(
+      number: '11',
       label: 'Settings & Privacy',
       route: '/admin_settings',
     ),
