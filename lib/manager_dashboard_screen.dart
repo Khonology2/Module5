@@ -29,6 +29,7 @@ class ManagerDashboardScreen extends StatefulWidget {
 
   /// When true, admin is viewing this screen; data shows managers (not employees).
   final bool forAdminOversight;
+
   /// When set with [forAdminOversight], show data for this manager only (future use).
   final String? selectedManagerId;
 
@@ -413,8 +414,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             );
           }
           if (!employeesSnap.hasData) {
-            final timedOut = _employeesLoadWatch.elapsed >
-                const Duration(seconds: 12);
+            final timedOut =
+                _employeesLoadWatch.elapsed > const Duration(seconds: 12);
             if (timedOut) {
               return Center(
                 child: ConstrainedBox(
@@ -447,7 +448,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                               ElevatedButton(
                                 onPressed: () {
                                   setState(() {
-                                    _employeesStream = _realtime.employeesStream();
+                                    _employeesStream = _realtime
+                                        .employeesStream();
                                     _employeesLoadWatch
                                       ..reset()
                                       ..start();
@@ -512,8 +514,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               final topGridColumns = width >= 920
                   ? 3
                   : width >= 640
-                      ? 2
-                      : 1;
+                  ? 2
+                  : 1;
               final middleTwoColumns = width >= 920;
 
               final now = DateTime.now();
@@ -593,7 +595,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
                   const SizedBox(height: AppSpacing.lg),
 
-                  _buildBottomKpisAndHealth(metrics, employees, maxWidth: width),
+                  _buildBottomKpisAndHealth(
+                    metrics,
+                    employees,
+                    maxWidth: width,
+                  ),
 
                   const SizedBox(height: AppSpacing.xxl),
                 ],
@@ -655,7 +661,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   // Dark mode: reduce alpha so the background image remains visible.
   // "Drop opacity by 40%" => keep ~60% opacity (alpha 0x99).
   Color _dashboardCardFill() {
-    return DashboardChrome.light ? const Color(0x99FFFFFF) : const Color(0x993D3F40);
+    return DashboardChrome.light
+        ? const Color(0x99FFFFFF)
+        : const Color(0x993D3F40);
   }
 
   Color _dashboardCardBorder() {
@@ -701,7 +709,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             children: [
               Text(
                 'Manager Dashboard',
-                style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
+                style: AppTypography.heading2.copyWith(
+                  color: DashboardChrome.fg,
+                ),
               ),
               const SizedBox(width: 12),
               Flexible(
@@ -936,7 +946,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           if (top.isEmpty)
             Text(
               'No recent activities yet.',
-              style: AppTypography.bodyMedium.copyWith(color: DashboardChrome.fg),
+              style: AppTypography.bodyMedium.copyWith(
+                color: DashboardChrome.fg,
+              ),
             )
           else
             ...top.map(
@@ -1074,7 +1086,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           tiles: [
             _smallKpiTile('Total', '$totalEmployees'),
             _smallKpiTile('Active', '$activeEmployees'),
-            _smallKpiTile('Average Progress', '${avgProgress.toStringAsFixed(0)}'),
+            _smallKpiTile(
+              'Average Progress',
+              '${avgProgress.toStringAsFixed(0)}',
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -1133,7 +1148,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
   // _buildWelcomeCard removed (dashboard now uses _buildDashboardHeader).
 
-
   Widget _buildDailyMotivationCard() {
     return _card(
       child: Row(
@@ -1154,8 +1168,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 const SizedBox(height: 2),
                 Text(
                   'Lead by example, and let your team grow today!',
-                  style:
-                      AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: DashboardChrome.fg,
+                  ),
                 ),
               ],
             ),
@@ -1675,7 +1690,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               const SizedBox(width: 8),
               Text(
                 'Quick Action',
-                style: AppTypography.heading4.copyWith(color: DashboardChrome.fg),
+                style: AppTypography.heading4.copyWith(
+                  color: DashboardChrome.fg,
+                ),
               ),
             ],
           ),
@@ -1688,6 +1705,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             ]),
             style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
           ),
+          const SizedBox(height: 10),
+          Divider(color: Colors.white, thickness: 0.61, height: 0.61),
           const SizedBox(height: AppSpacing.md),
           if (expand)
             Expanded(child: grid(shrinkWrap: false))
