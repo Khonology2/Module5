@@ -1710,6 +1710,51 @@ class SeasonService {
     }
   }
 
+  static Future<void> finalizeApprovedSeasonGoal({
+    required String goalId,
+  }) async {
+    try {
+      final goalDoc = await _firestore.collection('goals').doc(goalId).get();
+      if (!goalDoc.exists) {
+        throw Exception('Goal not found');
+      }
+
+      final goalData = goalDoc.data()!;
+      if (goalData['isSeasonGoal'] != true) {
+        throw Exception('Goal is not a season goal');
+      }
+      if (goalData['seasonCompletionFinalizedAt'] != null) {
+        return;
+      }
+
+      final String? seasonId = goalData['seasonId'] is String
+          ? goalData['seasonId'] as String
+          : null;
+      final String? challengeId = goalData['challengeId'] is String
+          ? goalData['challengeId'] as String
+          : null;
+      final String userId = (goalData['userId'] ?? '').toString();
+      if (seasonId == null ||
+          seasonId.isEmpty ||
+          challengeId == null ||
+          challengeId.isEmpty ||
+          userId.isEmpty) {
+        throw Exception('Goal is missing season identifiers.');
+      }
+
+      await goalDoc.reference.set({
+        'seasonCompletionFinalizedAt': FieldValue.serverTimestamp(),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      await _updateSeasonMilestoneFromGoal(seasonId, userId, challengeId, goalId);
+      await _checkSeasonCompletion(seasonId, userId);
+    } catch (e, st) {
+      developer.log('Error finalizing approved season goal: $e', stackTrace: st);
+      rethrow;
+    }
+  }
+
   // Update season milestone progress when goal is completed
   static Future<void> _updateSeasonMilestoneFromGoal(
     String seasonId,
@@ -2022,116 +2067,177 @@ class SeasonService {
         ];
       case 'skill':
         return [
-          SeasonChallenge(
-            id: 'skill_goal_1',
-            title: 'Skill Development Sprint',
-            description: 'Develop a new skill or improve an existing one',
-            type: ChallengeType.skill,
-            points: 75,
-            milestones: [
-              SeasonMilestone(
-                id: 'skill_milestone_1',
-                title: 'Skill Assessment',
-                description: 'Assess your current skill level',
-                points: 15,
-                challengeId: 'skill_goal_1',
-                criteria: {'action': 'skill_assessment'},
-              ),
-              SeasonMilestone(
-                id: 'skill_milestone_2',
-                title: 'Practice Sessions',
-                description: 'Complete 5 practice sessions',
-                points: 30,
-                challengeId: 'skill_goal_1',
-                criteria: {'sessions': 5},
-              ),
-              SeasonMilestone(
-                id: 'skill_milestone_3',
-                title: 'Skill Demonstration',
-                description: 'Demonstrate your improved skill',
-                points: 30,
-                challengeId: 'skill_goal_1',
-                criteria: {'action': 'skill_demo'},
-              ),
-            ],
-            requirements: {'skill_type': 'any'},
+          _attachLinkedResourceToChallenge(
+            SeasonChallenge(
+              id: 'skill_goal_1',
+              title: 'Skill Development Sprint',
+              description: 'Develop a new skill or improve an existing one',
+              type: ChallengeType.skill,
+              points: 75,
+              milestones: [
+                SeasonMilestone(
+                  id: 'skill_milestone_1',
+                  title: 'Skill Assessment',
+                  description: 'Assess your current skill level',
+                  points: 15,
+                  challengeId: 'skill_goal_1',
+                  criteria: {'action': 'skill_assessment'},
+                ),
+                SeasonMilestone(
+                  id: 'skill_milestone_2',
+                  title: 'Practice Sessions',
+                  description: 'Complete 5 practice sessions',
+                  points: 30,
+                  challengeId: 'skill_goal_1',
+                  criteria: {'sessions': 5},
+                ),
+                SeasonMilestone(
+                  id: 'skill_milestone_3',
+                  title: 'Skill Demonstration',
+                  description: 'Demonstrate your improved skill',
+                  points: 30,
+                  challengeId: 'skill_goal_1',
+                  criteria: {'action': 'skill_demo'},
+                ),
+              ],
+              requirements: {'skill_type': 'any'},
+            ),
+            learningResource: learningResource,
+            proofRequired: proofRequired,
+            proofType: proofType,
+            courseLevel: courseLevel,
+            estimatedHours: estimatedHours,
           ),
         ];
       case 'collaboration':
         return [
-          SeasonChallenge(
-            id: 'collab_goal_1',
-            title: 'Team Collaboration',
-            description: 'Work on a collaborative project with team members',
-            type: ChallengeType.collaboration,
-            points: 60,
-            milestones: [
-              SeasonMilestone(
-                id: 'collab_milestone_1',
-                title: 'Project Kickoff',
-                description: 'Start a collaborative project',
-                points: 15,
-                challengeId: 'collab_goal_1',
-                criteria: {'action': 'project_start'},
-              ),
-              SeasonMilestone(
-                id: 'collab_milestone_2',
-                title: 'Collaboration Progress 75%',
-                description: 'Reach 75% progress on the collaboration goal',
-                points: 25,
-                challengeId: 'collab_goal_1',
-                criteria: {'progress': 75},
-              ),
-              SeasonMilestone(
-                id: 'collab_milestone_3',
-                title: 'Project Completion',
-                description: 'Complete the collaborative project',
-                points: 20,
-                challengeId: 'collab_goal_1',
-                criteria: {'action': 'project_complete'},
-              ),
-            ],
-            requirements: {'team_size': 2},
+          _attachLinkedResourceToChallenge(
+            SeasonChallenge(
+              id: 'collab_goal_1',
+              title: 'Team Collaboration',
+              description: 'Work on a collaborative project with team members',
+              type: ChallengeType.collaboration,
+              points: 60,
+              milestones: [
+                SeasonMilestone(
+                  id: 'collab_milestone_1',
+                  title: 'Project Kickoff',
+                  description: 'Start a collaborative project',
+                  points: 15,
+                  challengeId: 'collab_goal_1',
+                  criteria: {'action': 'project_start'},
+                ),
+                SeasonMilestone(
+                  id: 'collab_milestone_2',
+                  title: 'Collaboration Progress 75%',
+                  description: 'Reach 75% progress on the collaboration goal',
+                  points: 25,
+                  challengeId: 'collab_goal_1',
+                  criteria: {'progress': 75},
+                ),
+                SeasonMilestone(
+                  id: 'collab_milestone_3',
+                  title: 'Project Completion',
+                  description: 'Complete the collaborative project',
+                  points: 20,
+                  challengeId: 'collab_goal_1',
+                  criteria: {'action': 'project_complete'},
+                ),
+              ],
+              requirements: {'team_size': 2},
+            ),
+            learningResource: learningResource,
+            proofRequired: proofRequired,
+            proofType: proofType,
+            courseLevel: courseLevel,
+            estimatedHours: estimatedHours,
           ),
         ];
       default:
         return [
-          SeasonChallenge(
-            id: 'general_goal_1',
-            title: 'Personal Growth',
-            description: 'Set and achieve a personal development goal',
-            type: ChallengeType.learning,
-            points: 40,
-            milestones: [
-              SeasonMilestone(
-                id: 'general_milestone_1',
-                title: 'Goal Setting',
-                description: 'Set a personal development goal',
-                points: 10,
-                challengeId: 'general_goal_1',
-                criteria: {'action': 'goal_set'},
-              ),
-              SeasonMilestone(
-                id: 'general_milestone_2',
-                title: 'Progress Update',
-                description: 'Update your progress on the goal',
-                points: 15,
-                challengeId: 'general_goal_1',
-                criteria: {'progress': 50},
-              ),
-              SeasonMilestone(
-                id: 'general_milestone_3',
-                title: 'Goal Achievement',
-                description: 'Complete your personal development goal',
-                points: 15,
-                challengeId: 'general_goal_1',
-                criteria: {'progress': 100},
-              ),
-            ],
-            requirements: {'goal_type': 'personal'},
+          _attachLinkedResourceToChallenge(
+            SeasonChallenge(
+              id: 'general_goal_1',
+              title: 'Personal Growth',
+              description: 'Set and achieve a personal development goal',
+              type: ChallengeType.learning,
+              points: 40,
+              milestones: [
+                SeasonMilestone(
+                  id: 'general_milestone_1',
+                  title: 'Goal Setting',
+                  description: 'Set a personal development goal',
+                  points: 10,
+                  challengeId: 'general_goal_1',
+                  criteria: {'action': 'goal_set'},
+                ),
+                SeasonMilestone(
+                  id: 'general_milestone_2',
+                  title: 'Progress Update',
+                  description: 'Update your progress on the goal',
+                  points: 15,
+                  challengeId: 'general_goal_1',
+                  criteria: {'progress': 50},
+                ),
+                SeasonMilestone(
+                  id: 'general_milestone_3',
+                  title: 'Goal Achievement',
+                  description: 'Complete your personal development goal',
+                  points: 15,
+                  challengeId: 'general_goal_1',
+                  criteria: {'progress': 100},
+                ),
+              ],
+              requirements: {'goal_type': 'personal'},
+            ),
+            learningResource: learningResource,
+            proofRequired: proofRequired,
+            proofType: proofType,
+            courseLevel: courseLevel,
+            estimatedHours: estimatedHours,
           ),
         ];
     }
+  }
+
+  static SeasonChallenge _attachLinkedResourceToChallenge(
+    SeasonChallenge challenge, {
+    SeasonCourseResource? learningResource,
+    required bool proofRequired,
+    String? proofType,
+    String? courseLevel,
+    int? estimatedHours,
+  }) {
+    final resource = learningResource;
+    final hasLinkedResource = resource != null && resource.url.trim().isNotEmpty;
+    return SeasonChallenge(
+      id: challenge.id,
+      title: challenge.title,
+      description: hasLinkedResource
+          ? '${challenge.description} Includes a linked ${resource.provider} resource that participants open and track inside the app.'
+          : challenge.description,
+      type: challenge.type,
+      points: challenge.points,
+      milestones: challenge.milestones,
+      requirements: {
+        ...challenge.requirements,
+        if (hasLinkedResource) ...{
+          'resourceType': 'externalCourse',
+          'provider': resource.provider,
+          'resourceUrl': resource.url,
+        },
+      },
+      resources: hasLinkedResource ? [resource] : challenge.resources,
+      proofRequired: hasLinkedResource ? proofRequired : challenge.proofRequired,
+      proofType: hasLinkedResource
+          ? (proofType?.trim().isNotEmpty == true
+                ? proofType!.trim()
+                : 'certificate or screenshot')
+          : challenge.proofType,
+      courseLevel: hasLinkedResource ? courseLevel : challenge.courseLevel,
+      estimatedHours: hasLinkedResource ? estimatedHours : challenge.estimatedHours,
+      isOptional: challenge.isOptional,
+    );
   }
 
   static SeasonChallenge? _findChallengeById(Season season, String challengeId) {
@@ -2487,10 +2593,13 @@ class SeasonService {
       final existing = await _firestore
           .collection('goals')
           .where('userId', isEqualTo: userId)
-          .where('seasonId', isEqualTo: season.id)
-          .where('isSeasonGoal', isEqualTo: true)
           .get();
       final existingChallengeIds = existing.docs
+          .where((doc) {
+            final data = doc.data();
+            return data['isSeasonGoal'] == true &&
+                (data['seasonId'] ?? '').toString() == season.id;
+          })
           .map((doc) => (doc.data()['challengeId'] ?? '').toString())
           .where((id) => id.trim().isNotEmpty)
           .toSet();

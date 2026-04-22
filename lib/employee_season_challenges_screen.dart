@@ -6,11 +6,13 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/season_details_screen.dart';
 import 'package:pdh/season_celebration_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
@@ -1067,18 +1069,16 @@ class _EmployeeSeasonChallengesScreenState
   }
 
   Future<void> _viewSeasonDetails(Season season) async {
-    if (_currentUserId == null) return;
-    try {
-      await _openSeasonGoalDetail(season);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to open goal details: $e'),
-          backgroundColor: AppColors.dangerColor,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SeasonDetailsScreen(
+          season: season,
+          participantUserId: _currentUserId,
+          participantUserName: _currentUserName,
         ),
-      );
-    }
+      ),
+    );
   }
 
   void _viewSeasonCelebration(Season season) {
@@ -1102,20 +1102,42 @@ class _EmployeeSeasonChallengesScreenState
     if (currentUserId == null) return;
 
     final userName = _currentUserName ?? 'Employee';
-    await SeasonService.ensureSeasonGoalsForEmployee(
-      season: season,
-      userId: currentUserId,
-      userName: userName,
-    );
+    try {
+      await SeasonService.ensureSeasonGoalsForEmployee(
+        season: season,
+        userId: currentUserId,
+        userName: userName,
+      );
+    } catch (_) {
+      // Best-effort backfill only. Continue and try to open any existing goals.
+    }
 
-    final snap = await FirebaseFirestore.instance
+    final userGoals = await DatabaseService.getUserGoalsForViewer(
+      viewerId: currentUserId,
+      targetUserId: currentUserId,
+    );
+    final seasonGoals = userGoals.where((goal) {
+      final rawGoal = goal;
+      return rawGoal.isSeasonGoal;
+    }).toList();
+    final seasonGoalDocs = await FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: currentUserId)
-        .where('seasonId', isEqualTo: season.id)
-        .where('isSeasonGoal', isEqualTo: true)
         .get();
+    final docs = seasonGoalDocs.docs.where((doc) {
+      final data = doc.data();
+      return data['isSeasonGoal'] == true &&
+          (data['seasonId'] ?? '').toString() == season.id;
+    }).toList()
+      ..sort((a, b) {
+        final aCreated = a.data()['createdAt'];
+        final bCreated = b.data()['createdAt'];
+        final aDate = aCreated is Timestamp ? aCreated.toDate() : DateTime(1970);
+        final bDate = bCreated is Timestamp ? bCreated.toDate() : DateTime(1970);
+        return bDate.compareTo(aDate);
+      });
 
-    if (snap.docs.isEmpty) {
+    if (seasonGoals.isEmpty || docs.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1126,7 +1148,6 @@ class _EmployeeSeasonChallengesScreenState
       return;
     }
 
-    final docs = snap.docs;
     QueryDocumentSnapshot<Map<String, dynamic>>? selected;
 
     if (preferredChallengeId != null) {

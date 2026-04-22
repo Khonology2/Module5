@@ -1315,6 +1315,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
   DateTime? _endDate;
   bool _isCreating = false;
   String _selectedTheme = 'Learning';
+  bool _useLinkedResource = false;
   bool _resourceIsFree = true;
   bool _proofRequired = false;
   String _courseLevel = 'Beginner';
@@ -1439,7 +1440,33 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           ),
           const SizedBox(height: AppSpacing.md),
 
-          if (_selectedTheme == 'Learning') ...[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Attach linked resource',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              'Use this for seasons that should include a course or external learning link, while still behaving like a normal season.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            value: _useLinkedResource,
+            onChanged: (value) {
+              setState(() {
+                _useLinkedResource = value;
+                if (!value) {
+                  _proofRequired = false;
+                }
+              });
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          if (_useLinkedResource) ...[
             _buildLinkedCourseSection(),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -1547,7 +1574,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     });
 
     try {
-      final hasLinkedCourse = _selectedTheme == 'Learning' &&
+      final hasLinkedCourse = _useLinkedResource &&
           _courseUrlController.text.trim().isNotEmpty;
       final estimatedHours = int.tryParse(_estimatedHoursController.text.trim());
       final learningResource = hasLinkedCourse
@@ -1565,7 +1592,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
       final challenges = SeasonService.createDefaultChallenges(
         _selectedTheme,
         learningResource: learningResource,
-        proofRequired: _proofRequired,
+        proofRequired: _useLinkedResource && _proofRequired,
         proofType: _proofTypeController.text.trim(),
         courseLevel: _courseLevel,
         estimatedHours: estimatedHours,
@@ -1605,7 +1632,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Linked Course Setup',
+            'Linked Resource Setup',
             style: AppTypography.heading4.copyWith(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
@@ -1613,7 +1640,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Optionally attach a free SQL, Excel, or other external course so employees can open it from the app and track progress here.',
+            'Attach a course or external learning resource so employees can open it from the app while the season still uses the normal goals and milestone flow.',
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -1675,9 +1702,9 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
               border: OutlineInputBorder(),
             ),
             validator: (value) {
-              if (_selectedTheme != 'Learning') return null;
+              if (!_useLinkedResource) return null;
               final trimmed = value?.trim() ?? '';
-              if (trimmed.isEmpty) return null;
+              if (trimmed.isEmpty) return 'Enter a linked resource URL';
               final uri = Uri.tryParse(trimmed);
               if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
                 return 'Enter a valid course URL';

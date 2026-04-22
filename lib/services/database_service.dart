@@ -120,10 +120,9 @@ class DatabaseService {
     final snapshot = await FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: targetUserId)
-        .orderBy('createdAt', descending: true)
         .get();
     var goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
-    // Removed in-memory sort - using Firestore orderBy instead
+    goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     goals = goals.where((g) => g.isDisplayableGoal).toList();
 
     // If teamShare is disabled, hide completed goals from non-owners/non-managers
@@ -173,7 +172,6 @@ class DatabaseService {
     yield* FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: targetUserId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
         .handleError((error) {
           developer.log('Error in getUserGoalsStream: $error');
@@ -185,7 +183,7 @@ class DatabaseService {
           var goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
               .toList();
-          // Removed in-memory sort - using Firestore orderBy instead
+          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           if (!isOwner &&
               viewerRole != 'manager' &&
               settings['teamShare'] == false) {
@@ -378,6 +376,7 @@ class DatabaseService {
     final approverRoleRaw =
         (await _getUserRole(managerId)).trim().toLowerCase();
     Map<String, dynamic>? goalData;
+    bool isSeasonFinalReview = false;
     await firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(goalRef);
       if (!snapshot.exists) {
@@ -420,15 +419,31 @@ class DatabaseService {
       }
 
       goalData = data;
+      isSeasonFinalReview =
+          data?['isSeasonGoal'] == true && data?['approvalRequestedAt'] != null;
       transaction.update(goalRef, {
         'approvalStatus': GoalApprovalStatus.approved.name,
         'approvedByUserId': managerId,
         'approvedByName': managerName,
         'approvedAt': FieldValue.serverTimestamp(),
         'rejectionReason': null,
+        if (isSeasonFinalReview) 'status': GoalStatus.acknowledged.name,
       });
     });
     if (goalData == null) return;
+
+    if (isSeasonFinalReview) {
+      try {
+        await SeasonService.finalizeApprovedSeasonGoal(goalId: goalId);
+      } catch (e) {
+        developer.log('Error finalizing approved season goal: $e');
+      }
+      try {
+        await _syncSeasonGoalFromGoalState(goalId);
+      } catch (e) {
+        developer.log('Error syncing approved season goal: $e');
+      }
+    }
 
     // Move pending approval request alert(s) out of inbox for this reviewer.
     try {
@@ -524,6 +539,7 @@ class DatabaseService {
     final approverRoleRaw =
         (await _getUserRole(managerId)).trim().toLowerCase();
     Map<String, dynamic>? goalData;
+    bool isSeasonFinalReview = false;
     await firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(goalRef);
       if (!snapshot.exists) {
@@ -566,15 +582,26 @@ class DatabaseService {
       }
 
       goalData = data;
+      isSeasonFinalReview =
+          data?['isSeasonGoal'] == true && data?['approvalRequestedAt'] != null;
       transaction.update(goalRef, {
         'approvalStatus': GoalApprovalStatus.rejected.name,
         'approvedByUserId': managerId,
         'approvedByName': managerName,
         'approvedAt': FieldValue.serverTimestamp(),
         'rejectionReason': reason,
+        if (isSeasonFinalReview) 'status': GoalStatus.inProgress.name,
       });
     });
     if (goalData == null) return;
+
+    if (isSeasonFinalReview) {
+      try {
+        await _syncSeasonGoalFromGoalState(goalId);
+      } catch (e) {
+        developer.log('Error syncing rejected season goal: $e');
+      }
+    }
 
     // Move pending approval request alert(s) out of inbox for this reviewer.
     try {
@@ -913,6 +940,58 @@ class DatabaseService {
     await attempt(0);
   }
 
+  static Future<void> submitSeasonGoalForFinalReview({
+    required String goalId,
+    required String userId,
+    required String goalTitle,
+    required String finalEvidence,
+  }) async {
+    final trimmedEvidence = finalEvidence.trim();
+    if (trimmedEvidence.isEmpty) {
+      throw Exception('Please provide final evidence before submitting.');
+    }
+
+    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
+    final goalSnap = await goalRef.get();
+    if (!goalSnap.exists) {
+      throw Exception('Goal not found');
+    }
+
+    final data = goalSnap.data() ?? const <String, dynamic>{};
+    if (data['userId'] != userId || data['isSeasonGoal'] != true) {
+      throw Exception('You are not allowed to submit this season goal.');
+    }
+
+    final progress = _coerceInt(data['progress']);
+    if (progress < 100) {
+      throw Exception('Set progress to 100% before submitting final review.');
+    }
+
+    await goalRef.set({
+      'status': GoalStatus.completed.name,
+      'progress': 100,
+      'completedAt': FieldValue.serverTimestamp(),
+      'evidence': FieldValue.arrayUnion([trimmedEvidence]),
+      'seasonFinalReviewSubmittedAt': FieldValue.serverTimestamp(),
+      'seasonFinalReviewEvidence': trimmedEvidence,
+      'approvalStatus': GoalApprovalStatus.pending.name,
+      'approvedByUserId': null,
+      'approvedByName': null,
+      'approvedAt': null,
+      'rejectionReason': null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    await requestGoalApproval(
+      goalId: goalId,
+      userId: userId,
+      goalTitle: goalTitle,
+      sourceWorkspace: 'season_final_review',
+    );
+
+    await _syncSeasonGoalFromGoalState(goalId);
+  }
+
   static Future<void> updateGoal(Goal goal) async {
     await FirebaseFirestore.instance.collection('goals').doc(goal.id).update({
       'title': goal.title,
@@ -934,17 +1013,27 @@ class DatabaseService {
     required MilestoneEvidence evidence,
   }) async {
     final now = DateTime.now();
+    final goalMeta = await FirebaseFirestore.instance
+        .collection('goals')
+        .doc(goalId)
+        .get();
+    final isSeasonGoal = goalMeta.data()?['isSeasonGoal'] == true;
 
     // Atomic operation: add evidence and update milestone status
     final batch = FirebaseFirestore.instance.batch();
 
     // Add evidence to milestone
     final milestoneRef = _goalMilestonesRef(goalId).doc(milestoneId);
+    final milestoneSnapshot = await milestoneRef.get();
+    final currentStatus = _goalMilestoneStatusFromString(
+      milestoneSnapshot.data()?['status']?.toString(),
+    );
     batch.update(milestoneRef, {
       'evidence': FieldValue.arrayUnion([evidence.toMap()]),
-      'status': GoalMilestoneStatus
-          .pendingManagerReview
-          .name, // NEW: Change to pending review
+      'status': _statusAfterEvidenceSubmission(
+        isSeasonGoal: isSeasonGoal,
+        currentStatus: currentStatus,
+      ).name,
       'updatedAt': Timestamp.fromDate(now),
     });
 
@@ -956,7 +1045,9 @@ class DatabaseService {
 
     await batch.commit();
 
-    // Send notification to manager
+    // Notify the creator/reviewer side. For season goals this acts as a
+    // progress check-in signal, while final approval still happens once at
+    // whole-goal submission time.
     final milestoneDoc = await milestoneRef.get();
     final milestone = GoalMilestone.fromFirestore(milestoneDoc);
     await _handleMilestoneEvidenceSubmission(
@@ -973,6 +1064,12 @@ class DatabaseService {
     required String milestoneId,
     required List<MilestoneEvidence> evidenceList,
   }) async {
+    final goalMeta = await FirebaseFirestore.instance
+        .collection('goals')
+        .doc(goalId)
+        .get();
+    final isSeasonGoal = goalMeta.data()?['isSeasonGoal'] == true;
+
     Future<void> attempt(int attemptCount) async {
       final milestoneRef = _goalMilestonesRef(goalId).doc(milestoneId);
 
@@ -980,10 +1077,17 @@ class DatabaseService {
       final evidenceMaps = evidenceList.map((e) => e.toMap()).toList();
 
       try {
+        final milestoneSnapshot = await milestoneRef.get();
+        final currentStatus = _goalMilestoneStatusFromString(
+          milestoneSnapshot.data()?['status']?.toString(),
+        );
         // Single operation only - no secondary operations that cause race conditions
         await milestoneRef.set({
           'evidence': FieldValue.arrayUnion(evidenceMaps),
-          'status': GoalMilestoneStatus.pendingManagerReview.name,
+          'status': _statusAfterEvidenceSubmission(
+            isSeasonGoal: isSeasonGoal,
+            currentStatus: currentStatus,
+          ).name,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
@@ -1062,6 +1166,41 @@ class DatabaseService {
     return errorString.contains('not-found') ||
         errorString.contains('not found') ||
         errorString.contains('firestore: not-found');
+  }
+
+  static GoalMilestoneStatus? _goalMilestoneStatusFromString(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null;
+    }
+    for (final status in GoalMilestoneStatus.values) {
+      if (status.name == value) {
+        return status;
+      }
+    }
+    return null;
+  }
+
+  static GoalMilestoneStatus _statusAfterEvidenceSubmission({
+    required bool isSeasonGoal,
+    GoalMilestoneStatus? currentStatus,
+  }) {
+    if (!isSeasonGoal) {
+      return GoalMilestoneStatus.pendingManagerReview;
+    }
+
+    switch (currentStatus) {
+      case GoalMilestoneStatus.completedAcknowledged:
+        return GoalMilestoneStatus.completedAcknowledged;
+      case GoalMilestoneStatus.completed:
+        return GoalMilestoneStatus.completed;
+      case GoalMilestoneStatus.blocked:
+        return GoalMilestoneStatus.blocked;
+      case GoalMilestoneStatus.pendingManagerReview:
+      case GoalMilestoneStatus.inProgress:
+      case GoalMilestoneStatus.notStarted:
+      case null:
+        return GoalMilestoneStatus.inProgress;
+    }
   }
 
   // NEW: Handle milestone evidence submission notifications
@@ -1578,8 +1717,14 @@ class DatabaseService {
       final participation = season.participations[userId];
       final goalProgress = _coerceInt(goalData['progress']);
       final goalStatus = (goalData['status'] ?? '').toString();
+      final goalApprovalStatus = (goalData['approvalStatus'] ?? '')
+          .toString()
+          .trim();
+      final goalApprovalRequested = goalData['approvalRequestedAt'] != null;
+      final rawGoalEvidence = goalData['evidence'];
       final goalHasEvidence =
-          goalData['evidence'] is List && (goalData['evidence'] as List).isNotEmpty;
+          (rawGoalEvidence is List && rawGoalEvidence.isNotEmpty) ||
+          (rawGoalEvidence is String && rawGoalEvidence.trim().isNotEmpty);
 
       final goalMilestoneSnap = await _goalMilestonesRef(goalId).get();
       final goalMilestoneData = goalMilestoneSnap.docs
@@ -1590,11 +1735,6 @@ class DatabaseService {
         (data) => (data['status'] ?? '').toString() ==
             GoalMilestoneStatus.pendingManagerReview.name,
       );
-      final hasAcknowledgedMilestone = goalMilestoneData.any((data) {
-        final rawStatus = (data['status'] ?? '').toString();
-        return rawStatus == GoalMilestoneStatus.completedAcknowledged.name ||
-            rawStatus == GoalMilestoneStatus.completed.name;
-      });
       final hasStartedCustomMilestone = goalMilestoneData.any((data) {
         final rawStatus = (data['status'] ?? '').toString();
         return rawStatus == GoalMilestoneStatus.inProgress.name ||
@@ -1608,9 +1748,10 @@ class DatabaseService {
           milestone: milestone,
           goalProgress: goalProgress,
           goalStatus: goalStatus,
+          goalApprovalStatus: goalApprovalStatus,
+          goalApprovalRequested: goalApprovalRequested,
           goalHasEvidence: goalHasEvidence,
           hasPendingReview: hasPendingReview,
-          hasAcknowledgedMilestone: hasAcknowledgedMilestone,
           hasStartedCustomMilestone: hasStartedCustomMilestone,
         );
         final currentStatus =
@@ -1642,17 +1783,26 @@ class DatabaseService {
     required SeasonMilestone milestone,
     required int goalProgress,
     required String goalStatus,
+    required String goalApprovalStatus,
+    required bool goalApprovalRequested,
     required bool goalHasEvidence,
     required bool hasPendingReview,
-    required bool hasAcknowledgedMilestone,
     required bool hasStartedCustomMilestone,
   }) {
     final criteria = milestone.criteria;
     if (criteria['managerReview'] == true || criteria['proofApproval'] == true) {
-      if (hasAcknowledgedMilestone) {
+      final hasFinalApproval =
+          (goalApprovalRequested &&
+              goalApprovalStatus == GoalApprovalStatus.approved.name) ||
+          goalStatus == GoalStatus.acknowledged.name;
+      final hasFinalSubmission =
+          goalApprovalRequested ||
+          goalStatus == GoalStatus.completed.name ||
+          goalHasEvidence;
+      if (hasFinalApproval) {
         return MilestoneStatus.completed;
       }
-      if (hasPendingReview || goalHasEvidence) {
+      if (hasFinalSubmission || hasPendingReview) {
         return MilestoneStatus.inProgress;
       }
       return MilestoneStatus.notStarted;
