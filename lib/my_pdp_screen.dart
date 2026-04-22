@@ -1046,7 +1046,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
       // Submit to audit along with attached evidence so managers can review
       await AuditService.submitGoalForAudit(goal, goal.evidence);
       if (mounted) {
-        await _showCenterNotice(context, 'Acknowledgement requested');
+        await _showCenterNotice(context, 'Request Sent');
       }
     } catch (e) {
       if (mounted) {
@@ -2057,7 +2057,12 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                             milestoneSnapshot.data ?? const <GoalMilestone>[];
                         final hasAuditEntry = auditEntry != null;
                         final status = auditEntry?.status;
-                        final isVerified = status == 'verified';
+                        final goalAlreadyAcknowledged =
+                            goal.status == GoalStatus.acknowledged;
+                        final hasExistingRequest =
+                            hasAuditEntry || goalAlreadyAcknowledged;
+                        final isVerified =
+                            status == 'verified' || goalAlreadyAcknowledged;
                         final isRejected = status == 'rejected';
                         final isApproved =
                             goal.approvalStatus == GoalApprovalStatus.approved;
@@ -2066,16 +2071,19 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                           milestones: milestones,
                         );
 
-                        final canTapAction = isApproved && !isVerified;
+                        // Keep re-request available even after verification.
+                        // _handleAcknowledgementRequest already enforces the
+                        // confirmation + reason flow when an audit entry exists.
+                        final canTapAction = isApproved;
                         final isRequestSentState =
-                            hasAuditEntry && !isVerified && !isRejected;
+                            hasExistingRequest && !isVerified && !isRejected;
 
                         final label = isVerified
                             ? 'Acknowledged'
                             : isRejected
                             ? 'Changes requested'
                             : isRequestSentState
-                            ? 'Acknowledgement request sent'
+                            ? 'Request Sent'
                             : (isApproved
                                   ? 'Request acknowledgement'
                                   : widget.managerOwnGoalsOnly
@@ -2124,7 +2132,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                   ? () => _handleAcknowledgementRequest(
                                       goal: goal,
                                       milestones: milestones,
-                                      hasAuditEntry: hasAuditEntry,
+                                      hasAuditEntry: hasExistingRequest,
                                     )
                                   : null,
                               icon: Icon(icon, size: 18),
@@ -2142,7 +2150,17 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                   ),
                                 ),
                               ),
-                            if (!hasAuditEntry && !isApproved) ...[
+                            if (isVerified) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tap again if you need to re-request acknowledgement with a reason.',
+                                style: TextStyle(
+                                  color: _pdpMuted(light),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                            if (!hasExistingRequest && !isApproved) ...[
                               const SizedBox(height: 4),
                               Text(
                                 'You can request acknowledgement once your manager approves this goal.',
