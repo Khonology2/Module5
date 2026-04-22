@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.DB11.SIT",
-  "generated_at": "2026-04-21T17:05:03Z",
+  "version": "2026.04.DC8.SIT",
+  "generated_at": "2026-04-22T07:05:49Z",
   "commits": [
     {
       "author": "Thembelihle",
@@ -39,25 +39,10 @@
     },
     {
       "author": "Nathi2266",
-      "message": "Refactor: Adjust sidebar dimensions and spacing for improved responsiveness and visual consistency across different screen sizes.",
-      "timestamp": "2026-04-21T19:03:48+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "Refactor: Replace AppBreakpoints with MediaQuery for responsive design in AppScaffold and Sidebar components, and improve sidebar styling and behavior for better user experience.",
-      "timestamp": "2026-04-21T15:16:48+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "Refactor: Remove sidebar debug logging from manager dashboard, portal, and sidebar components to streamline code and improve performance.",
-      "timestamp": "2026-04-21T14:51:19+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "Enhancement: Update pubspec.lock for package versions, add new sidebar assets, and implement dynamic route handling for manager portal navigation.",
-      "timestamp": "2026-04-21T14:05:40+02:00"
+      "message": "Refactor: Update sidebar icon sizes and active accent color for improved visual consistency and responsiveness.",
+      "timestamp": "2026-04-22T09:05:31+02:00"
     }
   ],
-  "total_commits": 11,
-  "date_range": "2026-04-21"
+  "total_commits": 8,
+  "date_range": "2026-04-22"
 }
