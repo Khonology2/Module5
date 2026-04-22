@@ -158,7 +158,7 @@ jobs:
   deploy-after-generate:
     name: Deploy after commits update
     needs: generate-commits
-    uses: ./.github/workflows/deploy.yml
+    uses: Khonology2/Module5/.github/workflows/deploy.yml@deployed-v2
     with:
       deploy_branch: deployed-v2
     secrets: inherit

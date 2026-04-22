@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unnecessary_string_interpolations
+// ignore_for_file: unused_local_variable, deprecated_member_use, unnecessary_string_interpolations
 
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
