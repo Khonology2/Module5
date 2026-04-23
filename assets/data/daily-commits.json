@@ -1,7 +1,22 @@
 {
-  "version": "2026.04.DB11.SIT",
-  "generated_at": "2026-04-23T09:01:34Z",
+  "version": "2026.04.DB14.SIT",
+  "generated_at": "2026-04-23T11:26:51Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "feat: improve URI handling for web environments in BackendAuthService",
+      "timestamp": "2026-04-23T13:26:33+02:00"
+    },
+    {
+      "author": "github-actions[bot]",
+      "message": "chore: update Flutter web build [skip ci]",
+      "timestamp": "2026-04-23T09:04:47Z"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "chore: update daily commits data [2026-04-23] [skip ci]",
+      "timestamp": "2026-04-23T09:01:34Z"
+    },
     {
       "author": "Nathi2266",
       "message": "feat: enhance Flutter web build process with dynamic BACKEND_BASE_URL handling",
@@ -58,6 +73,6 @@
       "timestamp": "2026-04-23T09:45:09+02:00"
     }
   ],
-  "total_commits": 11,
+  "total_commits": 14,
   "date_range": "2026-04-23"
 }
