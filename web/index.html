@@ -34,6 +34,19 @@
   
   <!-- Material Design Icons -->
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script>
+    var firebaseConfig = {
+      apiKey: "AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y",
+      authDomain: "pdh-v2.firebaseapp.com",
+      projectId: "pdh-v2",
+      storageBucket: "pdh-v2.firebasestorage.app",
+      messagingSenderId: "638896632756",
+      appId: "1:638896632756:web:6df76beff446f75ee378e1"
+    };
+    var app = firebase.initializeApp(firebaseConfig);
+  </script>
   <script src="https://www.google.com/recaptcha/api.js?render=YOUR_RECAPTCHA_SITE_KEY"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@latest/dist/speech-commands.min.js"></script>
@@ -142,6 +155,14 @@
   </script>
 </head>
 <body>
+  <script>
+    // Unregister any existing service worker so new deploys (e.g. Firebase config) load immediately
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        regs.forEach(function(r) { r.unregister(); });
+      });
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

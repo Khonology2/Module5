@@ -119,6 +119,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
   String? _selectedGoalId;
   String? _selectedGoalTitle;
   String? _displayName;
+  final Map<String, String> _userNameCache = {}; // Cache for usernames
   final Set<String> _processedIds = {};
   final List<ChatMessage> _visibleMessages = [];
   final Map<String, Timer> _typingTimers = {};
@@ -175,6 +176,20 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     try {
+      // Try to get name from onboarding collection first (like dashboard does)
+      final onboardingName = await DatabaseService.getUserNameFromOnboarding(
+        userId: user.uid,
+        email: user.email,
+      );
+
+      if (onboardingName != null && onboardingName.isNotEmpty) {
+        setState(() {
+          _displayName = onboardingName;
+        });
+        return;
+      }
+
+      // Fallback to user profile
       final profile = await DatabaseService.getUserProfile(user.uid);
       setState(() {
         _displayName = profile.displayName.isNotEmpty
@@ -190,6 +205,46 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     }
   }
 
+  Future<String> _getUserName(String userId) async {
+    // Check cache first
+    if (_userNameCache.containsKey(userId)) {
+      return _userNameCache[userId]!;
+    }
+
+    // If it's the current user, use cached display name
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser?.uid == userId && _displayName != null) {
+      _userNameCache[userId] = _displayName!;
+      return _displayName!;
+    }
+
+    try {
+      // Try to get name from onboarding collection first (like dashboard does)
+      final onboardingName = await DatabaseService.getUserNameFromOnboarding(
+        userId: userId,
+        email: currentUser?.email,
+      );
+
+      if (onboardingName != null && onboardingName.isNotEmpty) {
+        _userNameCache[userId] = onboardingName;
+        return onboardingName;
+      }
+
+      // Fallback to user profile
+      final profile = await DatabaseService.getUserProfile(userId);
+      final name = profile.displayName.isNotEmpty
+          ? profile.displayName
+          : (currentUser?.displayName ?? currentUser?.email ?? userId);
+      _userNameCache[userId] = name;
+      return name;
+    } catch (_) {
+      // Fallback to userId if profile fetch fails
+      final fallback = currentUser?.displayName ?? currentUser?.email ?? userId;
+      _userNameCache[userId] = fallback;
+      return fallback;
+    }
+  }
+
   @override
   void dispose() {
     _textController.dispose();
@@ -202,14 +257,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
 
   String _guessAttachmentType(String fileName) {
     final ext = fileName.split('.').last.toLowerCase();
-    const imageExts = {
-      'png',
-      'jpg',
-      'jpeg',
-      'gif',
-      'webp',
-      'bmp',
-    };
+    const imageExts = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'};
     if (imageExts.contains(ext)) return 'image';
     return 'document';
   }
@@ -321,14 +369,12 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         editedAt: null,
         replyTo: _replyingTo?.id,
         replyToText: _replyingTo?.text,
-        replyToSender:
-            _replyingTo?.senderName ?? _replyingTo?.senderId,
+        replyToSender: _replyingTo?.senderName ?? _replyingTo?.senderId,
         reactions: const {},
         attachmentUrl: payload['attachmentUrl'] as String?,
         attachmentName: payload['attachmentName'] as String?,
         attachmentType: payload['attachmentType'] as String?,
-        attachmentSizeBytes:
-            payload['attachmentSizeBytes'] as int?,
+        attachmentSizeBytes: payload['attachmentSizeBytes'] as int?,
         goalId: payload['goalId'] as String?,
         goalTitle: payload['goalTitle'] as String?,
       );
@@ -446,11 +492,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(
-              Icons.download,
-              color: Colors.white70,
-              size: 20,
-            ),
+            const Icon(Icons.download, color: Colors.white70, size: 20),
           ],
         ),
       ),
@@ -528,257 +570,261 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final isMine = currentUserId != null && msg.senderId == currentUserId;
     final time = TimeOfDay.fromDateTime(msg.timestamp).format(context);
-    final displaySenderId = msg.senderId.length > 8
-        ? '${msg.senderId.substring(0, 4)}...${msg.senderId.substring(msg.senderId.length - 4)}'
-        : msg.senderId;
-    final senderLabel = isMine
-        ? 'You'
-        : ((msg.senderName != null && msg.senderName!.isNotEmpty)
-              ? msg.senderName!
-              : displaySenderId);
 
-    final bubbleKey = _itemKeys.putIfAbsent(msg.id, () => GlobalKey());
-    final replies = _repliesForMessage(msg.id);
-    return Align(
-      key: ValueKey(msg.id),
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: GestureDetector(
-        onLongPress: (!msg.isTyping)
-            ? () => _showMessageActions(msg, isMine)
-            : null,
-        child: Container(
-          key: bubbleKey,
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.75,
-          ),
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          decoration: BoxDecoration(
-            color: isMine
-                ? const Color(0xFFC10D00)
-                : Colors.grey[700]!.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(16),
-              topRight: const Radius.circular(16),
-              bottomLeft: isMine ? const Radius.circular(16) : Radius.zero,
-              bottomRight: isMine ? Radius.zero : const Radius.circular(16),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+    // Use FutureBuilder to fetch full name if senderName is missing
+    return FutureBuilder<String>(
+      future: isMine
+          ? Future.value('You')
+          : (msg.senderName != null && msg.senderName!.isNotEmpty)
+          ? Future.value(msg.senderName!)
+          : _getUserName(msg.senderId),
+      builder: (context, snapshot) {
+        final senderLabel = snapshot.data ?? msg.senderId;
+
+        final bubbleKey = _itemKeys.putIfAbsent(msg.id, () => GlobalKey());
+        final replies = _repliesForMessage(msg.id);
+        return Align(
+          key: ValueKey(msg.id),
+          alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+          child: GestureDetector(
+            onLongPress: (!msg.isTyping)
+                ? () => _showMessageActions(msg, isMine)
+                : null,
+            child: Container(
+              key: bubbleKey,
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.75,
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (msg.replyTo != null &&
-                  (msg.replyToText != null || msg.replyToSender != null))
-                Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white24, width: 0.5),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        msg.replyToSender ?? 'Reply',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        (msg.replyToText ?? '').isEmpty
-                            ? '(attachment)'
-                            : msg.replyToText!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.white60,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                      if (msg.replyTo != null)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () => _scrollToMessage(msg.replyTo!),
-                            child: const Text(
-                              'View',
-                              style: TextStyle(fontSize: 11),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                color: isMine
+                    ? const Color(0xFFC10D00)
+                    : Colors.grey[700]!.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: isMine ? const Radius.circular(16) : Radius.zero,
+                  bottomRight: isMine ? Radius.zero : const Radius.circular(16),
                 ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      senderLabel,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: isMine
-                            ? Colors.indigo.shade200
-                            : Colors.grey.shade400,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        time,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: isMine
-                              ? Colors.indigo.shade300
-                              : Colors.grey.shade500,
-                        ),
-                      ),
-                      if (msg.editedAt != null) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '(edited)',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
-              msg.isTyping
-                  ? _TypingIndicator()
-                  : (msg.isDeleted
-                        ? const Text(
-                            'Message deleted',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 15,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (msg.replyTo != null &&
+                      (msg.replyToText != null || msg.replyToSender != null))
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white24, width: 0.5),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            msg.replyToSender ?? 'Reply',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            (msg.replyToText ?? '').isEmpty
+                                ? '(attachment)'
+                                : msg.replyToText!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.white60,
                               fontStyle: FontStyle.italic,
                             ),
-                          )
-                        : Text(
-                            msg.text,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
+                          ),
+                          if (msg.replyTo != null)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: () => _scrollToMessage(msg.replyTo!),
+                                child: const Text(
+                                  'View',
+                                  style: TextStyle(fontSize: 11),
+                                ),
+                              ),
                             ),
-                          )),
-              if (msg.goalTitle != null && msg.goalTitle!.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.only(top: 6),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white24, width: 0.5),
-                  ),
-                  child: Text(
-                    'Goal: ${msg.goalTitle}',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-              _buildAttachmentPreviewBubble(msg),
-              if (replies.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 0,
-                        ),
-                        minimumSize: const Size(0, 0),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ],
                       ),
-                      onPressed: () => _showThreadView(msg),
+                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          senderLabel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isMine
+                                ? Colors.indigo.shade200
+                                : Colors.grey.shade400,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            time,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isMine
+                                  ? Colors.indigo.shade300
+                                  : Colors.grey.shade500,
+                            ),
+                          ),
+                          if (msg.editedAt != null) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              '(edited)',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  msg.isTyping
+                      ? _TypingIndicator()
+                      : (msg.isDeleted
+                            ? const Text(
+                                'Message deleted',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 15,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              )
+                            : Text(
+                                msg.text,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                ),
+                              )),
+                  if (msg.goalTitle != null && msg.goalTitle!.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white24, width: 0.5),
+                      ),
                       child: Text(
-                        replies.length == 1
-                            ? 'View thread (1 reply)'
-                            : 'View thread (${replies.length} replies)',
+                        'Goal: ${msg.goalTitle}',
                         style: const TextStyle(
-                          fontSize: 11,
                           color: Colors.white70,
-                          decoration: TextDecoration.underline,
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
                         ),
                       ),
                     ),
-                  ),
-                ),
-              if (msg.reactions.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: -6,
-                    children: msg.reactions.entries.map((e) {
-                      final emoji = e.key;
-                      final count = e.value.length;
-                      final mine =
-                          currentUserId != null &&
-                          e.value.contains(currentUserId);
-                      return GestureDetector(
-                        onTap: () => _toggleReaction(msg, emoji),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                  _buildAttachmentPreviewBubble(msg),
+                  if (replies.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 0,
+                            ),
+                            minimumSize: const Size(0, 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                          decoration: BoxDecoration(
-                            color: mine
-                                ? Colors.white.withValues(alpha: 0.15)
-                                : Colors.black.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: mine
-                                ? Border.all(color: Colors.white24)
-                                : null,
-                          ),
+                          onPressed: () => _showThreadView(msg),
                           child: Text(
-                            '$emoji $count',
+                            replies.length == 1
+                                ? 'View thread (1 reply)'
+                                : 'View thread (${replies.length} replies)',
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
+                              fontSize: 11,
+                              color: Colors.white70,
+                              decoration: TextDecoration.underline,
                             ),
                           ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-            ],
+                      ),
+                    ),
+                  if (msg.reactions.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: -6,
+                        children: msg.reactions.entries.map((e) {
+                          final emoji = e.key;
+                          final count = e.value.length;
+                          final mine =
+                              currentUserId != null &&
+                              e.value.contains(currentUserId);
+                          return GestureDetector(
+                            onTap: () => _toggleReaction(msg, emoji),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: mine
+                                    ? Colors.white.withValues(alpha: 0.15)
+                                    : Colors.black.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: mine
+                                    ? Border.all(color: Colors.white24)
+                                    : null,
+                              ),
+                              child: Text(
+                                '$emoji $count',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -819,7 +865,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                   ),
                   onTap: () => Navigator.pop(context, 'edit'),
                 ),
-                          ],
+            ],
           ),
         );
       },
@@ -1079,13 +1125,14 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
   }
 
   Future<void> _pickGoalContext() async {
-    final existingTitles = _visibleMessages
-        .map((m) => m.goalTitle)
-        .whereType<String>()
-        .where((t) => t.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final existingTitles =
+        _visibleMessages
+            .map((m) => m.goalTitle)
+            .whereType<String>()
+            .where((t) => t.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: const Color(0xFF0F1629),
@@ -1138,10 +1185,8 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                             child: const Text('Cancel'),
                           ),
                           TextButton(
-                            onPressed: () => Navigator.pop(
-                              context,
-                              controller.text.trim(),
-                            ),
+                            onPressed: () =>
+                                Navigator.pop(context, controller.text.trim()),
                             child: const Text('Save'),
                           ),
                         ],
@@ -1165,7 +1210,8 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     if (choice == null || choice.isEmpty) return;
     setState(() {
       _selectedGoalTitle = choice;
-      _selectedGoalId = 'topic_${choice.hashCode}_${DateTime.now().millisecondsSinceEpoch}';
+      _selectedGoalId =
+          'topic_${choice.hashCode}_${DateTime.now().millisecondsSinceEpoch}';
     });
   }
 
@@ -1209,8 +1255,9 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                                       _profilePhotoUrl!.isNotEmpty)
                                     CircleAvatar(
                                       radius: 16,
-                                      backgroundImage:
-                                          NetworkImage(_profilePhotoUrl!),
+                                      backgroundImage: NetworkImage(
+                                        _profilePhotoUrl!,
+                                      ),
                                       backgroundColor: Colors.white24,
                                     )
                                   else
@@ -1225,6 +1272,22 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                                         : name,
                                     child: Text(
                                       name.isEmpty ? 'Guest' : name,
+                                      style: const TextStyle(
+                                        color: chatPrimary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Tooltip(
+                                    message: _displayName?.isEmpty ?? true
+                                        ? 'Not signed in'
+                                        : _displayName,
+                                    child: Text(
+                                      (_displayName?.isEmpty ?? true)
+                                          ? 'Guest'
+                                          : _displayName!,
                                       style: const TextStyle(
                                         color: chatPrimary,
                                         fontWeight: FontWeight.bold,
@@ -1342,31 +1405,30 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                               }
                               final String? attachmentUrl =
                                   (data['attachmentUrl'] is String)
-                                      ? data['attachmentUrl'] as String
-                                      : null;
+                                  ? data['attachmentUrl'] as String
+                                  : null;
                               final String? attachmentName =
                                   (data['attachmentName'] is String)
-                                      ? data['attachmentName'] as String
-                                      : null;
+                                  ? data['attachmentName'] as String
+                                  : null;
                               final String? attachmentType =
                                   (data['attachmentType'] is String)
-                                      ? data['attachmentType'] as String
-                                      : null;
+                                  ? data['attachmentType'] as String
+                                  : null;
                               final int? attachmentSizeBytes =
                                   data['attachmentSizeBytes'] is int
-                                      ? data['attachmentSizeBytes'] as int
-                                      : (data['attachmentSizeBytes'] is num
-                                          ? (data['attachmentSizeBytes'] as num)
+                                  ? data['attachmentSizeBytes'] as int
+                                  : (data['attachmentSizeBytes'] is num
+                                        ? (data['attachmentSizeBytes'] as num)
                                               .round()
-                                          : null);
-                              final String? goalId =
-                                  (data['goalId'] is String)
-                                      ? data['goalId'] as String
-                                      : null;
+                                        : null);
+                              final String? goalId = (data['goalId'] is String)
+                                  ? data['goalId'] as String
+                                  : null;
                               final String? goalTitle =
                                   (data['goalTitle'] is String)
-                                      ? data['goalTitle'] as String
-                                      : null;
+                                  ? data['goalTitle'] as String
+                                  : null;
                               return ChatMessage(
                                 id: doc.id,
                                 senderId: safeSenderId,
@@ -1502,8 +1564,8 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                         }
                         final displayedMessages = _showGoalOnly
                             ? _visibleMessages
-                                .where((m) => m.goalId != null)
-                                .toList()
+                                  .where((m) => m.goalId != null)
+                                  .toList()
                             : List<ChatMessage>.from(_visibleMessages);
                         if (displayedMessages.isEmpty) {
                           return const Center(
@@ -1718,8 +1780,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                                     minLines: 1,
                                     maxLines: 5,
                                     keyboardType: TextInputType.multiline,
-                                    style:
-                                        const TextStyle(color: Colors.white),
+                                    style: const TextStyle(color: Colors.white),
                                     decoration: InputDecoration(
                                       hintText: 'Type your message...',
                                       hintStyle: const TextStyle(
@@ -1731,9 +1792,9 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                                       ),
                                       contentPadding:
                                           const EdgeInsets.symmetric(
-                                        vertical: 10,
-                                        horizontal: 16,
-                                      ),
+                                            vertical: 10,
+                                            horizontal: 16,
+                                          ),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(24),
                                         borderSide: BorderSide.none,

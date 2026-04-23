@@ -33,6 +33,16 @@ class ProfileCompletionService {
       return false;
     }
   }
+  
+  static Future<bool> isProfileIncomplete(String userId) async {
+    try {
+      final complete = await isProfileComplete(userId);
+      return !complete;
+    } catch (e) {
+      developer.log('Error checking profile incomplete: $e');
+      return false;
+    }
+  }
 
   /// Check profile completeness from a UserProfile object
   static bool _checkProfileCompleteness(UserProfile profile) {
