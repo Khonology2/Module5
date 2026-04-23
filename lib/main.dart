@@ -32,6 +32,7 @@ import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/manager_alerts_nudges_screen.dart';
 import 'package:pdh/manager_inbox_screen.dart';
 import 'package:pdh/manager_badges_points_screen.dart';
+import 'package:pdh/one_on_one_thread_screen.dart';
 import 'package:pdh/employee_profile_detail_screen.dart';
 import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/manager_profile_screen.dart';

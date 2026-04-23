@@ -172,10 +172,29 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     }
   }
 
+  bool _isAdminSupervisionAlertForManager(Alert alert) {
+    final requiredApproverRole = (alert.actionData?['requiredApproverRole'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final approvalChain = (alert.actionData?['approvalChain'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    if (requiredApproverRole == 'admin') return true;
+    if (approvalChain == 'manager_to_admin') return true;
+
+    return alert.type == AlertType.goalApprovalApproved ||
+        alert.type == AlertType.goalApprovalRejected;
+  }
+
   /// Keep manager workspace focused on manager-role alerts.
   /// This removes alerts that are meant for the same user as an employee.
   bool _shouldShowInManagerWorkspace(Alert alert, String managerId) {
     if (alert.userId != managerId) return true;
+
+    if (_isAdminSupervisionAlertForManager(alert)) return false;
 
     if (_isEmployeePersonaAlertType(alert.type)) return false;
 
@@ -783,6 +802,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             final alerts = e.recentAlerts;
             if (alerts.isEmpty) continue;
             for (final a in alerts) {
+              if (!widget.forAdminOversight &&
+                  _isAdminSupervisionAlertForManager(a)) {
+                continue;
+              }
               if (widget.forAdminOversight && !_isAdminOversightTeamAlert(a)) {
                 continue;
               }
@@ -1527,6 +1550,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         }
         for (final e in employees) {
           for (final a in e.recentAlerts) {
+            if (!widget.forAdminOversight &&
+                _isAdminSupervisionAlertForManager(a)) {
+              continue;
+            }
             if (widget.forAdminOversight && !_isAdminOversightTeamAlert(a)) {
               continue;
             }
@@ -3408,11 +3435,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       await AlertService.markAsRead(alert.id);
 
       if (alert.actionRoute != null && mounted) {
-        final route = alert.actionRoute!;
+        var route = alert.actionRoute!;
         Object? args;
 
-        // Deep-link manager meeting alerts into the Review Team Dashboard.
-        if (route == '/manager_review_team_dashboard') {
+        // Deep-link manager meeting alerts into the canonical thread screen.
+        if (route == '/manager_review_team_dashboard' ||
+            route == '/one_on_one_thread') {
+          route = '/one_on_one_thread';
           final data = alert.actionData ?? const <String, dynamic>{};
           final meetingId = data['meetingId']?.toString().trim();
           final employeeId =

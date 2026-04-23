@@ -698,7 +698,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         (m.status == OneOnOneMeetingStatus.requested ||
             m.status == OneOnOneMeetingStatus.proposed);
 
-    return Container(
+    return GestureDetector(
+      onTap: () => _openOneOnOneThread(
+        meetingId: m.meetingId,
+        employeeId: m.employeeId,
+      ),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -776,6 +781,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           ],
         ],
       ),
+      ),
     );
   }
 
@@ -800,193 +806,58 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   }
 
   Widget _buildMeetingActions(OneOnOneMeeting m) {
-    final isProposed = m.status == OneOnOneMeetingStatus.proposed;
     return Row(
       children: [
         Expanded(
           child: ElevatedButton(
-            onPressed: isProposed
-                ? () => _acceptMeeting(m)
-                : () => _ackRequest(m),
+            onPressed: () => _openOneOnOneThread(
+              meetingId: m.meetingId,
+              employeeId: m.employeeId,
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            child: Text(isProposed ? 'Accept' : 'Acknowledge'),
+            child: const Text('Open thread'),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: OutlinedButton(
-            onPressed: () => _suggestNewTime(m),
+            onPressed: () => _openOneOnOneThread(
+              meetingId: m.meetingId,
+              employeeId: m.employeeId,
+            ),
             style: OutlinedButton.styleFrom(
               foregroundColor: _AlertsChrome.fg,
               side: BorderSide(color: _AlertsChrome.borderH),
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            child: Text(
-              isProposed ? 'Suggest a different time' : 'Suggest a time',
-            ),
+            child: const Text('View details'),
           ),
         ),
       ],
     );
   }
 
-  Future<String> _currentUserDisplayName() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return 'Employee';
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      final data = snap.data();
-      final name = (data?['displayName'] ?? data?['name'] ?? '')
-          .toString()
-          .trim();
-      return name.isNotEmpty ? name : (user.displayName ?? 'Employee');
-    } catch (_) {
-      return user.displayName ?? 'Employee';
-    }
-  }
-
-  Future<void> _acceptMeeting(OneOnOneMeeting m) async {
-    try {
-      await OneOnOneMeetingService.employeeAccept(meetingId: m.meetingId);
-      await AlertService.createOneOnOneAcceptedAlertToManager(
-        managerId: m.managerId,
-        employeeId: m.employeeId,
-        meetingId: m.meetingId,
-        acceptedStartDateTime: m.proposedStartDateTime,
-        acceptedEndDateTime: m.proposedEndDateTime,
-        actionRouteOverride: widget.forManagerGwMenu
-            ? '/admin_team_review'
-            : null,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Meeting accepted.')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not accept: $e')));
-    }
-  }
-
-  Future<void> _suggestNewTime(OneOnOneMeeting m) async {
-    try {
-      final now = DateTime.now();
-      final pickedDate = await showDatePicker(
-        context: context,
-        firstDate: now,
-        lastDate: now.add(const Duration(days: 365)),
-        initialDate: now.add(const Duration(days: 1)),
-      );
-      if (pickedDate == null) return;
-      if (!mounted) return;
-
-      final pickedStartTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
-      );
-      if (pickedStartTime == null) return;
-      if (!mounted) return;
-
-      final proposedStart = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
-        pickedStartTime.hour,
-        pickedStartTime.minute,
-      );
-
-      final suggestedEnd = proposedStart.add(const Duration(minutes: 60));
-      final pickedEndTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(suggestedEnd),
-      );
-      if (pickedEndTime == null) return;
-      if (!mounted) return;
-
-      final proposedEnd = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
-        pickedEndTime.hour,
-        pickedEndTime.minute,
-      );
-
-      if (!proposedEnd.isAfter(proposedStart)) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('End time must be after start time.')),
-        );
-        return;
-      }
-
-      await OneOnOneMeetingService.employeeSuggestNewTime(
-        meetingId: m.meetingId,
-        proposedStartDateTime: proposedStart,
-        proposedEndDateTime: proposedEnd,
-      );
-      await AlertService.createOneOnOneRescheduledAlertToManager(
-        managerId: m.managerId,
-        employeeId: m.employeeId,
-        meetingId: m.meetingId,
-        proposedStartDateTime: proposedStart,
-        proposedEndDateTime: proposedEnd,
-        actionRouteOverride: widget.forManagerGwMenu
-            ? '/admin_team_review'
-            : null,
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Reschedule sent to manager.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not suggest time: $e')));
-    }
-  }
-
-  Future<void> _ackRequest(OneOnOneMeeting m) async {
-    try {
-      await OneOnOneMeetingService.employeeAcknowledgeRequest(
-        meetingId: m.meetingId,
-      );
-      final employeeName = await _currentUserDisplayName();
-      await AlertService.createGeneralAlert(
-        userId: m.managerId,
-        title: '1:1 Acknowledged',
-        message:
-            '$employeeName acknowledged your 1:1 request. Propose a time when you’re ready.',
-        type: AlertType.oneOnOneRequested,
-        priority: AlertPriority.low,
-        actionText: 'View',
-        actionRoute: widget.forManagerGwMenu
-            ? '/admin_team_review'
-            : '/manager_review_team_dashboard',
-        actionData: {'meetingId': m.meetingId, 'employeeId': m.employeeId},
-        fromUserId: m.employeeId,
-        fromUserName: employeeName,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Acknowledged.')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not acknowledge: $e')));
-    }
+  void _openOneOnOneThread({
+    String? meetingId,
+    String? employeeId,
+    String? managerId,
+  }) {
+    Navigator.pushNamed(
+      context,
+      '/one_on_one_thread',
+      arguments: <String, dynamic>{
+        if (meetingId != null && meetingId.trim().isNotEmpty)
+          'meetingId': meetingId.trim(),
+        if (employeeId != null && employeeId.trim().isNotEmpty)
+          'employeeId': employeeId.trim(),
+        if (managerId != null && managerId.trim().isNotEmpty)
+          'managerId': managerId.trim(),
+      },
+    );
   }
 
   Future<void> _startOneOnOneWithAdmin(String employeeId) async {
@@ -1052,9 +923,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
       if (selectedAdminId == null || selectedAdminId.isEmpty) return;
       if (!mounted) return;
-      await _showStartOneOnOneSheetForAdmin(
+      _openOneOnOneThread(
         employeeId: employeeId,
-        adminId: selectedAdminId,
+        managerId: selectedAdminId,
       );
     } catch (e) {
       if (!mounted) return;
@@ -1062,221 +933,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         SnackBar(content: Text('Could not start 1:1 with admin: $e')),
       );
     }
-  }
-
-  Future<void> _showStartOneOnOneSheetForAdmin({
-    required String employeeId,
-    required String adminId,
-  }) async {
-    final existing = await OneOnOneMeetingService.getLatestBetween(
-      managerId: adminId,
-      employeeId: employeeId,
-    );
-    final agendaController = TextEditingController();
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: _AlertsChrome.cardFill,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 16,
-            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '1:1 with Admin',
-                style: AppTypography.heading4.copyWith(color: _AlertsChrome.fg),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: agendaController,
-                style: TextStyle(color: _AlertsChrome.fg),
-                decoration: InputDecoration(
-                  hintText: 'Message / agenda (optional)',
-                  hintStyle: TextStyle(color: _AlertsChrome.muted),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      if (existing != null &&
-                          existing.status != OneOnOneMeetingStatus.cancelled &&
-                          existing.status != OneOnOneMeetingStatus.accepted) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'There is already an active 1:1 thread with this admin.',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                      final meetingId = await OneOnOneMeetingService.requestOneOnOne(
-                        managerId: adminId,
-                        employeeId: employeeId,
-                        agenda: agendaController.text.trim(),
-                      );
-                      await AlertService.createGeneralAlert(
-                        userId: adminId,
-                        title: '1:1 Requested',
-                        message: 'A manager requested a 1:1 with you.',
-                        type: AlertType.oneOnOneRequested,
-                        priority: AlertPriority.medium,
-                        actionText: 'Review',
-                        actionRoute: '/admin_team_review',
-                        actionData: {
-                          'meetingId': meetingId,
-                          'employeeId': employeeId,
-                        },
-                        fromUserId: employeeId,
-                      );
-                      if (!sheetContext.mounted) return;
-                      Navigator.pop(sheetContext);
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('1:1 request sent to admin.')),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Could not send request: $e')),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.activeColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Request 1:1'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () async {
-                    try {
-                      final now = DateTime.now();
-                      final pickedDate = await showDatePicker(
-                        context: sheetContext,
-                        firstDate: now,
-                        lastDate: now.add(const Duration(days: 365)),
-                        initialDate: now.add(const Duration(days: 1)),
-                      );
-                      if (pickedDate == null) return;
-                      if (!sheetContext.mounted) return;
-                      final pickedStartTime = await showTimePicker(
-                        context: sheetContext,
-                        initialTime: TimeOfDay.fromDateTime(
-                          now.add(const Duration(hours: 1)),
-                        ),
-                      );
-                      if (pickedStartTime == null) return;
-                      if (!sheetContext.mounted) return;
-                      final proposedStart = DateTime(
-                        pickedDate.year,
-                        pickedDate.month,
-                        pickedDate.day,
-                        pickedStartTime.hour,
-                        pickedStartTime.minute,
-                      );
-                      final defaultEnd = proposedStart.add(
-                        const Duration(minutes: 60),
-                      );
-                      final pickedEndTime = await showTimePicker(
-                        context: sheetContext,
-                        initialTime: TimeOfDay.fromDateTime(defaultEnd),
-                      );
-                      if (pickedEndTime == null) return;
-                      final proposedEnd = DateTime(
-                        pickedDate.year,
-                        pickedDate.month,
-                        pickedDate.day,
-                        pickedEndTime.hour,
-                        pickedEndTime.minute,
-                      );
-                      if (!proposedEnd.isAfter(proposedStart)) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('End time must be after start time.'),
-                          ),
-                        );
-                        return;
-                      }
-
-                      final agenda = agendaController.text.trim();
-                      final canUpdateExisting = existing != null &&
-                          existing.status != OneOnOneMeetingStatus.cancelled &&
-                          existing.status != OneOnOneMeetingStatus.accepted;
-                      String meetingId;
-                      if (canUpdateExisting) {
-                        meetingId = existing.meetingId;
-                        await OneOnOneMeetingService.managerProposeNewTime(
-                          meetingId: existing.meetingId,
-                          proposedStartDateTime: proposedStart,
-                          proposedEndDateTime: proposedEnd,
-                          agenda: agenda.isEmpty ? null : agenda,
-                        );
-                      } else {
-                        meetingId = await OneOnOneMeetingService.proposeTime(
-                          managerId: adminId,
-                          employeeId: employeeId,
-                          proposedStartDateTime: proposedStart,
-                          proposedEndDateTime: proposedEnd,
-                          agenda: agenda,
-                        );
-                      }
-                      await AlertService.createGeneralAlert(
-                        userId: adminId,
-                        title: '1:1 Proposed',
-                        message: 'A manager proposed a 1:1 time with you.',
-                        type: AlertType.oneOnOneProposed,
-                        priority: AlertPriority.high,
-                        actionText: 'Review',
-                        actionRoute: '/admin_team_review',
-                        actionData: {
-                          'meetingId': meetingId,
-                          'employeeId': employeeId,
-                        },
-                        fromUserId: employeeId,
-                      );
-                      if (!sheetContext.mounted) return;
-                      Navigator.pop(sheetContext);
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Proposed time sent to admin.')),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Could not propose time: $e')),
-                      );
-                    }
-                  },
-                  child: const Text('Propose Time'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildAlertSummary(List<Alert> alerts) {
@@ -2082,108 +1738,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       return;
     }
 
-    final meeting = await OneOnOneMeetingService.getMeeting(meetingId);
-    if (meeting == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Meeting not found.')),
-      );
-      return;
-    }
-
-    if (!mounted) return;
-    final waitingOnEmployee = meeting.waitingOn == OneOnOneWaitingOn.employee;
-    final canAccept = waitingOnEmployee &&
-        (meeting.status == OneOnOneMeetingStatus.proposed ||
-            meeting.status == OneOnOneMeetingStatus.rescheduled);
-    final canAcknowledge =
-        waitingOnEmployee && meeting.status == OneOnOneMeetingStatus.requested;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: _AlertsChrome.cardFill,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Respond to 1:1',
-                  style: AppTypography.heading4.copyWith(color: _AlertsChrome.fg),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Status: ${meeting.status.name} (waiting on: ${meeting.waitingOn.name})',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: _AlertsChrome.muted,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (canAccept)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(sheetContext).pop();
-                        await _acceptMeeting(meeting);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.activeColor,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Accept proposed time'),
-                    ),
-                  ),
-                if (canAcknowledge) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(sheetContext).pop();
-                        await _ackRequest(meeting);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.activeColor,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Acknowledge'),
-                    ),
-                  ),
-                ],
-                if (waitingOnEmployee) ...[
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () async {
-                        Navigator.of(sheetContext).pop();
-                        await _suggestNewTime(meeting);
-                      },
-                      child: Text(
-                        meeting.status == OneOnOneMeetingStatus.requested
-                            ? 'Suggest a time'
-                            : 'Suggest a different time',
-                      ),
-                    ),
-                  ),
-                ] else
-                  Text(
-                    'No response required from you right now.',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: _AlertsChrome.muted,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
+    _openOneOnOneThread(
+      meetingId: meetingId,
+      employeeId: FirebaseAuth.instance.currentUser?.uid,
     );
   }
 
