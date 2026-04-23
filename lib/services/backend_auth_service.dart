@@ -150,7 +150,25 @@ class BackendAuthService {
     return normalizedConfigured;
   }
 
-  Uri _uri(String path) => Uri.parse('$_baseUrl$path');
+  Uri _uri(String path) {
+    final uri = Uri.parse('$_baseUrl$path');
+    if (!kIsWeb) return uri;
+
+    final isLoopbackHost =
+        uri.host == '127.0.0.1' || uri.host == 'localhost' || uri.host == '::1';
+    if (!isLoopbackHost) return uri;
+
+    final origin = Uri.base.origin;
+    if (origin.isEmpty ||
+        origin == 'null' ||
+        origin.contains('localhost') ||
+        origin.contains('127.0.0.1')) {
+      return uri;
+    }
+
+    final originUri = Uri.parse(origin);
+    return originUri.replace(path: path, query: '', fragment: '');
+  }
 
   Future<ValidateTokenResponse> validateTokenWithBackend(String token) async {
     final body = jsonEncode({'token': token});
