@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.DD6.SIT",
-  "generated_at": "2026-04-23T12:26:32Z",
+  "version": "2026.04.DD7.SIT",
+  "generated_at": "2026-04-23T13:02:13Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -29,10 +29,15 @@
     },
     {
       "author": "Thembelihle",
+      "message": "feature: Integrate Udemy course progress tracking with Firestore rules and enhance cloud functions for syncing progress. Added new endpoints for handling Udemy webhooks and manual sync, along with necessary configurations and types for improved data handling.",
+      "timestamp": "2026-04-23T15:01:49+02:00"
+    },
+    {
+      "author": "Thembelihle",
       "message": "feature: Enhance goal detail and team challenges screens with Udemy course integration, including course sync status, error handling, and linked course functionality. Added season reviews tab and improved data handling for season goals.",
       "timestamp": "2026-04-23T14:26:06+02:00"
     }
   ],
-  "total_commits": 6,
+  "total_commits": 7,
   "date_range": "2026-04-23"
 }
