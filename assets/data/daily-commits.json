@@ -1,6 +1,6 @@
 {
-  "version": "2026.04.DC7.SIT",
-  "generated_at": "2026-04-22T17:57:28Z",
+  "version": "2026.04.DD6.SIT",
+  "generated_at": "2026-04-23T12:26:32Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -29,15 +29,10 @@
     },
     {
       "author": "Thembelihle",
-      "message": "feature: Implement season goal final review submission process, enhance season details and goal detail screens with participant views, and improve milestone tracking. Added linked resource functionality for season challenges and refined UI elements for better user experience.",
-      "timestamp": "2026-04-22T19:57:03+02:00"
-    },
-    {
-      "author": "Thembelihle",
-      "message": "feature - Update dependencies in pubspec.lock and enhance season challenge features in the employee and season detail screens. Added linked course and proof submission functionalities, improved milestone tracking, and refined UI elements for better user experience.",
-      "timestamp": "2026-04-22T15:37:08+02:00"
+      "message": "feature: Enhance goal detail and team challenges screens with Udemy course integration, including course sync status, error handling, and linked course functionality. Added season reviews tab and improved data handling for season goals.",
+      "timestamp": "2026-04-23T14:26:06+02:00"
     }
   ],
-  "total_commits": 7,
-  "date_range": "2026-04-22"
+  "total_commits": 6,
+  "date_range": "2026-04-23"
 }
