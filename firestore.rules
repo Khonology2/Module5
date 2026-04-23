@@ -234,6 +234,20 @@ service cloud.firestore {
         allow update: if isManager() && userRole(userId) == 'employee' && 
           (subcollection == 'goals' || subcollection == 'activities');
       }
+
+      match /udemyCourseProgress/{courseExternalId} {
+        allow read: if isSignedIn() && (
+          userId() == userId ||
+          isManager() ||
+          isAdmin()
+        );
+        allow list: if isSignedIn() && (
+          userId() == userId ||
+          isManager() ||
+          isAdmin()
+        );
+        allow write: if false;
+      }
     }
 
     match /onboarding/{uid} {
@@ -618,6 +632,16 @@ service cloud.firestore {
       );
       allow create: if isSignedIn();
       allow list: if isSignedIn() && (isManager() || isAdmin());
+    }
+
+    match /integrations/{integrationId} {
+      allow read, list: if isSignedIn() && isAdmin();
+      allow write: if false;
+    }
+
+    match /udemy_ingestion_logs/{logId} {
+      allow read, list: if isSignedIn() && isAdmin();
+      allow write: if false;
     }
 
     // Catch-all deny

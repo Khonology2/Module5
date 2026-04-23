@@ -1,8 +1,7 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 
@@ -28,6 +27,9 @@ class UdemySyncResult {
 
 class UdemySyncService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'africa-south1',
+  );
 
   static String? extractCourseId(String url) {
     final uri = Uri.tryParse(url.trim());
@@ -123,21 +125,7 @@ class UdemySyncService {
         return mirroredProgress;
       }
 
-      final config = await _loadApiConfig();
-      if (config == null || !config.enabled) {
-        await _updateGoalSyncError(
-          goal.id,
-          status: 'setup_required',
-          message:
-              'Udemy sync has not been configured yet. Open the course and ask an admin to connect the integration.',
-        );
-        throw Exception(
-          'Udemy sync has not been configured yet. Ask an admin to connect it first.',
-        );
-      }
-
-      final normalizedEmail = (userEmail ?? '').trim();
-      if (normalizedEmail.isEmpty) {
+      if ((userEmail ?? '').trim().isEmpty) {
         await _updateGoalSyncError(
           goal.id,
           status: 'setup_required',
@@ -149,42 +137,29 @@ class UdemySyncService {
         );
       }
 
-      final requestUri = config.buildProgressUri(
-        courseExternalId: courseExternalId,
-        userEmail: normalizedEmail,
-      );
-      if (requestUri == null) {
-        await _updateGoalSyncError(
-          goal.id,
-          status: 'setup_required',
-          message:
-              'Udemy sync needs a progress endpoint template in the integration settings.',
-        );
-        throw Exception(
-          'Udemy sync needs a progress endpoint template in the integration settings.',
-        );
-      }
+      final callable = _functions.httpsCallable('syncUdemyProgressNow');
+      final response = await callable.call(<String, dynamic>{
+        'goalId': goal.id,
+      });
 
-      final response = await http.get(
-        requestUri,
-        headers: config.headers,
+      final payload = Map<String, dynamic>.from(
+        response.data as Map<Object?, Object?>,
       );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        final message =
-            'Udemy sync failed with status ${response.statusCode}.';
-        await _updateGoalSyncError(
-          goal.id,
-          status: 'error',
-          message: message,
-        );
-        throw Exception(message);
-      }
-
-      final payload = jsonDecode(response.body);
-      final result = _parseProgressPayload(
-        payload,
-        fallbackCourseExternalId: courseExternalId,
-        fallbackCourseTitle: goal.courseTitle ?? goal.title,
+      final result = UdemySyncResult(
+        progressPercent: _coerceInt(payload['progressPercent']) ?? 0,
+        completedSteps: _coerceInt(payload['completedSteps']),
+        totalSteps: _coerceInt(payload['totalSteps']),
+        syncedAt:
+            _coerceDateTime(payload['syncedAt']) ??
+            _coerceDateTime(payload['updatedAt']) ??
+            DateTime.now(),
+        syncStatus: (payload['syncStatus'] ?? 'synced').toString(),
+        courseExternalId:
+            payload['courseExternalId']?.toString() ?? courseExternalId,
+        courseTitle:
+            payload['courseTitle']?.toString() ??
+            goal.courseTitle ??
+            goal.title,
       );
 
       await DatabaseService.applyCourseSyncProgress(
@@ -220,15 +195,6 @@ class UdemySyncService {
       doc.data() ?? const <String, dynamic>{},
       fallbackCourseExternalId: courseExternalId,
     );
-  }
-
-  static Future<_UdemyApiConfig?> _loadApiConfig() async {
-    final doc = await _firestore
-        .collection('integrations')
-        .doc('udemy_business')
-        .get();
-    if (!doc.exists) return null;
-    return _UdemyApiConfig.fromMap(doc.data() ?? const <String, dynamic>{});
   }
 
   static Future<void> _updateGoalSyncError(
@@ -429,69 +395,5 @@ class UdemySyncService {
     if (value is DateTime) return value;
     if (value is String) return DateTime.tryParse(value.trim());
     return null;
-  }
-}
-
-class _UdemyApiConfig {
-  final bool enabled;
-  final String progressEndpointTemplate;
-  final String? basicAuthUsername;
-  final String? basicAuthPassword;
-  final Map<String, String> headers;
-
-  const _UdemyApiConfig({
-    required this.enabled,
-    required this.progressEndpointTemplate,
-    required this.headers,
-    this.basicAuthUsername,
-    this.basicAuthPassword,
-  });
-
-  factory _UdemyApiConfig.fromMap(Map<String, dynamic> data) {
-    final rawHeaders = data['headers'];
-    final headers = <String, String>{
-      'Accept': 'application/json',
-    };
-    if (rawHeaders is Map) {
-      for (final entry in rawHeaders.entries) {
-        final key = entry.key.toString().trim();
-        final value = entry.value?.toString().trim() ?? '';
-        if (key.isNotEmpty && value.isNotEmpty) {
-          headers[key] = value;
-        }
-      }
-    }
-
-    final username = (data['basicAuthUsername'] ?? data['clientId'] ?? '')
-        .toString()
-        .trim();
-    final password = (data['basicAuthPassword'] ?? data['clientSecret'] ?? '')
-        .toString()
-        .trim();
-    if (username.isNotEmpty && password.isNotEmpty) {
-      headers['Authorization'] = 'Basic ${base64Encode(utf8.encode('$username:$password'))}';
-    }
-
-    return _UdemyApiConfig(
-      enabled: data['enabled'] == true,
-      progressEndpointTemplate:
-          (data['progressEndpointTemplate'] ?? '').toString().trim(),
-      headers: headers,
-      basicAuthUsername: username.isNotEmpty ? username : null,
-      basicAuthPassword: password.isNotEmpty ? password : null,
-    );
-  }
-
-  Uri? buildProgressUri({
-    required String courseExternalId,
-    required String userEmail,
-  }) {
-    final template = progressEndpointTemplate.trim();
-    if (template.isEmpty) return null;
-    final resolved = template
-        .replaceAll('{courseExternalId}', Uri.encodeComponent(courseExternalId))
-        .replaceAll('{courseId}', Uri.encodeComponent(courseExternalId))
-        .replaceAll('{userEmail}', Uri.encodeComponent(userEmail));
-    return Uri.tryParse(resolved);
   }
 }
