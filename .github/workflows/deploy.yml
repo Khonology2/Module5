@@ -95,7 +95,17 @@ jobs:
 
       - name: Build web (for Render — not built on Render)
         if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
-        run: flutter build web --release --base-href /
+        env:
+          BACKEND_BASE_URL: ${{ secrets.BACKEND_BASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BACKEND_BASE_URL:-}" ]; then
+            echo "Building web with BACKEND_BASE_URL from secrets"
+            flutter build web --release --base-href / --dart-define=BACKEND_BASE_URL="${BACKEND_BASE_URL}"
+          else
+            echo "::warning::BACKEND_BASE_URL secret is not set. Falling back to runtime origin-based backend URL."
+            flutter build web --release --base-href /
+          fi
 
       - name: Disable service worker in web bundle (avoid stale cached JS after deploy)
         if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH

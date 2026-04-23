@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 class BackendAuthException implements Exception {
@@ -125,9 +126,28 @@ class BackendAuthService {
       'BACKEND_BASE_URL',
       defaultValue: 'http://127.0.0.1:8000',
     );
-    return configured.endsWith('/')
+    final normalizedConfigured = configured.endsWith('/')
         ? configured.substring(0, configured.length - 1)
         : configured;
+
+    final isLocalDefault =
+        normalizedConfigured == 'http://127.0.0.1:8000' ||
+        normalizedConfigured == 'http://localhost:8000';
+    if (!isLocalDefault) return normalizedConfigured;
+
+    if (kIsWeb) {
+      // Deployment-safe fallback: if no explicit BACKEND_BASE_URL is injected,
+      // use the current web origin instead of localhost.
+      final origin = Uri.base.origin;
+      if (origin.isNotEmpty &&
+          origin != 'null' &&
+          !origin.contains('localhost') &&
+          !origin.contains('127.0.0.1')) {
+        return origin;
+      }
+    }
+
+    return normalizedConfigured;
   }
 
   Uri _uri(String path) => Uri.parse('$_baseUrl$path');
