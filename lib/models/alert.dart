@@ -28,14 +28,13 @@ enum AlertType {
   milestoneDeleted, // NEW: Milestone deleted by manager (notification to employee)
   milestoneDeletionRejected, // NEW: Milestone deletion rejected by manager (notification to employee)
   managerGeneral, // NEW: Generic manager alert
-  // 1:1 Meetings (requested/proposed/accepted/rescheduled/cancelled)
-  oneOnOneRequested,
-  oneOnOneProposed,
-  oneOnOneAccepted,
-  oneOnOneRescheduled,
-  oneOnOneCancelled,
-  // Legacy / free-form types used in older writes
-  recognition,
+  oneOnOneRequested, // One-on-one meeting requested
+  oneOnOneProposed, // One-on-one meeting proposed
+  oneOnOneAccepted, // One-on-one meeting accepted
+  oneOnOneRescheduled, // One-on-one meeting rescheduled
+  oneOnOneCancelled, // One-on-one meeting cancelled
+  recognition, // Employee recognition
+  profileIncomplete, // User profile is incomplete
 }
 
 enum AlertAudience {

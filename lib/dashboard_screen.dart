@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 
@@ -19,11 +20,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _generateGreeting();
+    _generateGreeting(); // This is now async but we don't need to await it
     _loadEmployeeData();
   }
 
-  void _generateGreeting() {
+  Future<void> _generateGreeting() async {
     final hour = DateTime.now().hour;
     String timeGreeting;
 
@@ -38,15 +39,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final user = FirebaseAuth.instance.currentUser;
     String userName = 'Manager';
 
-    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
+    if (user != null) {
+      // Try to get name from onboarding collection first
+      final onboardingName = await DatabaseService.getUserNameFromOnboarding(
+        userId: user.uid,
+        email: user.email,
+      );
+
+      if (onboardingName != null && onboardingName.isNotEmpty) {
+        // Use full name from onboarding
+        userName = onboardingName;
+      } else if (user.displayName != null && user.displayName!.isNotEmpty) {
+        userName = user.displayName!;
+      } else if (user.email != null && user.email!.isNotEmpty) {
+        userName = user.email!.split('@').first;
+      }
     }
 
-    setState(() {
-      _greeting = '$timeGreeting, $userName';
-    });
+    if (mounted) {
+      setState(() {
+        _greeting = '$timeGreeting, $userName';
+      });
+    }
   }
 
   Future<void> _loadEmployeeData() async {

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/auth_service.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 
@@ -26,8 +27,10 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       onNavigate: (route) {
         Navigator.pushNamed(context, route);
       },
-      onLogout: () {
-        Navigator.pushReplacementNamed(context, '/sign_in');
+      onLogout: () async {
+        await AuthService().signOut();
+        if (!context.mounted) return;
+        Navigator.pushNamedAndRemoveUntil(context, '/landing', (r) => false);
       },
       content: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: FirestoreSafe.stream<DocumentSnapshot<Map<String, dynamic>>>(

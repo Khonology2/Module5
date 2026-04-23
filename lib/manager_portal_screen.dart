@@ -17,8 +17,7 @@ import 'package:pdh/badges_points_screen.dart'; // Import BadgesPointsScreen
 import 'package:pdh/employee_dashboard_screen.dart'; // Manager GW menu dashboard (reuse employee UI)
 import 'package:pdh/employee_season_challenges_screen.dart'; // Manager GW menu season challenges
 import 'package:pdh/manager_badges_points_screen.dart'; // Import ManagerBadgesPointsScreen
-import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for logout
-import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout navigation
+import 'package:pdh/auth_service.dart';
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
 import 'package:pdh/leaderboard_screen.dart';
@@ -227,6 +226,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   void _onNavigate(String route) {
+    debugPrint('[ManagerPortal] navigate from=$_currentRoute to=$route');
     _syncWorkspaceContextForRoute(route);
     setState(() {
       if (route == '/manager_alerts_nudges') {
@@ -238,6 +238,13 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   bool _isPortalRoute(String route) => _portalRoutes.contains(route);
+
+  bool _shouldShowPortalTopActions(String route) {
+    // Keep dashboard-style screens uncluttered because those screens already
+    // render their own message/notification icons in their header.
+    final show = route != '/dashboard' && route != '/manager_gw_menu_dashboard';
+    return show;
+  }
 
   String? _routeFromPortalUrl() {
     // Hash strategy URL example:
@@ -268,13 +275,9 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   Future<void> _onLogout() async {
-    await FirebaseAuth.instance.signOut();
+    await AuthService().signOut();
     if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (Route<dynamic> route) => false,
-    );
+    Navigator.pushNamedAndRemoveUntil(context, '/landing', (Route<dynamic> route) => false);
   }
 
   @override
@@ -416,7 +419,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
 
       if (keyContext != null) {
         // Key is attached, start showcase
-        ShowCaseWidget.of(context).startShowCase([_sidebarTutorialKeys[0]]);
+        ShowcaseView.get().startShowCase([_sidebarTutorialKeys[0]]);
         developer.log(
           'Started manager showcase for step 0',
           name: 'ManagerPortalScreen',
@@ -546,9 +549,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
             final keyContext =
                 _sidebarTutorialKeys[_currentTutorialStep].currentContext;
             if (keyContext != null) {
-              ShowCaseWidget.of(
-                context,
-              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
+              ShowcaseView.get().startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
               developer.log(
                 'Started showcase for step $_currentTutorialStep',
                 name: 'ManagerPortalScreen',
@@ -562,7 +563,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
               Future.delayed(const Duration(milliseconds: 500), () {
                 if (mounted && _shouldShowTutorial) {
                   try {
-                    ShowCaseWidget.of(context).startShowCase([
+                    ShowcaseView.get().startShowCase([
                       _sidebarTutorialKeys[_currentTutorialStep],
                     ]);
                   } catch (e) {
@@ -612,7 +613,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
 
     // Dismiss the current showcase overlay
     try {
-      ShowCaseWidget.of(context).dismiss();
+      ShowcaseView.get().dismiss();
     } catch (e) {
       developer.log(
         'Error dismissing showcase: $e',

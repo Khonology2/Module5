@@ -1,5 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
@@ -11,6 +13,7 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/workspace_aware_builder.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/audit_service.dart';
 import 'package:pdh/services/role_service.dart';
@@ -220,6 +223,9 @@ class _MyPdpScreenState extends State<MyPdpScreen>
   bool _isFinancialExpanded = true;
   bool _isOrganisationalExpanded = true;
   bool _isPeopleExpanded = true;
+
+  // Cache for goals to prevent unnecessary rebuilds
+  // Removed unused fields to keep state minimal and avoid analyzer warnings
 
   String _mapGoalToExcellence(Goal goal) {
     // Prefer explicit kpa if available
@@ -667,11 +673,20 @@ class _MyPdpScreenState extends State<MyPdpScreen>
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 try {
-                  web.window.open(evidence, '_blank');
+                  final user = FirebaseAuth.instance.currentUser;
+                  final token = await user?.getIdToken();
+                  final uri = Uri.parse(evidence);
+                  final qp = Map<String, String>.from(uri.queryParameters);
+                  if (token != null && token.isNotEmpty) {
+                    qp['token'] = token;
+                  }
+                  final urlWithToken = uri
+                      .replace(queryParameters: qp)
+                      .toString();
+                  web.window.open(urlWithToken, '_blank');
                 } catch (_) {
-                  // On non-web platforms, just close the dialog
                   Navigator.of(ctx).pop();
                 }
               },
@@ -1045,7 +1060,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
       // Submit to audit along with attached evidence so managers can review
       await AuditService.submitGoalForAudit(goal, goal.evidence);
       if (mounted) {
-        await _showCenterNotice(context, 'Acknowledgement requested');
+        await _showCenterNotice(context, 'Request Sent');
       }
     } catch (e) {
       if (mounted) {
@@ -1055,6 +1070,169 @@ class _MyPdpScreenState extends State<MyPdpScreen>
         await _showCenterNotice(context, errorMessage);
       }
     }
+  }
+
+  bool _isMilestoneCompleted(GoalMilestone milestone) {
+    return milestone.status == GoalMilestoneStatus.completed ||
+        milestone.status == GoalMilestoneStatus.completedAcknowledged;
+  }
+
+  bool _canRequestAcknowledgement({
+    required Goal goal,
+    required List<GoalMilestone> milestones,
+  }) {
+    final goalComplete = goal.progress >= 100;
+    final milestonesComplete = milestones.every(_isMilestoneCompleted);
+    return goalComplete && milestonesComplete;
+  }
+
+  Future<bool> _confirmAcknowledgementRerequest() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0E1A2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          'Request acknowledgement again?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'You have already requested acknowledgement for this goal. Do you want to request it again?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('No', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFC10D00),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    return result == true;
+  }
+
+  Future<String?> _promptAcknowledgementRerequestReason() async {
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0E1A2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          'Reason required',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Please provide a reason for requesting acknowledgement again.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: controller,
+                style: const TextStyle(color: Colors.white),
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'Enter reason',
+                  hintStyle: TextStyle(color: Colors.white54),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if ((value ?? '').trim().isEmpty) {
+                    return 'Reason is required';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() != true) return;
+              Navigator.of(ctx).pop(controller.text.trim());
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFC10D00),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+    return result;
+  }
+
+  Future<void> _handleAcknowledgementRequest({
+    required Goal goal,
+    required List<GoalMilestone> milestones,
+    required bool hasAuditEntry,
+  }) async {
+    final completionReady = _canRequestAcknowledgement(
+      goal: goal,
+      milestones: milestones,
+    );
+
+    if (!completionReady) {
+      await _showCenterNotice(
+        context,
+        'You can only request acknowledgement once the goal and all milestones are fully completed.',
+      );
+      return;
+    }
+
+    if (hasAuditEntry) {
+      final confirm = await _confirmAcknowledgementRerequest();
+      if (!confirm) return;
+
+      final reason = await _promptAcknowledgementRerequestReason();
+      if (reason == null || reason.trim().isEmpty) return;
+
+      try {
+        final proceed = await _ensureDepartmentIsSet();
+        if (!proceed) return;
+        await AuditService.resubmitGoalForAudit(
+          goal: goal,
+          evidence: goal.evidence,
+          reason: reason,
+        );
+        if (!mounted) return;
+        await _showCenterNotice(context, 'Acknowledgement re-requested');
+      } catch (_) {
+        if (!mounted) return;
+        await _showCenterNotice(
+          context,
+          'Failed to re-request acknowledgement. Please try again.',
+        );
+      }
+      return;
+    }
+
+    await _requestManagerAcknowledgement(goal);
   }
 
   @override
@@ -1305,7 +1483,6 @@ class _MyPdpScreenState extends State<MyPdpScreen>
       ),
     );
   }
-
   Widget _buildGoalsForExcellence(
     String excellence,
     bool light,
@@ -1885,90 +2062,152 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                         break;
                       }
                     }
-                    final hasAuditEntry = auditEntry != null;
-                    final status = auditEntry?.status;
-                    final isVerified = status == 'verified';
-                    final isRejected = status == 'rejected';
-                    final isApproved =
-                        goal.approvalStatus == GoalApprovalStatus.approved;
-                    final canRequest = isApproved && !hasAuditEntry;
 
-                    final label = isVerified
-                        ? 'Acknowledged'
-                        : isRejected
-                        ? 'Changes requested'
-                        : hasAuditEntry
-                        ? 'Acknowledgement requested'
-                        : (isApproved
-                              ? 'Request acknowledgement'
-                              : widget.managerOwnGoalsOnly
-                              ? 'Waiting for admin approval'
-                              : 'Waiting for manager approval');
-                    final icon = isVerified
-                        ? Icons.verified
-                        : isRejected
-                        ? Icons.warning_amber_rounded
-                        : hasAuditEntry
-                        ? Icons.check_circle
-                        : (isApproved ? Icons.verified_user : Icons.lock_clock);
-                    final style = isVerified
-                        ? OutlinedButton.styleFrom(
-                            backgroundColor: Colors.green.withValues(
-                              alpha: 0.1,
-                            ),
-                            foregroundColor: Colors.green,
-                            side: const BorderSide(color: Colors.green),
-                          )
-                        : isRejected
-                        ? OutlinedButton.styleFrom(
-                            backgroundColor: Colors.red.withValues(alpha: 0.1),
-                            foregroundColor: Colors.red,
-                            side: const BorderSide(color: Colors.red),
-                          )
-                        : hasAuditEntry
-                        ? OutlinedButton.styleFrom(
-                            // ignore: deprecated_member_use
-                            backgroundColor: Colors.orange.withValues(
-                              alpha: 0.1,
-                            ),
-                            foregroundColor: Colors.orange,
-                            side: const BorderSide(color: Colors.orange),
-                          )
-                        : null;
+                    return StreamBuilder<List<GoalMilestone>>(
+                      stream: DatabaseService.getGoalMilestonesStream(goal.id),
+                      builder: (context, milestoneSnapshot) {
+                        final milestones =
+                            milestoneSnapshot.data ?? const <GoalMilestone>[];
+                        final hasAuditEntry = auditEntry != null;
+                        final status = auditEntry?.status;
+                        final goalAlreadyAcknowledged =
+                            goal.status == GoalStatus.acknowledged;
+                        final hasExistingRequest =
+                            hasAuditEntry || goalAlreadyAcknowledged;
+                        final isVerified =
+                            status == 'verified' || goalAlreadyAcknowledged;
+                        final isRejected = status == 'rejected';
+                        final isApproved =
+                            goal.approvalStatus == GoalApprovalStatus.approved;
+                        final completionReady = _canRequestAcknowledgement(
+                          goal: goal,
+                          milestones: milestones,
+                        );
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: canRequest
-                              ? () => _requestManagerAcknowledgement(goal)
-                              : null,
-                          icon: Icon(icon, size: 18),
-                          label: Text(label),
-                          style: style,
-                        ),
-                        if (isVerified)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              'Acknowledged by ${auditEntry?.acknowledgedBy ?? 'Manager'}',
-                              style: TextStyle(
-                                color: _pdpMuted(light),
-                                fontSize: 11,
+                        // Keep re-request available even after verification.
+                        // _handleAcknowledgementRequest already enforces the
+                        // confirmation + reason flow when an audit entry exists.
+                        final canTapAction = isApproved;
+                        final isRequestSentState =
+                            hasExistingRequest && !isVerified && !isRejected;
+
+                        final label = isVerified
+                            ? 'Acknowledged'
+                            : isRejected
+                            ? 'Changes requested'
+                            : isRequestSentState
+                            ? 'Request Sent'
+                            : (isApproved
+                                  ? 'Request acknowledgement'
+                                  : widget.managerOwnGoalsOnly
+                                  ? 'Waiting for admin approval'
+                                  : 'Waiting for manager approval');
+                        final icon = isVerified
+                            ? Icons.verified
+                            : isRejected
+                            ? Icons.warning_amber_rounded
+                            : isRequestSentState
+                            ? Icons.check_circle
+                            : (isApproved
+                                  ? Icons.verified_user
+                                  : Icons.lock_clock);
+                        final style = isVerified
+                            ? OutlinedButton.styleFrom(
+                                backgroundColor: Colors.green.withValues(
+                                  alpha: 0.1,
+                                ),
+                                foregroundColor: Colors.green,
+                                side: const BorderSide(color: Colors.green),
+                              )
+                            : isRejected
+                            ? OutlinedButton.styleFrom(
+                                backgroundColor: Colors.red.withValues(
+                                  alpha: 0.1,
+                                ),
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(color: Colors.red),
+                              )
+                            : isRequestSentState
+                            ? OutlinedButton.styleFrom(
+                                backgroundColor: Colors.orange.withValues(
+                                  alpha: 0.1,
+                                ),
+                                foregroundColor: Colors.orange,
+                                side: const BorderSide(color: Colors.orange),
+                              )
+                            : null;
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: canTapAction
+                                  ? () => _handleAcknowledgementRequest(
+                                      goal: goal,
+                                      milestones: milestones,
+                                      hasAuditEntry: hasExistingRequest,
+                                    )
+                                  : null,
+                              icon: Icon(icon, size: 18),
+                              label: Text(label),
+                              style: style,
+                            ),
+                            if (isVerified)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'Acknowledged by ${auditEntry?.acknowledgedBy ?? 'Manager'}',
+                                  style: TextStyle(
+                                    color: _pdpMuted(light),
+                                    fontSize: 11,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        if (!hasAuditEntry && !isApproved)
-                          const SizedBox(height: 4),
-                        if (!hasAuditEntry && !isApproved)
-                          Text(
-                            'You can request acknowledgement once your manager approves this goal.',
-                            style: TextStyle(
-                              color: _pdpMuted(light),
-                              fontSize: 11,
-                            ),
-                          ),
-                      ],
+                            if (isVerified) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tap again if you need to re-request acknowledgement with a reason.',
+                                style: TextStyle(
+                                  color: _pdpMuted(light),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                            if (!hasExistingRequest && !isApproved) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'You can request acknowledgement once your manager approves this goal.',
+                                style: TextStyle(
+                                  color: _pdpMuted(light),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                            if (isApproved &&
+                                !completionReady &&
+                                !isVerified) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'You can only request acknowledgement once the goal and all milestones are fully completed.',
+                                style: TextStyle(
+                                  color: _pdpMuted(light),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                            if (isRequestSentState) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Request already sent. Tap again if you need to re-request with a reason.',
+                                style: TextStyle(
+                                  color: _pdpMuted(light),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ],
+                        );
+                      },
                     );
                   },
                 ),

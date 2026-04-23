@@ -422,14 +422,12 @@ class AppComponents {
         );
 
         if (!useBlur) {
-          return Positioned.fill(child: overlay);
+          return overlay;
         }
-        return Positioned.fill(
-          child: ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-              child: overlay,
-            ),
+        return ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+            child: overlay,
           ),
         );
       }
@@ -439,10 +437,9 @@ class AppComponents {
           width: width,
           height: height,
           child: Stack(
+            fit: StackFit.expand,
             children: [
-              Positioned.fill(
-                child: Image.asset(imagePath, fit: BoxFit.cover),
-              ),
+              Image.asset(imagePath, fit: BoxFit.cover),
               layeredContent(useBlur: blurSigma > 0),
             ],
           ),
