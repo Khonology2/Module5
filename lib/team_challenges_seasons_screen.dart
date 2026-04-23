@@ -566,6 +566,17 @@ class _TeamChallengesSeasonsScreenState
                   .fold<double>(0.0, (sum, value) => sum + value) /
               season.participations.length
         : 0.0;
+    final linkedCourseChallenges = season.challenges
+        .where((challenge) => challenge.resources.isNotEmpty)
+        .length;
+    final pendingProofs = _countProofsByStatus(
+      season,
+      ChallengeSubmissionStatus.submitted,
+    );
+    final approvedProofs = _countProofsByStatus(
+      season,
+      ChallengeSubmissionStatus.approved,
+    );
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -669,6 +680,9 @@ class _TeamChallengesSeasonsScreenState
             season: season,
             avgParticipantProgress: avgParticipantProgress,
             lastActivityInfo: lastActivityInfo,
+            linkedCourseChallenges: linkedCourseChallenges,
+            pendingProofs: pendingProofs,
+            approvedProofs: approvedProofs,
           ),
           const SizedBox(height: AppSpacing.md),
 
@@ -1147,6 +1161,9 @@ class _TeamChallengesSeasonsScreenState
     required Season season,
     required double avgParticipantProgress,
     MapEntry<DateTime, String>? lastActivityInfo,
+    int linkedCourseChallenges = 0,
+    int pendingProofs = 0,
+    int approvedProofs = 0,
   }) {
     return Wrap(
       spacing: AppSpacing.md.toDouble(),
@@ -1173,6 +1190,20 @@ class _TeamChallengesSeasonsScreenState
               ? '${_formatRelativeTime(lastActivityInfo.key)} • ${lastActivityInfo.value}'
               : 'No activity yet',
         ),
+        if (linkedCourseChallenges > 0)
+          _buildManagerStatChip(
+            icon: Icons.school,
+            color: AppColors.infoColor,
+            title: 'Linked Courses',
+            value: '$linkedCourseChallenges challenge(s)',
+          ),
+        if (season.challenges.any((challenge) => challenge.proofRequired))
+          _buildManagerStatChip(
+            icon: Icons.fact_check,
+            color: AppColors.successColor,
+            title: 'Proof Reviews',
+            value: '$pendingProofs pending • $approvedProofs approved',
+          ),
       ],
     );
   }
@@ -1240,6 +1271,21 @@ class _TeamChallengesSeasonsScreenState
     if (diff.inMinutes >= 1) return '${diff.inMinutes}m ago';
     return 'Just now';
   }
+
+  int _countProofsByStatus(
+    Season season,
+    ChallengeSubmissionStatus status,
+  ) {
+    var count = 0;
+    for (final participation in season.participations.values) {
+      for (final submission in participation.challengeSubmissions.values) {
+        if (submission.status == status) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
 }
 
 // Create Season Form Widget
@@ -1257,11 +1303,22 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _themeController = TextEditingController();
+  final _courseTitleController = TextEditingController();
+  final _courseProviderController = TextEditingController(text: 'Udemy');
+  final _courseUrlController = TextEditingController();
+  final _proofTypeController = TextEditingController(
+    text: 'Certificate, screenshot, or reflection note',
+  );
+  final _estimatedHoursController = TextEditingController();
 
   DateTime? _startDate;
   DateTime? _endDate;
   bool _isCreating = false;
   String _selectedTheme = 'Learning';
+  bool _useLinkedResource = false;
+  bool _resourceIsFree = true;
+  bool _proofRequired = false;
+  String _courseLevel = 'Beginner';
 
   final List<String> _themes = [
     'Learning',
@@ -1269,6 +1326,11 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     'Collaboration',
     'Innovation',
     'Wellness',
+  ];
+  final List<String> _courseLevels = [
+    'Beginner',
+    'Intermediate',
+    'Advanced',
   ];
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
@@ -1305,6 +1367,11 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     _titleController.dispose();
     _descriptionController.dispose();
     _themeController.dispose();
+    _courseTitleController.dispose();
+    _courseProviderController.dispose();
+    _courseUrlController.dispose();
+    _proofTypeController.dispose();
+    _estimatedHoursController.dispose();
     super.dispose();
   }
 
@@ -1372,6 +1439,37 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
             },
           ),
           const SizedBox(height: AppSpacing.md),
+
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Attach linked resource',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              'Use this for seasons that should include a course or external learning link, while still behaving like a normal season.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            value: _useLinkedResource,
+            onChanged: (value) {
+              setState(() {
+                _useLinkedResource = value;
+                if (!value) {
+                  _proofRequired = false;
+                }
+              });
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          if (_useLinkedResource) ...[
+            _buildLinkedCourseSection(),
+            const SizedBox(height: AppSpacing.md),
+          ],
 
           Row(
             children: [
@@ -1476,7 +1574,29 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     });
 
     try {
-      final challenges = SeasonService.createDefaultChallenges(_selectedTheme);
+      final hasLinkedCourse = _useLinkedResource &&
+          _courseUrlController.text.trim().isNotEmpty;
+      final estimatedHours = int.tryParse(_estimatedHoursController.text.trim());
+      final learningResource = hasLinkedCourse
+          ? SeasonCourseResource(
+              title: _courseTitleController.text.trim().isNotEmpty
+                  ? _courseTitleController.text.trim()
+                  : _titleController.text.trim(),
+              provider: _courseProviderController.text.trim().isNotEmpty
+                  ? _courseProviderController.text.trim()
+                  : 'External Resource',
+              url: _courseUrlController.text.trim(),
+              isFreeResource: _resourceIsFree,
+            )
+          : null;
+      final challenges = SeasonService.createDefaultChallenges(
+        _selectedTheme,
+        learningResource: learningResource,
+        proofRequired: _useLinkedResource && _proofRequired,
+        proofType: _proofTypeController.text.trim(),
+        courseLevel: _courseLevel,
+        estimatedHours: estimatedHours,
+      );
 
       await SeasonService.createSeason(
         title: _titleController.text,
@@ -1497,5 +1617,175 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
         _isCreating = false;
       });
     }
+  }
+
+  Widget _buildLinkedCourseSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Linked Resource Setup',
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Attach a course or external learning resource so employees can open it from the app while the season still uses the normal goals and milestone flow.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextFormField(
+            controller: _courseTitleController,
+            decoration: const InputDecoration(
+              labelText: 'Course Title',
+              hintText: 'e.g., SQL for Beginners',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _courseProviderController,
+                  decoration: const InputDecoration(
+                    labelText: 'Provider',
+                    hintText: 'Udemy, YouTube, Coursera',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _courseLevel,
+                  decoration: const InputDecoration(
+                    labelText: 'Level',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _courseLevels
+                      .map(
+                        (level) => DropdownMenuItem(
+                          value: level,
+                          child: Text(level),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _courseLevel = value;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextFormField(
+            controller: _courseUrlController,
+            decoration: const InputDecoration(
+              labelText: 'Course URL',
+              hintText: 'https://www.udemy.com/...',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) {
+              if (!_useLinkedResource) return null;
+              final trimmed = value?.trim() ?? '';
+              if (trimmed.isEmpty) return 'Enter a linked resource URL';
+              final uri = Uri.tryParse(trimmed);
+              if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
+                return 'Enter a valid course URL';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _estimatedHoursController,
+                  decoration: const InputDecoration(
+                    labelText: 'Estimated Hours',
+                    hintText: 'e.g., 8',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Free resource',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Flag whether the course is free to access',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  value: _resourceIsFree,
+                  onChanged: (value) {
+                    setState(() {
+                      _resourceIsFree = value;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Require proof of completion',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              'Managers will review the final proof before the challenge is fully verified.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            value: _proofRequired,
+            onChanged: (value) {
+              setState(() {
+                _proofRequired = value;
+              });
+            },
+          ),
+          if (_proofRequired) ...[
+            const SizedBox(height: AppSpacing.sm),
+            TextFormField(
+              controller: _proofTypeController,
+              decoration: const InputDecoration(
+                labelText: 'Proof Type',
+                hintText: 'Certificate, screenshot, quiz score, reflection',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

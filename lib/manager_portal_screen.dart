@@ -97,7 +97,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return AppSpacing.screenPadding;
       default:
         return EdgeInsets.zero;
-    } 
+    }
   }
 
   Widget _getBodyWidget() {
