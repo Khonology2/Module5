@@ -10,6 +10,7 @@ import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/services/udemy_sync_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/services/points_service.dart';
@@ -2020,6 +2021,54 @@ class DatabaseService {
     } catch (e) {
       developer.log('updateGoalProgress post-alerts failed: $e');
     }
+  }
+
+  static Future<void> applyCourseSyncProgress({
+    required String goalId,
+    required int progress,
+    required String syncStatus,
+    DateTime? syncedAt,
+    String? syncError,
+    String? courseExternalId,
+    String? courseTitle,
+    int? completedSteps,
+    int? totalSteps,
+  }) async {
+    final normalizedProgress = progress.clamp(0, 100);
+    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
+    await goalRef.set({
+      'progress': normalizedProgress,
+      'courseProviderProgress': normalizedProgress,
+      'courseCompletedSteps': completedSteps,
+      'courseTotalSteps': totalSteps,
+      'courseLastSyncedAt': Timestamp.fromDate(syncedAt ?? DateTime.now()),
+      'courseSyncStatus': syncStatus,
+      'courseSyncError': syncError,
+      if (courseExternalId != null && courseExternalId.trim().isNotEmpty)
+        'courseExternalId': courseExternalId.trim(),
+      if (courseTitle != null && courseTitle.trim().isNotEmpty)
+        'courseTitle': courseTitle.trim(),
+      'status': normalizedProgress > 0
+          ? (normalizedProgress >= 100
+                ? GoalStatus.inProgress.name
+                : GoalStatus.inProgress.name)
+          : GoalStatus.notStarted.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    await _syncSeasonGoalFromGoalState(goalId);
+  }
+
+  static Future<UdemySyncResult> syncUdemyCourseProgress({
+    required Goal goal,
+    required String userId,
+    String? userEmail,
+  }) async {
+    return UdemySyncService.syncGoal(
+      goal: goal,
+      userId: userId,
+      userEmail: userEmail,
+    );
   }
 
   static Future<void> startGoal(String goalId, String userId) async {

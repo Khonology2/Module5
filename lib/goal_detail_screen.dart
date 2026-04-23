@@ -20,6 +20,7 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/alert.dart';
+import 'package:pdh/utils/attachment_opener.dart';
 
 class GoalDetailScreen extends StatefulWidget {
   final Goal goal;
@@ -48,6 +49,51 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   bool get _isSeasonFinalReviewApproved =>
       _hasSeasonFinalSubmission &&
       currentGoal.approvalStatus == GoalApprovalStatus.approved;
+  bool get _isUdemyCourseGoal => currentGoal.isUdemyCourseGoal;
+  bool get _isCourseSyncBusy =>
+      isLoading &&
+      ((currentGoal.courseSyncStatus ?? '').trim().toLowerCase() == 'syncing');
+
+  String get _courseSyncStatusLabel {
+    final status = (currentGoal.courseSyncStatus ?? '').trim().toLowerCase();
+    switch (status) {
+      case 'synced':
+        return 'Course progress synced';
+      case 'completed':
+        return 'Course marked complete by Udemy';
+      case 'syncing':
+        return 'Syncing Udemy progress...';
+      case 'setup_required':
+        return 'Udemy sync needs setup';
+      case 'link_error':
+        return 'Linked course needs fixing';
+      case 'error':
+        return 'Last sync failed';
+      case 'ready_to_sync':
+        return 'Ready to sync';
+      default:
+        return 'Udemy-linked goal';
+    }
+  }
+
+  Color get _courseSyncStatusColor {
+    final status = (currentGoal.courseSyncStatus ?? '').trim().toLowerCase();
+    switch (status) {
+      case 'synced':
+      case 'completed':
+        return AppColors.successColor;
+      case 'syncing':
+        return AppColors.activeColor;
+      case 'setup_required':
+      case 'ready_to_sync':
+        return AppColors.warningColor;
+      case 'link_error':
+      case 'error':
+        return AppColors.dangerColor;
+      default:
+        return AppColors.infoColor;
+    }
+  }
 
   @override
   void initState() {
@@ -248,6 +294,101 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     );
 
     controller.dispose();
+  }
+
+  Future<void> _openLinkedCourse() async {
+    final courseUrl = (currentGoal.courseUrl ?? '').trim();
+    if (courseUrl.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This goal is missing its course link.'),
+        ),
+      );
+      return;
+    }
+
+    final opened = await openAttachmentUrl(courseUrl);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open the linked course.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _syncUdemyProgress() async {
+    if (isLoading) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Not signed in.')));
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      currentGoal = currentGoal.copyWith(
+        courseSyncStatus: 'syncing',
+        courseSyncError: null,
+      );
+    });
+
+    try {
+      final result = await DatabaseService.syncUdemyCourseProgress(
+        goal: currentGoal,
+        userId: user.uid,
+        userEmail: user.email,
+      );
+      if (!mounted) return;
+      setState(() {
+        currentGoal = currentGoal.copyWith(
+          progress: result.progressPercent,
+          status: result.progressPercent > 0
+              ? GoalStatus.inProgress
+              : GoalStatus.notStarted,
+          courseProviderProgress: result.progressPercent,
+          courseCompletedSteps: result.completedSteps,
+          courseTotalSteps: result.totalSteps,
+          courseLastSyncedAt: result.syncedAt,
+          courseSyncStatus: result.syncStatus,
+          courseSyncError: null,
+          courseExternalId:
+              result.courseExternalId ?? currentGoal.courseExternalId,
+          courseTitle: result.courseTitle ?? currentGoal.courseTitle,
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Udemy progress synced to ${result.progressPercent}%'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        currentGoal = currentGoal.copyWith(
+          courseSyncStatus: 'error',
+          courseSyncError: e.toString(),
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Udemy sync failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   Widget _buildKpaSelector() {
@@ -868,7 +1009,139 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             minHeight: 8,
           ),
           const SizedBox(height: 16),
-          if (currentGoal.status != GoalStatus.completed &&
+          if (_isUdemyCourseGoal) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _courseSyncStatusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _courseSyncStatusColor.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.school,
+                        color: _courseSyncStatusColor,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          currentGoal.courseTitle?.trim().isNotEmpty == true
+                              ? currentGoal.courseTitle!.trim()
+                              : currentGoal.title,
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _courseSyncStatusLabel,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: _courseSyncStatusColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (currentGoal.courseProvider?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Provider: ${currentGoal.courseProvider!.trim()}',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                  if (currentGoal.courseCompletedSteps != null &&
+                      currentGoal.courseTotalSteps != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Lessons completed: ${currentGoal.courseCompletedSteps}/${currentGoal.courseTotalSteps}',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                  if (currentGoal.courseLastSyncedAt != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Last synced: ${_formatDateTime(currentGoal.courseLastSyncedAt!)}',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                  if (currentGoal.courseSyncError?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      currentGoal.courseSyncError!.trim(),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.dangerColor,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _isCourseSyncBusy ? null : _openLinkedCourse,
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Open Course'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: AppColors.textPrimary,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _isCourseSyncBusy ? null : _syncUdemyProgress,
+                  icon: _isCourseSyncBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sync),
+                  label: Text(_isCourseSyncBusy ? 'Syncing...' : 'Sync Progress'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    side: BorderSide(color: AppColors.activeColor),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Udemy progress is the source of truth for this goal. Open the course, then sync here to refresh your progress.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            if (_isSeasonGoal &&
+                currentGoal.progress >= 100 &&
+                !_hasSeasonFinalSubmission) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Once sync reaches 100%, submit your final season evidence for review.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ] else if (currentGoal.status != GoalStatus.completed &&
               (currentGoal.approvalStatus == GoalApprovalStatus.approved ||
                   _isSeasonGoal)) ...[
             Text(
@@ -1207,7 +1480,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         if (currentGoal.status == GoalStatus.notStarted) ...[
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: isLoading ? null : _startGoal,
+              onPressed: (_isUdemyCourseGoal || isLoading) ? null : _startGoal,
               icon: isLoading
                   ? const SizedBox(
                       width: 16,
@@ -1217,8 +1490,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : const Icon(Icons.play_arrow),
-              label: Text(isLoading ? 'Starting...' : 'Start Goal (+20 pts)'),
+                  : Icon(_isUdemyCourseGoal ? Icons.sync : Icons.play_arrow),
+              label: Text(
+                _isUdemyCourseGoal
+                    ? 'Progress starts after sync'
+                    : (isLoading ? 'Starting...' : 'Start Goal (+20 pts)'),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.activeColor,
                 foregroundColor: AppColors.textPrimary,
@@ -1265,6 +1542,55 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildMilestoneTracker() {
+    if (_isUdemyCourseGoal) {
+      final stepsLabel = currentGoal.courseCompletedSteps != null &&
+              currentGoal.courseTotalSteps != null
+          ? '${currentGoal.courseCompletedSteps}/${currentGoal.courseTotalSteps} lessons completed'
+          : 'Lesson counts will appear after the first successful sync.';
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Course Sync Tracker',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Udemy reports progress based on completed course content, so this goal no longer uses the manual 10% milestone ladder.',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              stepsLabel,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            if (currentGoal.courseLastSyncedAt != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Last synced: ${_formatDateTime(currentGoal.courseLastSyncedAt!)}',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
     final List<int> steps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
     final Map<int, int> pointsByStep = {
       0: 20, // start
@@ -2570,6 +2896,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         ],
       ),
     );
+  }
+
+  String _formatDateTime(DateTime date) {
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '${date.day}/${date.month}/${date.year} $hour:$minute';
   }
 }
 

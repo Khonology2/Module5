@@ -1,8 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/goal_detail_screen.dart';
+import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/season.dart';
+import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/season_details_screen.dart';
 import 'package:pdh/season_celebration_screen.dart';
@@ -63,7 +67,7 @@ class _TeamChallengesSeasonsScreenState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _redirectIfManagerStandalone();
   }
 
@@ -140,6 +144,10 @@ class _TeamChallengesSeasonsScreenState
                 fit: BoxFit.contain,
               ),
             ),
+            const Tab(
+              text: 'Season Reviews',
+              icon: Icon(Icons.fact_check_outlined),
+            ),
           ],
         ),
       ),
@@ -149,6 +157,7 @@ class _TeamChallengesSeasonsScreenState
           _buildActiveSeasonsTab(),
           _buildCreateSeasonTab(),
           _buildSeasonHistoryTab(),
+          _buildSeasonReviewsTab(),
         ],
       ),
     );
@@ -461,6 +470,142 @@ class _TeamChallengesSeasonsScreenState
     );
   }
 
+  Widget _buildSeasonReviewsTab() {
+    return Padding(
+      padding: AppSpacing.screenPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Season Reviews',
+            style: AppTypography.heading3.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Review each participant\'s final season submission here. This is the last approval step after they submit final evidence.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Expanded(
+            child: StreamBuilder<List<Season>>(
+              stream: SeasonService.getManagerSeasonsStream(),
+              builder: (context, seasonsSnapshot) {
+                if (seasonsSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.activeColor,
+                      ),
+                    ),
+                  );
+                }
+
+                if (seasonsSnapshot.hasError) {
+                  return _buildSeasonReviewsState(
+                    icon: Icons.error_outline,
+                    title: 'Error loading reviews',
+                    message: seasonsSnapshot.error.toString(),
+                    iconColor: AppColors.dangerColor,
+                  );
+                }
+
+                final seasons = _filterSeasonsForScreen(
+                  seasonsSnapshot.data ?? const <Season>[],
+                );
+                if (seasons.isEmpty) {
+                  return _buildSeasonReviewsState(
+                    icon: Icons.fact_check_outlined,
+                    title: 'No Seasons To Review',
+                    message:
+                        'Create seasons first, then participant final submissions will appear here.',
+                  );
+                }
+
+                final seasonsById = <String, Season>{
+                  for (final season in seasons) season.id: season,
+                };
+                final seasonIds = seasonsById.keys.toSet();
+
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('goals')
+                      .where('isSeasonGoal', isEqualTo: true)
+                      .snapshots(),
+                  builder: (context, goalsSnapshot) {
+                    if (goalsSnapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.activeColor,
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (goalsSnapshot.hasError) {
+                      return _buildSeasonReviewsState(
+                        icon: Icons.error_outline,
+                        title: 'Error loading season submissions',
+                        message: goalsSnapshot.error.toString(),
+                        iconColor: AppColors.dangerColor,
+                      );
+                    }
+
+                    final docs = goalsSnapshot.data?.docs ?? const [];
+                    final entries = docs
+                        .where((doc) {
+                          final data = doc.data();
+                          final seasonId = (data['seasonId'] ?? '').toString();
+                          return seasonIds.contains(seasonId) &&
+                              data['seasonFinalReviewSubmittedAt'] != null;
+                        })
+                        .map((doc) => _SeasonReviewEntry.fromGoalDoc(
+                              doc: doc,
+                              seasonsById: seasonsById,
+                            ))
+                        .whereType<_SeasonReviewEntry>()
+                        .toList()
+                      ..sort((a, b) {
+                        final aPending = a.approvalStatus == GoalApprovalStatus.pending;
+                        final bPending = b.approvalStatus == GoalApprovalStatus.pending;
+                        if (aPending != bPending) {
+                          return aPending ? -1 : 1;
+                        }
+                        return b.submittedAt.compareTo(a.submittedAt);
+                      });
+
+                    if (entries.isEmpty) {
+                      return _buildSeasonReviewsState(
+                        icon: Icons.inbox_outlined,
+                        title: 'No Final Submissions Yet',
+                        message:
+                            'Participant final season reviews will appear here after they submit end-of-season evidence.',
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: entries.length,
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                          child: _buildSeasonReviewCard(entries[index]),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmptyActiveSeasonsState() {
     return Container(
       width: double.infinity,
@@ -509,6 +654,51 @@ class _TeamChallengesSeasonsScreenState
     );
   }
 
+  Widget _buildSeasonReviewsState({
+    required IconData icon,
+    required String title,
+    required String message,
+    Color? iconColor,
+  }) {
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 620),
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 52,
+              color: iconColor ?? AppColors.textSecondary,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              title,
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              message,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildActiveSeasonsLoading() {
     return SizedBox(
       height: 200,
@@ -552,6 +742,203 @@ class _TeamChallengesSeasonsScreenState
     );
   }
 
+  Widget _buildSeasonReviewCard(_SeasonReviewEntry entry) {
+    final isPending = entry.approvalStatus == GoalApprovalStatus.pending;
+    final isApproved = entry.approvalStatus == GoalApprovalStatus.approved;
+    final statusColor = isPending
+        ? AppColors.warningColor
+        : isApproved
+            ? AppColors.successColor
+            : AppColors.dangerColor;
+    final statusLabel = isPending
+        ? 'Pending Final Review'
+        : isApproved
+            ? 'Approved'
+            : 'Rejected';
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.fact_check, color: statusColor),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.employeeName,
+                      style: AppTypography.heading4.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${entry.seasonTitle} • ${entry.goalTitle}',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    if (entry.challengeTitle != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Challenge: ${entry.challengeTitle}',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.activeColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.md.toDouble(),
+            runSpacing: AppSpacing.sm.toDouble(),
+            children: [
+              _buildManagerStatChip(
+                icon: Icons.event,
+                color: AppColors.infoColor,
+                title: 'Submitted',
+                value: _formatReviewDate(entry.submittedAt),
+              ),
+              _buildManagerStatChip(
+                icon: Icons.trending_up,
+                color: AppColors.activeColor,
+                title: 'Progress',
+                value: '${entry.progress}%',
+              ),
+              if (entry.reviewedByName != null &&
+                  entry.reviewedByName!.trim().isNotEmpty)
+                _buildManagerStatChip(
+                  icon: Icons.verified_user,
+                  color: AppColors.successColor,
+                  title: isApproved ? 'Approved By' : 'Reviewed By',
+                  value: entry.reviewedByName!,
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Final Evidence',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Text(
+              entry.finalEvidence,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          if (entry.rejectionReason != null &&
+              entry.rejectionReason!.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Rejection Feedback',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.dangerColor,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              entry.rejectionReason!,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _openSeasonReviewGoal(entry.goal),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('View Goal'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.activeColor,
+                  side: BorderSide(color: AppColors.activeColor),
+                ),
+              ),
+              const Spacer(),
+              if (isPending) ...[
+                OutlinedButton.icon(
+                  onPressed: () => _rejectSeasonReview(entry.goal.id),
+                  icon: const Icon(Icons.close, size: 18),
+                  label: const Text('Reject'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.dangerColor,
+                    side: BorderSide(color: AppColors.dangerColor),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                ElevatedButton.icon(
+                  onPressed: () => _approveSeasonReview(entry.goal.id),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('Approve'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.successColor,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSeasonCard(Season season) {
     final now = DateTime.now();
     final daysLeft = season.endDate.difference(now).inDays;
@@ -563,7 +950,7 @@ class _TeamChallengesSeasonsScreenState
     final avgParticipantProgress = season.participations.isNotEmpty
         ? season.participations.values
                   .map((p) => _calculateParticipantProgress(p, season))
-                  .fold<double>(0.0, (sum, value) => sum + value) /
+                  .fold<double>(0.0, (runningTotal, value) => runningTotal + value) /
               season.participations.length
         : 0.0;
     final linkedCourseChallenges = season.challenges
@@ -1093,6 +1480,94 @@ class _TeamChallengesSeasonsScreenState
     );
   }
 
+  Future<void> _openSeasonReviewGoal(Goal goal) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
+    );
+  }
+
+  Future<void> _approveSeasonReview(String goalId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      await DatabaseService.approveGoal(
+        goalId: goalId,
+        managerId: user.uid,
+        managerName: user.displayName ?? user.email ?? 'Reviewer',
+      );
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Season submission approved.');
+    } catch (e) {
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Failed to approve season submission: $e');
+    }
+  }
+
+  Future<void> _rejectSeasonReview(String goalId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          title: Text(
+            'Reject Final Submission',
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Add feedback for the participant...',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'Cancel',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dangerColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Reject'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+
+    if (reason == null) return;
+    try {
+      await DatabaseService.rejectGoal(
+        goalId: goalId,
+        managerId: user.uid,
+        managerName: user.displayName ?? user.email ?? 'Reviewer',
+        reason: reason.isEmpty ? null : reason,
+      );
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Season submission rejected.');
+    } catch (e) {
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Failed to reject season submission: $e');
+    }
+  }
+
   void _viewSeasonCelebration(Season season) {
     Navigator.push(
       context,
@@ -1285,6 +1760,99 @@ class _TeamChallengesSeasonsScreenState
       }
     }
     return count;
+  }
+
+  String _formatReviewDate(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$day/$month/${value.year} $hour:$minute';
+  }
+}
+
+class _SeasonReviewEntry {
+  final Goal goal;
+  final String seasonTitle;
+  final String employeeName;
+  final String? challengeTitle;
+  final String finalEvidence;
+  final DateTime submittedAt;
+  final GoalApprovalStatus approvalStatus;
+  final String? reviewedByName;
+  final String? rejectionReason;
+  final int progress;
+  final String goalTitle;
+
+  const _SeasonReviewEntry({
+    required this.goal,
+    required this.seasonTitle,
+    required this.employeeName,
+    required this.challengeTitle,
+    required this.finalEvidence,
+    required this.submittedAt,
+    required this.approvalStatus,
+    required this.reviewedByName,
+    required this.rejectionReason,
+    required this.progress,
+    required this.goalTitle,
+  });
+
+  static _SeasonReviewEntry? fromGoalDoc({
+    required QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    required Map<String, Season> seasonsById,
+  }) {
+    final data = doc.data();
+    final seasonId = (data['seasonId'] ?? '').toString();
+    final season = seasonsById[seasonId];
+    if (season == null) {
+      return null;
+    }
+
+    final userId = (data['userId'] ?? '').toString();
+    final challengeId = (data['challengeId'] ?? '').toString();
+    final challenge = season.challenges.where((c) => c.id == challengeId).firstOrNull;
+    final participation = season.participations[userId];
+    final employeeName = participation?.userName.trim().isNotEmpty == true
+        ? participation!.userName
+        : (data['userDisplayName'] ??
+                data['createdByName'] ??
+                data['userName'] ??
+                'Participant')
+            .toString();
+
+    final submittedRaw =
+        data['seasonFinalReviewSubmittedAt'] ?? data['approvalRequestedAt'];
+    final submittedAt = submittedRaw is Timestamp
+        ? submittedRaw.toDate()
+        : DateTime.now();
+    final progressRaw = data['progress'];
+    final progress = progressRaw is int
+        ? progressRaw
+        : (progressRaw is num ? progressRaw.round() : 0);
+    final evidence = (data['seasonFinalReviewEvidence'] ??
+            ((data['evidence'] is List && (data['evidence'] as List).isNotEmpty)
+                ? (data['evidence'] as List).last
+                : ''))
+        .toString()
+        .trim();
+
+    return _SeasonReviewEntry(
+      goal: Goal.fromFirestore(doc),
+      seasonTitle: season.title,
+      employeeName: employeeName,
+      challengeTitle: challenge?.title,
+      finalEvidence: evidence.isEmpty ? 'No final evidence submitted.' : evidence,
+      submittedAt: submittedAt,
+      approvalStatus: GoalApprovalStatus.values.firstWhere(
+        (status) => status.name == (data['approvalStatus'] ?? 'pending'),
+        orElse: () => GoalApprovalStatus.pending,
+      ),
+      reviewedByName: data['approvedByName']?.toString(),
+      rejectionReason: data['rejectionReason']?.toString(),
+      progress: progress,
+      goalTitle: (data['title'] ?? '').toString(),
+    );
   }
 }
 

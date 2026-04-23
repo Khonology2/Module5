@@ -74,6 +74,17 @@ class Goal {
   final DateTime? approvedAt;
   final DateTime? approvalRequestedAt;
   final String? rejectionReason;
+  final String? courseProvider;
+  final String? courseUrl;
+  final String? courseTitle;
+  final String? courseSyncProvider;
+  final String? courseExternalId;
+  final int? courseProviderProgress;
+  final int? courseCompletedSteps;
+  final int? courseTotalSteps;
+  final DateTime? courseLastSyncedAt;
+  final String? courseSyncStatus;
+  final String? courseSyncError;
 
   /// Goals that are finished, acknowledged, paused, or already at 100% must not
   /// drive overdue / team supervision alerts (matches manager PDP semantics).
@@ -90,6 +101,16 @@ class Goal {
   /// them in team review, PDP lists, or aggregates.
   bool get isDisplayableGoal =>
       title.trim().isNotEmpty || description.trim().isNotEmpty;
+
+  bool get hasLinkedCourse => courseUrl?.trim().isNotEmpty == true;
+
+  bool get isUdemyCourseGoal {
+    final provider = (courseSyncProvider ?? courseProvider ?? '')
+        .trim()
+        .toLowerCase();
+    final url = (courseUrl ?? '').trim().toLowerCase();
+    return hasLinkedCourse && (provider.contains('udemy') || url.contains('udemy.'));
+  }
 
   const Goal({
     required this.id,
@@ -112,6 +133,17 @@ class Goal {
     this.approvedAt,
     this.approvalRequestedAt,
     this.rejectionReason,
+    this.courseProvider,
+    this.courseUrl,
+    this.courseTitle,
+    this.courseSyncProvider,
+    this.courseExternalId,
+    this.courseProviderProgress,
+    this.courseCompletedSteps,
+    this.courseTotalSteps,
+    this.courseLastSyncedAt,
+    this.courseSyncStatus,
+    this.courseSyncError,
   });
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
@@ -207,6 +239,34 @@ class Goal {
           ? parseDate(data?['approvalRequestedAt'])
           : null,
       rejectionReason: data?['rejectionReason']?.toString(),
+      courseProvider: data?['courseProvider']?.toString(),
+      courseUrl: data?['courseUrl']?.toString(),
+      courseTitle: data?['courseTitle']?.toString(),
+      courseSyncProvider: data?['courseSyncProvider']?.toString(),
+      courseExternalId: data?['courseExternalId']?.toString(),
+      courseProviderProgress: (() {
+        final raw = data?['courseProviderProgress'];
+        if (raw is int) return raw;
+        if (raw is num) return raw.round();
+        return null;
+      })(),
+      courseCompletedSteps: (() {
+        final raw = data?['courseCompletedSteps'];
+        if (raw is int) return raw;
+        if (raw is num) return raw.round();
+        return null;
+      })(),
+      courseTotalSteps: (() {
+        final raw = data?['courseTotalSteps'];
+        if (raw is int) return raw;
+        if (raw is num) return raw.round();
+        return null;
+      })(),
+      courseLastSyncedAt: data?['courseLastSyncedAt'] != null
+          ? parseDate(data?['courseLastSyncedAt'])
+          : null,
+      courseSyncStatus: data?['courseSyncStatus']?.toString(),
+      courseSyncError: data?['courseSyncError']?.toString(),
     );
   }
 
@@ -285,6 +345,25 @@ class Goal {
           ? parseDate(map['approvalRequestedAt'])
           : null,
       rejectionReason: map['rejectionReason']?.toString(),
+      courseProvider: map['courseProvider']?.toString(),
+      courseUrl: map['courseUrl']?.toString(),
+      courseTitle: map['courseTitle']?.toString(),
+      courseSyncProvider: map['courseSyncProvider']?.toString(),
+      courseExternalId: map['courseExternalId']?.toString(),
+      courseProviderProgress: (map['courseProviderProgress'] ?? 0) is int
+          ? map['courseProviderProgress'] as int?
+          : int.tryParse(map['courseProviderProgress']?.toString() ?? ''),
+      courseCompletedSteps: (map['courseCompletedSteps'] ?? 0) is int
+          ? map['courseCompletedSteps'] as int?
+          : int.tryParse(map['courseCompletedSteps']?.toString() ?? ''),
+      courseTotalSteps: (map['courseTotalSteps'] ?? 0) is int
+          ? map['courseTotalSteps'] as int?
+          : int.tryParse(map['courseTotalSteps']?.toString() ?? ''),
+      courseLastSyncedAt: map['courseLastSyncedAt'] != null
+          ? parseDate(map['courseLastSyncedAt'])
+          : null,
+      courseSyncStatus: map['courseSyncStatus']?.toString(),
+      courseSyncError: map['courseSyncError']?.toString(),
     );
   }
 
@@ -309,6 +388,17 @@ class Goal {
     DateTime? approvedAt,
     DateTime? approvalRequestedAt,
     String? rejectionReason,
+    String? courseProvider,
+    String? courseUrl,
+    String? courseTitle,
+    String? courseSyncProvider,
+    String? courseExternalId,
+    int? courseProviderProgress,
+    int? courseCompletedSteps,
+    int? courseTotalSteps,
+    DateTime? courseLastSyncedAt,
+    String? courseSyncStatus,
+    String? courseSyncError,
   }) {
     return Goal(
       id: id ?? this.id,
@@ -331,6 +421,18 @@ class Goal {
       approvedAt: approvedAt ?? this.approvedAt,
       approvalRequestedAt: approvalRequestedAt ?? this.approvalRequestedAt,
       rejectionReason: rejectionReason ?? this.rejectionReason,
+      courseProvider: courseProvider ?? this.courseProvider,
+      courseUrl: courseUrl ?? this.courseUrl,
+      courseTitle: courseTitle ?? this.courseTitle,
+      courseSyncProvider: courseSyncProvider ?? this.courseSyncProvider,
+      courseExternalId: courseExternalId ?? this.courseExternalId,
+      courseProviderProgress:
+          courseProviderProgress ?? this.courseProviderProgress,
+      courseCompletedSteps: courseCompletedSteps ?? this.courseCompletedSteps,
+      courseTotalSteps: courseTotalSteps ?? this.courseTotalSteps,
+      courseLastSyncedAt: courseLastSyncedAt ?? this.courseLastSyncedAt,
+      courseSyncStatus: courseSyncStatus ?? this.courseSyncStatus,
+      courseSyncError: courseSyncError ?? this.courseSyncError,
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_metrics_job.dart';
+import 'package:pdh/services/udemy_sync_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 
 class SeasonService {
@@ -2559,25 +2560,14 @@ class SeasonService {
   ) async {
     try {
       for (final challenge in season.challenges) {
-        final category = _mapChallengeTypeToGoalCategory(challenge.type);
-        await _firestore.collection('goals').add({
-          'userId': userId,
-          'title': challenge.title,
-          'description': challenge.description,
-          'category': category,
-          'priority': 'medium',
-          'status': 'notStarted',
-          'progress': 0,
-          'createdAt': FieldValue.serverTimestamp(),
-          'targetDate': Timestamp.fromDate(season.endDate),
-          'points': challenge.points,
-          'isSeasonGoal': true,
-          'seasonId': season.id,
-          'challengeId': challenge.id,
-          'createdByName': userName,
-          // Pre-approve season goals so employees can start/update immediately
-          'approvalStatus': 'approved',
-        });
+        await _firestore.collection('goals').add(
+          _buildSeasonGoalPayload(
+            season: season,
+            challenge: challenge,
+            userId: userId,
+            userName: userName,
+          ),
+        );
       }
     } catch (e) {
       developer.log('Error creating season goals for employee: $e');
@@ -2594,43 +2584,155 @@ class SeasonService {
           .collection('goals')
           .where('userId', isEqualTo: userId)
           .get();
-      final existingChallengeIds = existing.docs
-          .where((doc) {
-            final data = doc.data();
-            return data['isSeasonGoal'] == true &&
-                (data['seasonId'] ?? '').toString() == season.id;
-          })
-          .map((doc) => (doc.data()['challengeId'] ?? '').toString())
-          .where((id) => id.trim().isNotEmpty)
-          .toSet();
+      final existingSeasonGoals = existing.docs.where((doc) {
+        final data = doc.data();
+        return data['isSeasonGoal'] == true &&
+            (data['seasonId'] ?? '').toString() == season.id;
+      }).toList(growable: false);
+      final existingByChallengeId = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+      for (final doc in existingSeasonGoals) {
+        final challengeId = (doc.data()['challengeId'] ?? '').toString().trim();
+        if (challengeId.isNotEmpty) {
+          existingByChallengeId[challengeId] = doc;
+        }
+      }
 
       for (final challenge in season.challenges) {
-        if (existingChallengeIds.contains(challenge.id)) {
+        final existingGoal = existingByChallengeId[challenge.id];
+        if (existingGoal != null) {
+          final metadata = _buildSeasonGoalCourseMetadata(challenge);
+          if (metadata.isNotEmpty) {
+            final missingMetadata = <String, dynamic>{};
+            for (final entry in metadata.entries) {
+              final existingValue = existingGoal.data()[entry.key];
+              final hasValue = existingValue != null &&
+                  existingValue.toString().trim().isNotEmpty;
+              if (!hasValue) {
+                missingMetadata[entry.key] = entry.value;
+              }
+            }
+            if (missingMetadata.isNotEmpty) {
+              final initialState = _buildInitialSeasonGoalCourseSyncState(
+                challenge,
+              );
+              if ((existingGoal.data()['courseSyncStatus'] ?? '')
+                  .toString()
+                  .trim()
+                  .isEmpty) {
+                missingMetadata.addAll(initialState);
+              }
+              await existingGoal.reference.set(
+                missingMetadata,
+                SetOptions(merge: true),
+              );
+            }
+          }
           continue;
         }
-        final category = _mapChallengeTypeToGoalCategory(challenge.type);
-        await _firestore.collection('goals').add({
-          'userId': userId,
-          'title': challenge.title,
-          'description': challenge.description,
-          'category': category,
-          'priority': 'medium',
-          'status': 'notStarted',
-          'progress': 0,
-          'createdAt': FieldValue.serverTimestamp(),
-          'targetDate': Timestamp.fromDate(season.endDate),
-          'points': challenge.points,
-          'isSeasonGoal': true,
-          'seasonId': season.id,
-          'challengeId': challenge.id,
-          'createdByName': userName,
-          'approvalStatus': 'approved',
-        });
+        await _firestore.collection('goals').add(
+          _buildSeasonGoalPayload(
+            season: season,
+            challenge: challenge,
+            userId: userId,
+            userName: userName,
+          ),
+        );
       }
     } catch (e) {
       developer.log('Error ensuring season goals for employee: $e');
       rethrow;
     }
+  }
+
+  static Map<String, dynamic> _buildSeasonGoalPayload({
+    required Season season,
+    required SeasonChallenge challenge,
+    required String userId,
+    required String userName,
+  }) {
+    final category = _mapChallengeTypeToGoalCategory(challenge.type);
+    return {
+      'userId': userId,
+      'title': challenge.title,
+      'description': challenge.description,
+      'category': category,
+      'priority': 'medium',
+      'status': 'notStarted',
+      'progress': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+      'targetDate': Timestamp.fromDate(season.endDate),
+      'points': challenge.points,
+      'isSeasonGoal': true,
+      'seasonId': season.id,
+      'challengeId': challenge.id,
+      'createdByName': userName,
+      // Pre-approve season goals so employees can start/update immediately.
+      'approvalStatus': 'approved',
+      ..._buildSeasonGoalCourseMetadata(challenge),
+      ..._buildInitialSeasonGoalCourseSyncState(challenge),
+    };
+  }
+
+  static Map<String, dynamic> _buildSeasonGoalCourseMetadata(
+    SeasonChallenge challenge,
+  ) {
+    final resource = challenge.resources.isNotEmpty ? challenge.resources.first : null;
+    final provider = (resource?.provider ??
+            challenge.requirements['provider'] ??
+            '')
+        .toString()
+        .trim();
+    final courseUrl = (resource?.url ??
+            challenge.requirements['resourceUrl'] ??
+            '')
+        .toString()
+        .trim();
+    if (courseUrl.isEmpty) {
+      return const <String, dynamic>{};
+    }
+
+    final courseTitle = (resource?.title ?? challenge.title).toString().trim();
+    final normalizedProvider =
+        provider.toLowerCase().contains('udemy') ||
+            courseUrl.toLowerCase().contains('udemy.')
+        ? 'udemy'
+        : null;
+    final courseId = normalizedProvider == 'udemy'
+        ? UdemySyncService.extractCourseId(courseUrl)
+        : null;
+
+    return {
+      if (provider.isNotEmpty) 'courseProvider': provider,
+      'courseUrl': courseUrl,
+      if (courseTitle.isNotEmpty) 'courseTitle': courseTitle,
+      'courseSyncProvider': normalizedProvider,
+      'courseExternalId': courseId,
+    };
+  }
+
+  static Map<String, dynamic> _buildInitialSeasonGoalCourseSyncState(
+    SeasonChallenge challenge,
+  ) {
+    final metadata = _buildSeasonGoalCourseMetadata(challenge);
+    final syncProvider = (metadata['courseSyncProvider'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (syncProvider != 'udemy') {
+      return const <String, dynamic>{};
+    }
+    final courseId = (metadata['courseExternalId'] ?? '').toString().trim();
+    if (courseId.isEmpty) {
+      return const <String, dynamic>{
+        'courseSyncStatus': 'link_error',
+        'courseSyncError':
+            'The linked Udemy URL could not be matched to a course id for sync.',
+      };
+    }
+    return const <String, dynamic>{
+      'courseSyncStatus': 'ready_to_sync',
+      'courseSyncError': null,
+    };
   }
 
   static Future<void> _updateEmployeeGoalProgress({
