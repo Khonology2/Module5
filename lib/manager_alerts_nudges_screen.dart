@@ -3435,11 +3435,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       await AlertService.markAsRead(alert.id);
 
       if (alert.actionRoute != null && mounted) {
-        final route = alert.actionRoute!;
+        var route = alert.actionRoute!;
         Object? args;
 
-        // Deep-link manager meeting alerts into the Review Team Dashboard.
-        if (route == '/manager_review_team_dashboard') {
+        // Deep-link manager meeting alerts into the canonical thread screen.
+        if (route == '/manager_review_team_dashboard' ||
+            route == '/one_on_one_thread') {
+          route = '/one_on_one_thread';
           final data = alert.actionData ?? const <String, dynamic>{};
           final meetingId = data['meetingId']?.toString().trim();
           final employeeId =

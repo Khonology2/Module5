@@ -31,6 +31,7 @@ import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/manager_alerts_nudges_screen.dart';
 import 'package:pdh/manager_inbox_screen.dart';
 import 'package:pdh/manager_badges_points_screen.dart';
+import 'package:pdh/one_on_one_thread_screen.dart';
 import 'package:pdh/employee_profile_detail_screen.dart';
 import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/manager_profile_screen.dart';
@@ -486,6 +487,22 @@ class _MyAppState extends State<MyApp> {
                 '/manager_inbox': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
                   child: const ManagerInboxScreen(),
+                ),
+                '/one_on_one_thread': (context) => RoleGate(
+                  requiredRole: RequiredRole.any,
+                  child: Builder(
+                    builder: (context) {
+                      final args =
+                          ModalRoute.of(context)?.settings.arguments
+                              as Map<String, dynamic>?;
+                      return OneOnOneThreadScreen(
+                        initialMeetingId: args?['meetingId']?.toString(),
+                        employeeId: args?['employeeId']?.toString(),
+                        managerId: args?['managerId']?.toString(),
+                        participantName: args?['participantName']?.toString(),
+                      );
+                    },
+                  ),
                 ),
                 '/manager_badges_points': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,

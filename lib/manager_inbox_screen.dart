@@ -335,6 +335,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   /// for admins. Map them to [AdminPortalScreen] sidebar routes (`initialRoute`).
   String? _mapInboxRouteToAdminInitialRoute(String route) {
     switch (route) {
+      case '/one_on_one_thread':
+        return null;
       case '/manager_badges_points':
       case '/badges_points':
       case '/manager_gw_menu_badges':
@@ -379,6 +381,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   /// Navigates from inbox actions. Managers use raw routes; admins use [AdminPortalScreen].
   void _navigateInboxByAlertRoute(String route, {Object? arguments}) {
     if (!widget.forAdminOversight) {
+      Navigator.pushNamed(context, route, arguments: arguments);
+      return;
+    }
+
+    if (route == '/one_on_one_thread') {
       Navigator.pushNamed(context, route, arguments: arguments);
       return;
     }
@@ -2081,9 +2088,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       route = '/admin_team_review';
                     }
 
-                    // Deep-link 1:1 meeting alerts into the Review Team Dashboard.
+                    // Deep-link 1:1 meeting alerts into the canonical thread screen.
                     if (route == '/manager_review_team_dashboard' ||
-                        route == '/admin_team_review') {
+                        route == '/admin_team_review' ||
+                        route == '/one_on_one_thread') {
+                      if (route == '/manager_review_team_dashboard' ||
+                          route == '/admin_team_review') {
+                        route = '/one_on_one_thread';
+                      }
                       final data =
                           alert.actionData ?? const <String, dynamic>{};
                       final meetingId = data['meetingId']?.toString().trim();
