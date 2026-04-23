@@ -217,6 +217,22 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         msg.contains('your goal');
   }
 
+  bool _isAdminSupervisionAlertForManager(Alert alert) {
+    final requiredApproverRole = (alert.actionData?['requiredApproverRole'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final approvalChain = (alert.actionData?['approvalChain'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    if (requiredApproverRole == 'admin') return true;
+    if (approvalChain == 'manager_to_admin') return true;
+
+    return _isManagerAsEmployeeGoalDecisionAlert(alert);
+  }
+
   bool _isAdminInboxEligibleAlert(Alert alert) {
     // Admin oversight inbox should not include manager-as-employee goal decision
     // notifications (e.g. "Your goal ... was rejected").
@@ -271,6 +287,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
     if (!widget.forAdminOversight &&
         alert.actionRoute == _managerWorkspaceAlertsRoute) {
+      return false;
+    }
+
+    // Keep manager inbox focused on manager-as-supervisor workflow only.
+    if (!widget.forAdminOversight &&
+        _isAdminSupervisionAlertForManager(alert)) {
       return false;
     }
 
