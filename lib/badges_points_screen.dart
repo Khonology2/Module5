@@ -469,7 +469,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             final navigator = Navigator.of(context);
             await AuthService().signOut();
             if (mounted) {
-              navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+              navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
             }
           },
           content: ValueListenableBuilder<bool>(

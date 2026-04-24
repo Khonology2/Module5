@@ -1,4 +1,4 @@
-// ignore_for_file: duplicate_ignore, deprecated_member_use, unnecessary_null_comparison, unused_import, unused_element
+// ignore_for_file: unused_import, unused_element
 
 import 'dart:developer' as developer;
 import 'dart:convert' as convert;
@@ -29,6 +29,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/firestore_stream_broker.dart';
+import 'package:pdh/services/robust_stream_manager.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
@@ -54,26 +55,20 @@ class _RepoAuditChrome {
       : null;
 }
 
-enum RepositoryAuditViewMode {
-  personal,
-  managerTeam,
-  adminOversight,
-}
+enum RepositoryAuditViewMode { personal, managerTeam, adminOversight }
 
-/// Filters admin Repository & Audit by Firestore role of the **goal owner** (`users/{uid}.role`).
 enum _AdminGoalOwnerFilter { all, managerOwners, employeeOwners }
 
 class RepositoryAuditScreen extends StatefulWidget {
-  /// When true, admin portal shows **organization-wide** audit feeds (not line-manager team scope).
-  final bool forAdminOversight;
-  /// When true, manager is in manager workspace and should see team data.
-  final bool forManagerWorkspace;
-
   const RepositoryAuditScreen({
     super.key,
     this.forAdminOversight = false,
     this.forManagerWorkspace = false,
   });
+
+  /// When true, render the same view used for managers (admin oversight screens).
+  final bool forAdminOversight;
+  final bool forManagerWorkspace;
 
   @override
   State<RepositoryAuditScreen> createState() => _RepositoryAuditScreenState();
@@ -86,12 +81,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   bool _isLoadingMilestones = false;
   bool _hasLoadedOnce = false; // Prevent repeated loading
   bool _isManager = false; // Track current user role
+  bool _isInitializing = true; // Track initialization state
+  String? _lastError; // Track last error for debugging
   bool _milestoneLoadInFlight = false;
-  bool _personalGoalIndexHealthy = true;
   String? _currentUserId;
   String? _currentUserDepartment;
-  final Set<String> _personalGoalIds = <String>{};
   final Set<String> _teamMemberIds = <String>{};
+  final Set<String> _personalGoalIds = <String>{};
+  bool _personalGoalIndexHealthy = true;
 
   final TextEditingController _searchController = TextEditingController();
   String? _statusFilter;
@@ -165,55 +162,280 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       developer.log('Error starting auto-sync: $e');
     }
 
-    // Backfill existing verified entries when screen loads
-    _backfillVerifiedEntries();
-
-    // Add a timeout to prevent infinite loading
-    Future.delayed(const Duration(seconds: 15), () {
-      if (mounted) {
-        setState(() {}); // Trigger rebuild to show error if still loading
+    // Add timeout to prevent infinite loading
+    Timer(const Duration(seconds: 30), () {
+      if (mounted && _isInitializing) {
+        setState(() {
+          _isInitializing = false;
+          _lastError = 'Initialization timeout - please retry';
+          _hasLoadedOnce = true;
+        });
       }
     });
+
+    // Start initialization process
+    _initializeScreen();
+  }
+
+  // Comprehensive screen initialization
+  Future<void> _initializeScreen() async {
+    developer.log(
+      'RepositoryAuditScreen: Starting screen initialization',
+      name: 'RepositoryAuditScreen',
+    );
+
+    setState(() {
+      _isInitializing = true;
+      _lastError = null;
+    });
+
+    try {
+      // Step 1: Check user authentication
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+      developer.log(
+        'RepositoryAuditScreen: User authenticated: ${user.uid}',
+        name: 'RepositoryAuditScreen',
+      );
+
+      // Step 2: Initialize user role
+      await _initializeUserRole();
+
+      // Step 3: Initialize unified stream
+      _initializeUnifiedStream();
+
+      // Step 4: Enable repository services
+      await _initializeRepositoryServices();
+
+      // Step 5: Load milestone audits
+      await _loadMilestoneAuditsOnce();
+
+      developer.log(
+        'RepositoryAuditScreen: Initialization completed successfully',
+        name: 'RepositoryAuditScreen',
+      );
+
+      // Ensure initialization state is cleared
+      setState(() {
+        _isInitializing = false;
+      });
+    } catch (e, stackTrace) {
+      developer.log(
+        'RepositoryAuditScreen: Initialization failed: $e',
+        name: 'RepositoryAuditScreen',
+        error: e,
+      );
+      developer.log(
+        'RepositoryAuditScreen: Stack trace: $stackTrace',
+        name: 'RepositoryAuditScreen',
+      );
+
+      setState(() {
+        _isInitializing = false;
+        _lastError = e.toString();
+        _isLoadingMilestones = false;
+        _hasLoadedOnce = true; // Prevent infinite loading
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Initialization failed: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   // Initialize user role and create unified stream
   Future<void> _initializeUserRole() async {
+    developer.log(
+      'RepositoryAuditScreen: Initializing user role',
+      name: 'RepositoryAuditScreen',
+    );
+
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
 
       final roleDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
+
       final role = (roleDoc.data() ?? const {})['role'] as String?;
+      final department = (roleDoc.data() ?? const {})['department'] as String?;
+
+      developer.log(
+        'RepositoryAuditScreen: User role: $role, department: $department',
+        name: 'RepositoryAuditScreen',
+      );
 
       if (mounted) {
         setState(() {
-          _isManager = _isManagerLikeRole(role);
           _currentUserId = user.uid;
-          _currentUserDepartment =
-              (roleDoc.data() ?? const {})['department'] as String?;
+          _currentUserDepartment = department;
+          _isManager = widget.forAdminOversight || role == 'manager';
         });
-        // Build a trusted personal goal ownership index used to scope
-        // personal workspace milestone/audit visibility.
-        await _loadPersonalGoalIds(user.uid);
-        await _loadTeamMemberIds(user.uid);
-        // Initialize unified stream after role is determined
-        _initializeUnifiedStream();
-        _subscribeApprovedGoalsAuditForAdmin();
-        unawaited(_loadGoalsDocumentApprovalFallbackForAdmin());
-        // Milestones use a separate query (timestamp); must run for admins too — they are not `isManager`.
-        await _loadMilestoneAuditsOnce();
+      }
+
+      await _loadPersonalGoalIds(user.uid);
+      await _loadTeamMemberIds(user.uid);
+    } catch (e) {
+      developer.log(
+        'RepositoryAuditScreen: Error initializing user role: $e',
+        name: 'RepositoryAuditScreen',
+      );
+      throw Exception('Failed to initialize user role: $e');
+    }
+  }
+
+  // Process stream data with comprehensive logging
+  void _processStreamData(QuerySnapshot snapshot) {
+    developer.log(
+      'RepositoryAuditScreen: Processing stream data',
+      name: 'RepositoryAuditScreen',
+    );
+
+    try {
+      final entries = <AuditEntry>[];
+      final milestoneAudits = <Map<String, dynamic>>[];
+      var skippedCount = 0;
+      var milestoneCount = 0;
+      var auditCount = 0;
+      var parseErrors = 0;
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>? ?? {};
+        developer.log(
+          'RepositoryAuditScreen: Processing doc ${doc.id}: ${data.keys.toList()}',
+          name: 'RepositoryAuditScreen',
+        );
+
+        // Skip entries without goalId
+        if ((data['goalId'] ?? '').toString().isEmpty) {
+          skippedCount++;
+          developer.log(
+            'RepositoryAuditScreen: Skipping doc ${doc.id} - no goalId',
+            name: 'RepositoryAuditScreen',
+          );
+          continue;
+        }
+
+        // Check if it's a milestone audit
+        if (data.containsKey('action')) {
+          final action = data['action'] as String? ?? '';
+          final isMilestoneAction = [
+            'milestone_created',
+            'milestone_updated',
+            'milestone_status_changed',
+            'milestone_completed',
+            'milestone_acknowledged',
+            'milestone_pending_review',
+            'milestone_rejected',
+            'milestone_dismissed',
+          ].contains(action);
+
+          if (isMilestoneAction) {
+            milestoneAudits.add({'id': doc.id, ...data});
+            milestoneCount++;
+            developer.log(
+              'RepositoryAuditScreen: Added milestone audit: $action',
+              name: 'RepositoryAuditScreen',
+            );
+          }
+          continue; // Skip milestone actions from regular audit entries
+        }
+
+        // Add to regular audit entries
+        try {
+          final entry = AuditEntry.fromFirestore(doc);
+          entries.add(entry);
+          auditCount++;
+          developer.log(
+            'RepositoryAuditScreen: Added audit entry: ${entry.goalTitle} - Status: ${entry.status}',
+            name: 'RepositoryAuditScreen',
+          );
+        } catch (e) {
+          parseErrors++;
+          developer.log(
+            'RepositoryAuditScreen: Error parsing audit entry ${doc.id}: $e',
+            name: 'RepositoryAuditScreen',
+          );
+        }
+      }
+
+      developer.log(
+        'RepositoryAuditScreen: Stream processing complete: $auditCount audit entries, $milestoneCount milestone audits, $skippedCount skipped, $parseErrors parse errors',
+        name: 'RepositoryAuditScreen',
+      );
+
+      if (mounted) {
+        setState(() {
+          _allAuditEntries = entries;
+          _milestoneAudits = milestoneAudits;
+          _isLoadingMilestones = false;
+          _hasLoadedOnce = true;
+          _isInitializing = false;
+        });
+
+        developer.log(
+          'RepositoryAuditScreen: State updated - ${entries.length} audit entries, ${milestoneAudits.length} milestone audits',
+          name: 'RepositoryAuditScreen',
+        );
       }
     } catch (e) {
-      developer.log('Error initializing user role: $e');
+      developer.log(
+        'RepositoryAuditScreen: Error processing stream data: $e',
+        name: 'RepositoryAuditScreen',
+      );
+
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+          _isLoadingMilestones = false;
+          _hasLoadedOnce = true;
+          _lastError = 'Data processing error: $e';
+        });
+      }
+    }
+  }
+
+  // Initialize repository services
+  Future<void> _initializeRepositoryServices() async {
+    developer.log(
+      'RepositoryAuditScreen: Initializing repository services',
+      name: 'RepositoryAuditScreen',
+    );
+
+    try {
+      // Enable repository auto-sync for functionality
+      RepositoryService.startAutoSync();
+
+      // Backfill existing verified entries when screen loads
+      await _backfillVerifiedEntries();
+
+      developer.log(
+        'RepositoryAuditScreen: Repository services initialized',
+        name: 'RepositoryAuditScreen',
+      );
+    } catch (e) {
+      developer.log(
+        'RepositoryAuditScreen: Error initializing repository services: $e',
+        name: 'RepositoryAuditScreen',
+      );
+      // Don't throw - repository services are non-critical
     }
   }
 
   Future<void> _backfillVerifiedEntries() async {
     try {
-      if (widget.forAdminOversight) return; // Admin: no employee backfill.
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
@@ -239,9 +461,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       }
     } catch (e) {
       developer.log(
-        'Error backfilling verified entries: $e',
+        'RepositoryAuditScreen: Error backfilling verified entries: $e',
         name: 'RepositoryAuditScreen',
       );
+      // Don't throw - backfill is non-critical
     }
   }
 
@@ -249,35 +472,74 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     if (_milestoneLoadInFlight) return;
     _milestoneLoadInFlight = true;
 
+    developer.log(
+      'RepositoryAuditScreen: Loading milestone audits',
+      name: 'RepositoryAuditScreen',
+    );
+
     setState(() {
       _isLoadingMilestones = true;
     });
 
     try {
-      final audits = _viewMode == RepositoryAuditViewMode.personal
-          ? await _loadStrictPersonalMilestoneAuditsFromOwnedGoals()
-          : await UnifiedMilestoneAudit.getMilestoneAudits(
-              // Managers get strict team-member scope; admins are org-wide.
-              forManager: _viewMode == RepositoryAuditViewMode.managerTeam,
-              organizationWide:
-                  _viewMode == RepositoryAuditViewMode.adminOversight,
-              allowedUserIds: _viewMode == RepositoryAuditViewMode.managerTeam
-                  ? _teamMemberIds
-                  : null,
-              limit: widget.forAdminOversight ? 400 : 120,
+      final streamManager = RobustStreamManager();
+      final stream = streamManager.getMilestoneAuditsStream();
+
+      // Listen to stream and get initial data
+      final subscription = stream.listen(
+        (snapshot) {
+          if (mounted) {
+            final audits = snapshot.docs
+                .map(
+                  (doc) => {
+                    'id': doc.id,
+                    ...doc.data() as Map<String, dynamic>,
+                  },
+                )
+                .toList();
+
+            developer.log(
+              'RepositoryAuditScreen: Loaded ${audits.length} milestone audits',
+              name: 'RepositoryAuditScreen',
             );
-      setState(() {
-        _rawMilestoneAudits = audits;
-        _milestoneAudits = _filterMilestoneAuditsForCurrentView(_rawMilestoneAudits);
-        _isLoadingMilestones = false;
-        _hasLoadedOnce = true;
-      });
-      unawaited(_hydrateMilestoneAuditIdentity(_milestoneAudits));
+
+            setState(() {
+              _milestoneAudits = audits;
+              _isLoadingMilestones = false;
+              _hasLoadedOnce = true;
+            });
+          }
+        },
+        onError: (error) {
+          developer.log(
+            'RepositoryAuditScreen: Error loading milestone audits: $error',
+            name: 'RepositoryAuditScreen',
+          );
+
+          if (mounted) {
+            setState(() {
+              _isLoadingMilestones = false;
+              _hasLoadedOnce = true;
+              _lastError = 'Milestone audit error: $error';
+            });
+          }
+        },
+      );
+
+      // Store subscription for cleanup
+      _unifiedStreamSubscription = subscription;
     } catch (e) {
+      developer.log(
+        'RepositoryAuditScreen: Error loading milestone audits: $e',
+        name: 'RepositoryAuditScreen',
+      );
+
       setState(() {
         _isLoadingMilestones = false;
         _hasLoadedOnce = true;
+        _lastError = 'Milestone audit error: $e';
       });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading milestone audits: $e')),
@@ -289,18 +551,42 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Future<void> _refreshMilestoneAudits() async {
-    // Strong refresh for My Workspace: always rebuild owned-goal scope first.
-    if (_viewMode == RepositoryAuditViewMode.personal && _currentUserId != null) {
-      await _loadPersonalGoalIds(_currentUserId!);
-    } else if (_viewMode == RepositoryAuditViewMode.managerTeam &&
-        _currentUserId != null) {
-      await _loadTeamMemberIds(_currentUserId!);
-    }
-    _milestoneLoadInFlight = false;
+    developer.log(
+      'RepositoryAuditScreen: Refreshing milestone audits',
+      name: 'RepositoryAuditScreen',
+    );
+
     setState(() {
       _hasLoadedOnce = false; // Allow refresh
     });
     await _loadMilestoneAuditsOnce();
+  }
+
+  // Retry initialization
+  Future<void> _retryInitialization() async {
+    developer.log(
+      'RepositoryAuditScreen: Retrying initialization',
+      name: 'RepositoryAuditScreen',
+    );
+
+    // Clean up existing stream
+    if (_unifiedStreamSubscription != null) {
+      await _unifiedStreamSubscription!.cancel();
+      _unifiedStreamSubscription = null;
+    }
+
+    // Reset state
+    setState(() {
+      _allAuditEntries.clear();
+      _milestoneAudits.clear();
+      _isLoadingMilestones = false;
+      _hasLoadedOnce = false;
+      _isInitializing = true;
+      _lastError = null;
+    });
+
+    // Re-initialize
+    await _initializeScreen();
   }
 
   @override
@@ -312,10 +598,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     _approvedGoalsAuditSubscription = null;
     _searchController.dispose();
     _searchDebouncer.dispose();
+
     try {
       RepositoryService.stopAutoSync();
     } catch (e) {
-      developer.log('Error stopping auto-sync: $e');
+      developer.log(
+        'RepositoryAuditScreen: Error stopping auto-sync: $e',
+        name: 'RepositoryAuditScreen',
+      );
     }
     super.dispose();
   }
@@ -1366,6 +1656,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         color: _RepoAuditChrome.fg,
                       ),
                     ),
+                    if (_lastError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _lastError!,
+                        style: const TextStyle(color: Colors.redAccent),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     _buildSearchAndFilters(),
                     _buildAdminGoalOwnerScopeBar(),
@@ -1399,44 +1696,30 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
   Widget _buildSearchAndFilters() {
     return Container(
-      decoration: BoxDecoration(
-        color: _RepoAuditChrome.cardFill,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _RepoAuditChrome.border),
-      ),
       padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[700]!),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Search & Filters',
-            style: TextStyle(
-              color: _RepoAuditChrome.fg,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
           TextField(
             controller: _searchController,
-            style: TextStyle(color: _RepoAuditChrome.fg),
-            decoration: InputDecoration(
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
               hintText: 'Search goals...',
-              hintStyle: TextStyle(color: _RepoAuditChrome.fg),
-              prefixIcon: Icon(Icons.search, color: _RepoAuditChrome.fg),
-              filled: true,
-              fillColor: _RepoAuditChrome.cardFill,
+              hintStyle: TextStyle(color: Colors.grey),
+              prefixIcon: Icon(Icons.search, color: Colors.grey),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: _RepoAuditChrome.border),
+                borderSide: BorderSide(color: Colors.grey),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: _RepoAuditChrome.border),
+                borderSide: BorderSide(color: Colors.grey),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AppColors.activeColor),
+                borderSide: BorderSide(color: Colors.blue),
               ),
             ),
             onChanged: (value) {
@@ -1444,139 +1727,52 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             },
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
+          Row(
             children: [
-              FilterChip(
-                label: Text(
-                  'All',
-                  style: TextStyle(
-                    color: _statusFilter == null
-                        ? Colors.white
-                        : _RepoAuditChrome.fg,
-                  ),
+              const Text('Filter:', style: TextStyle(color: Colors.white)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  children:
+                      ['All', 'Created', 'Pending', 'Verified', 'Rejected'].map(
+                        (status) {
+                          final isSelected =
+                              _statusFilter ==
+                              (status == 'All' ? null : status.toLowerCase());
+                          return FilterChip(
+                            label: Text(status),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setState(() {
+                                _statusFilter = selected
+                                    ? (status == 'All'
+                                          ? null
+                                          : status.toLowerCase())
+                                    : null;
+                              });
+                            },
+                            backgroundColor: Colors.grey[800],
+                            selectedColor: Colors.blue,
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.white : Colors.white70,
+                            ),
+                          );
+                        },
+                      ).toList(),
                 ),
-                selected: _statusFilter == null,
-                onSelected: (selected) {
-                  setState(() {
-                    _statusFilter = selected ? null : _statusFilter;
-                  });
-                },
-                backgroundColor: _RepoAuditChrome.cardFill,
-                selectedColor: AppColors.activeColor,
-              ),
-              FilterChip(
-                label: Text(
-                  'Created',
-                  style: TextStyle(
-                    color: _statusFilter == 'created'
-                        ? Colors.white
-                        : _RepoAuditChrome.fg,
-                  ),
-                ),
-                selected: _statusFilter == 'created',
-                onSelected: (selected) {
-                  setState(() {
-                    _statusFilter = selected ? 'created' : null;
-                  });
-                },
-                backgroundColor: _RepoAuditChrome.cardFill,
-                selectedColor: AppColors.activeColor,
-              ),
-              FilterChip(
-                label: Text(
-                  'Pending',
-                  style: TextStyle(
-                    color: _statusFilter == 'pending'
-                        ? Colors.white
-                        : _RepoAuditChrome.fg,
-                  ),
-                ),
-                selected: _statusFilter == 'pending',
-                onSelected: (selected) {
-                  setState(() {
-                    _statusFilter = selected ? 'pending' : null;
-                  });
-                },
-                backgroundColor: _RepoAuditChrome.cardFill,
-                selectedColor: AppColors.activeColor,
-              ),
-              FilterChip(
-                label: Text(
-                  'Completed',
-                  style: TextStyle(
-                    color: _statusFilter == 'completed'
-                        ? Colors.white
-                        : _RepoAuditChrome.fg,
-                  ),
-                ),
-                selected: _statusFilter == 'completed',
-                onSelected: (selected) {
-                  setState(() {
-                    _statusFilter = selected ? 'completed' : null;
-                  });
-                },
-                backgroundColor: _RepoAuditChrome.cardFill,
-                selectedColor: AppColors.activeColor,
-              ),
-              FilterChip(
-                label: Text(
-                  'Approved',
-                  style: TextStyle(
-                    color: _statusFilter == 'approved'
-                        ? Colors.white
-                        : _RepoAuditChrome.fg,
-                  ),
-                ),
-                selected: _statusFilter == 'approved',
-                onSelected: (selected) {
-                  setState(() {
-                    _statusFilter = selected ? 'approved' : null;
-                  });
-                },
-                backgroundColor: _RepoAuditChrome.cardFill,
-                selectedColor: AppColors.activeColor,
-              ),
-              FilterChip(
-                label: Text(
-                  'Verified',
-                  style: TextStyle(
-                    color: _statusFilter == 'verified'
-                        ? Colors.white
-                        : _RepoAuditChrome.fg,
-                  ),
-                ),
-                selected: _statusFilter == 'verified',
-                onSelected: (selected) {
-                  setState(() {
-                    _statusFilter = selected ? 'verified' : null;
-                  });
-                },
-                backgroundColor: _RepoAuditChrome.cardFill,
-                selectedColor: AppColors.activeColor,
-              ),
-              FilterChip(
-                label: Text(
-                  'Rejected',
-                  style: TextStyle(
-                    color: _statusFilter == 'rejected'
-                        ? Colors.white
-                        : _RepoAuditChrome.fg,
-                  ),
-                ),
-                selected: _statusFilter == 'rejected',
-                onSelected: (selected) {
-                  setState(() {
-                    _statusFilter = selected ? 'rejected' : null;
-                  });
-                },
-                backgroundColor: _RepoAuditChrome.cardFill,
-                selectedColor: AppColors.activeColor,
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  void _showDiagnosticInfo() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Diagnostics are available in logs.')),
     );
   }
 
@@ -1661,12 +1857,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 ? 'Organization overview'
                 : (isManager ? 'Team Overview' : 'Your Progress'),
             style: TextStyle(
-              color: _RepoAuditChrome.fg,
+              color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Wrap(
             spacing: 16,
             runSpacing: 8,
@@ -1703,9 +1899,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1819,24 +2015,28 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Color _getStatusColor(String status) {
+    Color color;
     switch (status.toLowerCase()) {
       case 'created':
-        return AppColors.infoColor;
+        color = Colors.grey;
+        break;
       case 'pending':
-        return AppColors.warningColor;
-      case 'approved':
-      case 'completed':
+        color = Colors.orange;
+        break;
       case 'verified':
-        return AppColors.successColor;
+        color = Colors.green;
+        break;
       case 'rejected':
-        return Colors.red;
+        color = Colors.red;
+        break;
       default:
-        return _RepoAuditChrome.fg;
+        color = _RepoAuditChrome.fg;
+        break;
     }
+    return color;
   }
 
   Widget _buildAuditDetails(AuditEntry entry) {
-    final requesterLabel = _resolvedEntryDisplayName(entry);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1854,21 +2054,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          widget.forAdminOversight
-              ? 'Goal owner: $requesterLabel'
-              : 'Requested by: $requesterLabel',
+          'Submitted: ${entry.submittedDate.toString()}',
           style: TextStyle(color: _RepoAuditChrome.fg),
         ),
-        if (entry.acknowledgedBy != null && entry.acknowledgedBy!.isNotEmpty)
-          Text(
-            'Acknowledged by: ${entry.acknowledgedBy}',
-            style: TextStyle(color: AppColors.successColor),
-          ),
-        if (entry.submittedDate != null)
-          Text(
-            'Submitted: ${entry.submittedDate.toString()}',
-            style: TextStyle(color: _RepoAuditChrome.fg),
-          ),
         if (entry.verifiedDate != null)
           Text(
             'Verified: ${entry.verifiedDate.toString()}',
@@ -2603,27 +2791,55 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  void _showDiagnosticInfo() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Diagnostic Info'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('User Role: ${_isManager ? "Manager" : "Employee"}'),
-            Text('Cached Entries: ${_allAuditEntries.length}'),
-            Text('Milestone Audits: ${_milestoneAudits.length}'),
-            Text('Loading: $_isLoadingMilestones'),
-            Text('Has Loaded: $_hasLoadedOnce'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
+  Widget _buildMilestoneAuditCard(Map<String, dynamic> audit) {
+    final action = audit['action'] as String? ?? 'Unknown';
+    final timestamp = audit['timestamp'] as Timestamp?;
+    final goalTitle = audit['goalTitle'] as String? ?? 'Unknown Goal';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[800],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Color(0xFF757575)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.timeline, color: Colors.blue, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  action.replaceAll('_', ' ').toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.blue,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 8),
+          Text(
+            goalTitle,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (timestamp != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Time: ${timestamp.toDate().toString().split('.')[0]}',
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
         ],
       ),
     );

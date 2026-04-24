@@ -4,13 +4,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/models/user_profile.dart'; // Removed as it is not directly used in this file's UI logic.
 import 'package:image_picker/image_picker.dart';
 // import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
 // import 'dart:io'; // Removed: use XFile.readAsBytes() for web compatibility
 
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
@@ -153,7 +153,16 @@ Guidelines:
     if (user == null) return;
 
     try {
+      // First, try to get data from onboarding collection
+      // ignore: unused_local_variable
+      final onboardingData = await DatabaseService.getOnboardingData(
+        userId: user.uid,
+        email: user.email,
+      );
+
+      // Then get user profile for other fields
       final userProfile = await DatabaseService.getUserProfile(user.uid);
+
       setState(() {
         _fullNameController.text = userProfile.displayName;
         _selectedJobTitle = _jobTitleOptions.contains(userProfile.jobTitle)
@@ -237,25 +246,35 @@ Guidelines:
     }
   }
 
-  Future<void> _showAlertDialog(String title, String message) async {
+  Future<void> _showAlertDialog(
+    String title,
+    String message, {
+    bool isSuccess = false,
+  }) async {
     return showDialog<void>(
       context: context,
+      barrierDismissible: isSuccess,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2C3E50),
-          title: Text(title, style: const TextStyle(color: Colors.white)),
-          content: Text(message, style: const TextStyle(color: Colors.white70)),
-          actions: <Widget>[
-            TextButton(
-              child: const Text(
-                'OK',
-                style: TextStyle(color: Color(0xFFC10D00)),
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+        return Center(
+          child: AlertDialog(
+            backgroundColor: const Color(0xFF2C3E50),
+            title: Text(title, style: const TextStyle(color: Colors.white)),
+            content: Text(
+              message,
+              style: const TextStyle(color: Colors.white70),
             ),
-          ],
+            actions: <Widget>[
+              TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                ),
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
         );
       },
     );
@@ -510,21 +529,15 @@ Guidelines:
     if (payload.isEmpty) return;
 
     try {
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
+      const systemInstruction =
           'You are a writing coach. Refine each entry for clarity and executive tone without changing meaning. '
-          'Respond with JSON using the same keys. Keep each response under 2 sentences.',
-        ),
+          'Respond with JSON using the same keys. Keep each response under 2 sentences.';
+      final rawText = await AiFallbackService.generateTextWithFallback(
+        userPrompt:
+            'Refine the following responses and return JSON only:\n${jsonEncode(payload)}',
+        systemInstruction: systemInstruction,
       );
-
-      final response = await model.generateContent([
-        Content.text(
-          'Refine the following responses and return JSON only:\n${jsonEncode(payload)}',
-        ),
-      ]);
-
-      final rawText = response.text ?? '';
+      if (rawText.isEmpty) return;
       final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
       if (jsonMatch == null) return;
       final decoded = jsonDecode(jsonMatch.group(0)!);
@@ -542,13 +555,10 @@ Guidelines:
   }
 
   Future<_DevelopmentPlanResult> _requestDevelopmentPlan(String prompt) async {
-    final model = FirebaseAI.googleAI().generativeModel(
-      model: 'gemini-2.5-flash',
-      systemInstruction: Content.text(_developmentPlanSystemInstruction),
+    final rawText = await AiFallbackService.generateTextWithFallback(
+      userPrompt: prompt,
+      systemInstruction: _developmentPlanSystemInstruction,
     );
-
-    final response = await model.generateContent([Content.text(prompt)]);
-    final rawText = response.text?.trim() ?? '';
     final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
     if (jsonMatch == null) {
       throw Exception('Plan response was not in the expected JSON format.');
@@ -613,7 +623,10 @@ Guidelines:
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        _isGeneratingDevelopmentPlan = false;
+        return;
+      }
       setState(() {
         _planGenerationError = e.toString();
         _planGenerationPhase = '';
@@ -894,6 +907,7 @@ Guidelines:
         _showAlertDialog(
           successTitle ?? 'Profile Saved',
           successMessage ?? 'Your manager profile has been saved successfully!',
+          isSuccess: true,
         );
       }
     } catch (e) {
@@ -1126,24 +1140,90 @@ Guidelines:
     );
   }
 
+  bool _isBasicInfoComplete() {
+    return _fullNameController.text.trim().isNotEmpty &&
+        _selectedJobTitle != null &&
+        _selectedDepartment != null &&
+        _workEmailController.text.trim().isNotEmpty;
+  }
+
+  Future<bool> _onWillPop() async {
+    if (!_isBasicInfoComplete()) {
+      final shouldLeave = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Center(
+            child: AlertDialog(
+              backgroundColor: const Color(0xFF2C3E50),
+              title: const Text(
+                'Incomplete Profile',
+                style: TextStyle(color: Colors.white),
+              ),
+              content: const Text(
+                'Please fill in all basic information fields (Full Name, Job Title, Department, and Email Address) before leaving the profile screen.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFFC10D00),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).pop(false);
+                  },
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+      return shouldLeave ?? false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.embedded) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-        child: _buildProfileContent(),
+      return PopScope(
+        canPop: _isBasicInfoComplete(),
+        onPopInvokedWithResult: (bool didPop, dynamic result) async {
+          if (!didPop && !_isBasicInfoComplete()) {
+            await _onWillPop();
+          }
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: _buildProfileContent(),
+        ),
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      body: AppComponents.backgroundWithImage(
-        imagePath: 'assets/khono_bg.png',
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
-          child: _buildProfileContent(),
+    return PopScope(
+      canPop: _isBasicInfoComplete(),
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (!didPop && !_isBasicInfoComplete()) {
+          await _onWillPop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+        body: AppComponents.backgroundWithImage(
+          imagePath: 'assets/khono_bg.png',
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 64.0,
+            ),
+            child: _buildProfileContent(),
+          ),
         ),
       ),
     );
@@ -1242,7 +1322,7 @@ Guidelines:
         decoration: const InputDecoration(
           labelText: 'Job Title / Role',
           hintText: 'Select Job Title',
-          hintStyle: TextStyle(color: Color(0xFFC10D00)),
+          hintStyle: TextStyle(color: Colors.white),
           filled: true,
           fillColor: Color.fromARGB(13, 255, 255, 255),
           border: OutlineInputBorder(
@@ -1286,7 +1366,7 @@ Guidelines:
         decoration: const InputDecoration(
           labelText: 'Department / Team',
           hintText: 'Select Department',
-          hintStyle: TextStyle(color: Color(0xFFC10D00)),
+          hintStyle: TextStyle(color: Colors.white),
           filled: true,
           fillColor: Color.fromARGB(13, 255, 255, 255),
           border: OutlineInputBorder(

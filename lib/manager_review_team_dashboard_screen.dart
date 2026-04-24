@@ -1990,7 +1990,7 @@ class _ManagerReviewTeamDashboardScreenState
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () {
-              Navigator.pushReplacementNamed(context, '/sign_in');
+              Navigator.pushNamedAndRemoveUntil(context, '/landing', (r) => false);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFC10D00),

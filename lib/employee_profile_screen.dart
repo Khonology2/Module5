@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_ai/firebase_ai.dart';
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:image_picker/image_picker.dart'; // Import image_picker
@@ -66,6 +66,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   String? _selectedJobTitle;
   String? _selectedDepartment;
   final TextEditingController _workEmailController = TextEditingController();
+  final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _skillsInputController = TextEditingController();
   final TextEditingController _developmentInputController =
       TextEditingController();
@@ -99,6 +100,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   String? _leaderboardOptin = 'no';
   String? _celebrationConsent = 'private';
   String? _profilePhotoUrl; // State variable for profile photo URL
+  double _saveButtonScale = 1.0; // Animation scale for save button
 
   final List<String> _skills = [];
   final List<String> _developmentAreas = [];
@@ -107,9 +109,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   bool _isAiHelpingProfile = false;
   String _aiHelpPhase = '';
   String? _aiHelpError;
-
-  // Animation state for save button
-  double _saveButtonScale = 1.0;
 
   @override
   void initState() {
@@ -184,18 +183,29 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       }
 
       final userProfile = await DatabaseService.getUserProfile(user.uid);
+      final onboardingData = await DatabaseService.getOnboardingData(
+        userId: user.uid,
+        email: user.email,
+      );
       if (!mounted) return;
 
       setState(() {
-        _fullNameController.text = userProfile.displayName;
-        _selectedJobTitle = _jobTitleOptions.contains(userProfile.jobTitle)
-            ? userProfile.jobTitle
+        // Use fullName from onboarding, fallback to displayName
+        _fullNameController.text =
+            onboardingData['fullName'] ?? userProfile.displayName;
+        // Use designation from onboarding for jobTitle, fallback to jobTitle
+        final jobTitle = onboardingData['designation'] ?? userProfile.jobTitle;
+        _selectedJobTitle = _jobTitleOptions.contains(jobTitle)
+            ? jobTitle
             : null;
         _selectedDepartment =
             _departmentOptions.contains(userProfile.department)
             ? userProfile.department
             : null;
         _workEmailController.text = userProfile.email;
+        // Use phoneNumber from onboarding first, fallback to userProfile
+        _phoneNumberController.text =
+            onboardingData['phoneNumber'] ?? userProfile.phoneNumber;
         _skills
           ..clear()
           ..addAll(userProfile.skills);
@@ -593,22 +603,16 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
 
     if (payload.isEmpty) return;
 
-    final model = FirebaseAI.googleAI().generativeModel(
-      model: 'gemini-2.5-flash',
-      systemInstruction: Content.text(
+    const systemInstruction =
         'You are a writing coach helping a user complete a professional profile. '
         'Refine each entry for clarity and a confident tone without changing meaning. '
         'Respond with JSON only. Keep answers concise (1–2 sentences each). '
         'For "skills" and "developmentAreas", return arrays of short items (no duplicates). '
-        'Return keys exactly as provided.',
-      ),
+        'Return keys exactly as provided.';
+    final rawText = await AiFallbackService.generateTextWithFallback(
+      userPrompt: 'Refine and normalize this JSON:\n${jsonEncode(payload)}',
+      systemInstruction: systemInstruction,
     );
-
-    final response = await model.generateContent([
-      Content.text('Refine and normalize this JSON:\n${jsonEncode(payload)}'),
-    ]);
-
-    final rawText = response.text ?? '';
     final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
     if (jsonMatch == null) return;
     final decoded = jsonDecode(jsonMatch.group(0)!);
@@ -1150,8 +1154,10 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
             ),
             isDense: true,
           ),
-          items: _jobTitleOptions.map<DropdownMenuItem<String>>((String value) {
-            return DropdownMenuItem<String>(value: value, child: Text(value));
+          dropdownColor: const Color(0xFF1F2840),
+          icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+          items: _jobTitleOptions.map((String title) {
+            return DropdownMenuItem<String>(value: title, child: Text(title));
           }).toList(),
           onChanged: (String? newValue) {
             setState(() {
@@ -1180,35 +1186,19 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         ),
         child: DropdownButtonFormField<String>(
           value: _selectedDepartment,
-          isExpanded: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Select Department',
-            hintStyle: TextStyle(color: Color(0xFFC10D00)),
-            filled: true,
-            fillColor: Color.fromARGB(13, 255, 255, 255),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8.0)),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8.0)),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8.0)),
-              borderSide: BorderSide(color: Color(0xFFC10D00), width: 1.0),
-            ),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 12.0,
-            ),
-            isDense: true,
+          hint: const Text(
+            'Select department',
+            style: TextStyle(color: Colors.white30),
           ),
-          items: _departmentOptions.map<DropdownMenuItem<String>>((
-            String value,
-          ) {
-            return DropdownMenuItem<String>(value: value, child: Text(value));
+          isExpanded: true,
+          dropdownColor: const Color(0xFF1F2840),
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+          icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+          items: _departmentOptions.map((String department) {
+            return DropdownMenuItem<String>(
+              value: department,
+              child: Text(department),
+            );
           }).toList(),
           onChanged: (String? newValue) {
             setState(() {
@@ -1295,10 +1285,10 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     width: 160,
                     height: 160,
                     decoration: BoxDecoration(
-                      color: const Color.fromARGB(25, 255, 255, 255),
+                      color: Colors.white10,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: const Color.fromARGB(51, 255, 255, 255),
+                        color: Colors.white.withValues(alpha: 0.2),
                         width: 2,
                       ),
                     ),
@@ -1310,14 +1300,16 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                               _profilePhotoUrl!,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) =>
-                                  Image.asset(
-                                    'assets/Account_User_Profile/Profile.png',
-                                    fit: BoxFit.cover,
+                                  const Icon(
+                                    Icons.person,
+                                    color: Colors.white70,
+                                    size: 80,
                                   ),
                             )
-                          : Image.asset(
-                              'assets/Account_User_Profile/Profile.png',
-                              fit: BoxFit.cover,
+                          : const Icon(
+                              Icons.person,
+                              color: Colors.white70,
+                              size: 80,
                             ),
                     ),
                   ),
@@ -1328,27 +1320,25 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                       ElevatedButton(
                         onPressed: _pickAndUploadImage,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(
-                            25,
-                            255,
-                            255,
-                            255,
-                          ),
+                          backgroundColor: Colors.white10,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28),
-                          ),
                           side: const BorderSide(
                             color: Color.fromARGB(51, 255, 255, 255),
                           ),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 12,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                         child: const Text(
                           'Upload Photo',
-                          style: TextStyle(fontSize: 14),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1383,11 +1373,18 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Department / Team'),
                     _buildDepartmentDropdown(),
                     const SizedBox(height: 24),
-                    _buildInputLabel('Email Address'),
+                    _buildInputLabel('Work Email'),
                     _buildInputField(
                       controller: _workEmailController,
                       hintText: 'you@company.com',
                       keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 24),
+                    _buildInputLabel('Phone Number (optional)'),
+                    _buildInputField(
+                      controller: _phoneNumberController,
+                      hintText: 'e.g., +27 12 345 6789 or 012 345 6789',
+                      keyboardType: TextInputType.phone,
                     ),
                   ],
                 ),
@@ -1404,11 +1401,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildInputLabel('Current Skills / Strengths'),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Type a skill and press Enter to add it as a tag',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
                     const SizedBox(height: 8),
                     _buildTagInput(
                       controller: _skillsInputController,
@@ -1428,11 +1420,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     ),
                     const SizedBox(height: 24),
                     _buildInputLabel('Areas for Development'),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Add each development focus as its own tag',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
                     const SizedBox(height: 8),
                     _buildTagInput(
                       controller: _developmentInputController,
@@ -1653,7 +1640,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
             // Gamification & Motivation Section
             _buildSectionCard(
               children: [
-                _buildSectionTitle('Gamification'),
+                _buildSectionTitle('Gamification & Motivation'),
                 const SizedBox(height: 24),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

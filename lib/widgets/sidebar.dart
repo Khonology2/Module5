@@ -5,15 +5,13 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
-import 'package:pdh/design_system/app_breakpoints.dart';
-import 'package:pdh/services/profile_completion_service.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
+import 'package:pdh/services/profile_completion_service.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
-import 'package:pdh/widgets/workspace_context_switcher.dart';
 import 'package:pdh/services/workspace_context_service.dart';
-import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/services/role_service.dart';
 
 /// Light palette for the nav rail (white panel, black labels), driven by
 /// [employeeDashboardLightModeNotifier] with the employee dashboard light toggle.
@@ -32,6 +30,12 @@ class _SidebarLightMode extends InheritedWidget {
   @override
   bool updateShouldNotify(_SidebarLightMode oldWidget) =>
       light != oldWidget.light;
+}
+
+bool _isRouteActive(String? currentRoute, String targetRoute) {
+  if (currentRoute == null || currentRoute.isEmpty) return false;
+  if (currentRoute == targetRoute) return true;
+  return currentRoute.startsWith('$targetRoute/');
 }
 
 class ResponsiveSidebar extends StatefulWidget {
@@ -63,6 +67,8 @@ class ResponsiveSidebar extends StatefulWidget {
 class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   // Temporary UX override: keep non-mobile sidebar expanded.
   static const bool _disableSidebarCollapseTemporarily = true;
+  static const double _sidebarZoomFactor = 0.8;
+  static const double _desktopSidebarWidth = 240;
   final ScrollController _scrollController = ScrollController();
   int? _previousTutorialStep;
   bool _isProfileIncomplete = false;
@@ -71,6 +77,24 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
 
   // Dark-mode sidebar surface shared across employee/manager/admin.
   static const Color backgroundColor = Color(0xFF3D3F40);
+
+  void _logSidebar(String message) {
+    debugPrint('[Sidebar] $message');
+  }
+
+  /// Global showcase (employee / manager sidebar tutorials via
+  /// `ShowcaseView.get().startShowCase`) uses a full-screen barrier that blocks taps
+  /// on other sidebar items. Body widgets (e.g. notification bell) can still receive taps.
+  /// This widget is used for employee, manager, and admin sidebars (portal screens and
+  /// `AppScaffold`); dismiss before every sidebar navigation so all roles behave consistently.
+  void _sidebarNavigate(String route) {
+    try {
+      ShowcaseView.get().dismiss();
+    } catch (_) {
+      // No active showcase or API unavailable — safe to ignore.
+    }
+    widget.onNavigate(route);
+  }
 
   @override
   void initState() {
@@ -119,12 +143,20 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   }
 
   void _updateItems() {
-    _currentItems = SidebarConfig.getItemsForCurrentWorkspace();
+    // Always use the nav items provided by the current page/portal.
+    // This preserves correct route mapping for manager/admin/employee contexts.
+    _currentItems = widget.items;
+    _logSidebar(
+      'items updated count=${_currentItems.length}, currentRoute=${widget.currentRouteName}',
+    );
   }
 
   @override
   void didUpdateWidget(ResponsiveSidebar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.items, widget.items)) {
+      _updateItems();
+    }
 
     // Only proceed if the widget is still in the tree
     if (!mounted) return;
@@ -187,163 +219,185 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
 
   @override
   Widget build(BuildContext context) {
-    // Use design system breakpoints
-    final isSmall = AppBreakpoints.isSmall(context);
+    final isSmall = MediaQuery.of(context).size.width <= 768;
 
-    return ValueListenableBuilder<bool>(
-      valueListenable: employeeDashboardLightModeNotifier,
-      builder: (context, sidebarLight, _) {
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      initialData: RoleService.instance.cachedRole,
+      builder: (context, roleSnapshot) {
+        if (roleSnapshot.hasError) {
+          _logSidebar('role stream error: ${roleSnapshot.error}');
+        }
         return ValueListenableBuilder<bool>(
-          valueListenable: SidebarState.instance.isCollapsed,
-          builder: (context, collapsed, _) {
-            // Allow toggling on medium/large screens; always collapsed on small screens
-            final effectiveCollapsed = isSmall
-                ? true
-                : (_disableSidebarCollapseTemporarily ? false : collapsed);
+          valueListenable: employeeDashboardLightModeNotifier,
+          builder: (context, sidebarLight, _) {
+            return ValueListenableBuilder<bool>(
+              valueListenable: SidebarState.instance.isCollapsed,
+              builder: (context, collapsed, _) {
+                final effectiveCollapsed = isSmall
+                    ? true
+                    : (_disableSidebarCollapseTemporarily ? false : collapsed);
 
-            final Widget column = _SidebarLightMode(
-              light: sidebarLight,
-              child: Column(
-                children: [
-                  // Pass sidebarLight explicitly: builder `context` is above
-                  // [_SidebarLightMode], so inherited lookup would always be false.
-                  _buildHeader(context, effectiveCollapsed, sidebarLight),
-                  const SizedBox(height: AppSpacing.xs),
-                  // Workspace Context Switcher
-                  const WorkspaceContextSwitcher(),
-                  const SizedBox(height: AppSpacing.sm),
-                  Expanded(
-                    child: ListView(
-                      controller: _scrollController,
-                      padding: AppSpacing.sidebarContentPadding,
-                      children: [
-                        ..._currentItems.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final it = entry.value;
-                          // Show the profile warning indicator for incomplete profile routes.
-                          final bool showProfileIndicator =
-                              (it.route == '/my_profile' ||
-                                  it.route == '/manager_profile') &&
-                              _isProfileIncomplete;
+                final Widget column = _SidebarLightMode(
+                  light: sidebarLight,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isVeryCompact = constraints.maxHeight < 760;
+                      final isUltraCompact = constraints.maxHeight < 680;
 
-                          if (it.children != null && it.children!.isNotEmpty) {
-                            return _ExpandableNavGroup(
-                              key: ValueKey('expand_${it.route}_$index'),
-                              parent: it,
-                              currentRouteName: widget.currentRouteName,
-                              collapsed: effectiveCollapsed,
-                              onNavigate: widget.onNavigate,
-                              showProfileIndicator: showProfileIndicator,
-                              tutorialKey:
-                                  widget.sidebarTutorialKeys != null &&
-                                      index < widget.sidebarTutorialKeys!.length
-                                  ? widget.sidebarTutorialKeys![index]
-                                  : null,
-                              showTutorial:
-                                  widget.tutorialStepIndex != null &&
-                                  widget.tutorialStepIndex == index,
-                              onTutorialNext: widget.onTutorialNext,
-                              onTutorialSkip: widget.onTutorialSkip,
-                              isLastTutorialStep:
-                                  widget.tutorialStepIndex != null &&
-                                  widget.tutorialStepIndex ==
-                                      widget.items.length - 1,
-                            );
-                          }
+                      final navItems = _currentItems.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final it = entry.value;
+                        final showProfileIndicator = _isProfileIncomplete &&
+                            (it.route == '/my_profile' ||
+                                it.route == '/manager_profile' ||
+                                it.route == '/admin_profile');
 
-                          return _NavTile(
-                            key: ValueKey('nav_${it.route}_$index'),
-                            icon: it.icon,
-                            iconWidget: it.iconWidget,
-                            assetWhite: it.assetWhite,
-                            assetRed: it.assetRed,
-                            label: it.label,
-                            route: it.route,
-                            isActive: widget.currentRouteName == it.route,
+                        if (it.children != null && it.children!.isNotEmpty) {
+                          return _ExpandableNavGroup(
+                            key: ValueKey('expand_${it.route}_$index'),
+                            parent: it,
+                            currentRouteName: widget.currentRouteName,
                             collapsed: effectiveCollapsed,
-                            onTap: () => widget.onNavigate(it.route),
+                            onNavigate: _sidebarNavigate,
                             showProfileIndicator: showProfileIndicator,
-                            tutorialKey:
-                                widget.sidebarTutorialKeys != null &&
+                            tutorialKey: widget.sidebarTutorialKeys != null &&
                                     index < widget.sidebarTutorialKeys!.length
                                 ? widget.sidebarTutorialKeys![index]
                                 : null,
-                            showTutorial:
-                                widget.tutorialStepIndex != null &&
+                            showTutorial: widget.tutorialStepIndex != null &&
                                 widget.tutorialStepIndex == index,
                             onTutorialNext: widget.onTutorialNext,
                             onTutorialSkip: widget.onTutorialSkip,
-                            isLastTutorialStep:
-                                widget.tutorialStepIndex != null &&
+                            isLastTutorialStep: widget.tutorialStepIndex != null &&
                                 widget.tutorialStepIndex ==
-                                    widget.items.length - 1,
+                                    _currentItems.length - 1,
                           );
-                        }),
-                        // Keep footer actions in the scrollable region to prevent
-                        // bottom RenderFlex overflows on shorter web viewports.
-                        _NavTile(
-                          key: const ValueKey('nav_logout'),
-                          icon: Icons.exit_to_app,
-                          label: AppLocalizations.of(context).employee_drawer_exit,
-                          route: '__logout__',
-                          isActive: false,
+                        }
+
+                        return _NavTile(
+                          key: ValueKey('nav_${it.route}_$index'),
+                          icon: it.icon,
+                          iconWidget: it.iconWidget,
+                          assetWhite: it.assetWhite,
+                          assetRed: it.assetRed,
+                          label: it.label,
+                          route: it.route,
+                          isActive: _isRouteActive(widget.currentRouteName, it.route),
                           collapsed: effectiveCollapsed,
-                          onTap: widget.onLogout,
-                        ),
-                        if (!_disableSidebarCollapseTemporarily)
-                          _CollapseToggle(
-                            collapsed: effectiveCollapsed,
-                            tutorialKey:
-                                widget.sidebarTutorialKeys != null &&
-                                    widget.tutorialStepIndex != null &&
-                                    widget.tutorialStepIndex == widget.items.length &&
-                                    widget.tutorialStepIndex! <
-                                        widget.sidebarTutorialKeys!.length
-                                ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
-                                : null,
-                            showTutorial:
-                                widget.tutorialStepIndex != null &&
-                                widget.tutorialStepIndex == widget.items.length,
-                            onTutorialNext: widget.onTutorialNext,
-                            onTutorialSkip: widget.onTutorialSkip,
-                            isLastTutorialStep:
-                                widget.tutorialStepIndex != null &&
-                                widget.tutorialStepIndex == widget.items.length,
+                          onTap: () {
+                            _logSidebar(
+                              'tap route=${it.route} from=${widget.currentRouteName}',
+                            );
+                            _sidebarNavigate(it.route);
+                          },
+                          showProfileIndicator: showProfileIndicator,
+                          tutorialKey: widget.sidebarTutorialKeys != null &&
+                                  index < widget.sidebarTutorialKeys!.length
+                              ? widget.sidebarTutorialKeys![index]
+                              : null,
+                          showTutorial: widget.tutorialStepIndex != null &&
+                              widget.tutorialStepIndex == index,
+                          onTutorialNext: widget.onTutorialNext,
+                          onTutorialSkip: widget.onTutorialSkip,
+                          isLastTutorialStep: widget.tutorialStepIndex != null &&
+                              widget.tutorialStepIndex ==
+                                  _currentItems.length - 1,
+                        );
+                      }).toList();
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildHeader(
+                            context,
+                            effectiveCollapsed,
+                            sidebarLight,
+                            isUltraCompact: isUltraCompact,
+                            isVeryCompact: isVeryCompact,
                           ),
-                      ],
-                    ),
+                          Expanded(
+                            child: ListView(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.only(bottom: 8),
+                              children: [
+                                ...navItems,
+                                _NavTile(
+                                  key: const ValueKey('nav_logout'),
+                                  icon: Icons.exit_to_app,
+                                  label: AppLocalizations.of(context)
+                                      .employee_drawer_exit,
+                                  route: '__logout__',
+                                  isActive: false,
+                                  collapsed: effectiveCollapsed,
+                                  onTap: () {
+                                    _logSidebar('tap logout');
+                                    widget.onLogout();
+                                  },
+                                ),
+                                _CollapseToggle(
+                                  collapsed: effectiveCollapsed,
+                                  tutorialKey: widget.sidebarTutorialKeys !=
+                                              null &&
+                                          widget.tutorialStepIndex != null &&
+                                          widget.tutorialStepIndex ==
+                                              _currentItems.length &&
+                                          widget.tutorialStepIndex! <
+                                              widget.sidebarTutorialKeys!.length
+                                      ? widget.sidebarTutorialKeys![
+                                          widget.tutorialStepIndex!]
+                                      : null,
+                                  showTutorial: widget.tutorialStepIndex !=
+                                          null &&
+                                      widget.tutorialStepIndex ==
+                                          _currentItems.length,
+                                  onTutorialNext: widget.onTutorialNext,
+                                  onTutorialSkip: widget.onTutorialSkip,
+                                  isLastTutorialStep:
+                                      widget.tutorialStepIndex != null &&
+                                          widget.tutorialStepIndex ==
+                                              _currentItems.length,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                ],
-              ),
-            );
+                );
 
-            final Widget shell = Container(
-              width: isSmall
-                  ? double.infinity
-                  : (effectiveCollapsed ? 72 : 280),
-              decoration: BoxDecoration(
-                color: sidebarLight
-                    ? Colors.white
-                    : backgroundColor.withValues(alpha: 0.95),
-                border: Border(
-                  right: BorderSide(
+                final Widget shell = Container(
+                  width: isSmall
+                      ? double.infinity
+                      : (effectiveCollapsed
+                          ? (72 * _sidebarZoomFactor)
+                          : _desktopSidebarWidth),
+                  decoration: BoxDecoration(
                     color: sidebarLight
-                        ? const Color(0x1F000000)
-                        : Colors.white.withValues(alpha: 0.1),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: column,
-            );
-
-            return ClipRRect(
-              child: sidebarLight
-                  ? shell
-                  : BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: shell,
+                        ? Colors.white
+                        : backgroundColor.withValues(alpha: 0.95),
+                    border: Border(
+                      right: BorderSide(
+                        color: sidebarLight
+                            ? const Color(0x1F000000)
+                            : Colors.white.withValues(alpha: 0.1),
+                        width: 1,
+                      ),
                     ),
+                  ),
+                  child: column,
+                );
+
+                return ClipRRect(
+                  child: sidebarLight
+                      ? shell
+                      : BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: shell,
+                        ),
+                );
+              },
             );
           },
         );
@@ -351,15 +405,26 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, bool collapsed, bool sidebarLight) {
-    final Color textColor = sidebarLight
-        ? const Color(0xFF000000)
-        : AppColors.textPrimary;
+  Widget _buildHeader(
+    BuildContext context,
+    bool collapsed,
+    bool sidebarLight, {
+    required bool isUltraCompact,
+    required bool isVeryCompact,
+  }) {
+    final isDark = !sidebarLight;
+    final Color welcomeTextColor = isDark
+        ? Colors.white
+        : const Color(0xFF000000);
 
     // Expanded header needs room for logo + welcome text (fixed height was causing
     // RenderFlex overflow on web when text wrapped to two lines).
-    final double headerHeight = collapsed ? 64.0 : 118.0;
-    final double logoBoxHeight = collapsed ? 64.0 : 56.0;
+    final double headerHeight = collapsed
+        ? (isUltraCompact ? 52.0 : 64.0)
+        : (isVeryCompact ? 84.0 : 102.0);
+    final double logoBoxHeight = collapsed
+        ? (isUltraCompact ? 52.0 : 64.0)
+        : (isVeryCompact ? 42.0 : 52.0);
 
     return Container(
       height: headerHeight,
@@ -409,19 +474,36 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   ),
                 ),
                 if (!collapsed) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      'Welcome to Personal Development Hub',
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: textColor,
-                        fontWeight: FontWeight.w700,
-                        height: 1.25,
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                      'Welcome',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: welcomeTextColor,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          'Personal Development Hub',
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: welcomeTextColor,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -579,8 +661,6 @@ class _CollapseToggle extends StatelessWidget {
 
         return Showcase.withWidget(
           key: tutorialKey!,
-          width: 260,
-          height: 200,
           targetShapeBorder: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
@@ -639,6 +719,9 @@ class _NavTile extends StatefulWidget {
   final VoidCallback? onTutorialNext;
   final VoidCallback? onTutorialSkip;
   final bool isLastTutorialStep;
+  final double navVerticalPadding = 3;
+  final double navFontSize = 11.2;
+  final double iconSize = 20;
 
   @override
   State<_NavTile> createState() => _NavTileState();
@@ -646,6 +729,7 @@ class _NavTile extends StatefulWidget {
 
 class _NavTileState extends State<_NavTile> {
   bool hovering = false;
+  static const Color _activeSideAccent = Color(0xFFC10D00);
 
   bool get _hasIcon =>
       widget.icon != null ||
@@ -658,96 +742,118 @@ class _NavTileState extends State<_NavTile> {
     final bool isSelected = widget.isActive;
     final bool isCollapsed = widget.collapsed;
 
-    final localizations = AppLocalizations.of(context);
+    AppLocalizations? localizations;
+    try {
+      localizations = AppLocalizations.of(context);
+    } catch (e) {
+      debugPrint('[Sidebar] localization unavailable in NavTile: $e');
+      localizations = null;
+    }
     String label = widget.label;
     switch (widget.route) {
       case '/employee_dashboard':
       case '/dashboard':
-        label = localizations.nav_dashboard;
+        label = localizations?.nav_dashboard ?? widget.label;
         break;
       case '/my_pdp':
         // Manager sidebar dropdown parent uses "Manager Workspace"; employee uses Goal Workspace.
         if (widget.label != 'Manager Workspace') {
-          label = localizations.nav_goal_workspace;
+          label = localizations?.nav_goal_workspace ?? widget.label;
         }
         break;
       case '/my_profile':
-        label = localizations.nav_my_profile;
+        label = localizations?.nav_my_profile ?? widget.label;
         break;
       case '/my_goal_workspace':
-        label = localizations.nav_my_pdp;
+        label = localizations?.nav_my_pdp ?? widget.label;
         break;
       case '/progress_visuals':
-        label = localizations.nav_progress_visuals;
+        label = localizations?.nav_progress_visuals ?? widget.label;
         break;
       case '/alerts_nudges':
-        label = localizations.nav_alerts_nudges;
+        label = localizations?.nav_alerts_nudges ?? widget.label;
         break;
       case '/badges_points':
       case '/manager_badges_points':
-        label = localizations.nav_badges_points;
+        label = localizations?.nav_badges_points ?? widget.label;
         break;
       case '/season_challenges':
-        label = localizations.nav_season_challenges;
+        label = localizations?.nav_season_challenges ?? widget.label;
         break;
       case '/leaderboard':
       case '/manager_leaderboard':
-        label = localizations.nav_leaderboard;
+        label = localizations?.nav_leaderboard ?? widget.label;
         break;
       case '/repository_audit':
-        label = localizations.nav_repository_audit;
+        label = localizations?.nav_repository_audit ?? widget.label;
         break;
       case '/settings':
-        label = localizations.nav_settings_privacy;
+        label = localizations?.nav_settings_privacy ?? widget.label;
         break;
       case '/team_challenges_seasons':
-        label = localizations.nav_team_challenges;
+        label = localizations?.nav_team_challenges ?? widget.label;
         break;
       case '/manager_alerts_nudges':
-        label = localizations.nav_team_alerts_nudges;
+        label = localizations?.nav_team_alerts_nudges ?? widget.label;
         break;
       case '/manager_inbox':
-        label = localizations.nav_manager_inbox;
+        label = localizations?.nav_manager_inbox ?? widget.label;
         break;
       case '/manager_review_team_dashboard':
         // Use the updated manager label without requiring l10n regeneration.
         label = 'Team Review';
         break;
       case '/admin_dashboard':
-        label = localizations.nav_dashboard;
+        label = localizations?.nav_dashboard ?? widget.label;
         break;
       case '/user_management':
-        label = localizations.nav_user_management;
+        label = localizations?.nav_user_management ?? widget.label;
         break;
       case '/analytics':
       case '/admin_analytics':
-        label = localizations.nav_analytics;
+        label = localizations?.nav_analytics ?? widget.label;
         break;
       case '/system_settings':
-        label = localizations.nav_system_settings;
+        label = localizations?.nav_system_settings ?? widget.label;
         break;
       case '/security':
-        label = localizations.nav_security;
+        label = localizations?.nav_security ?? widget.label;
         break;
       case '/backup':
-        label = localizations.nav_backup_restore;
+        label = localizations?.nav_backup_restore ?? widget.label;
         break;
       default:
         break;
     }
 
     final bool sidebarLight = _SidebarLightMode.of(context);
-    final Color labelColor = isSelected
-        ? Colors.white
-        : (sidebarLight ? const Color(0xFF000000) : AppColors.textPrimary);
+    final isDark = !sidebarLight;
+    final Color unselectedColor = isDark ? Colors.white : const Color(0xFF000000);
+    final Color subItemUnselectedColor = isDark
+        ? Colors.white.withValues(alpha: 0.9)
+        : const Color(0xFF000000);
+    final Color labelColor = isDark
+        ? (isSelected ? Colors.white : (widget.isChild
+              ? subItemUnselectedColor
+              : unselectedColor))
+        : const Color(0xFF000000);
     final Color hoverFill = sidebarLight
-        ? const Color(0xFFE8E8E8)
-        : AppColors.hoverColor;
+        ? const Color(0x14000000)
+        : Colors.white.withValues(alpha: 0.08);
+    const Color activeFill = _activeSideAccent;
 
     Widget navTileContent = Padding(
       padding: widget.isChild
-          ? const EdgeInsets.only(left: 36, right: 12, top: 4, bottom: 4)
-          : AppSpacing.sidebarItemPadding,
+          ? EdgeInsets.only(
+              left: 28,
+              right: 10,
+              top: widget.navVerticalPadding,
+              bottom: widget.navVerticalPadding,
+            )
+          : EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: widget.navVerticalPadding,
+            ),
       child: MouseRegion(
         onEnter: (_) => setState(() => hovering = true),
         onExit: (_) => setState(() => hovering = false),
@@ -755,110 +861,118 @@ class _NavTileState extends State<_NavTile> {
           message: isCollapsed ? label : '',
           child: InkWell(
             onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             child: Container(
-              height: 44,
+              height: math.max(28, widget.iconSize + 8),
               decoration: BoxDecoration(
-                // When expanded: highlight background for active
-                // When collapsed: keep background transparent for a clean mini look
-                color: !isCollapsed
-                    ? (isSelected
-                          ? AppColors.activeColor
-                          : (isHovered ? hoverFill : Colors.transparent))
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: (!isCollapsed && (isSelected || isHovered))
-                    ? [
-                        BoxShadow(
-                          color:
-                              (isSelected
-                                      ? AppColors.activeColor
-                                      : (sidebarLight
-                                            ? hoverFill
-                                            : AppColors.hoverColor))
-                                  .withValues(alpha: 0x35),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
+                color: isSelected
+                    ? activeFill
+                    : (isHovered ? hoverFill : Colors.transparent),
+                borderRadius: BorderRadius.circular(8),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: isCollapsed
-                  ? Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        if (_hasIcon) _buildIcon(isSelected, sidebarLight),
-                        if (widget.showProfileIndicator)
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: AppColors.activeColor,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: sidebarLight
-                                      ? Colors.white
-                                      : _ResponsiveSidebarState.backgroundColor,
-                                  width: 1.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        // If there isn't enough width to safely render icon + label,
-                        // fall back to icon-only to avoid overflows during animations/resizes.
-                        final bool tooNarrow = constraints.maxWidth < 80;
-                        if (tooNarrow && _hasIcon) {
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [_buildIcon(isSelected, sidebarLight)],
-                          );
-                        }
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.max,
-                          children: [
-                            if (_hasIcon) ...[
-                              _buildIcon(isSelected, sidebarLight),
-                              const SizedBox(width: AppSpacing.xs),
-                            ],
-                            Flexible(
-                              child: Text(
-                                label,
-                                style:
-                                    (isSelected
-                                            ? AppTypography.navigationActive
-                                            : AppTypography.navigation)
-                                        .copyWith(color: labelColor),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                                softWrap: false,
-                              ),
-                            ),
-                            if (widget.showProfileIndicator) ...[
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.error,
-                                size: 16,
-                                color: AppColors.activeColor,
-                              ),
-                            ],
-                            if (widget.trailing != null) ...[
-                              const SizedBox(width: AppSpacing.xs),
-                              widget.trailing!,
-                            ],
-                          ],
-                        );
-                      },
+              child: Stack(
+                children: [
+                  if (isSelected && !isCollapsed)
+                    Positioned(
+                      left: 0,
+                      top: 8,
+                      bottom: 8,
+                      child: Container(
+                        width: 3,
+                        decoration: BoxDecoration(
+                          color: _activeSideAccent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    child: isCollapsed
+                        ? Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              if (_hasIcon) _buildIcon(isSelected, sidebarLight),
+                              if (widget.showProfileIndicator)
+                                Positioned(
+                                  top: 0,
+                                  right: 0,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.activeColor,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: sidebarLight
+                                            ? Colors.white
+                                            : _ResponsiveSidebarState.backgroundColor,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final bool tooNarrow = constraints.maxWidth < 80;
+                              if (tooNarrow && _hasIcon) {
+                                return Row(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [_buildIcon(isSelected, sidebarLight)],
+                                );
+                              }
+                              return Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.max,
+                                children: [
+                                  if (_hasIcon) ...[
+                                    _buildIcon(isSelected, sidebarLight),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Flexible(
+                                    child: Text(
+                                      label,
+                                      style: AppTypography.navigation.copyWith(
+                                        color: isDark
+                                            ? (isSelected ? Colors.white : labelColor)
+                                            : (isSelected
+                                                  ? Colors.white
+                                                  : const Color(0xFF000000)),
+                                        fontSize: widget.navFontSize,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w700
+                                            : FontWeight.w600,
+                                        height: 1.15,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                    ),
+                                  ),
+                                  if (widget.showProfileIndicator) ...[
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.error,
+                                      size: 14,
+                                      color: AppColors.activeColor,
+                                    ),
+                                  ],
+                                  if (widget.trailing != null) ...[
+                                    const SizedBox(width: 6),
+                                    widget.trailing!,
+                                  ],
+                                ],
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -989,8 +1103,6 @@ class _NavTileState extends State<_NavTile> {
 
         return Showcase.withWidget(
           key: widget.tutorialKey!,
-          width: 260,
-          height: 200,
           targetShapeBorder: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
@@ -1022,8 +1134,8 @@ class _NavTileState extends State<_NavTile> {
           isSelected && widget.collapsed && widget.assetRed != null;
       final String path = useRed ? widget.assetRed! : widget.assetWhite!;
       Widget img = SizedBox(
-        width: 24,
-        height: 24,
+        width: widget.iconSize,
+        height: widget.iconSize,
         child: FittedBox(
           fit: BoxFit.contain,
           child: Image.asset(
@@ -1033,18 +1145,6 @@ class _NavTileState extends State<_NavTile> {
           ),
         ),
       );
-      if (sidebarLight) {
-        final bool whiteOnRed = isSelected && !widget.collapsed;
-        if (!useRed && !whiteOnRed) {
-          img = ColorFiltered(
-            colorFilter: const ColorFilter.mode(
-              Color(0xFF000000),
-              BlendMode.srcIn,
-            ),
-            child: img,
-          );
-        }
-      }
       return img;
     }
     if (widget.iconWidget != null) {
@@ -1055,7 +1155,7 @@ class _NavTileState extends State<_NavTile> {
       color: (isSelected && widget.collapsed)
           ? AppColors.activeColor
           : (sidebarLight ? const Color(0xFF000000) : AppColors.textPrimary),
-      size: 24.0,
+      size: widget.iconSize,
     );
   }
 }
@@ -1107,7 +1207,7 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
         assetRed: parent.assetRed,
         label: parent.label,
         route: parent.route,
-        isActive: widget.currentRouteName == parent.route,
+        isActive: _isRouteActive(widget.currentRouteName, parent.route),
         collapsed: widget.collapsed,
         onTap: () => widget.onNavigate(parent.route),
         showProfileIndicator: widget.showProfileIndicator,
@@ -1119,7 +1219,7 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
       );
     }
 
-    final isActive = widget.currentRouteName == parent.route;
+    final isActive = _isRouteActive(widget.currentRouteName, parent.route);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -1166,7 +1266,7 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
               assetRed: child.assetRed,
               label: child.label,
               route: child.route,
-              isActive: widget.currentRouteName == child.route,
+              isActive: _isRouteActive(widget.currentRouteName, child.route),
               collapsed: widget.collapsed,
               onTap: () => widget.onNavigate(child.route),
               isChild: true,

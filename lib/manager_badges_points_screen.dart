@@ -237,7 +237,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+          navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
         }
       },
       content: _buildContent(),

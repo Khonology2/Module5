@@ -11,6 +11,7 @@ import 'package:pdh/services/badge_celebration_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/services/database_service.dart'; // For syncOnboardingData
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pdh/services/token_auth_service.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -62,6 +63,23 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadLastEmail();
+    _redirectToLandingIfTokenPresent();
+  }
+
+  Future<void> _redirectToLandingIfTokenPresent() async {
+    try {
+      final token = await TokenAuthService.extractTokenFromUrl();
+      if (!mounted) return;
+      if (token == null || token.isEmpty) return;
+
+      // A token-based login flow must always start on landing screen.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/landing', arguments: token);
+      });
+    } catch (_) {
+      // Ignore token extraction failures; login continues normally.
+    }
   }
 
   @override
@@ -113,6 +131,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     if (!context.mounted) return;
 
     try {
+      // Always reset role/session cache before role resolution for this login.
+      RoleService.instance.clearCache();
       // Get user's role from database and ensure it's cached
       final role = await RoleService.instance.getRole(refresh: true);
 
@@ -271,7 +291,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         }
       }
 
-      // User already has a role, redirect to appropriate portal
+      // User already has a role, redirect to appropriate dashboard
       if (currentRole == 'manager') {
         Navigator.pushReplacementNamed(context, '/manager_portal');
       } else if (currentRole == 'employee') {
@@ -279,7 +299,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         // Tutorial will start automatically when dashboard loads
         Navigator.pushReplacementNamed(context, '/employee_dashboard');
       } else if (currentRole == 'admin') {
-        Navigator.pushReplacementNamed(context, '/admin_portal');
+        Navigator.pushReplacementNamed(context, '/admin_dashboard');
       } else {
         // Unknown role or no role selected, redirect to sign in as fallback
         Navigator.pushReplacementNamed(
@@ -446,7 +466,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w400,
-                                  color: Colors.white.withOpacity(0.8),
+                                  color: Colors.white.withValues(alpha: 0.8),
                                   fontFamily: 'Poppins',
                                 ),
                               ),
@@ -464,7 +484,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     keyboardType: TextInputType.emailAddress,
                                     decoration: InputDecoration(
                                       filled: true,
-                                      fillColor: Colors.black.withOpacity(0.3),
+                                      fillColor: Colors.black.withValues(
+                                        alpha: 0.3,
+                                      ),
                                       hintText: 'Email',
                                       hintStyle: const TextStyle(
                                         color: Colors.white70,
@@ -474,7 +496,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       enabledBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
                                         borderSide: BorderSide(
-                                          color: Colors.white.withOpacity(0.2),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.2,
+                                          ),
                                           width: 1.0,
                                         ),
                                       ),

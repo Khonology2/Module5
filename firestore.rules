@@ -33,8 +33,17 @@ service cloud.firestore {
     function sameDepartment(uid) {
       return true;
     }
+    // Manager may only see employees assigned to them (managerId == request.auth.uid in users or onboarding).
+    function isAssignedToManager(employeeId) {
+      return isSignedIn() && isManager() && (
+        (exists(/databases/$(database)/documents/users/$(employeeId)) &&
+         get(/databases/$(database)/documents/users/$(employeeId)).data.managerId == request.auth.uid) ||
+        (exists(/databases/$(database)/documents/onboarding/$(employeeId)) &&
+         get(/databases/$(database)/documents/onboarding/$(employeeId)).data.managerId == request.auth.uid)
+      );
+    }
     function canManagerSeeEmployee(userId) {
-      return userRole(userId) == 'employee';
+      return isAssignedToManager(userId);
     }
 
     // Allow managers to award points/badges to employees (kudos/recognition),
@@ -116,7 +125,7 @@ service cloud.firestore {
       let owner = goalOwner(goalId);
       return owner != null && (
         userId() == owner ||
-        isManager() ||
+        (isManager() && isAssignedToManager(owner)) ||
         isAdmin()
       );
     }
@@ -130,7 +139,8 @@ service cloud.firestore {
     function canManagerUpdateGoal() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(userId())) &&
-             get(/databases/$(database)/documents/users/$(userId())).data.role == 'manager';
+             get(/databases/$(database)/documents/users/$(userId())).data.role == 'manager' &&
+             isAssignedToManager(goalOwnerUidFromData(resource.data));
     }
     function isValidMilestoneStatus(status) {
       return status in ['notStarted', 'inProgress', 'completed', 'blocked'];
@@ -187,10 +197,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn() && (
         userId() == userId ||
-        isManager() ||
-        isAdmin()
+        isAdmin() ||
+        (isManager() && (userId() == userId || isAssignedToManager(userId)))
       );
       allow read: if isSignedIn() &&
+        (!isManager()) &&
         exists(/databases/$(database)/documents/users/$(userId)) &&
         get(/databases/$(database)/documents/users/$(userId)).data.leaderboardOptin == true;
 
@@ -237,21 +248,30 @@ service cloud.firestore {
     }
 
     match /onboarding/{uid} {
-      allow read: if true;
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.managerId == request.auth.uid ||
+        resource.id == request.auth.uid ||
+        !isManager()
+      );
       allow write: if isSignedIn();
     }
 
     match /goals/{goalId} {
       allow update: if isSignedIn() && userId() == goalOwnerUidFromData(resource.data);
       allow update: if canManagerUpdateGoal();
-      // Approval/rejection updates by managers
-      allow update: if isSignedIn() && isApprovalOrReviewUpdate();
+      // Approval/rejection updates by managers (only for assigned employees' goals)
+      allow update: if isSignedIn() && isApprovalOrReviewUpdate() && (
+        resource.data.userId == userId() ||
+        isAdmin() ||
+        (isManager() && isAssignedToManager(resource.data.userId))
+      );
       // Admins can update any goal
       allow update: if isSignedIn() && isAdmin();
 
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
-        isManager() ||
+        (isManager() && isAssignedToManager(resource.data.userId)) ||
         isAdmin()
       );
 
@@ -285,7 +305,7 @@ service cloud.firestore {
     match /activities/{activityId} {
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
-        isManager() ||
+        (isManager() && isAssignedToManager(resource.data.userId)) ||
         isAdmin()
       );
       allow create: if isSignedIn();
@@ -307,6 +327,10 @@ service cloud.firestore {
     }
 
     match /alerts/{alertId} {
+      // Allow owners/managers/admins to delete related alerts
+      allow delete: if isSignedIn() && (
+        userId() == resource.data.userId || isManager() || isAdmin()
+      );
       allow read, update: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
         (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
