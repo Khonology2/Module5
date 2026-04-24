@@ -1601,15 +1601,70 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
                   .toList();
 
-              if (widget.forAdminOversight && !_showArchived) {
-                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _adminPendingGoalsStream(),
-                  builder: (context, pendingSnapshot) {
-                    final pendingDocs = pendingSnapshot.data?.docs ?? const [];
-                    final mergedItems = _mergeAdminPendingGoalFallbackAlerts(
-                      baseItems: items,
-                      goalDocs: pendingDocs,
-                      adminUserId: user.uid,
+              if (_unreadOnly && !_showArchived) {
+                items = items.where((a) => !a.isRead).toList();
+              }
+              if (_priorityFilter != null) {
+                items = items
+                    .where((a) => a.priority == _priorityFilter)
+                    .toList();
+              }
+              if (_search.isNotEmpty) {
+                final q = _search.toLowerCase();
+                items = items
+                    .where(
+                      (a) =>
+                          a.title.toLowerCase().contains(q) ||
+                          a.message.toLowerCase().contains(q),
+                    )
+                    .toList();
+              }
+
+              // Apply audience filter if specified
+              if (_audienceFilter != null) {
+                items = items
+                    .where((a) => a.audience == _audienceFilter)
+                    .toList();
+              }
+
+              // Apply type filter so each tab shows the right information
+              if (_typeFilter == 'alert') {
+                // Alerts: manager-facing alerts that are NOT nudges and NOT approval requests
+                items = items.where((a) {
+                  return a.type != AlertType.managerNudge &&
+                      a.type != AlertType.goalApprovalRequested;
+                }).toList();
+              } else if (_typeFilter == 'approval_request') {
+                // Approvals:
+                // - Inbox: pending approval requests.
+                // - Archived: finalized approval decisions (approved/rejected).
+                items = items.where((a) {
+                  if (_showArchived) {
+                    return a.type == AlertType.goalApprovalApproved ||
+                        a.type == AlertType.goalApprovalRejected;
+                  }
+                  return a.type == AlertType.goalApprovalRequested;
+                }).toList();
+              } else if (_typeFilter == 'nudge') {
+                // Nudges: only manager nudge alerts (nudge feedback is added in the nudge UI branch)
+                items = items
+                    .where((a) => a.type == AlertType.managerNudge)
+                    .toList();
+              }
+              // _typeFilter == null means All: show everything, no type filter
+
+              // When showing All or Alerts, sort so urgent alerts appear first
+              if (_typeFilter == null || _typeFilter == 'alert') {
+                final priorityOrder = {
+                  AlertPriority.urgent: 0,
+                  AlertPriority.high: 1,
+                  AlertPriority.medium: 2,
+                  AlertPriority.low: 3,
+                };
+                items = List<Alert>.from(items)
+                  ..sort((a, b) {
+                    final p = priorityOrder[a.priority]!.compareTo(
+                      priorityOrder[b.priority]!,
                     );
                     return _buildInboxListContent(
                       sourceItems: mergedItems,
