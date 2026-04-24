@@ -1,5 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
@@ -221,6 +223,9 @@ class _MyPdpScreenState extends State<MyPdpScreen>
   bool _isFinancialExpanded = true;
   bool _isOrganisationalExpanded = true;
   bool _isPeopleExpanded = true;
+
+  // Cache for goals to prevent unnecessary rebuilds
+  // Removed unused fields to keep state minimal and avoid analyzer warnings
 
   String _mapGoalToExcellence(Goal goal) {
     // Prefer explicit kpa if available
@@ -668,11 +673,20 @@ class _MyPdpScreenState extends State<MyPdpScreen>
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 try {
-                  web.window.open(evidence, '_blank');
+                  final user = FirebaseAuth.instance.currentUser;
+                  final token = await user?.getIdToken();
+                  final uri = Uri.parse(evidence);
+                  final qp = Map<String, String>.from(uri.queryParameters);
+                  if (token != null && token.isNotEmpty) {
+                    qp['token'] = token;
+                  }
+                  final urlWithToken = uri
+                      .replace(queryParameters: qp)
+                      .toString();
+                  web.window.open(urlWithToken, '_blank');
                 } catch (_) {
-                  // On non-web platforms, just close the dialog
                   Navigator.of(ctx).pop();
                 }
               },
@@ -1469,7 +1483,6 @@ class _MyPdpScreenState extends State<MyPdpScreen>
       ),
     );
   }
-
   Widget _buildGoalsForExcellence(
     String excellence,
     bool light,

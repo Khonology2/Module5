@@ -2113,7 +2113,6 @@ class DatabaseService {
         'notificationFrequency': 'daily',
         'goalVisibility': 'private',
         'leaderboardOptin': false,
-        'leaderboardParticipation': false,
         'badgeName': '',
         'celebrationConsent': 'private',
       };
@@ -2245,6 +2244,43 @@ class DatabaseService {
     } catch (e) {
       developer.log('Error in syncOnboardingData for $uid: $e');
     }
+  }
+
+  /// Gets onboarding document data by userId, or by email if doc not found by userId.
+  /// Returns the document map or empty map if not found.
+  static Future<Map<String, dynamic>> getOnboardingData({
+    required String userId,
+    String? email,
+  }) async {
+    if (FirestoreWebCircuitBreaker.isBroken) {
+      return {};
+    }
+    try {
+      var onboardingDoc = await FirebaseFirestore.instance
+          .collection('onboarding')
+          .doc(userId)
+          .get();
+
+      if (!onboardingDoc.exists && email != null && email.isNotEmpty) {
+        final onboardingQuery = await FirebaseFirestore.instance
+            .collection('onboarding')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+
+        if (onboardingQuery.docs.isNotEmpty) {
+          onboardingDoc = onboardingQuery.docs.first;
+        }
+      }
+
+      if (onboardingDoc.exists) {
+        return onboardingDoc.data() ?? {};
+      }
+    } catch (e) {
+      developer.log('Error getting onboarding data: $e');
+      FirestoreWebCircuitBreaker.maybeReload(e);
+    }
+    return {};
   }
 
   /// Gets user name from onboarding collection

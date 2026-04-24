@@ -217,6 +217,22 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         msg.contains('your goal');
   }
 
+  bool _isAdminSupervisionAlertForManager(Alert alert) {
+    final requiredApproverRole = (alert.actionData?['requiredApproverRole'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final approvalChain = (alert.actionData?['approvalChain'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    if (requiredApproverRole == 'admin') return true;
+    if (approvalChain == 'manager_to_admin') return true;
+
+    return _isManagerAsEmployeeGoalDecisionAlert(alert);
+  }
+
   bool _isAdminInboxEligibleAlert(Alert alert) {
     // Admin oversight inbox should not include manager-as-employee goal decision
     // notifications (e.g. "Your goal ... was rejected").
@@ -257,6 +273,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       case AlertType.managerGeneral:
       case AlertType.milestoneDeleted:
       case AlertType.milestoneDeletionRejected:
+      case AlertType.profileIncomplete:
         return true;
       case AlertType.goalOverdue:
         return _isManagerScopedGoalOverdue(alert) ||
@@ -271,6 +288,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     // Alerts routed to Manager Workspace Alerts & Nudges should stay there.
     if (!widget.forAdminOversight &&
         alert.actionRoute == _managerWorkspaceAlertsRoute) {
+      return false;
+    }
+
+    // Keep manager inbox focused on manager-as-supervisor workflow only.
+    if (!widget.forAdminOversight &&
+        _isAdminSupervisionAlertForManager(alert)) {
       return false;
     }
 
@@ -313,6 +336,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   /// for admins. Map them to [AdminPortalScreen] sidebar routes (`initialRoute`).
   String? _mapInboxRouteToAdminInitialRoute(String route) {
     switch (route) {
+      case '/one_on_one_thread':
+        return null;
       case '/manager_badges_points':
       case '/badges_points':
       case '/manager_gw_menu_badges':
@@ -357,6 +382,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   /// Navigates from inbox actions. Managers use raw routes; admins use [AdminPortalScreen].
   void _navigateInboxByAlertRoute(String route, {Object? arguments}) {
     if (!widget.forAdminOversight) {
+      Navigator.pushNamed(context, route, arguments: arguments);
+      return;
+    }
+
+    if (route == '/one_on_one_thread') {
       Navigator.pushNamed(context, route, arguments: arguments);
       return;
     }
@@ -1411,7 +1441,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (!context.mounted) return;
-        navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+        navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
       },
       content: _buildContent(),
     );
@@ -2059,9 +2089,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       route = '/admin_team_review';
                     }
 
-                    // Deep-link 1:1 meeting alerts into the Review Team Dashboard.
+                    // Deep-link 1:1 meeting alerts into the canonical thread screen.
                     if (route == '/manager_review_team_dashboard' ||
-                        route == '/admin_team_review') {
+                        route == '/admin_team_review' ||
+                        route == '/one_on_one_thread') {
+                      if (route == '/manager_review_team_dashboard' ||
+                          route == '/admin_team_review') {
+                        route = '/one_on_one_thread';
+                      }
                       final data =
                           alert.actionData ?? const <String, dynamic>{};
                       final meetingId = data['meetingId']?.toString().trim();

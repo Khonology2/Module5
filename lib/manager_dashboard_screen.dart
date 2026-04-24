@@ -1,4 +1,4 @@
-// ignore_for_file: unnecessary_string_interpolations
+// ignore_for_file: unused_local_variable, deprecated_member_use, unnecessary_string_interpolations
 
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -23,6 +23,8 @@ import 'dart:developer' as developer;
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
+
+const Color _kQuickActionHoverRed = Color(0xFFC10D00);
 
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
@@ -72,6 +74,22 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     if (_middleLeftHeight == null || (h - _middleLeftHeight!).abs() > 1.0) {
       setState(() => _middleLeftHeight = h);
     }
+  }
+
+  String _fullNameFromEmail(String email) {
+    final local = email.split('@').first.trim();
+    if (local.isEmpty) return '';
+
+    final normalized = local.replaceAll(RegExp(r'[_\\.-]+'), ' ');
+    final parts = normalized.split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '';
+
+    return parts
+        .map((p) {
+          if (p.length == 1) return p.toUpperCase();
+          return '${p[0].toUpperCase()}${p.substring(1).toLowerCase()}';
+        })
+        .join(' ');
   }
 
   String _pickBlurb(String key, List<String> lines) {
@@ -129,14 +147,25 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       final user = FirebaseAuth.instance.currentUser;
       String name = 'Manager';
       if (user != null) {
-        final profile = await DatabaseService.getUserProfile(user.uid);
-        final display = profile.displayName.trim();
-        if (display.isNotEmpty) {
-          name = display.split(' ').first;
-        } else if ((user.displayName ?? '').isNotEmpty) {
-          name = user.displayName!.split(' ').first;
-        } else if ((user.email ?? '').isNotEmpty) {
-          name = user.email!.split('@').first;
+        // Prefer onboarding name so assigned-employees query matches employee docs' manager field
+        final onboardingName = await DatabaseService.getUserNameFromOnboarding(
+          userId: user.uid,
+          email: user.email,
+        );
+        if (onboardingName != null && onboardingName.trim().isNotEmpty) {
+          name = onboardingName.trim();
+        } else {
+          final profile = await DatabaseService.getUserProfile(user.uid);
+          final display = profile.displayName.trim();
+          if (display.isNotEmpty) {
+            name = display;
+          } else if ((user.displayName ?? '').isNotEmpty) {
+            name = user.displayName!.trim();
+          } else if ((user.email ?? '').isNotEmpty) {
+            // Derive full name from email so onboarding manager field matches (e.g. Gladness Mulaudzi)
+            final fromEmail = _fullNameFromEmail(user.email!);
+            name = fromEmail.isNotEmpty ? fromEmail : user.email!.split('@').first;
+          }
         }
       }
       if (!mounted) return;
@@ -186,7 +215,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
       if (keyContext != null) {
         // Key is attached, start showcase
-        ShowCaseWidget.of(context).startShowCase([_sidebarTutorialKeys[0]]);
+        ShowcaseView.get().startShowCase([_sidebarTutorialKeys[0]]);
         developer.log(
           'Started manager showcase for step 0',
           name: 'ManagerDashboardScreen',
@@ -467,7 +496,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                                   await AuthService().signOut();
                                   if (mounted) {
                                     navigator.pushNamedAndRemoveUntil(
-                                      '/sign_in',
+                                      '/landing',
                                       (route) => false,
                                     );
                                   }
@@ -651,7 +680,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+          navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
         }
       },
       content: DashboardThemedBackground(child: content),
@@ -782,7 +811,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$inactive',
         icon: Icons.priority_high,
-        assetPath: 'assets/manager_dashboard/3.png',
+        assetPath: 'assets/Team_Meeting/Team.png',
         accent: AppColors.warningColor,
       ),
       _topStatTile(
@@ -794,7 +823,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$overdue',
         icon: Icons.remove_red_eye,
-        assetPath: 'assets/manager_dashboard/4.png',
+        assetPath:
+            'assets/Goal_Target/Goal_Target_White_Badge_Red.png',
         accent: AppColors.dangerColor,
       ),
       _topStatTile(
@@ -818,7 +848,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ]),
         value: '$onTrack',
         icon: Icons.rocket_launch,
-        assetPath: 'assets/manager_dashboard/6.png',
+        assetPath: 'assets/Badge.png',
         accent: AppColors.successColor,
       ),
     ];
@@ -879,9 +909,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           ),
           const SizedBox(width: 12),
           if (assetPath != null)
+            // Always use dashboard asset icons so light/dark mode stays consistent.
             Padding(
               padding: const EdgeInsets.only(right: 2),
-              child: _assetIcon(assetPath, size: 74),
+              child: _assetIcon(assetPath, size: 64),
             )
           else
             Container(
@@ -1152,7 +1183,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     return _card(
       child: Row(
         children: [
-          _assetIcon('assets/manager_dashboard/7.png', size: 94),
+          _assetIcon('assets/Sprints.png', size: 56),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1573,6 +1604,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   }
 
   Widget _buildQuickActions({required bool expand, double? minHeight}) {
+    const double employeeQuickActionIconSize = 40;
+
     Widget actionTile({
       required String label,
       required VoidCallback onTap,
@@ -1582,53 +1615,17 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     }) {
       bool hovering = false;
       final fill = filled ? AppColors.dangerColor : _dashboardCardFill();
-      final border = const Color(0xFFC10D00);
-
-      return StatefulBuilder(
-        builder: (context, setLocalState) {
-          final isHovered = hovering;
-          final tileBg = isHovered ? const Color(0xFFC10D00) : fill;
-          final fg = (filled || isHovered) ? Colors.white : DashboardChrome.fg;
-          return InkWell(
-            onTap: onTap,
-            onHover: (v) => setLocalState(() => hovering = v),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              decoration: BoxDecoration(
-                color: tileBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: border, width: 1.5),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                    ),
-                    alignment: Alignment.center,
-                    child: _assetIcon(assetPath, size: 24),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: AppTypography.bodySmall.copyWith(
-                      color: fg,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+      final fg = filled ? Colors.white : DashboardChrome.fg;
+      return _ManagerQuickActionTile(
+        label: label,
+        onTap: onTap,
+        icon: icon,
+        assetPath: assetPath,
+        baseFill: fill,
+        baseFg: fg,
+        filled: filled,
+        light: DashboardChrome.light,
+        iconSize: employeeQuickActionIconSize,
       );
     }
 
@@ -1648,13 +1645,15 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       actionTile(
         label: 'Leaderboard',
         icon: Icons.attribution_outlined,
-        assetPath: 'assets/manager_dashboard/11.png',
+        assetPath:
+            'assets/Project_Direction_Acceleration/Project_Direction_Acceleration_White_Badge_Red.png',
         onTap: () => Navigator.pushNamed(context, '/manager_leaderboard'),
       ),
       actionTile(
         label: 'Badges & Points',
         icon: Icons.emoji_events_outlined,
-        assetPath: 'assets/manager_dashboard/12.png',
+        assetPath:
+            'assets/Business_Growth_Development/Business_Growth_Development_White_Badge_Red.png',
         onTap: () => Navigator.pushNamed(context, '/manager_badges_points'),
       ),
     ];
@@ -1713,6 +1712,99 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           else
             grid(shrinkWrap: true),
         ],
+      ),
+    );
+  }
+}
+
+class _ManagerQuickActionTile extends StatefulWidget {
+  const _ManagerQuickActionTile({
+    required this.label,
+    required this.onTap,
+    required this.icon,
+    required this.baseFill,
+    required this.baseFg,
+    required this.filled,
+    required this.light,
+    required this.iconSize,
+    this.assetPath,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final IconData icon;
+  final String? assetPath;
+  final Color baseFill;
+  final Color baseFg;
+  final bool filled;
+  final bool light;
+  final double iconSize;
+
+  @override
+  State<_ManagerQuickActionTile> createState() => _ManagerQuickActionTileState();
+}
+
+class _ManagerQuickActionTileState extends State<_ManagerQuickActionTile> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = _hover ? _kQuickActionHoverRed : widget.baseFill;
+    final borderColor = _hover
+        ? _kQuickActionHoverRed
+        : (widget.filled
+              ? AppColors.dangerColor
+              : (widget.light
+                    ? const Color(0x33000000)
+                    : Colors.white.withValues(alpha: 0.25)));
+    final fg = _hover ? Colors.white : widget.baseFg;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeInOut,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor, width: 1.5),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (widget.assetPath != null)
+                  Image.asset(
+                    widget.assetPath!,
+                    width: widget.iconSize,
+                    height: widget.iconSize,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, _) =>
+                        Icon(Icons.touch_app_outlined, color: fg, size: 18),
+                  )
+                else
+                  Icon(widget.icon, color: fg, size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: fg,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

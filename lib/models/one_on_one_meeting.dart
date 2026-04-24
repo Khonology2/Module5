@@ -26,6 +26,7 @@ class OneOnOneMeeting {
   /// Proposed meeting end time (local display; stored in Firestore as Timestamp).
   final DateTime? proposedEndDateTime;
   final String? agenda;
+  final String? employeeMessage;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -38,6 +39,7 @@ class OneOnOneMeeting {
     required this.proposedStartDateTime,
     required this.proposedEndDateTime,
     required this.agenda,
+    required this.employeeMessage,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -88,6 +90,7 @@ class OneOnOneMeeting {
       proposedStartDateTime: proposedStart,
       proposedEndDateTime: proposedEnd,
       agenda: data['agenda']?.toString(),
+      employeeMessage: data['employeeMessage']?.toString(),
       createdAt: parseDate(data['createdAt']),
       updatedAt: parseDate(data['updatedAt']),
     );
@@ -110,6 +113,7 @@ class OneOnOneMeeting {
           ? Timestamp.fromDate(proposedStartDateTime!)
           : null,
       'agenda': agenda,
+      'employeeMessage': employeeMessage,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };

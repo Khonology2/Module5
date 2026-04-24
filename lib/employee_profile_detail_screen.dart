@@ -61,7 +61,7 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
         await AuthService().signOut();
         if (mounted) {
           navigator.pushNamedAndRemoveUntil(
-            '/sign_in',
+            '/landing',
             (route) => false,
           );
         }
