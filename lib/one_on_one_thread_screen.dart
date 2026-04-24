@@ -10,8 +10,8 @@ import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/one_on_one_meeting_service.dart';
 
-class OneOnOneThreadScreen extends StatefulWidget {
-  const OneOnOneThreadScreen({
+class OneOnOneThreadModal extends StatelessWidget {
+  const OneOnOneThreadModal({
     super.key,
     this.initialMeetingId,
     this.employeeId,
@@ -25,12 +25,122 @@ class OneOnOneThreadScreen extends StatefulWidget {
   final String? participantName;
 
   @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final maxHeight = (screenSize.height * 0.9).clamp(360.0, screenSize.height);
+    final maxWidth = (screenSize.width * 0.9).clamp(420.0, screenSize.width);
+
+    return Material(
+      color: Colors.transparent,
+      child: Center(
+        child: Container(
+          width: maxWidth,
+          height: maxHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.2),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(
+                '1:1 Thread',
+                textAlign: TextAlign.center,
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Review the agenda, timeline, and next step in one place.',
+                textAlign: TextAlign.center,
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        width: 1,
+                      ),
+                    ),
+                    child: OneOnOneThreadScreen(
+                      initialMeetingId: initialMeetingId,
+                      employeeId: employeeId,
+                      managerId: managerId,
+                      participantName: participantName,
+                      embedded: true,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Close',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class OneOnOneThreadScreen extends StatefulWidget {
+  const OneOnOneThreadScreen({
+    super.key,
+    this.initialMeetingId,
+    this.employeeId,
+    this.managerId,
+    this.participantName,
+    this.embedded = false,
+  });
+
+  final String? initialMeetingId;
+  final String? employeeId;
+  final String? managerId;
+  final String? participantName;
+  final bool embedded;
+
+  @override
   State<OneOnOneThreadScreen> createState() => _OneOnOneThreadScreenState();
 }
 
 class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
   final TextEditingController _messageController = TextEditingController();
   final String? _currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  static const Color _threadPageBackground = Color(0xFF09111F);
+  static final Color _threadSurfaceColor = Colors.white.withValues(alpha: 0.14);
+  static final List<BoxShadow> _threadSurfaceShadow = [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.25),
+      offset: const Offset(0, 3.55),
+      blurRadius: 3.55,
+      spreadRadius: 0,
+    ),
+  ];
 
   bool _isInitializing = true;
   bool _isSubmitting = false;
@@ -38,6 +148,9 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
   String? _meetingId;
   String? _employeeId;
   String? _managerId;
+  _PickedMeetingWindow? _draftMeetingWindow;
+  _PendingTimeAction? _pendingTimeAction;
+  String? _pendingMeetingId;
 
   @override
   void initState() {
@@ -81,9 +194,11 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
             employeeId: employeeId,
           );
           if (latest != null) {
-            meetingId = latest.meetingId;
             employeeId = latest.employeeId;
             managerId = latest.managerId;
+            if (!_canStartFollowUpThread(latest)) {
+              meetingId = latest.meetingId;
+            }
           }
         }
       }
@@ -137,6 +252,42 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
     final trimmed = value?.trim();
     if (trimmed == null || trimmed.isEmpty) return null;
     return trimmed;
+  }
+
+  bool _hasMeetingEnded(OneOnOneMeeting meeting) {
+    if (meeting.status != OneOnOneMeetingStatus.accepted) return false;
+    final start = meeting.proposedStartDateTime;
+    if (start == null) return false;
+    final end = meeting.proposedEndDateTime ?? start.add(const Duration(hours: 1));
+    return end.isBefore(DateTime.now());
+  }
+
+  bool _canStartFollowUpThread(OneOnOneMeeting meeting) {
+    return meeting.status == OneOnOneMeetingStatus.cancelled || _hasMeetingEnded(meeting);
+  }
+
+  bool _hasPendingTimeAction(_PendingTimeAction action, OneOnOneMeeting? meeting) {
+    return _pendingTimeAction == action &&
+        _draftMeetingWindow != null &&
+        _pendingMeetingId == meeting?.meetingId;
+  }
+
+  void _setPendingTimeAction({
+    required _PendingTimeAction action,
+    required _PickedMeetingWindow picked,
+    required OneOnOneMeeting? meeting,
+  }) {
+    setState(() {
+      _pendingTimeAction = action;
+      _draftMeetingWindow = picked;
+      _pendingMeetingId = meeting?.meetingId;
+    });
+  }
+
+  void _clearPendingTimeAction() {
+    _pendingTimeAction = null;
+    _draftMeetingWindow = null;
+    _pendingMeetingId = null;
   }
 
   Future<_UserSummary> _loadUserSummary(String? uid, {String fallback = 'Team member'}) async {
@@ -202,73 +353,76 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final content = _buildContent();
+    if (widget.embedded) {
+      return SafeArea(child: content);
+    }
+
+    return _buildScaffold(child: content);
+  }
+
+  Widget _buildContent() {
     if (_isInitializing) {
-      return _buildScaffold(
-        child: const Center(
-          child: CircularProgressIndicator(color: AppColors.activeColor),
-        ),
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.activeColor),
       );
     }
 
     if (_loadError != null) {
-      return _buildScaffold(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              _loadError!,
-              style: AppTypography.bodyMedium.copyWith(color: Colors.white70),
-              textAlign: TextAlign.center,
-            ),
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            _loadError!,
+            style: AppTypography.bodyMedium.copyWith(color: Colors.white70),
+            textAlign: TextAlign.center,
           ),
         ),
       );
     }
 
     if (_meetingId == null) {
-      return _buildScaffold(
-        child: _buildThreadBody(meeting: null),
-      );
+      return _buildThreadBody(meeting: null);
     }
 
-    return _buildScaffold(
-      child: StreamBuilder<OneOnOneMeeting?>(
-        stream: OneOnOneMeetingService.streamMeeting(_meetingId!),
-        builder: (context, snapshot) {
-          final meeting = snapshot.data;
-          if (snapshot.connectionState == ConnectionState.waiting && meeting == null) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.activeColor),
-            );
-          }
-          if (!snapshot.hasData || meeting == null) {
-            return _buildMissingMeetingState();
-          }
+    return StreamBuilder<OneOnOneMeeting?>(
+      stream: OneOnOneMeetingService.streamMeeting(_meetingId!),
+      builder: (context, snapshot) {
+        final meeting = snapshot.data;
+        if (snapshot.connectionState == ConnectionState.waiting && meeting == null) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.activeColor),
+          );
+        }
+        if (!snapshot.hasData || meeting == null) {
+          return _buildMissingMeetingState();
+        }
 
-          final needsStateRefresh =
-              _employeeId != meeting.employeeId || _managerId != meeting.managerId;
-          if (needsStateRefresh) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              setState(() {
-                _employeeId = meeting.employeeId;
-                _managerId = meeting.managerId;
-              });
+        final needsStateRefresh =
+            _employeeId != meeting.employeeId || _managerId != meeting.managerId;
+        if (needsStateRefresh) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() {
+              _employeeId = meeting.employeeId;
+              _managerId = meeting.managerId;
             });
-          }
+          });
+        }
 
-          return _buildThreadBody(meeting: meeting);
-        },
-      ),
+        return _buildThreadBody(meeting: meeting);
+      },
     );
   }
 
   Widget _buildScaffold({required Widget child}) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09111F),
+      backgroundColor: _threadPageBackground,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0E1A2E),
+        backgroundColor: _threadSurfaceColor,
         foregroundColor: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
         title: const Text('1:1 Thread'),
       ),
       body: SafeArea(child: child),
@@ -311,10 +465,13 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
     final isEmployeeActor = currentUserId != null &&
         currentUserId.isNotEmpty &&
         effectiveEmployeeId == currentUserId;
+    final allowFollowUpRequest =
+        meeting != null && isManagerActor && _canStartFollowUpThread(meeting);
 
     final showComposer = meeting == null ||
         meeting.status != OneOnOneMeetingStatus.accepted &&
-            meeting.status != OneOnOneMeetingStatus.cancelled;
+            meeting.status != OneOnOneMeetingStatus.cancelled ||
+        allowFollowUpRequest;
 
     return FutureBuilder<_ThreadHeaderData>(
       future: _loadHeaderData(
@@ -362,8 +519,9 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
 
   Widget _buildHeaderCard(_ThreadHeaderData header, OneOnOneMeeting? meeting) {
     return AppComponents.card(
-      backgroundColor: const Color(0xFF0E1A2E),
+      backgroundColor: _threadSurfaceColor,
       borderColor: Colors.white.withValues(alpha: 0.08),
+      boxShadow: _threadSurfaceShadow,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -426,8 +584,9 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
     required bool isEmployeeActor,
   }) {
     return AppComponents.card(
-      backgroundColor: const Color(0xFF121E33),
+      backgroundColor: _threadSurfaceColor,
       borderColor: Colors.white.withValues(alpha: 0.08),
+      boxShadow: _threadSurfaceShadow,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -452,8 +611,9 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
   Widget _buildTimelineCard({required OneOnOneMeeting? meeting}) {
     final items = _timelineItems(meeting);
     return AppComponents.card(
-      backgroundColor: const Color(0xFF0E1A2E),
+      backgroundColor: _threadSurfaceColor,
       borderColor: Colors.white.withValues(alpha: 0.08),
+      boxShadow: _threadSurfaceShadow,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -525,8 +685,9 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
 
   Widget _buildContextCard(OneOnOneMeeting? meeting) {
     return AppComponents.card(
-      backgroundColor: const Color(0xFF121E33),
+      backgroundColor: _threadSurfaceColor,
       borderColor: Colors.white.withValues(alpha: 0.08),
+      boxShadow: _threadSurfaceShadow,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -589,6 +750,16 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
     required bool isManagerActor,
     required bool isEmployeeActor,
   }) {
+    final managerDraftPending = _hasPendingTimeAction(
+      _PendingTimeAction.managerPropose,
+      meeting,
+    );
+    final employeeDraftPending = _hasPendingTimeAction(
+      _PendingTimeAction.employeeSuggest,
+      meeting,
+    );
+    final activeDraftPending = managerDraftPending || employeeDraftPending;
+
     final primary = _primaryAction(
       meeting: meeting,
       isManagerActor: isManagerActor,
@@ -601,8 +772,9 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
     );
 
     return AppComponents.card(
-      backgroundColor: const Color(0xFF0E1A2E),
+      backgroundColor: _threadSurfaceColor,
       borderColor: Colors.white.withValues(alpha: 0.08),
+      boxShadow: _threadSurfaceShadow,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -644,6 +816,68 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
                 ),
               ),
             ),
+            if (activeDraftPending) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      managerDraftPending
+                          ? 'Selected meeting window'
+                          : 'Selected suggested time',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: Colors.white60,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatMeetingRange(
+                        _draftMeetingWindow!.start,
+                        _draftMeetingWindow!.end,
+                      ),
+                      style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: _isSubmitting
+                              ? null
+                              : () {
+                                  if (managerDraftPending) {
+                                    _proposeTimeAsManager(meeting);
+                                  } else {
+                                    _suggestTimeAsEmployee(meeting!);
+                                  }
+                                },
+                          child: const Text('Change time'),
+                        ),
+                        TextButton(
+                          onPressed: _isSubmitting
+                              ? null
+                              : () {
+                                  setState(_clearPendingTimeAction);
+                                },
+                          child: const Text('Clear'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             if (_isSubmitting)
               const Center(
@@ -698,13 +932,26 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
       return null;
     }
 
+    if (isManagerActor && _canStartFollowUpThread(meeting)) {
+      return _ThreadAction(
+        label: 'Request another 1:1',
+        onPressed: _requestOneOnOne,
+      );
+    }
+
     if (isEmployeeActor &&
         meeting.waitingOn == OneOnOneWaitingOn.employee &&
         meeting.status == OneOnOneMeetingStatus.requested) {
       if (meeting.proposedStartDateTime == null) {
+        final pending = _hasPendingTimeAction(
+          _PendingTimeAction.employeeSuggest,
+          meeting,
+        );
         return _ThreadAction(
-          label: 'Propose a time',
-          onPressed: () => _suggestTimeAsEmployee(meeting),
+          label: pending ? 'Send proposed time' : 'Propose a time',
+          onPressed: () => pending
+              ? _submitSuggestedTimeAsEmployee(meeting)
+              : _suggestTimeAsEmployee(meeting),
         );
       }
       return _ThreadAction(
@@ -735,9 +982,15 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
     if (isManagerActor &&
         meeting.waitingOn == OneOnOneWaitingOn.manager &&
         meeting.status == OneOnOneMeetingStatus.requested) {
+      final pending = _hasPendingTimeAction(
+        _PendingTimeAction.managerPropose,
+        meeting,
+      );
       return _ThreadAction(
-        label: 'Propose a time',
-        onPressed: () => _proposeTimeAsManager(meeting),
+        label: pending ? 'Send proposed time' : 'Propose a time',
+        onPressed: () => pending
+            ? _submitProposedTimeAsManager(meeting)
+            : _proposeTimeAsManager(meeting),
       );
     }
 
@@ -751,12 +1004,31 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
   }) {
     if (meeting == null) {
       if (isManagerActor && _employeeId != null && _employeeId!.isNotEmpty) {
+        final pending = _hasPendingTimeAction(
+          _PendingTimeAction.managerPropose,
+          null,
+        );
         return _ThreadAction(
-          label: 'Propose a time',
-          onPressed: () => _proposeTimeAsManager(null),
+          label: pending ? 'Send proposed time' : 'Propose a time',
+          onPressed: () => pending
+              ? _submitProposedTimeAsManager(null)
+              : _proposeTimeAsManager(null),
         );
       }
       return null;
+    }
+
+    if (isManagerActor && _canStartFollowUpThread(meeting)) {
+      final pending = _hasPendingTimeAction(
+        _PendingTimeAction.managerPropose,
+        meeting,
+      );
+      return _ThreadAction(
+        label: pending ? 'Send proposed time' : 'Propose a new time',
+        onPressed: () => pending
+            ? _submitProposedTimeAsManager(meeting)
+            : _proposeTimeAsManager(meeting),
+      );
     }
 
     if (isEmployeeActor &&
@@ -772,20 +1044,31 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
         meeting.waitingOn == OneOnOneWaitingOn.employee &&
         (meeting.status == OneOnOneMeetingStatus.proposed ||
             meeting.status == OneOnOneMeetingStatus.rescheduled)) {
+      final pending = _hasPendingTimeAction(
+        _PendingTimeAction.employeeSuggest,
+        meeting,
+      );
       return _ThreadAction(
-        label: 'Suggest a different time',
-        onPressed: () => _suggestTimeAsEmployee(meeting),
+        label: pending ? 'Send suggested time' : 'Suggest a different time',
+        onPressed: () => pending
+            ? _submitSuggestedTimeAsEmployee(meeting)
+            : _suggestTimeAsEmployee(meeting),
       );
     }
 
     if (isManagerActor &&
+        meeting.proposedStartDateTime != null &&
         meeting.status != OneOnOneMeetingStatus.accepted &&
         meeting.status != OneOnOneMeetingStatus.cancelled) {
+      final pending = _hasPendingTimeAction(
+        _PendingTimeAction.managerPropose,
+        meeting,
+      );
       return _ThreadAction(
-        label: meeting.proposedStartDateTime == null
-            ? 'Propose a time'
-            : 'Propose a different time',
-        onPressed: () => _proposeTimeAsManager(meeting),
+        label: pending ? 'Send proposed time' : 'Propose a different time',
+        onPressed: () => pending
+            ? _submitProposedTimeAsManager(meeting)
+            : _proposeTimeAsManager(meeting),
       );
     }
 
@@ -806,6 +1089,7 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
       setState(() {
         _meetingId = meetingId;
         _messageController.clear();
+        _clearPendingTimeAction();
       });
       _showSnackBar('1:1 request sent.');
     });
@@ -816,10 +1100,28 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
     if (employeeId == null || employeeId.isEmpty) return;
 
     final picked = await _pickMeetingWindow(
-      initialStart: existingMeeting?.proposedStartDateTime,
-      initialEnd: existingMeeting?.proposedEndDateTime,
+      initialStart:
+          _hasPendingTimeAction(_PendingTimeAction.managerPropose, existingMeeting)
+          ? _draftMeetingWindow?.start
+          : existingMeeting?.proposedStartDateTime,
+      initialEnd:
+          _hasPendingTimeAction(_PendingTimeAction.managerPropose, existingMeeting)
+          ? _draftMeetingWindow?.end
+          : existingMeeting?.proposedEndDateTime,
     );
     if (picked == null) return;
+
+    _setPendingTimeAction(
+      action: _PendingTimeAction.managerPropose,
+      picked: picked,
+      meeting: existingMeeting,
+    );
+  }
+
+  Future<void> _submitProposedTimeAsManager(OneOnOneMeeting? existingMeeting) async {
+    final employeeId = existingMeeting?.employeeId ?? _employeeId;
+    final picked = _draftMeetingWindow;
+    if (employeeId == null || employeeId.isEmpty || picked == null) return;
 
     final message = _messageController.text.trim();
 
@@ -838,6 +1140,7 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
         setState(() {
           _meetingId = meetingId;
           _messageController.clear();
+          _clearPendingTimeAction();
         });
       } else {
         await OneOnOneMeetingService.managerProposeNewTime(
@@ -858,6 +1161,7 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
         if (!mounted) return;
         setState(() {
           _messageController.clear();
+          _clearPendingTimeAction();
         });
       }
 
@@ -894,6 +1198,7 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
       if (!mounted) return;
       setState(() {
         _messageController.clear();
+        _clearPendingTimeAction();
       });
       _showSnackBar('Acknowledged.');
     });
@@ -901,9 +1206,24 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
 
   Future<void> _suggestTimeAsEmployee(OneOnOneMeeting meeting) async {
     final picked = await _pickMeetingWindow(
-      initialStart: meeting.proposedStartDateTime,
-      initialEnd: meeting.proposedEndDateTime,
+      initialStart: _hasPendingTimeAction(_PendingTimeAction.employeeSuggest, meeting)
+          ? _draftMeetingWindow?.start
+          : meeting.proposedStartDateTime,
+      initialEnd: _hasPendingTimeAction(_PendingTimeAction.employeeSuggest, meeting)
+          ? _draftMeetingWindow?.end
+          : meeting.proposedEndDateTime,
     );
+    if (picked == null) return;
+
+    _setPendingTimeAction(
+      action: _PendingTimeAction.employeeSuggest,
+      picked: picked,
+      meeting: meeting,
+    );
+  }
+
+  Future<void> _submitSuggestedTimeAsEmployee(OneOnOneMeeting meeting) async {
+    final picked = _draftMeetingWindow;
     if (picked == null) return;
 
     final message = _messageController.text.trim();
@@ -927,6 +1247,7 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
       if (!mounted) return;
       setState(() {
         _messageController.clear();
+        _clearPendingTimeAction();
       });
       _showSnackBar('New time sent.');
     });
@@ -949,6 +1270,7 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
       if (!mounted) return;
       setState(() {
         _messageController.clear();
+        _clearPendingTimeAction();
       });
       _showSnackBar('Meeting time accepted.');
     });
@@ -1159,6 +1481,12 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
       return 'This thread has not started yet.';
     }
 
+    if (_hasMeetingEnded(meeting)) {
+      return isManagerActor
+          ? 'This meeting has ended. Start a new 1:1 when you are ready.'
+          : 'This meeting has ended. Your manager can start a new 1:1 when needed.';
+    }
+
     if (meeting.status == OneOnOneMeetingStatus.accepted) {
       return 'The meeting is confirmed. Use the thread to review the agenda and time.';
     }
@@ -1261,6 +1589,8 @@ class _PickedMeetingWindow {
   final DateTime start;
   final DateTime end;
 }
+
+enum _PendingTimeAction { managerPropose, employeeSuggest }
 
 class _TimelineItem {
   const _TimelineItem({

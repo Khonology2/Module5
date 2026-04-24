@@ -335,6 +335,48 @@ class _MyAppState extends State<MyApp> {
                   child: child,
                 );
               },
+              onGenerateRoute: (settings) {
+                if (settings.name == '/one_on_one_thread') {
+                  final args = settings.arguments as Map<String, dynamic>?;
+                  return RawDialogRoute<void>(
+                    settings: settings,
+                    barrierDismissible: true,
+                    barrierLabel: '1:1 Thread',
+                    barrierColor: Colors.black.withValues(alpha: 0.7),
+                    pageBuilder: (context, animation, secondaryAnimation) {
+                      return RoleGate(
+                        requiredRole: RequiredRole.any,
+                        child: OneOnOneThreadModal(
+                          initialMeetingId: args?['meetingId']?.toString(),
+                          employeeId: args?['employeeId']?.toString(),
+                          managerId: args?['managerId']?.toString(),
+                          participantName: args?['participantName']?.toString(),
+                        ),
+                      );
+                    },
+                    transitionDuration: const Duration(milliseconds: 200),
+                    transitionBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                          final curved = CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                            reverseCurve: Curves.easeInCubic,
+                          );
+                          return FadeTransition(
+                            opacity: curved,
+                            child: ScaleTransition(
+                              scale: Tween<double>(
+                                begin: 0.96,
+                                end: 1,
+                              ).animate(curved),
+                              child: child,
+                            ),
+                          );
+                        },
+                  );
+                }
+                return null;
+              },
               routes: {
                 '/landing': (context) => const PersonalDevelopmentHubScreen(),
                 '/': (context) => const AuthWrapper(),
@@ -452,22 +494,6 @@ class _MyAppState extends State<MyApp> {
                 '/manager_inbox': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
                   child: const ManagerInboxScreen(),
-                ),
-                '/one_on_one_thread': (context) => RoleGate(
-                  requiredRole: RequiredRole.any,
-                  child: Builder(
-                    builder: (context) {
-                      final args =
-                          ModalRoute.of(context)?.settings.arguments
-                              as Map<String, dynamic>?;
-                      return OneOnOneThreadScreen(
-                        initialMeetingId: args?['meetingId']?.toString(),
-                        employeeId: args?['employeeId']?.toString(),
-                        managerId: args?['managerId']?.toString(),
-                        participantName: args?['participantName']?.toString(),
-                      );
-                    },
-                  ),
                 ),
                 '/manager_badges_points': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,

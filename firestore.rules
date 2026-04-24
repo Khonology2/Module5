@@ -403,14 +403,15 @@ service cloud.firestore {
             // Employee responses
             (
               request.auth.uid == resource.data.employeeId &&
-              resource.data.status in ['requested', 'proposed'] &&
+              resource.data.status in ['requested', 'proposed', 'rescheduled'] &&
               (
                 // Accept proposal
-                (resource.data.status == 'proposed' &&
+                (resource.data.status in ['proposed', 'rescheduled'] &&
                  request.resource.data.status == 'accepted' &&
                  request.resource.data.waitingOn == 'none') ||
-                // Suggest new time
-                (resource.data.status == 'rescheduled' &&
+                // Propose or suggest a new time
+                (resource.data.status in ['requested', 'proposed', 'rescheduled'] &&
+                 request.resource.data.status == 'rescheduled' &&
                  request.resource.data.waitingOn == 'manager' &&
                  request.resource.data.proposedDateTime is timestamp) ||
                 // Acknowledge intent-only request (no time)
@@ -427,6 +428,10 @@ service cloud.firestore {
               request.auth.uid == resource.data.managerId &&
               resource.data.status in ['requested', 'rescheduled', 'proposed'] &&
               (
+                // Accept employee-suggested proposal
+                (resource.data.status in ['proposed', 'rescheduled'] &&
+                 request.resource.data.status == 'accepted' &&
+                 request.resource.data.waitingOn == 'none') ||
                 // Propose new time
                 (request.resource.data.status == 'proposed' &&
                  request.resource.data.waitingOn == 'employee' &&
