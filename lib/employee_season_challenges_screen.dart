@@ -137,10 +137,9 @@ class _EmployeeSeasonChallengesScreenState
           .where((season) => _adminUserIds.contains(season.createdBy))
           .toList();
     }
-    // Employee context should never show admin-authored seasons.
-    return seasons
-        .where((season) => !_adminUserIds.contains(season.createdBy))
-        .toList();
+    // Employee context trusts the upstream stream filtering so manager-created
+    // seasons are not accidentally hidden by a second client-side filter.
+    return seasons;
   }
 
   @override
@@ -570,7 +569,7 @@ class _EmployeeSeasonChallengesScreenState
                 child: ElevatedButton.icon(
                   onPressed: () => _completeSeasonGoals(season),
                   icon: const Icon(Icons.check_circle),
-                  label: const Text('Complete Goals'),
+                  label: const Text('Continue Season'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.successColor,
                     foregroundColor: Colors.white,
@@ -725,7 +724,7 @@ class _EmployeeSeasonChallengesScreenState
                     ? null
                     : () => _openChallengeGoal(season, challenge),
                 icon: const Icon(Icons.track_changes, size: 16),
-                label: const Text('Update Goal'),
+                label: const Text('Update Season'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.activeColor,
                   side: BorderSide(color: AppColors.activeColor),

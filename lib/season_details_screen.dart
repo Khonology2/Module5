@@ -1171,7 +1171,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               child: ElevatedButton.icon(
                 onPressed: () => _openChallengeGoal(season, challenge),
                 icon: const Icon(Icons.track_changes, size: 16),
-                label: const Text('Update Goal'),
+                label: const Text('Update Season'),
               ),
             ),
           ],

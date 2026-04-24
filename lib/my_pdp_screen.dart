@@ -1354,7 +1354,9 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     );
                   }
                   final goals = (snapshot.data ?? [])
-                      .where((g) => _mapGoalToExcellence(g) == excellence)
+                      .where(
+                        (g) => !g.isSeasonGoal && _mapGoalToExcellence(g) == excellence,
+                      )
                       .toList();
                   if (goals.isEmpty) {
                     return const Padding(
@@ -1400,7 +1402,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                   final pairs = <({Goal goal, String employeeName})>[];
                   for (final emp in employees) {
                     for (final g in emp.goals) {
-                      if (_mapGoalToExcellence(g) == excellence) {
+                      if (!g.isSeasonGoal && _mapGoalToExcellence(g) == excellence) {
                         pairs.add((
                           goal: g,
                           employeeName: emp.profile.displayName.isNotEmpty
@@ -1539,7 +1541,9 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 }
 
                 final goals = (snapshot.data ?? [])
-                    .where((g) => _mapGoalToExcellence(g) == excellence)
+                    .where(
+                      (g) => !g.isSeasonGoal && _mapGoalToExcellence(g) == excellence,
+                    )
                     .toList();
                 if (goals.isEmpty) {
                   return Padding(

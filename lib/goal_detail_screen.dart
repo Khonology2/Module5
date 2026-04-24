@@ -17,6 +17,7 @@ import 'package:pdh/services/activity_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/alert.dart';
@@ -37,6 +38,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   bool _submittingApproval = false;
   bool _isSeasonGoal = false;
   String _requiredApproverRole = 'manager';
+  String? _seasonTitle;
+  String? _loadedSeasonId;
 
   bool get _hasSeasonFinalSubmission => _isSeasonGoal && currentGoal.approvalRequestedAt != null;
   bool get _isSeasonAwaitingFinalReview =>
@@ -53,6 +56,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   void initState() {
     super.initState();
     currentGoal = widget.goal;
+    _isSeasonGoal = widget.goal.isSeasonGoal;
     // Listen for live updates so approval status changes reflect immediately
     _goalSub = FirebaseFirestore.instance
         .collection('goals')
@@ -71,6 +75,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 currentGoal = updated;
                 final data = doc.data();
                 _isSeasonGoal = (data?['isSeasonGoal'] == true);
+                final seasonId = (data?['seasonId'] ?? '').toString().trim();
+                if (!_isSeasonGoal || seasonId.isEmpty) {
+                  _loadedSeasonId = null;
+                  _seasonTitle = null;
+                }
                 final requiredApprover = (data?['requiredApproverRole'] ?? '')
                     .toString()
                     .trim()
@@ -87,6 +96,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       : 'manager';
                 }
               });
+              final seasonId = (doc.data()?['seasonId'] ?? '').toString().trim();
+              if (_isSeasonGoal && seasonId.isNotEmpty) {
+                unawaited(_loadSeasonContext(seasonId));
+              }
             } catch (_) {}
           },
           onError: (error) {
@@ -94,6 +107,23 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             developer.log('Error in goal detail listener: $error');
           },
         );
+  }
+
+  Future<void> _loadSeasonContext(String seasonId) async {
+    if (_loadedSeasonId == seasonId && _seasonTitle != null) return;
+    try {
+      final season = await SeasonService.getSeason(seasonId);
+      if (!mounted) return;
+      setState(() {
+        _loadedSeasonId = seasonId;
+        _seasonTitle = season?.title;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadedSeasonId = seasonId;
+      });
+    }
   }
 
   Future<void> _submitForApproval() async {
@@ -571,7 +601,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
         final items = SidebarConfig.getItemsForRole(role);
         return AppScaffold(
-          title: 'Goal Details',
+          title: _isSeasonGoal ? 'Season Progress' : 'Goal Details',
           showAppBar: false,
           items: items,
           currentRouteName: '/goal_detail',
@@ -603,6 +633,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(),
+                  if (_isSeasonGoal) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    _buildSeasonWorkspaceBanner(),
+                  ],
                   const SizedBox(height: AppSpacing.xl),
                   _buildApprovalNotice(),
                   const SizedBox(height: AppSpacing.xl),
@@ -678,11 +712,46 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            currentGoal.title,
-            style: AppTypography.heading2.copyWith(
-              color: AppColors.textPrimary,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_isSeasonGoal)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.activeColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: AppColors.activeColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    'SEASON CHALLENGE WORKSPACE',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.activeColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              Text(
+                currentGoal.title,
+                style: AppTypography.heading2.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              if (_isSeasonGoal) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _seasonTitle?.trim().isNotEmpty == true
+                      ? 'Part of ${_seasonTitle!.trim()}'
+                      : 'Opened from Season Challenges',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         Container(
@@ -704,6 +773,48 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     );
   }
 
+  Widget _buildSeasonWorkspaceBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.infoColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.infoColor.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.school, color: AppColors.infoColor, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Season progress stays linked to the season challenge',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _seasonTitle?.trim().isNotEmpty == true
+                      ? 'Use this workspace to update your progress for ${_seasonTitle!.trim()}. Your progress and checkpoints sync back to the Season Challenges screen.'
+                      : 'Use this workspace to update progress and checkpoints for the season challenge. Everything here syncs back to the Season Challenges screen.',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGoalInfo() {
     final daysLeft = currentGoal.targetDate.difference(DateTime.now()).inDays;
     final createdText = _fmtDateTime(currentGoal.createdAt);
@@ -719,12 +830,16 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Goal Information',
+            _isSeasonGoal ? 'Season Workspace Details' : 'Goal Information',
             style: AppTypography.heading4.copyWith(
               color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
+          if (_isSeasonGoal && _seasonTitle?.trim().isNotEmpty == true) ...[
+            _buildInfoItem('Season', _seasonTitle!.trim(), Icons.emoji_events),
+            const SizedBox(height: 16),
+          ],
           if (currentGoal.description.isNotEmpty) ...[
             Text(
               'Description',
@@ -795,8 +910,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               const Expanded(child: SizedBox.shrink()),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildKpaSelector(),
+          if (!_isSeasonGoal) ...[
+            const SizedBox(height: 16),
+            _buildKpaSelector(),
+          ],
         ],
       ),
     );
@@ -846,7 +963,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Progress',
+                _isSeasonGoal ? 'Season Progress' : 'Progress',
                 style: AppTypography.heading4.copyWith(
                   color: AppColors.textPrimary,
                 ),
@@ -872,7 +989,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               (currentGoal.approvalStatus == GoalApprovalStatus.approved ||
                   _isSeasonGoal)) ...[
             Text(
-              'Update Progress',
+              _isSeasonGoal ? 'Update Season Progress' : 'Update Progress',
               style: AppTypography.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -942,7 +1059,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             if (_isSeasonGoal && currentGoal.progress >= 100 && !_hasSeasonFinalSubmission) ...[
               const SizedBox(height: 8),
               Text(
-                'You are ready to submit final season evidence for one end-of-season review.',
+                'You are ready to send your final season evidence for the single end-of-season review.',
                 style: AppTypography.bodySmall.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -1077,7 +1194,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Season goal approved and acknowledged. Great work!',
+                'Season challenge approved and acknowledged. Great work!',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
@@ -1218,7 +1335,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ),
                     )
                   : const Icon(Icons.play_arrow),
-              label: Text(isLoading ? 'Starting...' : 'Start Goal (+20 pts)'),
+              label: Text(
+                isLoading
+                    ? 'Starting...'
+                    : (_isSeasonGoal
+                          ? 'Start Season Challenge (+20 pts)'
+                          : 'Start Goal (+20 pts)'),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.activeColor,
                 foregroundColor: AppColors.textPrimary,
@@ -1249,7 +1372,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 isLoading
                     ? (_isSeasonGoal ? 'Submitting...' : 'Completing...')
                     : (_isSeasonGoal
-                          ? 'Submit Final Review'
+                          ? 'Submit Season Final Review'
                           : 'Complete Goal (+100 pts)'),
               ),
               style: ElevatedButton.styleFrom(
@@ -1297,7 +1420,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Milestone Tracker',
+            _isSeasonGoal ? 'Season Progress Tracker' : 'Milestone Tracker',
             style: AppTypography.heading4.copyWith(
               color: AppColors.textPrimary,
             ),
@@ -1460,7 +1583,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Goal Milestones',
+                      _isSeasonGoal ? 'Season Checkpoints' : 'Goal Milestones',
                       style: AppTypography.heading4.copyWith(
                         color: AppColors.textPrimary,
                       ),
@@ -1510,7 +1633,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     foregroundColor: AppColors.activeColor,
                   ),
                   icon: const Icon(Icons.add),
-                  label: const Text('Add Milestone'),
+                  label: Text(_isSeasonGoal ? 'Add Checkpoint' : 'Add Milestone'),
                 ),
             ],
           ),

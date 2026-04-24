@@ -1081,7 +1081,7 @@ class _ManagerReviewTeamDashboardScreenState
 
           if (approvedGoals.isNotEmpty) ...[
             Text(
-              'Goals',
+              'Goals & Season Work',
               style: AppTypography.bodySmall.copyWith(
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
@@ -1666,13 +1666,39 @@ class _ManagerReviewTeamDashboardScreenState
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  goal.title,
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      goal.title,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (goal.isSeasonGoal) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.infoColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Season-linked',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.infoColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(width: 8),

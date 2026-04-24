@@ -1982,7 +1982,6 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
   bool _isCreating = false;
   String _selectedTheme = 'Learning';
   bool _useLinkedResource = false;
-  bool _resourceIsFree = true;
   bool _proofRequired = false;
   String _courseLevel = 'Beginner';
 
@@ -2252,7 +2251,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
                   ? _courseProviderController.text.trim()
                   : 'External Resource',
               url: _courseUrlController.text.trim(),
-              isFreeResource: _resourceIsFree,
+              isFreeResource: true,
             )
           : null;
       final challenges = SeasonService.createDefaultChallenges(
@@ -2315,9 +2314,16 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           TextFormField(
             controller: _courseTitleController,
             decoration: const InputDecoration(
-              labelText: 'Course Title',
+              labelText: 'Resource Title (optional)',
               hintText: 'e.g., SQL for Beginners',
               border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'This is the title of the linked course or article. Leave it empty to reuse the season title.',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -2390,30 +2396,6 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Free resource',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Flag whether the course is free to access',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  value: _resourceIsFree,
-                  onChanged: (value) {
-                    setState(() {
-                      _resourceIsFree = value;
-                    });
-                  },
                 ),
               ),
             ],
