@@ -250,6 +250,27 @@ class _ManagerEmployeeDetailScreenState
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (g.isSeasonGoal) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.infoColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Season-linked goal',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.infoColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
                     if (isCompleted) ...[
                       const SizedBox(height: 4),
                       Text(

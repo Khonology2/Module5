@@ -444,78 +444,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     return gid != null && gid.isNotEmpty;
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _adminPendingGoalsStream() {
-    return FirestoreSafe.stream<QuerySnapshot<Map<String, dynamic>>>(
-      FirebaseFirestore.instance
-          .collection('goals')
-          .where('approvalStatus', isEqualTo: GoalApprovalStatus.pending.name)
-          .where('requiredApproverRole', whereIn: const [
-            'admin',
-            'administrator',
-            'super_admin',
-            'superadmin',
-          ])
-          .limit(300)
-          .snapshots(),
-    );
-  }
-
-  List<Alert> _mergeAdminPendingGoalFallbackAlerts({
-    required List<Alert> baseItems,
-    required List<QueryDocumentSnapshot<Map<String, dynamic>>> goalDocs,
-    required String adminUserId,
-  }) {
-    final merged = List<Alert>.from(baseItems);
-    final seenGoalIds = <String>{
-      for (final a in baseItems)
-        if (a.type == AlertType.goalApprovalRequested &&
-            _goalIdFromAlert(a) != null)
-          _goalIdFromAlert(a)!,
-    };
-
-    for (final doc in goalDocs) {
-      if (seenGoalIds.contains(doc.id)) continue;
-      final data = doc.data();
-      final goalTitle = (data['title'] ?? 'Untitled Goal').toString();
-      final requesterId = (data['userId'] ?? '').toString();
-      final requestedAt =
-          (data['approvalRequestedAt'] ?? data['createdAt']) as Timestamp?;
-
-      merged.add(
-        Alert(
-          id: 'fallback_goal_approval_${doc.id}',
-          userId: adminUserId,
-          type: AlertType.goalApprovalRequested,
-          audience: AlertAudience.team,
-          priority: AlertPriority.high,
-          title: 'Goal Approval Needed',
-          message:
-              'Manager goal "$goalTitle" is awaiting admin approval.',
-          actionText: 'Review Goal',
-          actionRoute: '/admin_inbox',
-          actionData: {
-            'goalId': doc.id,
-            'requestedByUserId': requesterId,
-            'requiredApproverRole': 'admin',
-            'approvalChain': 'manager_to_admin',
-            'fallbackGenerated': true,
-          },
-          createdAt: requestedAt?.toDate() ?? DateTime.now(),
-          isRead: false,
-          isDismissed: false,
-          relatedGoalId: doc.id,
-          fromUserId: requesterId.isNotEmpty ? requesterId : null,
-          fromUserName: (data['userDisplayName'] ?? '').toString().trim().isNotEmpty
-              ? (data['userDisplayName'] ?? '').toString()
-              : null,
-        ),
-      );
-      seenGoalIds.add(doc.id);
-    }
-
-    return merged;
-  }
-
   bool _isGenericPlaceholderName(String s) {
     final l = s.trim().toLowerCase();
     return l == 'manager' ||
@@ -1612,10 +1540,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       goalDocs: pendingDocs,
                       adminUserId: user.uid,
                     );
-                    return _buildInboxListContent(
-                      sourceItems: mergedItems,
-                      user: user,
-                    );
+                    if (p != 0) return p;
+                    return b.createdAt.compareTo(a.createdAt);
                   },
                 );
               }

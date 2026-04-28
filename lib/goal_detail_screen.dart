@@ -17,6 +17,7 @@ import 'package:pdh/services/activity_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/alert.dart';
@@ -44,11 +45,25 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   bool _submittingApproval = false;
   bool _isSeasonGoal = false;
   String _requiredApproverRole = 'manager';
+  String? _seasonTitle;
+  String? _loadedSeasonId;
+
+  bool get _hasSeasonFinalSubmission => _isSeasonGoal && currentGoal.approvalRequestedAt != null;
+  bool get _isSeasonAwaitingFinalReview =>
+      _hasSeasonFinalSubmission &&
+      currentGoal.approvalStatus == GoalApprovalStatus.pending;
+  bool get _isSeasonFinalReviewRejected =>
+      _hasSeasonFinalSubmission &&
+      currentGoal.approvalStatus == GoalApprovalStatus.rejected;
+  bool get _isSeasonFinalReviewApproved =>
+      _hasSeasonFinalSubmission &&
+      currentGoal.approvalStatus == GoalApprovalStatus.approved;
 
   @override
   void initState() {
     super.initState();
     currentGoal = widget.goal;
+    _isSeasonGoal = widget.goal.isSeasonGoal;
     // Listen for live updates so approval status changes reflect immediately
     _goalSub = FirebaseFirestore.instance
         .collection('goals')
@@ -67,6 +82,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 currentGoal = updated;
                 final data = doc.data();
                 _isSeasonGoal = (data?['isSeasonGoal'] == true);
+                final seasonId = (data?['seasonId'] ?? '').toString().trim();
+                if (!_isSeasonGoal || seasonId.isEmpty) {
+                  _loadedSeasonId = null;
+                  _seasonTitle = null;
+                }
                 final requiredApprover = (data?['requiredApproverRole'] ?? '')
                     .toString()
                     .trim()
@@ -83,6 +103,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       : 'manager';
                 }
               });
+              final seasonId = (doc.data()?['seasonId'] ?? '').toString().trim();
+              if (_isSeasonGoal && seasonId.isNotEmpty) {
+                unawaited(_loadSeasonContext(seasonId));
+              }
             } catch (_) {}
           },
           onError: (error) {
@@ -90,6 +114,23 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             developer.log('Error in goal detail listener: $error');
           },
         );
+  }
+
+  Future<void> _loadSeasonContext(String seasonId) async {
+    if (_loadedSeasonId == seasonId && _seasonTitle != null) return;
+    try {
+      final season = await SeasonService.getSeason(seasonId);
+      if (!mounted) return;
+      setState(() {
+        _loadedSeasonId = seasonId;
+        _seasonTitle = season?.title;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadedSeasonId = seasonId;
+      });
+    }
   }
 
   Future<void> _submitForApproval() async {
@@ -134,6 +175,116 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         });
       }
     }
+  }
+
+  Future<void> _submitSeasonGoalForFinalReview() async {
+    final controller = TextEditingController(
+      text: currentGoal.evidence.isNotEmpty ? currentGoal.evidence.last : '',
+    );
+    bool submitting = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.elevatedBackground,
+              title: const Text('Submit Final Season Evidence'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Submit one final evidence note for manager/admin review. This is the single approval step for the season goal.',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      maxLines: 5,
+                      decoration: const InputDecoration(
+                        hintText: 'Describe your final proof, result, certificate, or completion summary...',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: submitting ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          final evidence = controller.text.trim();
+                          final navigator = Navigator.of(dialogContext);
+                          final dialogMessenger =
+                              ScaffoldMessenger.of(dialogContext);
+                          final pageMessenger = ScaffoldMessenger.of(context);
+                          if (evidence.isEmpty) {
+                            dialogMessenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Please add final evidence before submitting.'),
+                              ),
+                            );
+                            return;
+                          }
+
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user == null) {
+                            dialogMessenger.showSnackBar(
+                              const SnackBar(content: Text('Not signed in')),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => submitting = true);
+                          try {
+                            await DatabaseService.submitSeasonGoalForFinalReview(
+                              goalId: currentGoal.id,
+                              userId: user.uid,
+                              goalTitle: currentGoal.title,
+                              finalEvidence: evidence,
+                            );
+                            if (!mounted) return;
+                            navigator.pop();
+                            pageMessenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Season goal submitted for final review.'),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            dialogMessenger.showSnackBar(
+                              SnackBar(content: Text('Failed to submit final review: $e')),
+                            );
+                            setDialogState(() => submitting = false);
+                          }
+                        },
+                  icon: submitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                  label: Text(submitting ? 'Submitting...' : 'Submit Final Review'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
   }
 
   Widget _buildKpaSelector() {
@@ -253,6 +404,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   Future<void> _completeGoal() async {
     if (isLoading) return;
+
+    if (_isSeasonGoal) {
+      await _submitSeasonGoalForFinalReview();
+      return;
+    }
 
     // Guard: ensure started and at 100% before attempting to complete
     if (currentGoal.status != GoalStatus.inProgress) {
@@ -452,7 +608,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
         final items = SidebarConfig.getItemsForRole(role);
         return AppScaffold(
-          title: 'Goal Details',
+          title: _isSeasonGoal ? 'Season Progress' : 'Goal Details',
           showAppBar: false,
           items: items,
           currentRouteName: '/goal_detail',
@@ -484,6 +640,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(),
+                  if (_isSeasonGoal) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    _buildSeasonWorkspaceBanner(),
+                  ],
                   const SizedBox(height: AppSpacing.xl),
                   _buildApprovalNotice(),
                   const SizedBox(height: AppSpacing.xl),
@@ -559,11 +719,46 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            currentGoal.title,
-            style: AppTypography.heading2.copyWith(
-              color: AppColors.textPrimary,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_isSeasonGoal)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.activeColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: AppColors.activeColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    'SEASON CHALLENGE WORKSPACE',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.activeColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              Text(
+                currentGoal.title,
+                style: AppTypography.heading2.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              if (_isSeasonGoal) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _seasonTitle?.trim().isNotEmpty == true
+                      ? 'Part of ${_seasonTitle!.trim()}'
+                      : 'Opened from Season Challenges',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         Container(
@@ -585,6 +780,48 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     );
   }
 
+  Widget _buildSeasonWorkspaceBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.infoColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.infoColor.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.school, color: AppColors.infoColor, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Season progress stays linked to the season challenge',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _seasonTitle?.trim().isNotEmpty == true
+                      ? 'Use this workspace to update your progress for ${_seasonTitle!.trim()}. Your progress and checkpoints sync back to the Season Challenges screen.'
+                      : 'Use this workspace to update progress and checkpoints for the season challenge. Everything here syncs back to the Season Challenges screen.',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGoalInfo() {
     final daysLeft = currentGoal.targetDate.difference(DateTime.now()).inDays;
     final createdText = _fmtDateTime(currentGoal.createdAt);
@@ -600,12 +837,16 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Goal Information',
+            _isSeasonGoal ? 'Season Workspace Details' : 'Goal Information',
             style: AppTypography.heading4.copyWith(
               color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
+          if (_isSeasonGoal && _seasonTitle?.trim().isNotEmpty == true) ...[
+            _buildInfoItem('Season', _seasonTitle!.trim(), Icons.emoji_events),
+            const SizedBox(height: 16),
+          ],
           if (currentGoal.description.isNotEmpty) ...[
             Text(
               'Description',
@@ -676,8 +917,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               const Expanded(child: SizedBox.shrink()),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildKpaSelector(),
+          if (!_isSeasonGoal) ...[
+            const SizedBox(height: 16),
+            _buildKpaSelector(),
+          ],
         ],
       ),
     );
@@ -727,7 +970,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Progress',
+                _isSeasonGoal ? 'Season Progress' : 'Progress',
                 style: AppTypography.heading4.copyWith(
                   color: AppColors.textPrimary,
                 ),
@@ -753,7 +996,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               (currentGoal.approvalStatus == GoalApprovalStatus.approved ||
                   _isSeasonGoal)) ...[
             Text(
-              'Update Progress',
+              _isSeasonGoal ? 'Update Season Progress' : 'Update Progress',
               style: AppTypography.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -820,6 +1063,15 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 ),
               ),
             ],
+            if (_isSeasonGoal && currentGoal.progress >= 100 && !_hasSeasonFinalSubmission) ...[
+              const SizedBox(height: 8),
+              Text(
+                'You are ready to send your final season evidence for the single end-of-season review.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ],
         ],
       ),
@@ -827,6 +1079,84 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildActionButtons() {
+    if (_isSeasonAwaitingFinalReview) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.warningColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.warningColor.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.hourglass_top, color: AppColors.warningColor, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _requiredApproverRole == 'admin'
+                    ? 'Final season evidence submitted. Awaiting admin review.'
+                    : 'Final season evidence submitted. Awaiting manager review.',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_isSeasonFinalReviewRejected) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.dangerColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.dangerColor.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.cancel, color: AppColors.dangerColor, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    currentGoal.rejectionReason?.trim().isNotEmpty == true
+                        ? 'Final review was rejected. Reason: ${currentGoal.rejectionReason}'
+                        : 'Final review was rejected. Update your evidence and resubmit.',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: isLoading ? null : _submitSeasonGoalForFinalReview,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Resubmit Final Review'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.activeColor,
+                  foregroundColor: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (currentGoal.status == GoalStatus.completed) {
       return Container(
         padding: const EdgeInsets.all(20),
@@ -844,6 +1174,34 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             Expanded(
               child: Text(
                 'Congratulations! You completed this goal! 🎉',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_isSeasonFinalReviewApproved && currentGoal.status == GoalStatus.acknowledged) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.successColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.successColor.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.verified, color: AppColors.successColor, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Season challenge approved and acknowledged. Great work!',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
@@ -984,7 +1342,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ),
                     )
                   : const Icon(Icons.play_arrow),
-              label: Text(isLoading ? 'Starting...' : 'Start Goal (+20 pts)'),
+              label: Text(
+                isLoading
+                    ? 'Starting...'
+                    : (_isSeasonGoal
+                          ? 'Start Season Challenge (+20 pts)'
+                          : 'Start Goal (+20 pts)'),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.activeColor,
                 foregroundColor: AppColors.textPrimary,
@@ -1012,7 +1376,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     )
                   : const Icon(Icons.check_circle),
               label: Text(
-                isLoading ? 'Completing...' : 'Complete Goal (+100 pts)',
+                isLoading
+                    ? (_isSeasonGoal ? 'Submitting...' : 'Completing...')
+                    : (_isSeasonGoal
+                          ? 'Submit Season Final Review'
+                          : 'Complete Goal (+100 pts)'),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.successColor,
@@ -1059,7 +1427,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Milestone Tracker',
+            _isSeasonGoal ? 'Season Progress Tracker' : 'Milestone Tracker',
             style: AppTypography.heading4.copyWith(
               color: AppColors.textPrimary,
             ),
@@ -1149,6 +1517,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Color _getStatusColor() {
+    if (_isSeasonAwaitingFinalReview) {
+      return AppColors.warningColor;
+    }
+    if (_isSeasonFinalReviewRejected) {
+      return AppColors.dangerColor;
+    }
     switch (currentGoal.status) {
       case GoalStatus.notStarted:
         return AppColors.textSecondary;
@@ -1166,6 +1540,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   String _getStatusText() {
+    if (_isSeasonAwaitingFinalReview) {
+      return 'PENDING FINAL REVIEW';
+    }
+    if (_isSeasonFinalReviewRejected) {
+      return 'FINAL REVIEW REJECTED';
+    }
     switch (currentGoal.status) {
       case GoalStatus.notStarted:
         return 'NOT STARTED';
@@ -1189,35 +1569,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildGoalMilestonesSection() {
-    if (_isSeasonGoal) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Season Challenge Milestones',
-              style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'This goal is linked to a Season Challenge. Milestones are predefined by your manager. '
-              'Use the Season Challenges → My Seasons screen to update milestone progress.',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
     final user = FirebaseAuth.instance.currentUser;
     final bool isOwner = user?.uid == currentGoal.userId;
     final bool isGoalCompleted = currentGoal.status == GoalStatus.completed;
@@ -1239,16 +1590,20 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Goal Milestones',
+                      _isSeasonGoal ? 'Season Checkpoints' : 'Goal Milestones',
                       style: AppTypography.heading4.copyWith(
                         color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      isOwner
-                          ? 'Break this goal into concrete steps with target dates.'
-                          : 'View the employee-defined checkpoints for this goal.',
+                      _isSeasonGoal
+                          ? (isOwner
+                                ? 'Update this season challenge here. Goal progress automatically syncs the season milestones, and the checkpoints you add here work as season progress check-ins. The manager or admin reviews the full season submission at the end.'
+                                : 'Review the employee checkpoints and season check-ins submitted for this challenge.')
+                          : (isOwner
+                                ? 'Break this goal into concrete steps with target dates.'
+                                : 'View the employee-defined checkpoints for this goal.'),
                       style: AppTypography.bodySmall.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -1285,7 +1640,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     foregroundColor: AppColors.activeColor,
                   ),
                   icon: const Icon(Icons.add),
-                  label: const Text('Add Milestone'),
+                  label: Text(_isSeasonGoal ? 'Add Checkpoint' : 'Add Milestone'),
                 ),
             ],
           ),
@@ -1332,6 +1687,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                         child: _GoalMilestoneTile(
                           milestone: milestone,
                           goalId: currentGoal.id, // NEW: Add goalId
+                          isSeasonGoal: _isSeasonGoal,
                           canEdit:
                               isOwner &&
                               !(isGoalCompleted &&
@@ -2156,7 +2512,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       case GoalMilestoneStatus.inProgress:
         return 'In Progress';
       case GoalMilestoneStatus.pendingManagerReview:
-        return 'Pending Review';
+        return _isSeasonGoal ? 'Check-in Submitted' : 'Pending Review';
       case GoalMilestoneStatus.completed:
         return 'Completed';
       case GoalMilestoneStatus.completedAcknowledged:
@@ -2351,6 +2707,7 @@ class _GoalMilestoneTile extends StatelessWidget {
   final GoalMilestone milestone;
   final bool canEdit;
   final bool isLocked;
+  final bool isSeasonGoal;
   final VoidCallback onEdit;
   final Future<void> Function(GoalMilestoneStatus status) onUpdateStatus;
   final String goalId; // NEW: Add goalId parameter
@@ -2359,6 +2716,7 @@ class _GoalMilestoneTile extends StatelessWidget {
     required this.milestone,
     required this.canEdit,
     required this.isLocked,
+    required this.isSeasonGoal,
     required this.onEdit,
     required this.onUpdateStatus,
     required this.goalId, // NEW: Required parameter
@@ -2607,14 +2965,16 @@ class _GoalMilestoneTile extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color:
-                    milestone.status == GoalMilestoneStatus.pendingManagerReview
+                    milestone.status == GoalMilestoneStatus.pendingManagerReview &&
+                        !isSeasonGoal
                     ? Colors.orange.withValues(alpha: 0.1)
                     : Colors.blue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color:
                       milestone.status ==
-                          GoalMilestoneStatus.pendingManagerReview
+                              GoalMilestoneStatus.pendingManagerReview &&
+                          !isSeasonGoal
                       ? Colors.orange.withValues(alpha: 0.3)
                       : Colors.blue.withValues(alpha: 0.3),
                 ),
@@ -2626,13 +2986,15 @@ class _GoalMilestoneTile extends StatelessWidget {
                     children: [
                       Icon(
                         milestone.status ==
-                                GoalMilestoneStatus.pendingManagerReview
+                                GoalMilestoneStatus.pendingManagerReview &&
+                            !isSeasonGoal
                             ? Icons.pending_actions
                             : Icons.attachment,
                         size: 16,
                         color:
                             milestone.status ==
-                                GoalMilestoneStatus.pendingManagerReview
+                                    GoalMilestoneStatus.pendingManagerReview &&
+                                !isSeasonGoal
                             ? Colors.orange
                             : Colors.blue,
                       ),
@@ -2640,12 +3002,15 @@ class _GoalMilestoneTile extends StatelessWidget {
                       Text(
                         milestone.status ==
                                 GoalMilestoneStatus.pendingManagerReview
-                            ? 'Evidence Submitted - Pending Review'
+                            ? (isSeasonGoal
+                                  ? 'Season Check-in Submitted'
+                                  : 'Evidence Submitted - Pending Review')
                             : 'Evidence Attached',
                         style: AppTypography.bodySmall.copyWith(
                           color:
                               milestone.status ==
-                                  GoalMilestoneStatus.pendingManagerReview
+                                      GoalMilestoneStatus.pendingManagerReview &&
+                                  !isSeasonGoal
                               ? Colors.orange
                               : Colors.blue,
                           fontWeight: FontWeight.w600,
@@ -2654,12 +3019,13 @@ class _GoalMilestoneTile extends StatelessWidget {
                       const Spacer(),
                       if (canEdit &&
                           milestone.status != GoalMilestoneStatus.completed &&
-                          milestone.status !=
-                              GoalMilestoneStatus.pendingManagerReview)
+                          (isSeasonGoal ||
+                              milestone.status !=
+                                  GoalMilestoneStatus.pendingManagerReview))
                         TextButton(
                           onPressed: () => showEvidenceDialog(milestone),
                           child: Text(
-                            'Add Evidence',
+                            isSeasonGoal ? 'Add Check-in' : 'Add Evidence',
                             style: AppTypography.bodySmall.copyWith(
                               color: Colors.blue,
                             ),
@@ -2679,7 +3045,9 @@ class _GoalMilestoneTile extends StatelessWidget {
                         return Text(
                           milestone.status ==
                                   GoalMilestoneStatus.pendingManagerReview
-                              ? 'Processing evidence submission...'
+                              ? (isSeasonGoal
+                                    ? 'Saving your season check-in...'
+                                    : 'Processing evidence submission...')
                               : 'No evidence attached yet',
                           style: AppTypography.bodySmall.copyWith(
                             color: AppColors.textSecondary,
@@ -2802,7 +3170,7 @@ class _GoalMilestoneTile extends StatelessWidget {
       case GoalMilestoneStatus.inProgress:
         return 'In Progress';
       case GoalMilestoneStatus.pendingManagerReview:
-        return 'Pending Review';
+        return isSeasonGoal ? 'Check-in Submitted' : 'Pending Review';
       case GoalMilestoneStatus.completed:
         return 'Completed';
       case GoalMilestoneStatus.completedAcknowledged:
@@ -2819,7 +3187,7 @@ class _GoalMilestoneTile extends StatelessWidget {
       case GoalMilestoneStatus.inProgress:
         return AppColors.activeColor;
       case GoalMilestoneStatus.pendingManagerReview:
-        return Colors.orange; // Orange for pending review
+        return isSeasonGoal ? AppColors.infoColor : Colors.orange;
       case GoalMilestoneStatus.completed:
         return AppColors.successColor;
       case GoalMilestoneStatus.completedAcknowledged:

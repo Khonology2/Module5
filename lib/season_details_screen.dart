@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/season.dart';
+import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/season_celebration_screen.dart';
+import 'package:pdh/utils/attachment_opener_io.dart';
 
 class SeasonDetailsScreen extends StatefulWidget {
   final Season season;
+  final String? participantUserId;
+  final String? participantUserName;
 
-  const SeasonDetailsScreen({super.key, required this.season});
+  const SeasonDetailsScreen({
+    super.key,
+    required this.season,
+    this.participantUserId,
+    this.participantUserName,
+  });
 
   @override
   State<SeasonDetailsScreen> createState() => _SeasonDetailsScreenState();
@@ -18,6 +29,8 @@ class SeasonDetailsScreen extends StatefulWidget {
 class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
+
+  bool get _isParticipantView => widget.participantUserId?.trim().isNotEmpty == true;
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
@@ -91,6 +104,17 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
         }
 
         final season = snapshot.data!;
+        final tabs = _isParticipantView
+            ? const [
+                Tab(text: 'Overview', icon: Icon(Icons.dashboard)),
+                Tab(text: 'Challenges', icon: Icon(Icons.emoji_events)),
+                Tab(text: 'My Progress', icon: Icon(Icons.track_changes)),
+              ]
+            : const [
+                Tab(text: 'Overview', icon: Icon(Icons.dashboard)),
+                Tab(text: 'Challenges', icon: Icon(Icons.emoji_events)),
+                Tab(text: 'Participants', icon: Icon(Icons.people)),
+              ];
 
         return Scaffold(
           backgroundColor: Colors.transparent,
@@ -104,11 +128,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
               indicatorColor: Colors.white,
-              tabs: const [
-                Tab(text: 'Overview', icon: Icon(Icons.dashboard)),
-                Tab(text: 'Challenges', icon: Icon(Icons.emoji_events)),
-                Tab(text: 'Participants', icon: Icon(Icons.people)),
-              ],
+              tabs: tabs,
             ),
           ),
           body: _buildSeasonBackground(
@@ -117,7 +137,9 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               children: [
                 _buildOverviewTab(season),
                 _buildChallengesTab(season),
-                _buildParticipantsTab(season),
+                _isParticipantView
+                    ? _buildMyProgressTab(season)
+                    : _buildParticipantsTab(season),
               ],
             ),
           ),
@@ -465,9 +487,14 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           ),
           const SizedBox(height: AppSpacing.xl),
 
-          // Manager Actions
-          _buildManagerActions(season, challengeProgress),
-          const SizedBox(height: AppSpacing.xl),
+          if (!_isParticipantView) ...[
+            _buildManagerActions(season, challengeProgress),
+            const SizedBox(height: AppSpacing.xl),
+          ],
+          if (_isParticipantView) ...[
+            _buildParticipantSummaryCard(season),
+            const SizedBox(height: AppSpacing.xl),
+          ],
 
           // Season Timeline
           Text(
@@ -669,6 +696,33 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               ),
             ],
           ),
+          if (_linkedCourseChallengeCount(season) > 0) ...[
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Linked Courses',
+                    value: '${_linkedCourseChallengeCount(season)}',
+                    subtitle: 'Course-based challenges',
+                    icon: Icons.school,
+                    color: AppColors.infoColor,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: _buildMetricCard(
+                    title: 'Pending Proofs',
+                    value: '${_proofSubmissionCount(season, ChallengeSubmissionStatus.submitted)}',
+                    subtitle:
+                        '${_proofSubmissionCount(season, ChallengeSubmissionStatus.approved)} approved',
+                    icon: Icons.fact_check,
+                    color: AppColors.warningColor,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: AppSpacing.xl),
 
           // Challenge Progress
@@ -789,6 +843,34 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     );
   }
 
+  Widget _buildMyProgressTab(Season season) {
+    final participant = _participantForSeason(season);
+    if (participant == null) {
+      return Center(
+        child: Text(
+          'Join this season to track your progress.',
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+      );
+    }
+
+    return ListView(
+      padding: AppSpacing.screenPadding,
+      children: [
+        _buildParticipantSummaryCard(season),
+        const SizedBox(height: AppSpacing.md),
+        ...season.challenges.map(
+          (challenge) => Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: _buildChallengeCard(season, challenge),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildParticipantsTab(Season season) {
     final participants = season.participations.values.toList();
     participants.sort((a, b) => b.totalPoints.compareTo(a.totalPoints));
@@ -855,11 +937,25 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   }
 
   Widget _buildChallengeCard(Season season, SeasonChallenge challenge) {
+    final participant = _participantForSeason(season);
+    final completedForParticipant = participant == null
+        ? 0
+        : challenge.milestones.where((milestone) {
+            final keyDot = '${challenge.id}.${milestone.id}';
+            final status =
+                participant.milestoneProgress[keyDot] ??
+                participant.milestoneProgress[milestone.id];
+            return status == MilestoneStatus.completed;
+          }).length;
     final challengeCompletions =
         season.metrics.challengeCompletions[challenge.type] ?? 0;
-    final progress = challenge.milestones.isNotEmpty
-        ? (challengeCompletions / challenge.milestones.length).clamp(0.0, 1.0)
-        : 0.0;
+    final progress = _isParticipantView
+        ? (challenge.milestones.isNotEmpty
+              ? (completedForParticipant / challenge.milestones.length).clamp(0.0, 1.0)
+              : 0.0)
+        : (challenge.milestones.isNotEmpty
+              ? (challengeCompletions / challenge.milestones.length).clamp(0.0, 1.0)
+              : 0.0);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -1013,8 +1109,227 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               ),
             );
           }),
+          if (challenge.resources.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Linked Resources',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            ...challenge.resources.map((resource) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Icon(Icons.link, color: AppColors.infoColor, size: 16),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        '${resource.title.isNotEmpty ? resource.title : challenge.title} • ${resource.provider}${resource.isFreeResource ? ' • Free' : ''}',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _openLinkedResource(resource.url),
+                      child: const Text('Open'),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+          if (challenge.proofRequired) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Proof Review',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Required proof: ${challenge.proofType ?? 'Completion evidence'}',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _isParticipantView
+                ? _buildParticipantProofPanel(season, challenge)
+                : _buildProofReviewPanel(season, challenge),
+          ],
+          if (_isParticipantView) ...[
+            const SizedBox(height: AppSpacing.md),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () => _openChallengeGoal(season, challenge),
+                icon: const Icon(Icons.track_changes, size: 16),
+                label: const Text('Update Season'),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildParticipantProofPanel(Season season, SeasonChallenge challenge) {
+    final participant = _participantForSeason(season);
+    final submission = participant?.challengeSubmissions[challenge.id];
+    final status = submission?.status;
+    final label = switch (status) {
+      ChallengeSubmissionStatus.submitted => 'Pending manager review',
+      ChallengeSubmissionStatus.approved => 'Approved',
+      ChallengeSubmissionStatus.rejected => 'Needs updates',
+      _ => 'Not submitted yet',
+    };
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AppTypography.bodyMedium.copyWith(
+              color: status == ChallengeSubmissionStatus.approved
+                  ? AppColors.successColor
+                  : AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (submission?.evidence.trim().isNotEmpty == true) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              submission!.evidence,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+          if (submission?.feedback?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Manager feedback: ${submission!.feedback}',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.warningColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProofReviewPanel(Season season, SeasonChallenge challenge) {
+    final submissions = <MapEntry<SeasonParticipation, SeasonChallengeSubmission>>[];
+    for (final participation in season.participations.values) {
+      final submission = participation.challengeSubmissions[challenge.id];
+      if (submission != null) {
+        submissions.add(MapEntry(participation, submission));
+      }
+    }
+
+    if (submissions.isEmpty) {
+      return Text(
+        'No proof submissions yet.',
+        style: AppTypography.bodySmall.copyWith(
+          color: AppColors.textSecondary,
+        ),
+      );
+    }
+
+    return Column(
+      children: submissions.map((entry) {
+        final participant = entry.key;
+        final submission = entry.value;
+        final isPending = submission.status == ChallengeSubmissionStatus.submitted;
+        return Container(
+          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      participant.userName,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  _buildSubmissionStatusChip(submission.status),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                submission.evidence,
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              if (submission.feedback?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Feedback: ${submission.feedback}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.warningColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              if (isPending) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _reviewSubmission(
+                        season: season,
+                        challenge: challenge,
+                        participant: participant,
+                        approved: false,
+                      ),
+                      icon: const Icon(Icons.reply, size: 16),
+                      label: const Text('Request Update'),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    ElevatedButton.icon(
+                      onPressed: () => _reviewSubmission(
+                        season: season,
+                        challenge: challenge,
+                        participant: participant,
+                        approved: true,
+                      ),
+                      icon: const Icon(Icons.check, size: 16),
+                      label: const Text('Approve'),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -1028,7 +1343,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
         .length;
     final totalMilestones = season.challenges.fold<int>(
       0,
-      (sum, challenge) => sum + challenge.milestones.length,
+      (runningTotal, challenge) => runningTotal + challenge.milestones.length,
     );
     final progress = totalMilestones > 0
         ? (completedMilestones / totalMilestones)
@@ -1108,6 +1423,61 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParticipantSummaryCard(Season season) {
+    final participant = _participantForSeason(season);
+    final totalMilestones = season.challenges.fold<int>(
+      0,
+      (runningTotal, challenge) => runningTotal + challenge.milestones.length,
+    );
+    final completedMilestones = participant == null
+        ? 0
+        : participant.milestoneProgress.values
+              .where((status) => status == MilestoneStatus.completed)
+              .length;
+    final progress = totalMilestones > 0
+        ? (completedMilestones / totalMilestones).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: _glassBoxDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'My Season Progress',
+            style: AppTypography.heading3.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            participant == null
+                ? 'You have not joined this season yet.'
+                : '${participant.userName} • ${participant.totalPoints} points earned',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: AppColors.borderColor,
+            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            minHeight: 8,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            '$completedMilestones/$totalMilestones milestones completed',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
@@ -1218,6 +1588,201 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
         return AppColors.dangerColor; // Bronze
       default:
         return AppColors.activeColor;
+    }
+  }
+
+  int _linkedCourseChallengeCount(Season season) {
+    return season.challenges.where((challenge) => challenge.resources.isNotEmpty).length;
+  }
+
+  int _proofSubmissionCount(
+    Season season,
+    ChallengeSubmissionStatus status,
+  ) {
+    var count = 0;
+    for (final participation in season.participations.values) {
+      for (final submission in participation.challengeSubmissions.values) {
+        if (submission.status == status) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  Widget _buildSubmissionStatusChip(ChallengeSubmissionStatus status) {
+    final (label, color) = switch (status) {
+      ChallengeSubmissionStatus.notSubmitted => ('Not submitted', AppColors.textSecondary),
+      ChallengeSubmissionStatus.submitted => ('Pending', AppColors.warningColor),
+      ChallengeSubmissionStatus.approved => ('Approved', AppColors.successColor),
+      ChallengeSubmissionStatus.rejected => ('Needs updates', AppColors.dangerColor),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.bodySmall.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openLinkedResource(String url) async {
+    final opened = await openAttachmentUrl(url);
+    if (!mounted || opened) return;
+    await _showCenterNotice(context, 'Unable to open the linked resource.');
+  }
+
+  Future<void> _reviewSubmission({
+    required Season season,
+    required SeasonChallenge challenge,
+    required SeasonParticipation participant,
+    required bool approved,
+  }) async {
+    final feedbackController = TextEditingController();
+    try {
+      final shouldProceed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: Text(approved ? 'Approve proof' : 'Request update'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  approved
+                      ? 'Approve ${participant.userName}\'s submission for "${challenge.title}"?'
+                      : 'Add optional feedback for ${participant.userName}.',
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: feedbackController,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Feedback',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(approved ? 'Approve' : 'Send back'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldProceed != true) return;
+      await SeasonService.reviewChallengeProof(
+        seasonId: season.id,
+        employeeId: participant.userId,
+        challengeId: challenge.id,
+        approved: approved,
+        feedback: feedbackController.text.trim(),
+      );
+      if (!mounted) return;
+      await _showCenterNotice(
+        context,
+        approved ? 'Proof approved.' : 'Feedback sent to employee.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Unable to review submission: $e');
+    } finally {
+      feedbackController.dispose();
+    }
+  }
+
+  SeasonParticipation? _participantForSeason(Season season) {
+    final participantId = widget.participantUserId;
+    if (participantId == null || participantId.trim().isEmpty) {
+      return null;
+    }
+    return season.participations[participantId];
+  }
+
+  Future<void> _openChallengeGoal(
+    Season season,
+    SeasonChallenge challenge,
+  ) async {
+    final participantId = widget.participantUserId;
+    if (participantId == null || participantId.trim().isEmpty) return;
+
+    try {
+      final participantName = widget.participantUserName ?? 'Employee';
+      try {
+        await SeasonService.ensureSeasonGoalsForEmployee(
+          season: season,
+          userId: participantId,
+          userName: participantName,
+        );
+      } catch (_) {
+        // Best-effort only; continue with any existing goals.
+      }
+
+      final goalDocs = await FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: participantId)
+          .get();
+      final matchingDocs = goalDocs.docs.where((doc) {
+        final data = doc.data();
+        return data['isSeasonGoal'] == true &&
+            (data['seasonId'] ?? '').toString() == season.id &&
+            (data['challengeId'] ?? '').toString() == challenge.id;
+      }).toList()
+        ..sort((a, b) {
+          final aCreated = a.data()['createdAt'];
+          final bCreated = b.data()['createdAt'];
+          final aDate = aCreated is Timestamp ? aCreated.toDate() : DateTime(1970);
+          final bDate = bCreated is Timestamp ? bCreated.toDate() : DateTime(1970);
+          return bDate.compareTo(aDate);
+        });
+
+      Goal? selectedGoal;
+      for (final doc in matchingDocs) {
+        final goal = Goal.fromFirestore(doc);
+        if (goal.status != GoalStatus.completed) {
+          selectedGoal = goal;
+          break;
+        }
+      }
+      selectedGoal ??= matchingDocs.isNotEmpty
+          ? Goal.fromFirestore(matchingDocs.first)
+          : null;
+      if (selectedGoal == null) {
+        if (!mounted) return;
+        await _showCenterNotice(
+          context,
+          'No linked goal found for "${challenge.title}" yet.',
+        );
+        return;
+      }
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => GoalDetailScreen(goal: selectedGoal!),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Unable to open goal: $e');
     }
   }
 }

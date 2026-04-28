@@ -30,6 +30,7 @@ class UpcomingGoalsListScreen extends StatelessWidget {
               .map((doc) => Goal.fromFirestore(doc))
               .where(
                 (g) =>
+                    !g.isSeasonGoal &&
                     g.approvalStatus == GoalApprovalStatus.approved &&
                     g.status != GoalStatus.completed &&
                     g.progress < 100,

@@ -541,9 +541,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         ]);
 
         if (!mounted) return;
+        final loadedGoals = (results[1] as List<Goal>)
+            .where((goal) => !goal.isSeasonGoal)
+            .toList();
         setState(() {
           userProfile = results[0] as UserProfile;
-          userGoals = results[1] as List<Goal>;
+          userGoals = loadedGoals;
           currentStreak = results[2] as int;
           hasActivityToday = results[3] as bool;
           isLoading = false;
@@ -605,6 +608,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     ).map((snapshot) {
       final goals = snapshot.docs
           .map((doc) => Goal.fromFirestore(doc))
+          .where((goal) => !goal.isSeasonGoal)
           .toList();
       // Removed in-memory sort - using Firestore orderBy instead
       return goals;
