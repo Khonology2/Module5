@@ -113,7 +113,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   final Map<String, String> _displayNameByUserId = {};
   final Map<String, String> _goalOwnerIdByGoalId = {};
   final Map<String, String> _goalOwnerNameByGoalId = {};
-  _AdminGoalOwnerFilter _adminGoalOwnerFilter = _AdminGoalOwnerFilter.all;
+  final _AdminGoalOwnerFilter _adminGoalOwnerFilter = _AdminGoalOwnerFilter.all;
 
   RepositoryAuditViewMode get _viewMode {
     if (widget.forAdminOversight) return RepositoryAuditViewMode.adminOversight;
