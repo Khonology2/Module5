@@ -1637,10 +1637,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     final p = priorityOrder[a.priority]!.compareTo(
                       priorityOrder[b.priority]!,
                     );
-                    return _buildInboxListContent(
-                      sourceItems: mergedItems,
-                      user: user,
-                    );
+                    return p;
                   },
                 );
               }
