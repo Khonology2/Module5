@@ -4,6 +4,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/models/season.dart';
+import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/widgets/season_milestone_progress_card.dart';
@@ -242,7 +243,7 @@ class _SeasonGoalCompletionScreenState
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
-                        'Provide evidence or a description of how you completed this goal. This helps validate your achievement.',
+                        'Provide the final evidence or summary for this season goal. This will be reviewed once by the manager or admin.',
                         style: AppTypography.bodyMedium.copyWith(
                           color: AppColors.textSecondary,
                         ),
@@ -307,7 +308,7 @@ class _SeasonGoalCompletionScreenState
                         )
                       : const Icon(Icons.check_circle),
                   label: Text(
-                    _isLoading ? 'Completing...' : 'Mark as Complete',
+                    _isLoading ? 'Submitting...' : 'Submit Final Review',
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.successColor,
@@ -497,16 +498,23 @@ class _SeasonGoalCompletionScreenState
     });
 
     try {
-      await SeasonService.completeSeasonGoal(
+      final goalDoc = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      final goalTitle = (goalDoc.data()?['title'] ?? 'Season Goal').toString();
+      await DatabaseService.submitSeasonGoalForFinalReview(
         goalId: goalId,
         userId: _currentUserId!,
-        evidence: _evidenceController.text.trim().isNotEmpty
-            ? _evidenceController.text.trim()
-            : null,
+        goalTitle: goalTitle,
+        finalEvidence: _evidenceController.text.trim(),
       );
 
       if (!mounted) return;
-      await _showCenterNotice(context, 'Goal completed successfully! 🎉');
+      await _showCenterNotice(
+        context,
+        'Final season evidence submitted for review.',
+      );
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {

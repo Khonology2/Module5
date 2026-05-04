@@ -98,7 +98,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return AppSpacing.screenPadding;
       default:
         return EdgeInsets.zero;
-    } 
+    }
   }
 
   bool _shouldShowPortalTopActions(String route) {

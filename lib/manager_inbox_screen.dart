@@ -217,6 +217,22 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         msg.contains('your goal');
   }
 
+  bool _isAdminSupervisionAlertForManager(Alert alert) {
+    final requiredApproverRole = (alert.actionData?['requiredApproverRole'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final approvalChain = (alert.actionData?['approvalChain'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    if (requiredApproverRole == 'admin') return true;
+    if (approvalChain == 'manager_to_admin') return true;
+
+    return _isManagerAsEmployeeGoalDecisionAlert(alert);
+  }
+
   bool _isAdminInboxEligibleAlert(Alert alert) {
     // Admin oversight inbox should not include manager-as-employee goal decision
     // notifications (e.g. "Your goal ... was rejected").
@@ -274,6 +290,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       return false;
     }
 
+    // Keep manager inbox focused on manager-as-supervisor workflow only.
+    if (!widget.forAdminOversight &&
+        _isAdminSupervisionAlertForManager(alert)) {
+      return false;
+    }
+
     if (widget.forAdminOversight && !_isAdminInboxEligibleAlert(alert)) {
       return false;
     }
@@ -313,6 +335,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   /// for admins. Map them to [AdminPortalScreen] sidebar routes (`initialRoute`).
   String? _mapInboxRouteToAdminInitialRoute(String route) {
     switch (route) {
+      case '/one_on_one_thread':
+        return null;
       case '/manager_badges_points':
       case '/badges_points':
       case '/manager_gw_menu_badges':
@@ -357,6 +381,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   /// Navigates from inbox actions. Managers use raw routes; admins use [AdminPortalScreen].
   void _navigateInboxByAlertRoute(String route, {Object? arguments}) {
     if (!widget.forAdminOversight) {
+      Navigator.pushNamed(context, route, arguments: arguments);
+      return;
+    }
+
+    if (route == '/one_on_one_thread') {
       Navigator.pushNamed(context, route, arguments: arguments);
       return;
     }
@@ -412,78 +441,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   bool _hasValidGoalId(Alert alert) {
     final gid = _goalIdFromAlert(alert);
     return gid != null && gid.isNotEmpty;
-  }
-
-  Stream<QuerySnapshot<Map<String, dynamic>>> _adminPendingGoalsStream() {
-    return FirestoreSafe.stream<QuerySnapshot<Map<String, dynamic>>>(
-      FirebaseFirestore.instance
-          .collection('goals')
-          .where('approvalStatus', isEqualTo: GoalApprovalStatus.pending.name)
-          .where('requiredApproverRole', whereIn: const [
-            'admin',
-            'administrator',
-            'super_admin',
-            'superadmin',
-          ])
-          .limit(300)
-          .snapshots(),
-    );
-  }
-
-  List<Alert> _mergeAdminPendingGoalFallbackAlerts({
-    required List<Alert> baseItems,
-    required List<QueryDocumentSnapshot<Map<String, dynamic>>> goalDocs,
-    required String adminUserId,
-  }) {
-    final merged = List<Alert>.from(baseItems);
-    final seenGoalIds = <String>{
-      for (final a in baseItems)
-        if (a.type == AlertType.goalApprovalRequested &&
-            _goalIdFromAlert(a) != null)
-          _goalIdFromAlert(a)!,
-    };
-
-    for (final doc in goalDocs) {
-      if (seenGoalIds.contains(doc.id)) continue;
-      final data = doc.data();
-      final goalTitle = (data['title'] ?? 'Untitled Goal').toString();
-      final requesterId = (data['userId'] ?? '').toString();
-      final requestedAt =
-          (data['approvalRequestedAt'] ?? data['createdAt']) as Timestamp?;
-
-      merged.add(
-        Alert(
-          id: 'fallback_goal_approval_${doc.id}',
-          userId: adminUserId,
-          type: AlertType.goalApprovalRequested,
-          audience: AlertAudience.team,
-          priority: AlertPriority.high,
-          title: 'Goal Approval Needed',
-          message:
-              'Manager goal "$goalTitle" is awaiting admin approval.',
-          actionText: 'Review Goal',
-          actionRoute: '/admin_inbox',
-          actionData: {
-            'goalId': doc.id,
-            'requestedByUserId': requesterId,
-            'requiredApproverRole': 'admin',
-            'approvalChain': 'manager_to_admin',
-            'fallbackGenerated': true,
-          },
-          createdAt: requestedAt?.toDate() ?? DateTime.now(),
-          isRead: false,
-          isDismissed: false,
-          relatedGoalId: doc.id,
-          fromUserId: requesterId.isNotEmpty ? requesterId : null,
-          fromUserName: (data['userDisplayName'] ?? '').toString().trim().isNotEmpty
-              ? (data['userDisplayName'] ?? '').toString()
-              : null,
-        ),
-      );
-      seenGoalIds.add(doc.id);
-    }
-
-    return merged;
   }
 
   bool _isGenericPlaceholderName(String s) {
@@ -1637,7 +1594,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     final p = priorityOrder[a.priority]!.compareTo(
                       priorityOrder[b.priority]!,
                     );
-                    return p;
+                    if (p != 0) return p;
+                    return b.createdAt.compareTo(a.createdAt);
                   },
                 );
               }
@@ -2111,9 +2069,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       route = '/admin_team_review';
                     }
 
-                    // Deep-link 1:1 meeting alerts into the Review Team Dashboard.
+                    // Deep-link 1:1 meeting alerts into the canonical thread screen.
                     if (route == '/manager_review_team_dashboard' ||
-                        route == '/admin_team_review') {
+                        route == '/admin_team_review' ||
+                        route == '/one_on_one_thread') {
+                      if (route == '/manager_review_team_dashboard' ||
+                          route == '/admin_team_review') {
+                        route = '/one_on_one_thread';
+                      }
                       final data =
                           alert.actionData ?? const <String, dynamic>{};
                       final meetingId = data['meetingId']?.toString().trim();

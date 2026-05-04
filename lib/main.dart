@@ -31,6 +31,7 @@ import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/manager_alerts_nudges_screen.dart';
 import 'package:pdh/manager_inbox_screen.dart';
 import 'package:pdh/manager_badges_points_screen.dart';
+import 'package:pdh/one_on_one_thread_screen.dart';
 import 'package:pdh/employee_profile_detail_screen.dart';
 import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/manager_profile_screen.dart';
@@ -333,6 +334,48 @@ class _MyAppState extends State<MyApp> {
                   policy: WidgetOrderTraversalPolicy(),
                   child: child,
                 );
+              },
+              onGenerateRoute: (settings) {
+                if (settings.name == '/one_on_one_thread') {
+                  final args = settings.arguments as Map<String, dynamic>?;
+                  return RawDialogRoute<void>(
+                    settings: settings,
+                    barrierDismissible: true,
+                    barrierLabel: '1:1 Thread',
+                    barrierColor: Colors.black.withValues(alpha: 0.7),
+                    pageBuilder: (context, animation, secondaryAnimation) {
+                      return RoleGate(
+                        requiredRole: RequiredRole.any,
+                        child: OneOnOneThreadModal(
+                          initialMeetingId: args?['meetingId']?.toString(),
+                          employeeId: args?['employeeId']?.toString(),
+                          managerId: args?['managerId']?.toString(),
+                          participantName: args?['participantName']?.toString(),
+                        ),
+                      );
+                    },
+                    transitionDuration: const Duration(milliseconds: 200),
+                    transitionBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                          final curved = CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                            reverseCurve: Curves.easeInCubic,
+                          );
+                          return FadeTransition(
+                            opacity: curved,
+                            child: ScaleTransition(
+                              scale: Tween<double>(
+                                begin: 0.96,
+                                end: 1,
+                              ).animate(curved),
+                              child: child,
+                            ),
+                          );
+                        },
+                  );
+                }
+                return null;
               },
               routes: {
                 '/landing': (context) => const PersonalDevelopmentHubScreen(),

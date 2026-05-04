@@ -144,6 +144,9 @@ class Goal {
             .where((s) => s.isNotEmpty)
             .toList();
       }
+      if (v is String && v.trim().isNotEmpty) {
+        return <String>[v.trim()];
+      }
       return const <String>[];
     }
 
@@ -230,6 +233,9 @@ class Goal {
             .map((e) => e?.toString() ?? '')
             .where((s) => s.isNotEmpty)
             .toList();
+      }
+      if (v is String && v.trim().isNotEmpty) {
+        return <String>[v.trim()];
       }
       return const <String>[];
     }
