@@ -100,16 +100,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     }
   }
 
-  bool _shouldShowPortalTopActions(String route) {
-    switch (route) {
-      // The embedded dashboard already renders its own top-right actions.
-      case '/dashboard':
-        return false;
-      default:
-        return true;
-    }
-  }
-
   Widget _getBodyWidget() {
     switch (_currentRoute) {
       case '/dashboard':

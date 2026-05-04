@@ -1540,8 +1540,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       goalDocs: pendingDocs,
                       adminUserId: user.uid,
                     );
-                    if (p != 0) return p;
-                    return b.createdAt.compareTo(a.createdAt);
+                    return _buildInboxListContent(
+                      sourceItems: mergedItems,
+                      user: user,
+                    );
                   },
                 );
               }
@@ -1555,6 +1557,81 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         ),
       ),
     );
+  }
+
+  /// Goals assigned to admin approval ([requiredApproverRole] == admin).
+  /// Pending status is applied in [_mergeAdminPendingGoalFallbackAlerts] so this
+  /// stays a single-field query (no extra composite index).
+  Stream<QuerySnapshot<Map<String, dynamic>>> _adminPendingGoalsStream() {
+    return FirestoreSafe.stream<QuerySnapshot<Map<String, dynamic>>>(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('requiredApproverRole', isEqualTo: 'admin')
+          .limit(300)
+          .snapshots(),
+    );
+  }
+
+  /// If Firestore goals are pending admin approval but the approval alert never
+  /// reached the admin stream, synthesize matching [AlertType.goalApprovalRequested]
+  /// rows so the inbox still surfaces the work item.
+  List<Alert> _mergeAdminPendingGoalFallbackAlerts({
+    required List<Alert> baseItems,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> goalDocs,
+    required String adminUserId,
+  }) {
+    final coveredGoalIds = <String>{};
+    for (final a in baseItems) {
+      if (a.type != AlertType.goalApprovalRequested) continue;
+      final gid = _goalIdFromAlert(a);
+      if (gid != null && gid.isNotEmpty) coveredGoalIds.add(gid);
+    }
+
+    final extras = <Alert>[];
+    for (final doc in goalDocs) {
+      final role =
+          (doc.data()['requiredApproverRole'] ?? '').toString().trim().toLowerCase();
+      if (role != 'admin') continue;
+
+      Goal goal;
+      try {
+        goal = Goal.fromFirestore(doc);
+      } catch (_) {
+        continue;
+      }
+      if (!goal.isDisplayableGoal) continue;
+      if (goal.approvalStatus != GoalApprovalStatus.pending) continue;
+      if (coveredGoalIds.contains(goal.id)) continue;
+
+      final createdAt = goal.approvalRequestedAt ?? goal.createdAt;
+      extras.add(
+        Alert(
+          id: '__goal_approval_fallback__${goal.id}',
+          userId: adminUserId,
+          type: AlertType.goalApprovalRequested,
+          audience: AlertAudience.personal,
+          priority: AlertPriority.high,
+          title: 'Goal Approval Needed',
+          message:
+              'A submitted goal is awaiting admin review: "${goal.title}". Approve or reject.',
+          actionText: 'Review Goal',
+          actionRoute: '/admin_inbox',
+          actionData: {
+            'goalId': goal.id,
+            'requestedByUserId': goal.userId,
+            'requiredApproverRole': 'admin',
+            'approvalChain': 'manager_to_admin',
+          },
+          createdAt: createdAt,
+          fromUserId: goal.userId.isNotEmpty ? goal.userId : null,
+          relatedGoalId: goal.id,
+          expiresAt: createdAt.add(const Duration(days: 14)),
+        ),
+      );
+    }
+
+    if (extras.isEmpty) return baseItems;
+    return <Alert>[...baseItems, ...extras];
   }
 
   Widget _buildFilters() {
