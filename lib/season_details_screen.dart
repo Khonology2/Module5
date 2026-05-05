@@ -107,7 +107,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           return Scaffold(
             backgroundColor: Colors.transparent,
             body: _buildSeasonBackground(
-              child: const Center(
+              child: Center(
                 child: Text('Season not found', style: AppTypography.heading4),
               ),
             ),
@@ -1135,11 +1135,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1556,11 +1552,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1740,11 +1732,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     };
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1807,11 +1795,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
         return Container(
           margin: const EdgeInsets.only(bottom: AppSpacing.sm),
           padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderColor),
-          ),
+          decoration: _glassBoxDecoration(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2084,7 +2068,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     );
   }
 
-  Color get _glassCardColor => Colors.black.withValues(alpha: 0.45);
+  Color get _glassCardColor => const Color(0x993D3D40);
 
   BoxDecoration _glassBoxDecoration({double radius = 12, Color? borderColor}) {
     return BoxDecoration(
@@ -2093,6 +2077,13 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
       border: Border.all(
         color: borderColor ?? Colors.white.withValues(alpha: 0.2),
       ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.25),
+          blurRadius: 3.55,
+          offset: const Offset(0, 3.55),
+        ),
+      ],
     );
   }
 
