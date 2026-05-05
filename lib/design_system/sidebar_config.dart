@@ -39,6 +39,12 @@ class SidebarConfig {
     );
   }
 
+  /// Check if app is in light mode (simplified approach)
+  static bool get isLightMode {
+    // Basic light mode detection - you can customize this logic
+    return true; // Force light mode for now - replace with actual theme detection
+  }
+
   // ===== WORKSPACE-SPECIFIC ITEMS =====
 
   /// My Workspace items (for employees and managers when in my workspace context)
