@@ -1,6 +1,6 @@
 {
-  "version": "2026.05.BB10.SIT",
-  "generated_at": "2026-05-05T12:13:46Z",
+  "version": "2026.05.BB11.SIT",
+  "generated_at": "2026-05-05T12:38:16Z",
   "commits": [
     {
       "author": "Thembelihle",
@@ -21,6 +21,11 @@
       "author": "Thembelihle",
       "message": "Feature - Enhance goal and season management across multiple screens by filtering out season goals, updating UI elements, and improving data handling for better user experience.",
       "timestamp": "2026-04-24T09:47:36+02:00"
+    },
+    {
+      "author": "creator745",
+      "message": "Feature - successfully identified and fixed the overdue goals ghost data issue in the manager alerts screen",
+      "timestamp": "2026-05-05T14:37:36+02:00"
     },
     {
       "author": "BhutSipho",
@@ -53,6 +58,6 @@
       "timestamp": "2026-05-05T10:51:07+02:00"
     }
   ],
-  "total_commits": 10,
+  "total_commits": 11,
   "date_range": "2026-05-05"
 }
