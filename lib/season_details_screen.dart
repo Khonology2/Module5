@@ -836,6 +836,10 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   }
 
   Widget _buildChallengesTab(Season season) {
+    if (season.challenges.isEmpty) {
+      return _buildEmptyChallengesState();
+    }
+
     if (_isParticipantView) {
       return ListView(
         padding: AppSpacing.screenPadding,
@@ -852,16 +856,348 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
       );
     }
 
-    return ListView.builder(
+    return ListView(
       padding: AppSpacing.screenPadding,
-      itemCount: season.challenges.length,
-      itemBuilder: (context, index) {
-        final challenge = season.challenges[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.md),
-          child: _buildChallengeCard(season, challenge),
-        );
-      },
+      children: [
+        _buildManagerChallengesSummaryCard(season),
+        const SizedBox(height: AppSpacing.md),
+        ...season.challenges.map(
+          (challenge) => Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: _buildChallengeCard(season, challenge),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyChallengesState() {
+    return Center(
+      child: Container(
+        margin: AppSpacing.screenPadding,
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        decoration: _glassBoxDecoration(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.emoji_events_outlined,
+              color: AppColors.textSecondary,
+              size: 40,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'No challenges added yet',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Once challenges are added, team progress and proof reviews will appear here.',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManagerChallengesSummaryCard(Season season) {
+    final challengeStats = season.challenges
+        .map((challenge) => _challengeTeamStats(season, challenge))
+        .toList();
+    final completedMilestones = challengeStats.fold<int>(
+      0,
+      (total, stats) => total + stats.completedMilestones,
+    );
+    final totalMilestoneSlots = challengeStats.fold<int>(
+      0,
+      (total, stats) => total + stats.totalMilestoneSlots,
+    );
+    final pendingProofs = challengeStats.fold<int>(
+      0,
+      (total, stats) => total + stats.pendingProofs,
+    );
+    final teamProgress = totalMilestoneSlots > 0
+        ? (completedMilestones / totalMilestoneSlots).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: _glassBoxDecoration(
+        borderColor: AppColors.activeColor.withValues(alpha: 0.35),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Team Challenge Dashboard',
+            style: AppTypography.heading3.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Track challenge completion across all participants and review submitted proof.',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Overall challenge progress',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                '${(teamProgress * 100).round()}%',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.activeColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          LinearProgressIndicator(
+            value: teamProgress,
+            backgroundColor: AppColors.borderColor,
+            valueColor: const AlwaysStoppedAnimation<Color>(
+              AppColors.activeColor,
+            ),
+            minHeight: 7,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm.toDouble(),
+            runSpacing: AppSpacing.sm.toDouble(),
+            children: [
+              _buildManagerChallengeStatChip(
+                icon: Icons.emoji_events,
+                label: 'Challenges',
+                value: '${season.challenges.length}',
+                color: AppColors.warningColor,
+              ),
+              _buildManagerChallengeStatChip(
+                icon: Icons.check_circle,
+                label: 'Milestones',
+                value: '$completedMilestones/$totalMilestoneSlots',
+                color: AppColors.activeColor,
+              ),
+              _buildManagerChallengeStatChip(
+                icon: Icons.people,
+                label: 'Participants',
+                value: '${season.participations.length}',
+                color: AppColors.infoColor,
+              ),
+              _buildManagerChallengeStatChip(
+                icon: Icons.rate_review,
+                label: 'Pending proofs',
+                value: '$pendingProofs',
+                color: pendingProofs > 0
+                    ? AppColors.warningColor
+                    : AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManagerChallengeStatChip({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            '$label: $value',
+            style: AppTypography.bodySmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  ({
+    int completedMilestones,
+    int totalMilestoneSlots,
+    int activeParticipants,
+    int completedParticipants,
+    int pendingProofs,
+    int approvedProofs,
+    int rejectedProofs,
+    double progress,
+  })
+  _challengeTeamStats(Season season, SeasonChallenge challenge) {
+    final participantCount = season.participations.length;
+    final totalMilestoneSlots = participantCount * challenge.milestones.length;
+    var completedMilestones = 0;
+    var activeParticipants = 0;
+    var completedParticipants = 0;
+    var pendingProofs = 0;
+    var approvedProofs = 0;
+    var rejectedProofs = 0;
+
+    for (final participant in season.participations.values) {
+      final completedForParticipant = _completedMilestonesForChallenge(
+        challenge,
+        participant,
+      );
+      completedMilestones += completedForParticipant;
+      if (completedForParticipant > 0) {
+        activeParticipants++;
+      }
+      if (challenge.milestones.isNotEmpty &&
+          completedForParticipant == challenge.milestones.length) {
+        completedParticipants++;
+      }
+
+      final submission = participant.challengeSubmissions[challenge.id];
+      switch (submission?.status) {
+        case ChallengeSubmissionStatus.submitted:
+          pendingProofs++;
+        case ChallengeSubmissionStatus.approved:
+          approvedProofs++;
+        case ChallengeSubmissionStatus.rejected:
+          rejectedProofs++;
+        case ChallengeSubmissionStatus.notSubmitted:
+        case null:
+          break;
+      }
+    }
+
+    return (
+      completedMilestones: completedMilestones,
+      totalMilestoneSlots: totalMilestoneSlots,
+      activeParticipants: activeParticipants,
+      completedParticipants: completedParticipants,
+      pendingProofs: pendingProofs,
+      approvedProofs: approvedProofs,
+      rejectedProofs: rejectedProofs,
+      progress: totalMilestoneSlots > 0
+          ? (completedMilestones / totalMilestoneSlots).clamp(0.0, 1.0)
+          : 0.0,
+    );
+  }
+
+  Widget _buildManagerChallengeSnapshot(
+    SeasonChallenge challenge,
+    ({
+      int completedMilestones,
+      int totalMilestoneSlots,
+      int activeParticipants,
+      int completedParticipants,
+      int pendingProofs,
+      int approvedProofs,
+      int rejectedProofs,
+      double progress,
+    })
+    stats,
+  ) {
+    final nextAction = challenge.proofRequired
+        ? (stats.pendingProofs > 0
+              ? '${stats.pendingProofs} proof${stats.pendingProofs == 1 ? '' : 's'} need review'
+              : stats.approvedProofs > 0
+              ? '${stats.approvedProofs} proof${stats.approvedProofs == 1 ? '' : 's'} approved'
+              : 'No proof submissions yet')
+        : (stats.completedParticipants > 0
+              ? '${stats.completedParticipants} participant${stats.completedParticipants == 1 ? '' : 's'} completed'
+              : 'No participants completed this challenge yet');
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Team snapshot',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm.toDouble(),
+            runSpacing: AppSpacing.sm.toDouble(),
+            children: [
+              _buildManagerChallengeStatChip(
+                icon: Icons.check_circle_outline,
+                label: 'Milestones',
+                value:
+                    '${stats.completedMilestones}/${stats.totalMilestoneSlots}',
+                color: AppColors.activeColor,
+              ),
+              _buildManagerChallengeStatChip(
+                icon: Icons.trending_up,
+                label: 'Active',
+                value: '${stats.activeParticipants}',
+                color: AppColors.infoColor,
+              ),
+              _buildManagerChallengeStatChip(
+                icon: Icons.verified,
+                label: 'Completed',
+                value: '${stats.completedParticipants}',
+                color: AppColors.successColor,
+              ),
+              if (challenge.proofRequired)
+                _buildManagerChallengeStatChip(
+                  icon: Icons.rate_review,
+                  label: 'Proofs',
+                  value:
+                      '${stats.pendingProofs} pending / ${stats.approvedProofs} approved',
+                  color: stats.pendingProofs > 0
+                      ? AppColors.warningColor
+                      : AppColors.successColor,
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            nextAction,
+            style: AppTypography.bodySmall.copyWith(
+              color: stats.pendingProofs > 0
+                  ? AppColors.warningColor
+                  : AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -932,6 +1268,9 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
 
   Widget _buildChallengeCard(Season season, SeasonChallenge challenge) {
     final participant = _participantForSeason(season);
+    final teamStats = _isParticipantView
+        ? null
+        : _challengeTeamStats(season, challenge);
     final completedForParticipant = participant == null
         ? 0
         : challenge.milestones.where((milestone) {
@@ -941,8 +1280,6 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                 participant.milestoneProgress[milestone.id];
             return status == MilestoneStatus.completed;
           }).length;
-    final challengeCompletions =
-        season.metrics.challengeCompletions[challenge.type] ?? 0;
     final progress = _isParticipantView
         ? (challenge.milestones.isNotEmpty
               ? (completedForParticipant / challenge.milestones.length).clamp(
@@ -950,12 +1287,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                   1.0,
                 )
               : 0.0)
-        : (challenge.milestones.isNotEmpty
-              ? (challengeCompletions / challenge.milestones.length).clamp(
-                  0.0,
-                  1.0,
-                )
-              : 0.0);
+        : teamStats!.progress;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -1070,6 +1402,11 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           ),
           const SizedBox(height: AppSpacing.md),
 
+          if (!_isParticipantView && teamStats != null) ...[
+            _buildManagerChallengeSnapshot(challenge, teamStats),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
           // Milestones
           Text(
             'Milestones',
@@ -1085,14 +1422,27 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                 participant?.milestoneProgress[keyDot] ??
                 participant?.milestoneProgress[milestone.id];
             final isCompleted = milestoneStatus == MilestoneStatus.completed;
+            final teamCompleted = _isParticipantView
+                ? 0
+                : _completedParticipantsForMilestone(
+                    season,
+                    challenge,
+                    milestone,
+                  );
+            final teamTotal = season.participations.length;
+            final allTeamCompleted =
+                teamTotal > 0 && teamCompleted == teamTotal;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.xs),
               child: Row(
                 children: [
                   Icon(
-                    isCompleted ? Icons.circle : Icons.radio_button_unchecked,
-                    color: isCompleted
+                    (_isParticipantView ? isCompleted : allTeamCompleted)
+                        ? Icons.circle
+                        : Icons.radio_button_unchecked,
+                    color:
+                        (_isParticipantView ? isCompleted : teamCompleted > 0)
                         ? AppColors.activeColor
                         : AppColors.textSecondary,
                     size: 16,
@@ -1107,7 +1457,9 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                     ),
                   ),
                   Text(
-                    '${milestone.points} pts',
+                    _isParticipantView
+                        ? '${milestone.points} pts'
+                        : '$teamCompleted/$teamTotal done • ${milestone.points} pts',
                     style: AppTypography.bodySmall.copyWith(
                       color: AppColors.warningColor,
                       fontWeight: FontWeight.w600,
@@ -1316,7 +1668,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
             ),
           ),
           Text(
-            '${_milestoneStatusLabel(status)} • ${milestone.points} pts',
+            _milestoneStatusLabel(status),
             style: AppTypography.bodySmall.copyWith(
               color: color,
               fontWeight: FontWeight.w600,
@@ -1349,6 +1701,21 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     return participant.milestoneProgress[keyDot] ??
         participant.milestoneProgress[milestone.id] ??
         MilestoneStatus.notStarted;
+  }
+
+  int _completedParticipantsForMilestone(
+    Season season,
+    SeasonChallenge challenge,
+    SeasonMilestone milestone,
+  ) {
+    var count = 0;
+    for (final participant in season.participations.values) {
+      if (_milestoneStatusForParticipant(challenge, milestone, participant) ==
+          MilestoneStatus.completed) {
+        count++;
+      }
+    }
+    return count;
   }
 
   double _challengeProgressForParticipant(
@@ -1588,25 +1955,6 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '${participant.totalPoints}',
-                    style: AppTypography.heading4.copyWith(
-                      color: _getRankColor(rank),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    'points',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
