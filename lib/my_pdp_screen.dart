@@ -126,15 +126,13 @@ Color _pdpEvidenceInnerBg(bool light) =>
 const double _kpiExcellenceHeaderHeight = 74.54;
 /// Leading icon badge (Figma ~63×62); use square box so [BoxShape.circle] reads cleanly.
 const double _kpiExcellenceIconSize = 62;
-/// Padding inside the white circle — keep small so the red asset reads large (Figma: fills most of the disc).
-const double _kpaIconInnerPadding = 5.0;
-
 /// PNG paths under [assets/] for each KPA row (aligned with dashboard / manager KPI usage).
 const String _kpaIconOperational =
     'assets/Goal_Target/Goal_Target_White_Badge_Red.png';
 const String _kpaIconCustomer =
     'assets/Approved_Tick/Approved_White_Badge_Red.png';
-const String _kpaIconFinancial = 'assets/Star.png';
+const String _kpaIconFinancial =
+    'assets/Financial Growth_Development/Financial Growth_Development_White Badge_Red.png';
 const String _kpaIconOrganisational = _kpaIconOperational;
 const String _kpaIconPeople = _kpaIconCustomer;
 
@@ -1369,27 +1367,20 @@ class _MyPdpScreenState extends State<MyPdpScreen>
   }
 
   Widget _buildKpaLeadingIcon(String iconAsset) {
-    final inner = _kpiExcellenceIconSize - 2 * _kpaIconInnerPadding;
-    // Fixed badge size; image fills inner square so glyphs stay large and visible (matches Figma).
+    final inner = _kpiExcellenceIconSize;
+    // Keep icon clean with no outer badge/background.
     return SizedBox(
       width: _kpiExcellenceIconSize,
       height: _kpiExcellenceIconSize,
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(_kpaIconInnerPadding),
-          child: Image.asset(
-            iconAsset,
-            width: inner,
-            height: inner,
-            fit: BoxFit.contain,
-            gaplessPlayback: true,
-            filterQuality: FilterQuality.high,
-            isAntiAlias: true,
-          ),
+      child: Center(
+        child: Image.asset(
+          iconAsset,
+          width: inner,
+          height: inner,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.high,
+          isAntiAlias: true,
         ),
       ),
     );
@@ -1428,18 +1419,30 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                         _buildKpaLeadingIcon(iconAsset),
                         SizedBox(width: _kpiIconToTitleGap),
                         Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
+                          child: Row(
                             children: [
-                              Text(
-                                title,
-                                style: _kpaExcellenceTitleStyle(light),
+                              SizedBox(
+                                width: 160,
+                                child: Text(
+                                  title,
+                                  style: _kpaExcellenceTitleStyle(light),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
+                              if (!expanded) ...[
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildCollapsedKpaSummary(
+                                    light: light,
+                                    excellence: title,
+                                    managerOwnGoalsOnly: managerOwnGoalsOnly,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Icon(
                           expanded
                               ? Icons.keyboard_arrow_up
@@ -1467,6 +1470,241 @@ class _MyPdpScreenState extends State<MyPdpScreen>
           ),
         ),
       ),
+    );
+  }
+
+  List<Goal> _filterGoalsForExcellence(List<Goal> goals, String excellence) {
+    return goals
+        .where((g) => !g.isSeasonGoal && _mapGoalToExcellence(g) == excellence)
+        .toList();
+  }
+
+  Map<String, int> _collapsedKpaSummaryCounts(List<Goal> goals) {
+    final total = goals.length;
+    final pendingApproval = goals
+        .where((g) => g.approvalStatus == GoalApprovalStatus.pending)
+        .length;
+    final rejected = goals
+        .where((g) => g.approvalStatus == GoalApprovalStatus.rejected)
+        .length;
+    final inProgress = goals
+        .where(
+          (g) =>
+              g.approvalStatus == GoalApprovalStatus.approved &&
+              g.status == GoalStatus.inProgress,
+        )
+        .length;
+    final completed = goals
+        .where(
+          (g) =>
+              g.approvalStatus == GoalApprovalStatus.approved &&
+              (g.status == GoalStatus.completed ||
+                  g.status == GoalStatus.acknowledged),
+        )
+        .length;
+    return <String, int>{
+      'total': total,
+      'inProgress': inProgress,
+      'completed': completed,
+      'pendingApproval': pendingApproval,
+      'rejected': rejected,
+    };
+  }
+
+  Widget _buildCollapsedKpaCountItem({
+    required bool light,
+    required String iconAsset,
+    required int value,
+    required String label,
+  }) {
+    return SizedBox(
+      width: 102,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Image.asset(
+              iconAsset,
+              width: 20,
+              height: 20,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: _pdpFg(light),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '$value',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: _pdpMuted(light),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollapsedKpaSummaryView({
+    required bool light,
+    required Map<String, int> counts,
+  }) {
+    final total = counts['total'] ?? 0;
+    final inProgress = counts['inProgress'] ?? 0;
+    final completed = counts['completed'] ?? 0;
+    final pendingApproval = counts['pendingApproval'] ?? 0;
+    final rejected = counts['rejected'] ?? 0;
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+        Wrap(
+          alignment: WrapAlignment.start,
+          spacing: 6,
+          runSpacing: 2,
+          children: [
+            _buildCollapsedKpaCountItem(
+              light: light,
+              iconAsset: 'assets/Goal_Target/Goal_Target_Red.png',
+              value: total,
+              label: 'Goals',
+            ),
+            _buildCollapsedKpaCountItem(
+              light: light,
+              iconAsset:
+                  'assets/Project_Direction_Acceleration/Project Direction_Acceleration_Red.png',
+              value: inProgress,
+              label: 'In Progress',
+            ),
+            _buildCollapsedKpaCountItem(
+              light: light,
+              iconAsset: 'assets/Approved_Tick/Approved_Red.png',
+              value: completed,
+              label: 'Completed',
+            ),
+            _buildCollapsedKpaCountItem(
+              light: light,
+              iconAsset: 'assets/Data_Approval/Data Approval_Red.png',
+              value: pendingApproval,
+              label: 'Pending',
+            ),
+            _buildCollapsedKpaCountItem(
+              light: light,
+              iconAsset: 'assets/Cancel_Exit_Escape/Cancel_Exit_Escape_Red.png',
+              value: rejected,
+              label: 'Rejected',
+            ),
+          ],
+        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollapsedKpaSummary({
+    required bool light,
+    required String excellence,
+    required bool managerOwnGoalsOnly,
+  }) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, authSnap) {
+        final user = authSnap.data;
+        if (user == null) {
+          return _buildCollapsedKpaSummaryView(
+            light: light,
+            counts: const <String, int>{
+              'total': 0,
+              'inProgress': 0,
+              'completed': 0,
+              'pendingApproval': 0,
+              'rejected': 0,
+            },
+          );
+        }
+
+        return FutureBuilder<String?>(
+          future: RoleService.instance.getRole(),
+          builder: (context, roleSnap) {
+            final role = roleSnap.data ?? RoleService.instance.cachedRole;
+            final isManager = role == 'manager';
+
+            if (isManager && managerOwnGoalsOnly) {
+              return StreamBuilder<List<Goal>>(
+                stream: DatabaseService.getUserGoalsStream(user.uid),
+                builder: (context, goalsSnap) {
+                  final goals = _filterGoalsForExcellence(
+                    goalsSnap.data ?? const <Goal>[],
+                    excellence,
+                  );
+                  return _buildCollapsedKpaSummaryView(
+                    light: light,
+                    counts: _collapsedKpaSummaryCounts(goals),
+                  );
+                },
+              );
+            }
+
+            if (isManager) {
+              return StreamBuilder<List<EmployeeData>>(
+                stream: ManagerRealtimeService.getTeamDataStream(),
+                builder: (context, teamSnap) {
+                  final allGoals = <Goal>[];
+                  for (final emp in teamSnap.data ?? const <EmployeeData>[]) {
+                    allGoals.addAll(emp.goals);
+                  }
+                  final goals = _filterGoalsForExcellence(allGoals, excellence);
+                  return _buildCollapsedKpaSummaryView(
+                    light: light,
+                    counts: _collapsedKpaSummaryCounts(goals),
+                  );
+                },
+              );
+            }
+
+            return StreamBuilder<List<Goal>>(
+              stream: DatabaseService.getUserGoalsStream(user.uid),
+              builder: (context, goalsSnap) {
+                final goals = _filterGoalsForExcellence(
+                  goalsSnap.data ?? const <Goal>[],
+                  excellence,
+                );
+                return _buildCollapsedKpaSummaryView(
+                  light: light,
+                  counts: _collapsedKpaSummaryCounts(goals),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
