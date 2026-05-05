@@ -31,6 +31,24 @@ class _TeamChallengesSeasonsScreenState
   String _themeFilter = 'All Themes';
   bool _showPausedOnly = false;
   final Set<String> _reviewingSubmissionKeys = <String>{};
+  static const Color _darkBlockColor = Color(0x993D3D40);
+
+  BoxDecoration _darkBlockDecoration({Color? borderColor}) {
+    return BoxDecoration(
+      color: _darkBlockColor,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: borderColor ?? Colors.white.withValues(alpha: 0.2),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.25),
+          blurRadius: 3.55,
+          offset: const Offset(0, 3.55),
+        ),
+      ],
+    );
+  }
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
@@ -181,20 +199,7 @@ class _TeamChallengesSeasonsScreenState
                     vertical: AppSpacing.xs,
                     horizontal: AppSpacing.lg,
                   ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.activeColor.withValues(alpha: 0.1),
-                        AppColors.successColor.withValues(alpha: 0.1),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.activeColor.withValues(alpha: 0.3),
-                    ),
-                  ),
+                  decoration: _darkBlockDecoration(),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -246,7 +251,9 @@ class _TeamChallengesSeasonsScreenState
                       );
                     }
 
-                    final seasons = _filterSeasonsForScreen(snapshot.data ?? []);
+                    final seasons = _filterSeasonsForScreen(
+                      snapshot.data ?? [],
+                    );
                     final activeSeasons = seasons
                         .where((s) => s.status == SeasonStatus.active)
                         .toList();
@@ -300,11 +307,7 @@ class _TeamChallengesSeasonsScreenState
               vertical: AppSpacing.md,
               horizontal: AppSpacing.lg,
             ),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-            ),
+            decoration: _darkBlockDecoration(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -349,10 +352,18 @@ class _TeamChallengesSeasonsScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Season History',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              vertical: AppSpacing.sm,
+              horizontal: AppSpacing.md,
+            ),
+            decoration: _darkBlockDecoration(),
+            child: Text(
+              'Season History',
+              style: AppTypography.heading3.copyWith(
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -376,6 +387,11 @@ class _TeamChallengesSeasonsScreenState
                     child: Container(
                       height: 200,
                       padding: const EdgeInsets.all(16),
+                      decoration: _darkBlockDecoration(
+                        borderColor: AppColors.dangerColor.withValues(
+                          alpha: 0.35,
+                        ),
+                      ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -418,6 +434,7 @@ class _TeamChallengesSeasonsScreenState
                     child: Container(
                       height: 200,
                       padding: const EdgeInsets.all(16),
+                      decoration: _darkBlockDecoration(),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -473,17 +490,30 @@ class _TeamChallengesSeasonsScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Season Reviews',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              vertical: AppSpacing.sm,
+              horizontal: AppSpacing.md,
             ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Review participant evidence grouped by season so you can quickly approve or send back submissions.',
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+            decoration: _darkBlockDecoration(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Season Reviews',
+                  style: AppTypography.heading3.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Review participant evidence grouped by season so you can quickly approve or send back submissions.',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -512,11 +542,7 @@ class _TeamChallengesSeasonsScreenState
                   return Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppSpacing.lg),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardBackground,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.borderColor),
-                    ),
+                    decoration: _darkBlockDecoration(),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -567,11 +593,7 @@ class _TeamChallengesSeasonsScreenState
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-        color: AppColors.cardBackground.withValues(alpha: 0.4),
-      ),
+      decoration: _darkBlockDecoration(),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -626,10 +648,8 @@ class _TeamChallengesSeasonsScreenState
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.dangerColor.withValues(alpha: 0.2)),
-        color: AppColors.cardBackground,
+      decoration: _darkBlockDecoration(
+        borderColor: AppColors.dangerColor.withValues(alpha: 0.35),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -682,11 +702,7 @@ class _TeamChallengesSeasonsScreenState
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
+      decoration: _darkBlockDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -919,7 +935,9 @@ class _TeamChallengesSeasonsScreenState
           backgroundColor: AppColors.cardBackground,
           title: Text(
             'Delete season?',
-            style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
           ),
           content: Text(
             'This will permanently delete "${season.title}" and notify participants.',
@@ -965,11 +983,7 @@ class _TeamChallengesSeasonsScreenState
   Widget _buildSeasonHistoryCard(Season season) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _darkBlockDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1207,7 +1221,8 @@ class _TeamChallengesSeasonsScreenState
         if (entries.isEmpty) continue;
 
         entries.sort(
-          (a, b) => b.submission.submittedAt.compareTo(a.submission.submittedAt),
+          (a, b) =>
+              b.submission.submittedAt.compareTo(a.submission.submittedAt),
         );
         participantGroups.add(
           _ParticipantReviewGroup(
@@ -1227,10 +1242,7 @@ class _TeamChallengesSeasonsScreenState
       });
 
       groups.add(
-        _SeasonReviewGroup(
-          season: season,
-          participants: participantGroups,
-        ),
+        _SeasonReviewGroup(season: season, participants: participantGroups),
       );
     }
 
@@ -1256,11 +1268,7 @@ class _TeamChallengesSeasonsScreenState
     final season = group.season;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _darkBlockDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1319,7 +1327,10 @@ class _TeamChallengesSeasonsScreenState
           ...group.participants.map(
             (participantGroup) => Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.md),
-              child: _buildParticipantReviewCard(group.season, participantGroup),
+              child: _buildParticipantReviewCard(
+                group.season,
+                participantGroup,
+              ),
             ),
           ),
         ],
@@ -1349,7 +1360,10 @@ class _TeamChallengesSeasonsScreenState
                 backgroundColor: AppColors.activeColor.withValues(alpha: 0.15),
                 child: Text(
                   participation.userName.isNotEmpty
-                      ? participation.userName.trim().substring(0, 1).toUpperCase()
+                      ? participation.userName
+                            .trim()
+                            .substring(0, 1)
+                            .toUpperCase()
                       : '?',
                   style: AppTypography.bodyMedium.copyWith(
                     color: AppColors.activeColor,
@@ -1506,7 +1520,8 @@ class _TeamChallengesSeasonsScreenState
                   child: OutlinedButton.icon(
                     onPressed: isBusy
                         ? null
-                        : () => _reviewSubmission(entry: entry, approved: false),
+                        : () =>
+                              _reviewSubmission(entry: entry, approved: false),
                     icon: isBusy
                         ? const SizedBox(
                             width: 14,
@@ -1624,8 +1639,9 @@ class _TeamChallengesSeasonsScreenState
               ),
             ),
             ElevatedButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(feedbackController.text.trim()),
+              onPressed: () => Navigator.of(
+                dialogContext,
+              ).pop(feedbackController.text.trim()),
               style: ElevatedButton.styleFrom(
                 backgroundColor: approved
                     ? AppColors.successColor
@@ -1754,7 +1770,9 @@ class _TeamChallengesSeasonsScreenState
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null) return const <Season>[];
     // Supervisor Team Challenges should only show seasons owned by this manager.
-    return seasons.where((season) => season.createdBy == currentUserId).toList();
+    return seasons
+        .where((season) => season.createdBy == currentUserId)
+        .toList();
   }
 
   Widget _buildManagerStatsRow({
@@ -1872,10 +1890,7 @@ class _TeamChallengesSeasonsScreenState
     return 'Just now';
   }
 
-  int _countProofsByStatus(
-    Season season,
-    ChallengeSubmissionStatus status,
-  ) {
+  int _countProofsByStatus(Season season, ChallengeSubmissionStatus status) {
     var count = 0;
     for (final participation in season.participations.values) {
       for (final submission in participation.challengeSubmissions.values) {
@@ -1892,10 +1907,7 @@ class _SeasonReviewGroup {
   final Season season;
   final List<_ParticipantReviewGroup> participants;
 
-  const _SeasonReviewGroup({
-    required this.season,
-    required this.participants,
-  });
+  const _SeasonReviewGroup({required this.season, required this.participants});
 
   int get pendingCount => participants.fold(
     0,
@@ -1926,7 +1938,10 @@ class _ParticipantReviewGroup {
   });
 
   int get pendingCount => entries
-      .where((entry) => entry.submission.status == ChallengeSubmissionStatus.submitted)
+      .where(
+        (entry) =>
+            entry.submission.status == ChallengeSubmissionStatus.submitted,
+      )
       .length;
 
   int get reviewedCount => entries.length - pendingCount;
@@ -1984,6 +1999,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
   bool _useLinkedResource = false;
   bool _proofRequired = false;
   String _courseLevel = 'Beginner';
+  static const Color _darkFieldColor = Color(0x993D3D40);
 
   final List<String> _themes = [
     'Learning',
@@ -1992,11 +2008,40 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     'Innovation',
     'Wellness',
   ];
-  final List<String> _courseLevels = [
-    'Beginner',
-    'Intermediate',
-    'Advanced',
-  ];
+  final List<String> _courseLevels = ['Beginner', 'Intermediate', 'Advanced'];
+
+  InputDecoration _fieldDecoration({
+    required String labelText,
+    String? hintText,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+    );
+    return InputDecoration(
+      labelText: labelText,
+      hintText: hintText,
+      labelStyle: AppTypography.bodySmall.copyWith(
+        color: Colors.white.withValues(alpha: 0.85),
+      ),
+      hintStyle: AppTypography.bodySmall.copyWith(
+        color: Colors.white.withValues(alpha: 0.55),
+      ),
+      filled: true,
+      fillColor: _darkFieldColor,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: BorderSide(
+          color: AppColors.activeColor.withValues(alpha: 0.8),
+        ),
+      ),
+    );
+  }
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
@@ -2057,10 +2102,9 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
 
           TextFormField(
             controller: _titleController,
-            decoration: const InputDecoration(
+            decoration: _fieldDecoration(
               labelText: 'Season Title',
               hintText: 'e.g., Q2 Learning Sprint',
-              border: OutlineInputBorder(),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -2073,10 +2117,9 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
 
           TextFormField(
             controller: _descriptionController,
-            decoration: const InputDecoration(
+            decoration: _fieldDecoration(
               labelText: 'Description',
               hintText: 'Describe the season and its goals',
-              border: OutlineInputBorder(),
             ),
             maxLines: 3,
             validator: (value) {
@@ -2090,10 +2133,8 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
 
           DropdownButtonFormField<String>(
             initialValue: _selectedTheme,
-            decoration: const InputDecoration(
-              labelText: 'Theme',
-              border: OutlineInputBorder(),
-            ),
+            decoration: _fieldDecoration(labelText: 'Theme'),
+            dropdownColor: const Color(0xFF3D3D40),
             items: _themes.map((theme) {
               return DropdownMenuItem(value: theme, child: Text(theme));
             }).toList(),
@@ -2142,10 +2183,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
                 child: InkWell(
                   onTap: _selectStartDate,
                   child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Start Date',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: _fieldDecoration(labelText: 'Start Date'),
                     child: Text(
                       _startDate != null
                           ? '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'
@@ -2159,10 +2197,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
                 child: InkWell(
                   onTap: _selectEndDate,
                   child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'End Date',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: _fieldDecoration(labelText: 'End Date'),
                     child: Text(
                       _endDate != null
                           ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
@@ -2239,9 +2274,11 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     });
 
     try {
-      final hasLinkedCourse = _useLinkedResource &&
-          _courseUrlController.text.trim().isNotEmpty;
-      final estimatedHours = int.tryParse(_estimatedHoursController.text.trim());
+      final hasLinkedCourse =
+          _useLinkedResource && _courseUrlController.text.trim().isNotEmpty;
+      final estimatedHours = int.tryParse(
+        _estimatedHoursController.text.trim(),
+      );
       final learningResource = hasLinkedCourse
           ? SeasonCourseResource(
               title: _courseTitleController.text.trim().isNotEmpty
@@ -2313,10 +2350,9 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           const SizedBox(height: AppSpacing.md),
           TextFormField(
             controller: _courseTitleController,
-            decoration: const InputDecoration(
+            decoration: _fieldDecoration(
               labelText: 'Resource Title (optional)',
               hintText: 'e.g., SQL for Beginners',
-              border: OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -2332,10 +2368,9 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
               Expanded(
                 child: TextFormField(
                   controller: _courseProviderController,
-                  decoration: const InputDecoration(
+                  decoration: _fieldDecoration(
                     labelText: 'Provider',
                     hintText: 'YouTube, freeCodeCamp, Coursera, article link',
-                    border: OutlineInputBorder(),
                   ),
                 ),
               ),
@@ -2343,16 +2378,12 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
               Expanded(
                 child: DropdownButtonFormField<String>(
                   initialValue: _courseLevel,
-                  decoration: const InputDecoration(
-                    labelText: 'Level',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: _fieldDecoration(labelText: 'Level'),
+                  dropdownColor: const Color(0xFF3D3D40),
                   items: _courseLevels
                       .map(
-                        (level) => DropdownMenuItem(
-                          value: level,
-                          child: Text(level),
-                        ),
+                        (level) =>
+                            DropdownMenuItem(value: level, child: Text(level)),
                       )
                       .toList(),
                   onChanged: (value) {
@@ -2368,10 +2399,9 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           const SizedBox(height: AppSpacing.md),
           TextFormField(
             controller: _courseUrlController,
-            decoration: const InputDecoration(
+            decoration: _fieldDecoration(
               labelText: 'Course URL',
               hintText: 'https://example.com/learning-resource',
-              border: OutlineInputBorder(),
             ),
             validator: (value) {
               if (!_useLinkedResource) return null;
@@ -2390,10 +2420,9 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
               Expanded(
                 child: TextFormField(
                   controller: _estimatedHoursController,
-                  decoration: const InputDecoration(
+                  decoration: _fieldDecoration(
                     labelText: 'Estimated Hours',
                     hintText: 'e.g., 8',
-                    border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
                 ),
@@ -2425,10 +2454,9 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
             const SizedBox(height: AppSpacing.sm),
             TextFormField(
               controller: _proofTypeController,
-              decoration: const InputDecoration(
+              decoration: _fieldDecoration(
                 labelText: 'Proof Type',
                 hintText: 'Certificate, screenshot, quiz score, reflection',
-                border: OutlineInputBorder(),
               ),
             ),
           ],
