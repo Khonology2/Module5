@@ -30,7 +30,9 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
 
-  bool get _isParticipantView => widget.participantUserId?.trim().isNotEmpty == true;
+  bool get _isParticipantView =>
+      widget.participantUserId?.trim().isNotEmpty == true;
+  int get _tabCount => _isParticipantView ? 2 : 3;
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
@@ -64,7 +66,16 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: _tabCount, vsync: this);
+  }
+
+  @override
+  void didUpdateWidget(covariant SeasonDetailsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_tabController.length != _tabCount) {
+      _tabController.dispose();
+      _tabController = TabController(length: _tabCount, vsync: this);
+    }
   }
 
   @override
@@ -108,7 +119,6 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
             ? const [
                 Tab(text: 'Overview', icon: Icon(Icons.dashboard)),
                 Tab(text: 'Challenges', icon: Icon(Icons.emoji_events)),
-                Tab(text: 'My Progress', icon: Icon(Icons.track_changes)),
               ]
             : const [
                 Tab(text: 'Overview', icon: Icon(Icons.dashboard)),
@@ -134,13 +144,13 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           body: _buildSeasonBackground(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                _buildOverviewTab(season),
-                _buildChallengesTab(season),
-                _isParticipantView
-                    ? _buildMyProgressTab(season)
-                    : _buildParticipantsTab(season),
-              ],
+              children: _isParticipantView
+                  ? [_buildOverviewTab(season), _buildChallengesTab(season)]
+                  : [
+                      _buildOverviewTab(season),
+                      _buildChallengesTab(season),
+                      _buildParticipantsTab(season),
+                    ],
             ),
           ),
         );
@@ -346,7 +356,6 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     }
   }
 
-  
   Future<void> _onViewSeasonCelebration(Season season) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -489,10 +498,6 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
 
           if (!_isParticipantView) ...[
             _buildManagerActions(season, challengeProgress),
-            const SizedBox(height: AppSpacing.xl),
-          ],
-          if (_isParticipantView) ...[
-            _buildParticipantSummaryCard(season),
             const SizedBox(height: AppSpacing.xl),
           ],
 
@@ -713,7 +718,8 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                 Expanded(
                   child: _buildMetricCard(
                     title: 'Pending Proofs',
-                    value: '${_proofSubmissionCount(season, ChallengeSubmissionStatus.submitted)}',
+                    value:
+                        '${_proofSubmissionCount(season, ChallengeSubmissionStatus.submitted)}',
                     subtitle:
                         '${_proofSubmissionCount(season, ChallengeSubmissionStatus.approved)} approved',
                     icon: Icons.fact_check,
@@ -830,6 +836,22 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   }
 
   Widget _buildChallengesTab(Season season) {
+    if (_isParticipantView) {
+      return ListView(
+        padding: AppSpacing.screenPadding,
+        children: [
+          _buildParticipantSummaryCard(season),
+          const SizedBox(height: AppSpacing.md),
+          ...season.challenges.map(
+            (challenge) => Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: _buildChallengeCard(season, challenge),
+            ),
+          ),
+        ],
+      );
+    }
+
     return ListView.builder(
       padding: AppSpacing.screenPadding,
       itemCount: season.challenges.length,
@@ -840,34 +862,6 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           child: _buildChallengeCard(season, challenge),
         );
       },
-    );
-  }
-
-  Widget _buildMyProgressTab(Season season) {
-    final participant = _participantForSeason(season);
-    if (participant == null) {
-      return Center(
-        child: Text(
-          'Join this season to track your progress.',
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-      );
-    }
-
-    return ListView(
-      padding: AppSpacing.screenPadding,
-      children: [
-        _buildParticipantSummaryCard(season),
-        const SizedBox(height: AppSpacing.md),
-        ...season.challenges.map(
-          (challenge) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: _buildChallengeCard(season, challenge),
-          ),
-        ),
-      ],
     );
   }
 
@@ -951,10 +945,16 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
         season.metrics.challengeCompletions[challenge.type] ?? 0;
     final progress = _isParticipantView
         ? (challenge.milestones.isNotEmpty
-              ? (completedForParticipant / challenge.milestones.length).clamp(0.0, 1.0)
+              ? (completedForParticipant / challenge.milestones.length).clamp(
+                  0.0,
+                  1.0,
+                )
               : 0.0)
         : (challenge.milestones.isNotEmpty
-              ? (challengeCompletions / challenge.milestones.length).clamp(0.0, 1.0)
+              ? (challengeCompletions / challenge.milestones.length).clamp(
+                  0.0,
+                  1.0,
+                )
               : 0.0);
 
     return Container(
@@ -1080,13 +1080,21 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           ),
           const SizedBox(height: AppSpacing.sm),
           ...challenge.milestones.map((milestone) {
+            final keyDot = '${challenge.id}.${milestone.id}';
+            final milestoneStatus =
+                participant?.milestoneProgress[keyDot] ??
+                participant?.milestoneProgress[milestone.id];
+            final isCompleted = milestoneStatus == MilestoneStatus.completed;
+
             return Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.xs),
               child: Row(
                 children: [
                   Icon(
-                    Icons.radio_button_unchecked,
-                    color: AppColors.textSecondary,
+                    isCompleted ? Icons.circle : Icons.radio_button_unchecked,
+                    color: isCompleted
+                        ? AppColors.activeColor
+                        : AppColors.textSecondary,
                     size: 16,
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -1234,7 +1242,8 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   }
 
   Widget _buildProofReviewPanel(Season season, SeasonChallenge challenge) {
-    final submissions = <MapEntry<SeasonParticipation, SeasonChallengeSubmission>>[];
+    final submissions =
+        <MapEntry<SeasonParticipation, SeasonChallengeSubmission>>[];
     for (final participation in season.participations.values) {
       final submission = participation.challengeSubmissions[challenge.id];
       if (submission != null) {
@@ -1245,9 +1254,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     if (submissions.isEmpty) {
       return Text(
         'No proof submissions yet.',
-        style: AppTypography.bodySmall.copyWith(
-          color: AppColors.textSecondary,
-        ),
+        style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
       );
     }
 
@@ -1255,7 +1262,8 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
       children: submissions.map((entry) {
         final participant = entry.key;
         final submission = entry.value;
-        final isPending = submission.status == ChallengeSubmissionStatus.submitted;
+        final isPending =
+            submission.status == ChallengeSubmissionStatus.submitted;
         return Container(
           margin: const EdgeInsets.only(bottom: AppSpacing.sm),
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -1443,6 +1451,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     final progress = totalMilestones > 0
         ? (completedMilestones / totalMilestones).clamp(0.0, 1.0)
         : 0.0;
+    final progressPercent = (progress * 100).round();
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -1450,11 +1459,37 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'My Season Progress',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'My Season Progress',
+                  style: AppTypography.heading3.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.activeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: AppColors.activeColor.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Text(
+                  '$progressPercent%',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.activeColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
@@ -1469,12 +1504,14 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           LinearProgressIndicator(
             value: progress,
             backgroundColor: AppColors.borderColor,
-            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            valueColor: const AlwaysStoppedAnimation<Color>(
+              AppColors.activeColor,
+            ),
             minHeight: 8,
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            '$completedMilestones/$totalMilestones milestones completed',
+            '$progressPercent% complete • $completedMilestones/$totalMilestones milestones completed',
             style: AppTypography.bodySmall.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -1592,13 +1629,12 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   }
 
   int _linkedCourseChallengeCount(Season season) {
-    return season.challenges.where((challenge) => challenge.resources.isNotEmpty).length;
+    return season.challenges
+        .where((challenge) => challenge.resources.isNotEmpty)
+        .length;
   }
 
-  int _proofSubmissionCount(
-    Season season,
-    ChallengeSubmissionStatus status,
-  ) {
+  int _proofSubmissionCount(Season season, ChallengeSubmissionStatus status) {
     var count = 0;
     for (final participation in season.participations.values) {
       for (final submission in participation.challengeSubmissions.values) {
@@ -1612,10 +1648,22 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
 
   Widget _buildSubmissionStatusChip(ChallengeSubmissionStatus status) {
     final (label, color) = switch (status) {
-      ChallengeSubmissionStatus.notSubmitted => ('Not submitted', AppColors.textSecondary),
-      ChallengeSubmissionStatus.submitted => ('Pending', AppColors.warningColor),
-      ChallengeSubmissionStatus.approved => ('Approved', AppColors.successColor),
-      ChallengeSubmissionStatus.rejected => ('Needs updates', AppColors.dangerColor),
+      ChallengeSubmissionStatus.notSubmitted => (
+        'Not submitted',
+        AppColors.textSecondary,
+      ),
+      ChallengeSubmissionStatus.submitted => (
+        'Pending',
+        AppColors.warningColor,
+      ),
+      ChallengeSubmissionStatus.approved => (
+        'Approved',
+        AppColors.successColor,
+      ),
+      ChallengeSubmissionStatus.rejected => (
+        'Needs updates',
+        AppColors.dangerColor,
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -1741,19 +1789,23 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           .collection('goals')
           .where('userId', isEqualTo: participantId)
           .get();
-      final matchingDocs = goalDocs.docs.where((doc) {
-        final data = doc.data();
-        return data['isSeasonGoal'] == true &&
-            (data['seasonId'] ?? '').toString() == season.id &&
-            (data['challengeId'] ?? '').toString() == challenge.id;
-      }).toList()
-        ..sort((a, b) {
-          final aCreated = a.data()['createdAt'];
-          final bCreated = b.data()['createdAt'];
-          final aDate = aCreated is Timestamp ? aCreated.toDate() : DateTime(1970);
-          final bDate = bCreated is Timestamp ? bCreated.toDate() : DateTime(1970);
-          return bDate.compareTo(aDate);
-        });
+      final matchingDocs =
+          goalDocs.docs.where((doc) {
+            final data = doc.data();
+            return data['isSeasonGoal'] == true &&
+                (data['seasonId'] ?? '').toString() == season.id &&
+                (data['challengeId'] ?? '').toString() == challenge.id;
+          }).toList()..sort((a, b) {
+            final aCreated = a.data()['createdAt'];
+            final bCreated = b.data()['createdAt'];
+            final aDate = aCreated is Timestamp
+                ? aCreated.toDate()
+                : DateTime(1970);
+            final bDate = bCreated is Timestamp
+                ? bCreated.toDate()
+                : DateTime(1970);
+            return bDate.compareTo(aDate);
+          });
 
       Goal? selectedGoal;
       for (final doc in matchingDocs) {
