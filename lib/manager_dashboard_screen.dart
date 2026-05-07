@@ -21,8 +21,7 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
-import 'package:pdh/widgets/messages_icon.dart';
-import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/widgets/header_action_icons.dart';
 
 const Color _kQuickActionHoverRed = Color(0xFFC10D00);
 
@@ -405,7 +404,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final content = SingleChildScrollView(
-      padding: AppSpacing.screenPadding,
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.xxl,
+        0,
+        AppSpacing.xxl,
+        AppSpacing.xxl,
+      ),
       child: StreamBuilder<List<EmployeeData>>(
         stream: _employeesStream,
         builder: (context, employeesSnap) {
@@ -544,9 +548,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildDashboardHeader(),
-                  const SizedBox(height: AppSpacing.lg),
-
                   _buildTopStatsGrid(
                     columns: topGridColumns,
                     activeToday: activeToday,
@@ -621,6 +622,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       showAppBar: false,
       items: SidebarConfig.managerItems,
       currentRouteName: '/dashboard',
+      topRightAction: HeaderActionIcons(
+        onNotificationTap: widget.forAdminOversight
+            ? () => Navigator.pushNamed(context, '/admin_inbox')
+            : null,
+      ),
       tutorialStepIndex: _shouldShowTutorial ? _currentTutorialStep : null,
       sidebarTutorialKeys:
           _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
@@ -685,43 +691,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         // If an asset is missing, avoid crashing the dashboard.
         return SizedBox(width: size, height: size);
       },
-    );
-  }
-
-  Widget _buildDashboardHeader() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Row(
-            children: [
-              Text(
-                'Manager Dashboard',
-                style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  'Hello, ${_resolveManagerName()}',
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: DashboardChrome.fg,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        const MessagesIcon(),
-        const SizedBox(width: 8),
-        if (widget.forAdminOversight)
-          NotificationsBell(
-            onTap: () => Navigator.pushNamed(context, '/admin_inbox'),
-          )
-        else
-          const NotificationsBell(),
-      ],
     );
   }
 
@@ -1170,19 +1139,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   // legacy: daily motivation picker removed (dashboard now matches screenshot copy)
 
   // legacy: _getManagerProfileStream removed (unused in redesigned dashboard)
-
-  String _resolveManagerName() {
-    // Prefer the loaded manager name if available
-    if (_managerName.isNotEmpty && _managerName != 'Manager') {
-      return _managerName.split(' ').first;
-    }
-    final authUser = FirebaseAuth.instance.currentUser;
-    final display = (authUser?.displayName ?? '').trim();
-    if (display.isNotEmpty) return display.split(' ').first;
-    final email = (authUser?.email ?? '').trim();
-    if (email.isNotEmpty) return email.split('@').first;
-    return 'Manager';
-  }
 
   TeamMetrics _computeTeamMetrics(List<EmployeeData> employees) {
     final now = DateTime.now();
