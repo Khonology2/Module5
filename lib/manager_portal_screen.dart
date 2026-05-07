@@ -98,7 +98,12 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return AppSpacing.screenPadding;
       default:
         return EdgeInsets.zero;
-    } 
+    }
+  }
+
+  bool _shouldShowPortalTopActions(String route) {
+    // Keep dashboard clean because it renders its own top-right actions.
+    return route != '/dashboard';
   }
 
   Widget _getBodyWidget() {

@@ -1,6 +1,6 @@
 {
-  "version": "2026.05.BD7.SIT",
-  "generated_at": "2026-05-07T14:34:36Z",
+  "version": "2026.05.BD8.SIT",
+  "generated_at": "2026-05-07T14:39:55Z",
   "commits": [
     {
       "author": "Thembelihle",
@@ -36,8 +36,13 @@
       "author": "Nathi2266",
       "message": "Refactor: Update sidebar icon sizes and active accent color for improved visual consistency and responsiveness.",
       "timestamp": "2026-04-22T09:05:31+02:00"
+    },
+    {
+      "author": "creator745",
+      "message": "fix(admin): resolve team alerts screen dark mode in light theme - Fix missing _buildMainContent method causing theme wrapper failure - Add _buildMainContent(List<EmployeeData>, bool) method with proper theme handlin - Ensure admin team alerts responds correctly to light/dark mode switching - Maintain all existing functionality while adding theme awareness Fixes issue where admin Team Alerts & Nudges screen remained dark even when light mode was activated.",
+      "timestamp": "2026-05-07T15:46:11+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 8,
   "date_range": "2026-05-07"
 }
