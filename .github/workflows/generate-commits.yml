@@ -192,3 +192,11 @@ jobs:
       with:
         name: daily-commits-report
         path: assets/data/daily-commits.json
+
+  deploy-after-generate:
+    name: Deploy after commits update
+    needs: generate-commits
+    uses: ./.github/workflows/deploy.yml
+    with:
+      deploy_branch: ${{ github.ref_name }}
+    secrets: inherit

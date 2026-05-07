@@ -19,6 +19,7 @@ import 'package:pdh/admin_repository_audit_screen.dart';
 import 'package:pdh/admin_settings_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/header_action_icons.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -47,21 +48,6 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   String? _selectedManagerId;
   String? _initialReviewEmployeeId;
   String? _initialReviewMeetingId;
-
-  bool _isDashboardRoute() => _currentRoute == '/admin_dashboard';
-
-  String _resolveHeaderTitle() {
-    if (_isDashboardRoute()) return 'Admin Dashboard';
-    final matching = SidebarConfig.adminItems.where(
-      (item) => item.route == _currentRoute,
-    );
-    if (matching.isNotEmpty) return matching.first.label;
-    return 'Workspace';
-  }
-
-  Widget _buildHeaderActions() {
-    return HeaderActionIcons(onNotificationTap: () => _onNavigate('/admin_inbox'));
-  }
 
   Widget _getBodyWidget() {
     if (_currentRoute == '/admin_dashboard') {
@@ -240,13 +226,8 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
                     Positioned(
                       top: 24,
                       right: 24,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const MessagesIcon(),
-                          const SizedBox(width: 8),
-                          NotificationsBell(onTap: () => _onNavigate('/admin_inbox')),
-                        ],
+                      child: HeaderActionIcons(
+                        onNotificationTap: () => _onNavigate('/admin_inbox'),
                       ),
                     ),
                 ],
