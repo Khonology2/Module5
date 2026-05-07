@@ -4,6 +4,8 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/app_content_header.dart';
+import 'package:pdh/widgets/header_action_icons.dart';
 
 class AppScaffold extends StatelessWidget {
   // Temporary UX override: keep non-mobile sidebar expanded.
@@ -38,6 +40,50 @@ class AppScaffold extends StatelessWidget {
   final List<GlobalKey>? sidebarTutorialKeys;
   final VoidCallback? onTutorialNext;
   final VoidCallback? onTutorialSkip;
+
+  static const Set<String> _dashboardRoutes = {
+    '/employee_dashboard',
+    '/dashboard',
+    '/admin_dashboard',
+    '/manager_gw_menu_dashboard',
+  };
+
+  bool _isDashboardRoute(String? route) => _dashboardRoutes.contains(route);
+
+  String _resolveHeaderTitle() {
+    final route = currentRouteName?.trim() ?? '';
+    switch (route) {
+      case '/employee_dashboard':
+        return 'Employee Dashboard';
+      case '/dashboard':
+      case '/manager_gw_menu_dashboard':
+        return 'Manager Dashboard';
+      case '/admin_dashboard':
+        return 'Admin Dashboard';
+      default:
+        final matches = items.where((item) => item.route == route);
+        if (matches.isNotEmpty) return matches.first.label;
+        return title;
+    }
+  }
+
+  Widget _buildFixedHeader() {
+    final titleText = _resolveHeaderTitle();
+    final showGreeting = _isDashboardRoute(currentRouteName);
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        final fg = light ? Colors.black : AppColors.textPrimary;
+        final actions = topRightAction ?? const HeaderActionIcons();
+        return AppContentHeader(
+          title: titleText,
+          actions: actions,
+          showGreeting: showGreeting,
+          textColor: fg,
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,10 +157,18 @@ class AppScaffold extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Positioned.fill(
-                child: maybeFocusTraversal(content),
+                child: maybeFocusTraversal(
+                  Focus(
+                    canRequestFocus: true,
+                    descendantsAreFocusable: true,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: AppContentHeader.kHeaderHeight),
+                      child: content,
+                    ),
+                  ),
+                ),
               ),
-              if (topRightAction != null)
-                Positioned(top: 24, right: 24, child: topRightAction!),
+              Positioned(top: 0, left: 0, right: 0, child: _buildFixedHeader()),
             ],
           ),
         ),
@@ -183,14 +237,19 @@ class AppScaffold extends StatelessWidget {
                       fit: StackFit.expand,
                       children: [
                         Positioned.fill(
-                          child: maybeFocusTraversal(content),
-                        ),
-                        if (topRightAction != null)
-                          Positioned(
-                            top: 24,
-                            right: 24,
-                            child: topRightAction!,
+                          child: maybeFocusTraversal(
+                            Padding(
+                              padding: const EdgeInsets.only(top: AppContentHeader.kHeaderHeight),
+                              child: content,
+                            ),
                           ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: _buildFixedHeader(),
+                        ),
                       ],
                     ),
                   ),
