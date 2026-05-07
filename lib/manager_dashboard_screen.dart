@@ -714,7 +714,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           child: Row(
             children: [
               Text(
-                'Manager Dashboard',
+                widget.forAdminOversight
+                    ? 'Admin Dashboard'
+                    : 'Manager Dashboard',
                 style: AppTypography.heading2.copyWith(
                   color: DashboardChrome.fg,
                 ),

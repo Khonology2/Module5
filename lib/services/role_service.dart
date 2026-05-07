@@ -5,12 +5,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:pdh/services/onboarding_service.dart';
+import 'package:pdh/services/token_auth_service.dart';
 
 class RoleService {
   RoleService._internal();
   static final RoleService instance = RoleService._internal();
 
   String? _cachedRole; // 'manager' | 'employee'
+  String? _sessionRoleOverride;
   Stream<String?>? _roleBroadcast;
   String? _currentUserId; // Track which user the stream is for
   String? _onboardingInferAttemptedUserId;
@@ -19,9 +21,35 @@ class RoleService {
   String? get cachedRole => _cachedRole;
 
   String? _normalizeRole(dynamic role) {
-    final r = role?.toString().trim().toLowerCase();
-    if (r == null || r.isEmpty) return null;
-    return r;
+    return normalizeRoleLabel(role?.toString());
+  }
+
+  String? normalizeRoleLabel(String? rawRole) {
+    final role = rawRole?.trim().toLowerCase();
+    if (role == null || role.isEmpty) return null;
+    if (role.contains('manager')) return 'manager';
+    if (role.contains('admin')) return 'admin';
+    if (role.contains('employee') || role.contains('staff')) return 'employee';
+    return null;
+  }
+
+  String routeForRole(String? role) {
+    final normalized = normalizeRoleLabel(role);
+    if (normalized == 'manager') return '/manager_portal';
+    if (normalized == 'admin') return '/admin_dashboard';
+    if (normalized == 'employee') return '/employee_dashboard';
+    return '/employee_dashboard';
+  }
+
+  Future<void> setRoleForSession(String? role) async {
+    final normalized = normalizeRoleLabel(role);
+    if (normalized != null) {
+      _sessionRoleOverride = normalized;
+      _cachedRole = normalized;
+      return;
+    }
+    _sessionRoleOverride = 'employee';
+    _cachedRole = 'employee';
   }
 
   /// Admin portal / Firestore `isAdmin()` alignment: exact `admin` plus common aliases.
@@ -53,12 +81,10 @@ class RoleService {
           .doc(userId)
           .get();
 
-      Map<String, dynamic>? onboardingData =
-          byId.exists ? byId.data() : null;
+      Map<String, dynamic>? onboardingData = byId.exists ? byId.data() : null;
 
       // If not found by UID, try by email.
-      if (onboardingData == null &&
-          (email ?? '').trim().isNotEmpty) {
+      if (onboardingData == null && (email ?? '').trim().isNotEmpty) {
         final byEmail = await FirebaseFirestore.instance
             .collection('onboarding')
             .where('email', isEqualTo: email!.trim())
@@ -81,6 +107,7 @@ class RoleService {
   }
 
   Future<String?> getRole({bool refresh = false}) async {
+    if (_sessionRoleOverride != null) return _sessionRoleOverride;
     if (!refresh && _cachedRole != null) return _cachedRole;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -187,6 +214,10 @@ class RoleService {
         _roleBroadcast = firestoreStream
             .asyncMap((doc) async {
               try {
+                if (_sessionRoleOverride != null) {
+                  _cachedRole = _sessionRoleOverride;
+                  return _sessionRoleOverride;
+                }
                 final role = _normalizeRole(doc.data()?['role']);
                 if (role != null) {
                   _cachedRole = role;
@@ -232,6 +263,7 @@ class RoleService {
   // Method to clear cache (useful for sign out)
   void clearCache() {
     _cachedRole = null;
+    _sessionRoleOverride = null;
     _clearStream();
   }
 
@@ -302,11 +334,10 @@ class _RoleGateState extends State<RoleGate> {
     if (!isAuthenticated) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            '/sign_in',
-            (route) => false,
-          );
+          final target = TokenAuthService.hasTokenInCurrentUrl()
+              ? '/landing'
+              : '/sign_in';
+          Navigator.pushNamedAndRemoveUntil(context, target, (route) => false);
         }
       });
       return const SizedBox.shrink();
@@ -335,7 +366,18 @@ class _RoleGateState extends State<RoleGate> {
 
         if (snapshot.hasError) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
-          return widget.unauthorized ?? _Unauthorized(role: role);
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            final target = RoleService.instance.routeForRole(role);
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              target,
+              (route) => false,
+            );
+          });
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         // If role is still null, treat as loading for managers, allow employees through.
@@ -361,7 +403,12 @@ class _RoleGateState extends State<RoleGate> {
             (widget.requiredRole == RequiredRole.admin &&
                 RoleService.isAdminPortalRole(role));
         if (ok) return widget.child;
-        return widget.unauthorized ?? _Unauthorized(role: role);
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) return;
+          final target = RoleService.instance.routeForRole(role);
+          Navigator.pushNamedAndRemoveUntil(context, target, (route) => false);
+        });
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
       },
     );
   }
@@ -441,63 +488,6 @@ class _RoleUnknown extends StatelessWidget {
                     child: const Text('Sign out'),
                   ),
                 ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Unauthorized extends StatelessWidget {
-  final String? role;
-  const _Unauthorized({this.role});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A1931),
-      body: Center(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1F2840),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.lock_outline, color: Colors.orangeAccent),
-              const SizedBox(height: 12),
-              const Text(
-                'Access restricted',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Your role (${role ?? "unknown"}) does not have access to this page.',
-                style: const TextStyle(color: Colors.white70),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () {
-                  if (role == 'manager') {
-                    Navigator.pushReplacementNamed(context, '/manager_portal');
-                  } else if (role == 'admin') {
-                    Navigator.pushReplacementNamed(context, '/admin_portal');
-                  } else {
-                    Navigator.pushReplacementNamed(context, '/employee_portal');
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFC10D00),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Go to my portal'),
               ),
             ],
           ),

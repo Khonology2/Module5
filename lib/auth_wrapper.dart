@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pdh/sign_in_screen.dart'; // Import LoginScreen which is the actual sign-in screen
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/token_auth_service.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -26,6 +27,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // If no authenticated user, show the normal login screen
         if (user == null) {
+          if (TokenAuthService.hasTokenInCurrentUrl()) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              Navigator.pushReplacementNamed(context, '/landing');
+            });
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
           return const LoginScreen();
         }
 
@@ -60,14 +70,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
               );
             }
 
-            final String targetRoute;
-            if (role == 'manager') {
-              targetRoute = '/manager_portal';
-            } else if (role == 'admin') {
-              targetRoute = '/admin_portal';
-            } else {
-              targetRoute = '/employee_dashboard';
-            }
+            final normalized = RoleService.instance.normalizeRoleLabel(role);
+            final targetRoute = RoleService.instance.routeForRole(normalized);
 
             // Navigate after the current frame to avoid build-time navigation
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -90,10 +94,7 @@ class _RoleNotSetScreen extends StatelessWidget {
   final Future<void> Function() onTryAgain;
   final Future<void> Function() onSignOut;
 
-  const _RoleNotSetScreen({
-    required this.onTryAgain,
-    required this.onSignOut,
-  });
+  const _RoleNotSetScreen({required this.onTryAgain, required this.onSignOut});
 
   @override
   Widget build(BuildContext context) {
