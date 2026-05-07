@@ -47,12 +47,12 @@ class NotificationsBell extends StatelessWidget {
                 padding: const EdgeInsets.all(4),
                 child: Image.asset(
                   'assets/blue_bell.png',
-                  width: 32,
-                  height: 32,
+                  width: 38,
+                  height: 38,
                   errorBuilder: (context, error, stackTrace) => const Icon(
                     Icons.notifications_none,
                     color: Colors.white,
-                    size: 32,
+                    size: 38,
                   ),
                 ),
               ),

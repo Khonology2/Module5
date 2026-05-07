@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
-import 'package:pdh/design_system/app_breakpoints.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/app_content_header.dart';
+import 'package:pdh/widgets/header_action_icons.dart';
 
 class AppScaffold extends StatelessWidget {
   // Temporary UX override: keep non-mobile sidebar expanded.
@@ -41,6 +41,50 @@ class AppScaffold extends StatelessWidget {
   final VoidCallback? onTutorialNext;
   final VoidCallback? onTutorialSkip;
 
+  static const Set<String> _dashboardRoutes = {
+    '/employee_dashboard',
+    '/dashboard',
+    '/admin_dashboard',
+    '/manager_gw_menu_dashboard',
+  };
+
+  bool _isDashboardRoute(String? route) => _dashboardRoutes.contains(route);
+
+  String _resolveHeaderTitle() {
+    final route = currentRouteName?.trim() ?? '';
+    switch (route) {
+      case '/employee_dashboard':
+        return 'Employee Dashboard';
+      case '/dashboard':
+      case '/manager_gw_menu_dashboard':
+        return 'Manager Dashboard';
+      case '/admin_dashboard':
+        return 'Admin Dashboard';
+      default:
+        final matches = items.where((item) => item.route == route);
+        if (matches.isNotEmpty) return matches.first.label;
+        return title;
+    }
+  }
+
+  Widget _buildFixedHeader() {
+    final titleText = _resolveHeaderTitle();
+    final showGreeting = _isDashboardRoute(currentRouteName);
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        final fg = light ? Colors.black : AppColors.textPrimary;
+        final actions = topRightAction ?? const HeaderActionIcons();
+        return AppContentHeader(
+          title: titleText,
+          actions: actions,
+          showGreeting: showGreeting,
+          textColor: fg,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // If embedded, return just the content without scaffold elements
@@ -49,17 +93,13 @@ class AppScaffold extends StatelessWidget {
     }
 
     Widget maybeFocusTraversal(Widget child) {
-      // Web can hit a focus/layout assertion during view focus changes when
-      // traversal policies query semantic bounds too early.
-      if (kIsWeb) return child;
-      return FocusTraversalGroup(
-        policy: WidgetOrderTraversalPolicy(),
-        child: child,
-      );
+      // Keep content unwrapped to avoid web focus traversal null crashes.
+      return child;
     }
 
-    final isSmall = AppBreakpoints.isSmall(context);
-    final isMedium = AppBreakpoints.isMedium(context);
+    final width = MediaQuery.of(context).size.width;
+    final isSmall = width <= 768;
+    final isMedium = width > 768 && width < 1000;
 
     if (isSmall) {
       return Scaffold(
@@ -91,7 +131,9 @@ class AppScaffold extends StatelessWidget {
           builder: (context, light, _) {
             return Drawer(
               elevation: 12,
-              backgroundColor: light ? Colors.white : AppColors.backgroundColor,
+              backgroundColor: light
+                  ? const Color(0xFFF3F4F6)
+                  : AppColors.backgroundColor,
               child: SafeArea(
                 child: ResponsiveSidebar(
                   items: items,
@@ -115,16 +157,9 @@ class AppScaffold extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Positioned.fill(
-                child: maybeFocusTraversal(
-                  Focus(
-                    canRequestFocus: true,
-                    descendantsAreFocusable: true,
-                    child: content,
-                  ),
-                ),
+                child: maybeFocusTraversal(content),
               ),
-              if (topRightAction != null)
-                Positioned(top: 24, right: 24, child: topRightAction!),
+              Positioned(top: 0, left: 0, right: 0, child: _buildFixedHeader()),
             ],
           ),
         ),
@@ -164,10 +199,7 @@ class AppScaffold extends StatelessWidget {
             final effectiveCollapsed = isMedium
                 ? true
                 : (_disableSidebarCollapseTemporarily ? false : collapsed);
-            final sidebarWidth = AppBreakpoints.getResponsiveSidebarWidth(
-              context,
-              effectiveCollapsed,
-            );
+            final sidebarWidth = effectiveCollapsed ? 72.0 : 240.0;
 
             return Row(
               children: [
@@ -196,14 +228,19 @@ class AppScaffold extends StatelessWidget {
                       fit: StackFit.expand,
                       children: [
                         Positioned.fill(
-                          child: maybeFocusTraversal(content),
-                        ),
-                        if (topRightAction != null)
-                          Positioned(
-                            top: 24,
-                            right: 24,
-                            child: topRightAction!,
+                          child: maybeFocusTraversal(
+                            Padding(
+                              padding: const EdgeInsets.only(top: AppContentHeader.kHeaderHeight),
+                              child: content,
+                            ),
                           ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: _buildFixedHeader(),
+                        ),
                       ],
                     ),
                   ),

@@ -4,8 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_typography.dart';
-import 'package:pdh/widgets/notifications_bell.dart';
-import 'package:pdh/widgets/messages_icon.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/sign_in_screen.dart';
 import 'package:pdh/admin_profile_screen.dart';
@@ -20,6 +18,7 @@ import 'package:pdh/admin_badges_points_screen.dart';
 import 'package:pdh/admin_repository_audit_screen.dart';
 import 'package:pdh/admin_settings_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/design_system/app_components.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -48,6 +47,21 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   String? _selectedManagerId;
   String? _initialReviewEmployeeId;
   String? _initialReviewMeetingId;
+
+  bool _isDashboardRoute() => _currentRoute == '/admin_dashboard';
+
+  String _resolveHeaderTitle() {
+    if (_isDashboardRoute()) return 'Admin Dashboard';
+    final matching = SidebarConfig.adminItems.where(
+      (item) => item.route == _currentRoute,
+    );
+    if (matching.isNotEmpty) return matching.first.label;
+    return 'Workspace';
+  }
+
+  Widget _buildHeaderActions() {
+    return HeaderActionIcons(onNotificationTap: () => _onNavigate('/admin_inbox'));
+  }
 
   Widget _getBodyWidget() {
     if (_currentRoute == '/admin_dashboard') {
@@ -190,39 +204,57 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
       _syncAdminPortalUrl(_currentRoute);
       _didInitFromArgs = true;
     }
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      body: DashboardThemedBackground(
-        child: Stack(
-          children: [
-            Row(
-              children: [
-                ResponsiveSidebar(
-                  items: SidebarConfig.adminItems,
-                  onNavigate: _onNavigate,
-                  currentRouteName: _currentRoute,
-                  onLogout: _onLogout,
-                ),
-                Expanded(child: _getBodyWidget()),
-              ],
-            ),
-            if (_currentRoute != '/admin_dashboard')
-              Positioned(
-                top: 24,
-                right: 24,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const MessagesIcon(),
-                    const SizedBox(width: 8),
-                    NotificationsBell(onTap: () => _onNavigate('/admin_inbox')),
-                  ],
-                ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            extendBodyBehindAppBar: true,
+            body: AppComponents.backgroundWithImage(
+              blurSigma: 0,
+              imagePath: light
+                  ? 'assets/light_mode_bg.png'
+                  : 'assets/khono_bg.png',
+              gradientColors: light
+                  ? [
+                      Colors.white.withValues(alpha: 0.2),
+                      Colors.white.withValues(alpha: 0.08),
+                    ]
+                  : null,
+              child: Stack(
+                children: [
+                  Row(
+                    children: [
+                      ResponsiveSidebar(
+                        items: SidebarConfig.adminItems,
+                        onNavigate: _onNavigate,
+                        currentRouteName: _currentRoute,
+                        onLogout: _onLogout,
+                      ),
+                      Expanded(child: _getBodyWidget()),
+                    ],
+                  ),
+                  if (_currentRoute != '/admin_dashboard')
+                    Positioned(
+                      top: 24,
+                      right: 24,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const MessagesIcon(),
+                          const SizedBox(width: 8),
+                          NotificationsBell(onTap: () => _onNavigate('/admin_inbox')),
+                        ],
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 

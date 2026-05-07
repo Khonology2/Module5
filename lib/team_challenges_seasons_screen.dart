@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/season_details_screen.dart';
@@ -31,23 +32,70 @@ class _TeamChallengesSeasonsScreenState
   String _themeFilter = 'All Themes';
   bool _showPausedOnly = false;
   final Set<String> _reviewingSubmissionKeys = <String>{};
-  static const Color _darkBlockColor = Color(0x993D3D40);
 
-  BoxDecoration _darkBlockDecoration({Color? borderColor}) {
+  BoxDecoration _buildThemedBlockDecoration(BuildContext context, {Color? borderColor}) {
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
+    
+    // Use employee dashboard theme if available, otherwise fall back to main app theme
+    final Color blockColor = isEmployeeDashboardLight 
+        ? DashboardChrome.cardFill
+        : isLightMode 
+            ? Colors.white.withValues(alpha: 0.9)
+            : const Color(0x993D3D40);
+    
+    final Color defaultBorderColor = isEmployeeDashboardLight
+        ? DashboardChrome.border
+        : isLightMode
+            ? Colors.black.withValues(alpha: 0.1)
+            : Colors.white.withValues(alpha: 0.2);
+    
+    final Color shadowColor = isEmployeeDashboardLight || isLightMode
+        ? Colors.black.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.25);
+    
     return BoxDecoration(
-      color: _darkBlockColor,
+      color: blockColor,
       borderRadius: BorderRadius.circular(12),
       border: Border.all(
-        color: borderColor ?? Colors.white.withValues(alpha: 0.2),
+        color: borderColor ?? defaultBorderColor,
       ),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.25),
+          color: shadowColor,
           blurRadius: 3.55,
           offset: const Offset(0, 3.55),
         ),
       ],
     );
+  }
+
+  Color _getThemedTextColor(BuildContext context) {
+    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    
+    // Use employee dashboard theme if available, otherwise fall back to main app theme
+    if (isEmployeeDashboardLight) {
+      return DashboardChrome.fg;
+    } else if (isLightMode) {
+      return Colors.black87;
+    } else {
+      return Colors.white;
+    }
+  }
+
+  Color _getThemedSecondaryTextColor(BuildContext context) {
+    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    
+    // Use employee dashboard theme if available, otherwise fall back to main app theme
+    if (isEmployeeDashboardLight) {
+      return Colors.black54;
+    } else if (isLightMode) {
+      return Colors.black54;
+    } else {
+      return Colors.white70;
+    }
   }
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
@@ -60,7 +108,7 @@ class _TeamChallengesSeasonsScreenState
           content: Text(
             message,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
+              color: _getThemedTextColor(context),
             ),
           ),
           actions: [
@@ -199,7 +247,7 @@ class _TeamChallengesSeasonsScreenState
                     vertical: AppSpacing.xs,
                     horizontal: AppSpacing.lg,
                   ),
-                  decoration: _darkBlockDecoration(),
+                  decoration: _buildThemedBlockDecoration(context),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -214,7 +262,7 @@ class _TeamChallengesSeasonsScreenState
                           Text(
                             'Growth Seasons',
                             style: AppTypography.heading2.copyWith(
-                              color: AppColors.textPrimary,
+                              color: _getThemedTextColor(context),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -224,7 +272,7 @@ class _TeamChallengesSeasonsScreenState
                       Text(
                         'Create themed challenges that employees can opt into. Each season has milestones, badges, and team progress tracking.',
                         style: AppTypography.bodyLarge.copyWith(
-                          color: AppColors.textSecondary,
+                          color: _getThemedSecondaryTextColor(context),
                         ),
                       ),
                     ],
@@ -234,7 +282,7 @@ class _TeamChallengesSeasonsScreenState
                 Text(
                   'Active Seasons',
                   style: AppTypography.heading3.copyWith(
-                    color: AppColors.textPrimary,
+                    color: _getThemedTextColor(context),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -307,7 +355,7 @@ class _TeamChallengesSeasonsScreenState
               vertical: AppSpacing.md,
               horizontal: AppSpacing.lg,
             ),
-            decoration: _darkBlockDecoration(),
+            decoration: _buildThemedBlockDecoration(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -322,7 +370,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       'Create New Season',
                       style: AppTypography.heading2.copyWith(
-                        color: AppColors.textPrimary,
+                        color: _getThemedTextColor(context),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -332,7 +380,7 @@ class _TeamChallengesSeasonsScreenState
                 Text(
                   'Design a themed growth season with challenges, milestones, and rewards. Employees can opt in and track their progress.',
                   style: AppTypography.bodyLarge.copyWith(
-                    color: AppColors.textSecondary,
+                    color: _getThemedSecondaryTextColor(context),
                   ),
                 ),
               ],
@@ -358,11 +406,11 @@ class _TeamChallengesSeasonsScreenState
               vertical: AppSpacing.sm,
               horizontal: AppSpacing.md,
             ),
-            decoration: _darkBlockDecoration(),
+            decoration: _buildThemedBlockDecoration(context),
             child: Text(
               'Season History',
               style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
+                color: _getThemedTextColor(context),
               ),
             ),
           ),
@@ -387,7 +435,7 @@ class _TeamChallengesSeasonsScreenState
                     child: Container(
                       height: 200,
                       padding: const EdgeInsets.all(16),
-                      decoration: _darkBlockDecoration(
+                      decoration: _buildThemedBlockDecoration(context,
                         borderColor: AppColors.dangerColor.withValues(
                           alpha: 0.35,
                         ),
@@ -434,14 +482,14 @@ class _TeamChallengesSeasonsScreenState
                     child: Container(
                       height: 200,
                       padding: const EdgeInsets.all(16),
-                      decoration: _darkBlockDecoration(),
+                      decoration: _buildThemedBlockDecoration(context),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
                             Icons.history,
                             size: 48,
-                            color: AppColors.textSecondary,
+                            color: _getThemedSecondaryTextColor(context),
                           ),
                           const SizedBox(height: 12),
                           Text(
@@ -454,7 +502,7 @@ class _TeamChallengesSeasonsScreenState
                             child: Text(
                               'Completed seasons will appear here',
                               style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textSecondary,
+                                color: _getThemedSecondaryTextColor(context),
                               ),
                               textAlign: TextAlign.center,
                               maxLines: 2,
@@ -496,21 +544,21 @@ class _TeamChallengesSeasonsScreenState
               vertical: AppSpacing.sm,
               horizontal: AppSpacing.md,
             ),
-            decoration: _darkBlockDecoration(),
+            decoration: _buildThemedBlockDecoration(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Season Reviews',
                   style: AppTypography.heading3.copyWith(
-                    color: AppColors.textPrimary,
+                    color: _getThemedTextColor(context),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Review participant evidence grouped by season so you can quickly approve or send back submissions.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
+                    color: _getThemedSecondaryTextColor(context),
                   ),
                 ),
               ],
@@ -542,20 +590,20 @@ class _TeamChallengesSeasonsScreenState
                   return Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppSpacing.lg),
-                    decoration: _darkBlockDecoration(),
+                    decoration: _buildThemedBlockDecoration(context),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.fact_check_outlined,
                           size: 48,
-                          color: AppColors.textSecondary,
+                          color: _getThemedSecondaryTextColor(context),
                         ),
                         const SizedBox(height: AppSpacing.md),
                         Text(
                           'No Review Evidence Yet',
                           style: AppTypography.heading4.copyWith(
-                            color: AppColors.textPrimary,
+                            color: _getThemedTextColor(context),
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -563,7 +611,7 @@ class _TeamChallengesSeasonsScreenState
                         Text(
                           'Participant proof submissions will appear here grouped under each season.',
                           style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.textSecondary,
+                            color: _getThemedSecondaryTextColor(context),
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -593,16 +641,16 @@ class _TeamChallengesSeasonsScreenState
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: _darkBlockDecoration(),
+      decoration: _buildThemedBlockDecoration(context),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.event_note, size: 60, color: AppColors.textSecondary),
+          Icon(Icons.event_note, size: 60, color: _getThemedSecondaryTextColor(context)),
           const SizedBox(height: AppSpacing.md),
           Text(
             'No Active Seasons',
             style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+              color: _getThemedTextColor(context),
             ),
             textAlign: TextAlign.center,
           ),
@@ -610,7 +658,7 @@ class _TeamChallengesSeasonsScreenState
           Text(
             'Create your first growth season to engage your team',
             style: AppTypography.bodyLarge.copyWith(
-              color: AppColors.textSecondary,
+              color: _getThemedSecondaryTextColor(context),
             ),
             textAlign: TextAlign.center,
           ),
@@ -648,7 +696,7 @@ class _TeamChallengesSeasonsScreenState
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: _darkBlockDecoration(
+      decoration: _buildThemedBlockDecoration(context,
         borderColor: AppColors.dangerColor.withValues(alpha: 0.35),
       ),
       child: Column(
@@ -665,7 +713,7 @@ class _TeamChallengesSeasonsScreenState
           Text(
             message,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _getThemedSecondaryTextColor(context),
             ),
             textAlign: TextAlign.center,
           ),
@@ -702,7 +750,7 @@ class _TeamChallengesSeasonsScreenState
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: _darkBlockDecoration(),
+      decoration: _buildThemedBlockDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -728,7 +776,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       season.title,
                       style: AppTypography.heading4.copyWith(
-                        color: AppColors.textPrimary,
+                        color: _getThemedTextColor(context),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -789,7 +837,7 @@ class _TeamChallengesSeasonsScreenState
           Text(
             season.description,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _getThemedSecondaryTextColor(context),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -814,7 +862,7 @@ class _TeamChallengesSeasonsScreenState
                   Text(
                     'Team Progress',
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
+                      color: _getThemedSecondaryTextColor(context),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -936,13 +984,13 @@ class _TeamChallengesSeasonsScreenState
           title: Text(
             'Delete season?',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _getThemedTextColor(context),
             ),
           ),
           content: Text(
             'This will permanently delete "${season.title}" and notify participants.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _getThemedSecondaryTextColor(context),
             ),
           ),
           actions: [
@@ -951,7 +999,7 @@ class _TeamChallengesSeasonsScreenState
               child: Text(
                 'Cancel',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _getThemedSecondaryTextColor(context),
                 ),
               ),
             ),
@@ -983,7 +1031,7 @@ class _TeamChallengesSeasonsScreenState
   Widget _buildSeasonHistoryCard(Season season) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: _darkBlockDecoration(),
+      decoration: _buildThemedBlockDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1009,7 +1057,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       season.title,
                       style: AppTypography.heading4.copyWith(
-                        color: AppColors.textPrimary,
+                        color: _getThemedTextColor(context),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1027,7 +1075,7 @@ class _TeamChallengesSeasonsScreenState
               Text(
                 '${season.metrics.totalParticipants} participants',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _getThemedSecondaryTextColor(context),
                 ),
               ),
             ],
@@ -1037,7 +1085,7 @@ class _TeamChallengesSeasonsScreenState
           Text(
             season.description,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _getThemedSecondaryTextColor(context),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -1104,7 +1152,7 @@ class _TeamChallengesSeasonsScreenState
               Text(
                 label,
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _getThemedSecondaryTextColor(context),
                   fontSize: 10,
                 ),
               ),
@@ -1268,7 +1316,7 @@ class _TeamChallengesSeasonsScreenState
     final season = group.season;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: _darkBlockDecoration(),
+      decoration: _buildThemedBlockDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1294,7 +1342,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       season.title,
                       style: AppTypography.heading4.copyWith(
-                        color: AppColors.textPrimary,
+                        color: _getThemedTextColor(context),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1302,7 +1350,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       '${season.theme} • ${group.participants.length} participant review group(s)',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: _getThemedSecondaryTextColor(context),
                       ),
                     ),
                   ],
@@ -1379,7 +1427,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       participation.userName,
                       style: AppTypography.bodyLarge.copyWith(
-                        color: AppColors.textPrimary,
+                        color: _getThemedTextColor(context),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1387,7 +1435,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       'Joined ${_formatRelativeTime(participation.joinedAt)} • ${(participantGroup.progress * 100).round()}% season progress',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: _getThemedSecondaryTextColor(context),
                       ),
                     ),
                   ],
@@ -1430,7 +1478,7 @@ class _TeamChallengesSeasonsScreenState
       ChallengeSubmissionStatus.submitted => AppColors.warningColor,
       ChallengeSubmissionStatus.approved => AppColors.successColor,
       ChallengeSubmissionStatus.rejected => AppColors.dangerColor,
-      ChallengeSubmissionStatus.notSubmitted => AppColors.textSecondary,
+      ChallengeSubmissionStatus.notSubmitted => _getThemedSecondaryTextColor(context),
     };
 
     return Container(
@@ -1454,7 +1502,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       challenge.title,
                       style: AppTypography.bodyLarge.copyWith(
-                        color: AppColors.textPrimary,
+                        color: _getThemedTextColor(context),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1462,7 +1510,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       '${challenge.proofType ?? 'Evidence'} • submitted ${_formatRelativeTime(submission.submittedAt)}',
                       style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
+                        color: _getThemedSecondaryTextColor(context),
                       ),
                     ),
                   ],
@@ -1491,7 +1539,7 @@ class _TeamChallengesSeasonsScreenState
           SelectableText(
             submission.evidence,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
+              color: _getThemedTextColor(context),
             ),
           ),
           if ((submission.feedback ?? '').trim().isNotEmpty) ...[
@@ -1499,7 +1547,7 @@ class _TeamChallengesSeasonsScreenState
             Text(
               'Feedback: ${submission.feedback!.trim()}',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: _getThemedSecondaryTextColor(context),
               ),
             ),
           ],
@@ -1508,7 +1556,7 @@ class _TeamChallengesSeasonsScreenState
             Text(
               'Reviewed ${_formatRelativeTime(submission.reviewedAt!)}',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: _getThemedSecondaryTextColor(context),
               ),
             ),
           ],
@@ -1597,7 +1645,7 @@ class _TeamChallengesSeasonsScreenState
           title: Text(
             approved ? 'Approve submission' : 'Reject submission',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _getThemedTextColor(context),
             ),
           ),
           content: Column(
@@ -1609,7 +1657,7 @@ class _TeamChallengesSeasonsScreenState
                     ? 'Add optional feedback before approving this evidence.'
                     : 'Add feedback so the participant knows what to update.',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _getThemedSecondaryTextColor(context),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -1618,7 +1666,7 @@ class _TeamChallengesSeasonsScreenState
                 minLines: 3,
                 maxLines: 5,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
+                  color: _getThemedTextColor(context),
                 ),
                 decoration: InputDecoration(
                   hintText: approved
@@ -1634,7 +1682,7 @@ class _TeamChallengesSeasonsScreenState
               child: Text(
                 'Cancel',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _getThemedSecondaryTextColor(context),
                 ),
               ),
             ),
@@ -1853,7 +1901,7 @@ class _TeamChallengesSeasonsScreenState
               Text(
                 title,
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
+                  color: _getThemedSecondaryTextColor(context),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -2001,6 +2049,33 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
   String _courseLevel = 'Beginner';
   static const Color _darkFieldColor = Color(0x993D3D40);
 
+  // Theme-aware helper methods
+  Color _getThemedTextColor(BuildContext context) {
+    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    
+    if (isEmployeeDashboardLight) {
+      return DashboardChrome.fg;
+    } else if (isLightMode) {
+      return Colors.black87;
+    } else {
+      return Colors.white;
+    }
+  }
+
+  Color _getThemedSecondaryTextColor(BuildContext context) {
+    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    
+    if (isEmployeeDashboardLight) {
+      return Colors.black54;
+    } else if (isLightMode) {
+      return Colors.black54;
+    } else {
+      return Colors.white70;
+    }
+  }
+
   final List<String> _themes = [
     'Learning',
     'Skill',
@@ -2053,7 +2128,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           content: Text(
             message,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
+              color: _getThemedTextColor(context),
             ),
           ),
           actions: [
@@ -2095,7 +2170,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           Text(
             'Season Details',
             style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+              color: _getThemedTextColor(context),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -2151,13 +2226,13 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
             title: Text(
               'Attach linked resource',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: _getThemedTextColor(context),
               ),
             ),
             subtitle: Text(
               'Use this for seasons that should include a course or external learning link, while still behaving like a normal season.',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: _getThemedSecondaryTextColor(context),
               ),
             ),
             value: _useLinkedResource,
@@ -2336,7 +2411,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           Text(
             'Linked Resource Setup',
             style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
+              color: _getThemedTextColor(context),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -2344,7 +2419,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           Text(
             'Attach a course or external learning resource so employees can open it from the app while the season still uses the normal goals and milestone flow.',
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: _getThemedSecondaryTextColor(context),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -2359,7 +2434,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           Text(
             'This is the title of the linked course or article. Leave it empty to reuse the season title.',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
+              color: _getThemedSecondaryTextColor(context),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -2434,13 +2509,13 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
             title: Text(
               'Require proof of completion',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: _getThemedTextColor(context),
               ),
             ),
             subtitle: Text(
               'Managers will review the final proof before the challenge is fully verified.',
               style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: _getThemedSecondaryTextColor(context),
               ),
             ),
             value: _proofRequired,

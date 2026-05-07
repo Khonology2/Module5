@@ -103,6 +103,8 @@ flutter:
     - assets/plus.png
     - assets/message.png
     - assets/blue_bell.png
+    - assets/manager_dashboard/
+    - assets/manager_sidebar/
     - assets/Email_Notification/Notification_Red_White.png
     - assets/khono_red_discs.png
     - assets/Badge.png

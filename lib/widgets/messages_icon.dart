@@ -28,10 +28,10 @@ class MessagesIcon extends StatelessWidget {
         padding: const EdgeInsets.all(4),
         child: Image.asset(
           'assets/message.png',
-          width: 32,
-          height: 32,
+          width: 38,
+          height: 38,
           errorBuilder: (context, error, stackTrace) =>
-              const Icon(Icons.message_outlined, color: Colors.white, size: 32),
+              const Icon(Icons.message_outlined, color: Colors.white, size: 38),
         ),
       ),
     );
