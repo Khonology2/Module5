@@ -24,12 +24,15 @@ class MessagesIcon extends StatelessWidget {
     return InkWell(
       onTap: onTap ?? () => _openMessages(context),
       borderRadius: BorderRadius.circular(16),
-      child: Image.asset(
-        'assets/message.png',
-        width: 32,
-        height: 32,
-        errorBuilder: (context, error, stackTrace) =>
-            const Icon(Icons.message_outlined, color: Colors.white, size: 32),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Image.asset(
+          'assets/message.png',
+          width: 38,
+          height: 38,
+          errorBuilder: (context, error, stackTrace) =>
+              const Icon(Icons.message_outlined, color: Colors.white, size: 38),
+        ),
       ),
     );
   }

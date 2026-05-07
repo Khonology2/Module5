@@ -336,44 +336,37 @@ class _MyAppState extends State<MyApp> {
                 );
               },
               onGenerateRoute: (settings) {
-                if (settings.name == '/one_on_one_thread') {
-                  final args = settings.arguments as Map<String, dynamic>?;
-                  return RawDialogRoute<void>(
-                    settings: settings,
-                    barrierDismissible: true,
-                    barrierLabel: '1:1 Thread',
-                    barrierColor: Colors.black.withValues(alpha: 0.7),
-                    pageBuilder: (context, animation, secondaryAnimation) {
-                      return RoleGate(
-                        requiredRole: RequiredRole.any,
-                        child: OneOnOneThreadModal(
-                          initialMeetingId: args?['meetingId']?.toString(),
-                          employeeId: args?['employeeId']?.toString(),
-                          managerId: args?['managerId']?.toString(),
-                          participantName: args?['participantName']?.toString(),
+                final name = settings.name;
+                if (name != null && name.contains('?')) {
+                  try {
+                    final parsed = Uri.parse(name);
+                    if (parsed.path == '/manager_portal') {
+                      final screen = parsed.queryParameters['screen'];
+                      final decodedScreen = (screen == null || screen.isEmpty)
+                          ? null
+                          : Uri.decodeComponent(screen);
+                      final existingArgs = settings.arguments is Map<String, dynamic>
+                          ? (settings.arguments as Map<String, dynamic>)
+                          : <String, dynamic>{};
+                      final mergedArgs = <String, dynamic>{
+                        ...existingArgs,
+                        if (decodedScreen != null && decodedScreen.isNotEmpty)
+                          'initialRoute': decodedScreen,
+                      };
+                      return MaterialPageRoute(
+                        settings: RouteSettings(
+                          name: '/manager_portal',
+                          arguments: mergedArgs,
+                        ),
+                        builder: (context) => RoleGate(
+                          requiredRole: RequiredRole.manager,
+                          child: const ManagerPortalScreen(),
                         ),
                       );
-                    },
-                    transitionDuration: const Duration(milliseconds: 200),
-                    transitionBuilder:
-                        (context, animation, secondaryAnimation, child) {
-                          final curved = CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutCubic,
-                            reverseCurve: Curves.easeInCubic,
-                          );
-                          return FadeTransition(
-                            opacity: curved,
-                            child: ScaleTransition(
-                              scale: Tween<double>(
-                                begin: 0.96,
-                                end: 1,
-                              ).animate(curved),
-                              child: child,
-                            ),
-                          );
-                        },
-                  );
+                    }
+                  } catch (_) {
+                    // Fall through to default route handling.
+                  }
                 }
                 return null;
               },

@@ -18,8 +18,7 @@ import 'package:pdh/admin_badges_points_screen.dart';
 import 'package:pdh/admin_repository_audit_screen.dart';
 import 'package:pdh/admin_settings_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
-import 'package:pdh/widgets/app_content_header.dart';
-import 'package:pdh/widgets/header_action_icons.dart';
+import 'package:pdh/design_system/app_components.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -205,34 +204,57 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
       _syncAdminPortalUrl(_currentRoute);
       _didInitFromArgs = true;
     }
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      body: DashboardThemedBackground(
-        child: Row(
-          children: [
-            ResponsiveSidebar(
-              items: SidebarConfig.adminItems,
-              onNavigate: _onNavigate,
-              currentRouteName: _currentRoute,
-              onLogout: _onLogout,
-            ),
-            Expanded(
-              child: Column(
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            extendBodyBehindAppBar: true,
+            body: AppComponents.backgroundWithImage(
+              blurSigma: 0,
+              imagePath: light
+                  ? 'assets/light_mode_bg.png'
+                  : 'assets/khono_bg.png',
+              gradientColors: light
+                  ? [
+                      Colors.white.withValues(alpha: 0.2),
+                      Colors.white.withValues(alpha: 0.08),
+                    ]
+                  : null,
+              child: Stack(
                 children: [
-                  AppContentHeader(
-                    title: _resolveHeaderTitle(),
-                    actions: _buildHeaderActions(),
-                    showGreeting: _isDashboardRoute(),
-                    textColor: DashboardChrome.fg,
+                  Row(
+                    children: [
+                      ResponsiveSidebar(
+                        items: SidebarConfig.adminItems,
+                        onNavigate: _onNavigate,
+                        currentRouteName: _currentRoute,
+                        onLogout: _onLogout,
+                      ),
+                      Expanded(child: _getBodyWidget()),
+                    ],
                   ),
-                  Expanded(child: _getBodyWidget()),
+                  if (_currentRoute != '/admin_dashboard')
+                    Positioned(
+                      top: 24,
+                      right: 24,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const MessagesIcon(),
+                          const SizedBox(width: 8),
+                          NotificationsBell(onTap: () => _onNavigate('/admin_inbox')),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
