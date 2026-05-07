@@ -706,47 +706,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  Widget _buildDashboardHeader() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Row(
-            children: [
-              Text(
-                widget.forAdminOversight
-                    ? 'Admin Dashboard'
-                    : 'Manager Dashboard',
-                style: AppTypography.heading2.copyWith(
-                  color: DashboardChrome.fg,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  'Hello, ${_resolveManagerName()}',
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: DashboardChrome.fg,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        const MessagesIcon(),
-        const SizedBox(width: 8),
-        if (widget.forAdminOversight)
-          NotificationsBell(
-            onTap: () => Navigator.pushNamed(context, '/admin_inbox'),
-          )
-        else
-          const NotificationsBell(),
-      ],
-    );
-  }
-
   Widget _buildTopStatsGrid({
     required int columns,
     required int activeToday,
