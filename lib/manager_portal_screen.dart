@@ -266,13 +266,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
 
   bool _isPortalRoute(String route) => _portalRoutes.contains(route);
 
-  bool _shouldShowPortalTopActions(String route) {
-    // Keep dashboard-style screens uncluttered because those screens already
-    // render their own message/notification icons in their header.
-    final show = route != '/dashboard' && route != '/manager_gw_menu_dashboard';
-    return show;
-  }
-
   String? _routeFromPortalUrl() {
     // Hash strategy URL example:
     // http://localhost:64790/#/manager_portal?screen=/manager_inbox

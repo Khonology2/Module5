@@ -1530,19 +1530,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   .toList();
 
               if (widget.forAdminOversight && !_showArchived) {
-                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _adminPendingGoalsStream(),
-                  builder: (context, pendingSnapshot) {
-                    final pendingDocs = pendingSnapshot.data?.docs ?? const [];
-                    final mergedItems = _mergeAdminPendingGoalFallbackAlerts(
-                      baseItems: items,
-                      goalDocs: pendingDocs,
-                      adminUserId: user.uid,
-                    );
-                    if (p != 0) return p;
-                    return b.createdAt.compareTo(a.createdAt);
-                  },
-                );
+                // Fallback to standard inbox rendering when admin-pending-goals
+                // helpers are unavailable in this branch snapshot.
+                return _buildInboxListContent(sourceItems: items, user: user);
               }
 
               return _buildInboxListContent(

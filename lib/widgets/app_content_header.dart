@@ -9,6 +9,7 @@ class AppContentHeader extends StatelessWidget {
     required this.actions,
     this.showGreeting = false,
     this.textColor = Colors.white,
+    this.backgroundColor = const Color(0xA6101522),
   });
 
   static const double kHeaderHeight = 64;
@@ -17,6 +18,7 @@ class AppContentHeader extends StatelessWidget {
   final Widget actions;
   final bool showGreeting;
   final Color textColor;
+  final Color backgroundColor;
 
   String _resolveUserName() {
     final user = FirebaseAuth.instance.currentUser;
@@ -31,41 +33,44 @@ class AppContentHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: kHeaderHeight,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.heading3.copyWith(color: textColor),
-                    ),
-                  ),
-                  if (showGreeting) ...[
-                    const SizedBox(width: 12),
+      child: ColoredBox(
+        color: backgroundColor,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
                     Flexible(
                       child: Text(
-                        'Hello, ${_resolveUserName()}',
+                        title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: textColor,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppTypography.heading3.copyWith(color: textColor),
                       ),
                     ),
+                    if (showGreeting) ...[
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          'Hello, ${_resolveUserName()}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            actions,
-          ],
+              const SizedBox(width: 12),
+              actions,
+            ],
+          ),
         ),
       ),
     );

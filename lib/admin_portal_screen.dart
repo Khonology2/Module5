@@ -19,6 +19,8 @@ import 'package:pdh/admin_repository_audit_screen.dart';
 import 'package:pdh/admin_settings_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/header_action_icons.dart';
+import 'package:pdh/widgets/app_content_header.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -223,32 +225,29 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
                       Colors.white.withValues(alpha: 0.08),
                     ]
                   : null,
-              child: Stack(
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      ResponsiveSidebar(
-                        items: SidebarConfig.adminItems,
-                        onNavigate: _onNavigate,
-                        currentRouteName: _currentRoute,
-                        onLogout: _onLogout,
-                      ),
-                      Expanded(child: _getBodyWidget()),
-                    ],
+                  ResponsiveSidebar(
+                    items: SidebarConfig.adminItems,
+                    onNavigate: _onNavigate,
+                    currentRouteName: _currentRoute,
+                    onLogout: _onLogout,
                   ),
-                  if (_currentRoute != '/admin_dashboard')
-                    Positioned(
-                      top: 24,
-                      right: 24,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const MessagesIcon(),
-                          const SizedBox(width: 8),
-                          NotificationsBell(onTap: () => _onNavigate('/admin_inbox')),
-                        ],
-                      ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        AppContentHeader(
+                          title: _resolveHeaderTitle(),
+                          actions: _buildHeaderActions(),
+                          showGreeting: _isDashboardRoute(),
+                          textColor: DashboardChrome.fg,
+                        ),
+                        Expanded(
+                          child: _getBodyWidget(),
+                        ),
+                      ],
                     ),
+                  ),
                 ],
               ),
             ),
