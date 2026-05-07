@@ -4,8 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_typography.dart';
-import 'package:pdh/widgets/notifications_bell.dart';
-import 'package:pdh/widgets/messages_icon.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/sign_in_screen.dart';
 import 'package:pdh/admin_profile_screen.dart';
@@ -49,6 +47,21 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   String? _selectedManagerId;
   String? _initialReviewEmployeeId;
   String? _initialReviewMeetingId;
+
+  bool _isDashboardRoute() => _currentRoute == '/admin_dashboard';
+
+  String _resolveHeaderTitle() {
+    if (_isDashboardRoute()) return 'Admin Dashboard';
+    final matching = SidebarConfig.adminItems.where(
+      (item) => item.route == _currentRoute,
+    );
+    if (matching.isNotEmpty) return matching.first.label;
+    return 'Workspace';
+  }
+
+  Widget _buildHeaderActions() {
+    return HeaderActionIcons(onNotificationTap: () => _onNavigate('/admin_inbox'));
+  }
 
   Widget _getBodyWidget() {
     if (_currentRoute == '/admin_dashboard') {
