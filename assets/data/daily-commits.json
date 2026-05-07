@@ -24,6 +24,11 @@
     },
     {
       "author": "Nathi2266",
+      "message": "chore: update .gitignore and add deployment workflow",
+      "timestamp": "2026-05-07T17:30:57+02:00"
+    },
+    {
+      "author": "Nathi2266",
       "message": "chore: update dependencies in pubspec.lock - Bump matcher version from 0.12.18 to 0.12.19 - Bump test_api version from 0.7.9 to 0.7.10 - Update corresponding SHA256 checksums",
       "timestamp": "2026-05-07T16:48:23+02:00"
     },

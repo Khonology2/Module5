@@ -58,3 +58,7 @@ windows/flutter/generated_plugins.cmake
 
 # Untranslated messages
 untranslated_messages.txt
+
+# Node dependencies (ignore all nested node_modules, including Firebase functions)
+**/node_modules/
+functions/node_modules/
