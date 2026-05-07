@@ -11,6 +11,7 @@ import 'package:pdh/services/badge_celebration_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/services/database_service.dart'; // For syncOnboardingData
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pdh/services/token_auth_service.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -62,6 +63,16 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadLastEmail();
+    _redirectToSsoWhenTokenExists();
+  }
+
+  void _redirectToSsoWhenTokenExists() {
+    if (!kIsWeb) return;
+    if (!TokenAuthService.hasTokenInCurrentUrl()) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/landing');
+    });
   }
 
   @override
@@ -561,7 +572,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                         ),
                                         onPressed: () {
                                           setState(() {
-                                            _obscurePassword = !_obscurePassword;
+                                            _obscurePassword =
+                                                !_obscurePassword;
                                           });
                                         },
                                       ),

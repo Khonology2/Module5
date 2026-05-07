@@ -59,6 +59,7 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'dart:ui' as ui;
 
 final GlobalKey<NavigatorState> navigatorKey =
@@ -112,12 +113,12 @@ Future<void> _clearFirestoreCache() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await _initializeFirebase();
   // CONFLICT TEST: This line will conflict with MAIN branch
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks
   if (kIsWeb) {
     try {
-      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+      await FirebaseAuth.instance.setPersistence(Persistence.SESSION);
     } catch (_) {
       // Non-web or older SDKs will ignore
     }
@@ -190,6 +191,40 @@ void main() async {
     );
   };
   runApp(const MyApp());
+}
+
+Future<void> _initializeFirebase() async {
+  if (!kIsWeb) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    return;
+  }
+
+  try {
+    final remoteConfig = await BackendAuthService.instance.getFirebaseConfig();
+    if (!remoteConfig.isComplete) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      return;
+    }
+
+    await Firebase.initializeApp(
+      options: FirebaseOptions(
+        apiKey: remoteConfig.apiKey,
+        appId: remoteConfig.appId,
+        messagingSenderId: remoteConfig.messagingSenderId ?? '',
+        projectId: remoteConfig.projectId,
+        authDomain: remoteConfig.authDomain,
+        storageBucket: remoteConfig.storageBucket,
+      ),
+    );
+  } catch (_) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -289,7 +324,7 @@ class _MyAppState extends State<MyApp> {
               navigatorKey: navigatorKey,
               title: 'Personal Development Hub',
               theme: AppTheme.darkTheme,
-              initialRoute: '/', // Let AuthWrapper handle authentication flow
+              initialRoute: '/landing', // Start app on landing screen
               locale: locale,
               debugShowCheckedModeBanner: false, // Disable debug banner
               localizationsDelegates: const [
@@ -344,7 +379,8 @@ class _MyAppState extends State<MyApp> {
                       final decodedScreen = (screen == null || screen.isEmpty)
                           ? null
                           : Uri.decodeComponent(screen);
-                      final existingArgs = settings.arguments is Map<String, dynamic>
+                      final existingArgs =
+                          settings.arguments is Map<String, dynamic>
                           ? (settings.arguments as Map<String, dynamic>)
                           : <String, dynamic>{};
                       final mergedArgs = <String, dynamic>{
@@ -861,9 +897,7 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Icon(
-                  _expanded
-                      ? Icons.arrow_left_rounded
-                      : Icons.arrow_drop_down,
+                  _expanded ? Icons.arrow_left_rounded : Icons.arrow_drop_down,
                   color: Colors.white,
                   size: 32,
                 ),
