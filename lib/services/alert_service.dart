@@ -147,8 +147,6 @@ class AlertService {
     String? actionRouteOverride,
   }) async {
     final managerName = await _displayNameForUser(managerId);
-    final actionRoute =
-        actionRouteOverride ?? await _alertsRouteForRecipient(employeeId);
     final alert = Alert(
       id: '',
       userId: employeeId,
@@ -158,9 +156,10 @@ class AlertService {
       title: '1:1 Requested',
       message: '$managerName would like to have a 1:1 with you.',
       actionText: 'View',
-      actionRoute: actionRoute,
+      actionRoute: actionRouteOverride ?? '/one_on_one_thread',
       actionData: {
         'meetingId': meetingId,
+        'employeeId': employeeId,
         if (agenda != null && agenda.trim().isNotEmpty) 'agenda': agenda.trim(),
       },
       createdAt: DateTime.now(),
@@ -182,8 +181,6 @@ class AlertService {
     String? actionRouteOverride,
   }) async {
     final managerName = await _displayNameForUser(managerId);
-    final actionRoute =
-        actionRouteOverride ?? await _alertsRouteForRecipient(employeeId);
     final when = _formatMeetingRange(
       proposedStartDateTime,
       proposedEndDateTime,
@@ -197,9 +194,10 @@ class AlertService {
       title: '1:1 Proposed',
       message: '$managerName proposed a 1:1 from $when.',
       actionText: 'Respond',
-      actionRoute: actionRoute,
+      actionRoute: actionRouteOverride ?? '/one_on_one_thread',
       actionData: {
         'meetingId': meetingId,
+        'employeeId': employeeId,
         'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
         'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
         // Backwards compatibility for older routes/clients
@@ -243,9 +241,10 @@ class AlertService {
       title: '1:1 Accepted',
       message: '$employeeName accepted your 1:1 request$when.',
       actionText: 'View',
-      actionRoute: actionRouteOverride ?? '/manager_inbox',
+      actionRoute: actionRouteOverride ?? '/one_on_one_thread',
       actionData: {
         'meetingId': meetingId,
+        'employeeId': employeeId,
         if (acceptedStartDateTime != null)
           'meetingStartDateTime': Timestamp.fromDate(acceptedStartDateTime),
         if (acceptedEndDateTime != null)
@@ -285,9 +284,10 @@ class AlertService {
       title: '1:1 Rescheduled',
       message: '$employeeName suggested a new time: $when.',
       actionText: 'Review',
-      actionRoute: actionRouteOverride ?? '/manager_inbox',
+      actionRoute: actionRouteOverride ?? '/one_on_one_thread',
       actionData: {
         'meetingId': meetingId,
+        'employeeId': employeeId,
         'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
         'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
       },

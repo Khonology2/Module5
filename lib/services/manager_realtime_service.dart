@@ -2313,7 +2313,7 @@ class ManagerRealtimeService {
   }
 
   /// Request a 1:1 (intent only; no time yet).
-  static Future<void> requestOneOnOne({
+  static Future<String> requestOneOnOne({
     required String employeeId,
     String? agenda,
     String? recipientActionRoute,
@@ -2326,29 +2326,29 @@ class ManagerRealtimeService {
         agenda: agenda,
       );
 
-      // Record manager action (analytics/audit)
-      await _firestore.collection('manager_actions').add({
-        'actionType': 'requestMeeting',
-        'managerId': managerId,
-        'employeeId': employeeId,
-        'employeeName': '',
-        'description': 'Requested a 1:1 meeting',
-        'details': {
-          'meetingId': meetingId,
-          'agenda': (agenda ?? '').trim(),
-        },
-        'status': 'requested',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      // Employee-facing alert (soft-fail inside AlertService)
-      await AlertService.createOneOnOneRequestedAlert(
-        employeeId: employeeId,
-        managerId: managerId,
-        meetingId: meetingId,
-        agenda: agenda,
-        actionRouteOverride: recipientActionRoute,
-      );
+      await Future.wait([
+        _firestore.collection('manager_actions').add({
+          'actionType': 'requestMeeting',
+          'managerId': managerId,
+          'employeeId': employeeId,
+          'employeeName': '',
+          'description': 'Requested a 1:1 meeting',
+          'details': {
+            'meetingId': meetingId,
+            'agenda': (agenda ?? '').trim(),
+          },
+          'status': 'requested',
+          'createdAt': FieldValue.serverTimestamp(),
+        }),
+        AlertService.createOneOnOneRequestedAlert(
+          employeeId: employeeId,
+          managerId: managerId,
+          meetingId: meetingId,
+          agenda: agenda,
+          actionRouteOverride: recipientActionRoute,
+        ),
+      ]);
+      return meetingId;
     } catch (e) {
       developer.log('Error requesting 1:1 meeting: $e');
       rethrow;
@@ -2356,7 +2356,7 @@ class ManagerRealtimeService {
   }
 
   // Schedule 1:1 meeting
-  static Future<void> scheduleMeeting({
+  static Future<String> scheduleMeeting({
     required String employeeId,
     required DateTime scheduledStartTime,
     required DateTime scheduledEndTime,
@@ -2377,37 +2377,39 @@ class ManagerRealtimeService {
         agenda: purpose,
       );
 
-      await _firestore.collection('manager_actions').add({
-        'actionType': 'scheduleMeeting',
-        'managerId': managerId,
-        'employeeId': employeeId,
-        'employeeName': '', // Will be filled by recordManagerAction
-        'description': 'Proposed 1:1 meeting time',
-        'details': {
-          'meetingId': meetingId,
-          'proposedStartDateTime': Timestamp.fromDate(scheduledStartTime),
-          'proposedEndDateTime': Timestamp.fromDate(scheduledEndTime),
-          // Backwards compatibility for older dashboards/analytics
-          'proposedDateTime': Timestamp.fromDate(scheduledStartTime),
-          'purpose': purpose,
-          'notes': notes ?? '',
-        },
-        'status': 'proposed',
-        'createdAt': FieldValue.serverTimestamp(),
-        'scheduledFor': Timestamp.fromDate(scheduledStartTime),
-      });
-
-      await AlertService.createOneOnOneProposedAlert(
-        employeeId: employeeId,
-        managerId: managerId,
-        meetingId: meetingId,
-        proposedStartDateTime: scheduledStartTime,
-        proposedEndDateTime: scheduledEndTime,
-        agenda: purpose,
-        actionRouteOverride: recipientActionRoute,
-      );
+      await Future.wait([
+        _firestore.collection('manager_actions').add({
+          'actionType': 'scheduleMeeting',
+          'managerId': managerId,
+          'employeeId': employeeId,
+          'employeeName': '', // Will be filled by recordManagerAction
+          'description': 'Proposed 1:1 meeting time',
+          'details': {
+            'meetingId': meetingId,
+            'proposedStartDateTime': Timestamp.fromDate(scheduledStartTime),
+            'proposedEndDateTime': Timestamp.fromDate(scheduledEndTime),
+            // Backwards compatibility for older dashboards/analytics
+            'proposedDateTime': Timestamp.fromDate(scheduledStartTime),
+            'purpose': purpose,
+            'notes': notes ?? '',
+          },
+          'status': 'proposed',
+          'createdAt': FieldValue.serverTimestamp(),
+          'scheduledFor': Timestamp.fromDate(scheduledStartTime),
+        }),
+        AlertService.createOneOnOneProposedAlert(
+          employeeId: employeeId,
+          managerId: managerId,
+          meetingId: meetingId,
+          proposedStartDateTime: scheduledStartTime,
+          proposedEndDateTime: scheduledEndTime,
+          agenda: purpose,
+          actionRouteOverride: recipientActionRoute,
+        ),
+      ]);
 
       developer.log('1:1 proposed for employee $employeeId');
+      return meetingId;
     } catch (e) {
       developer.log('Error scheduling meeting: $e');
       rethrow;

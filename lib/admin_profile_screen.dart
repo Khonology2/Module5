@@ -14,6 +14,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class AdminProfileScreen extends StatefulWidget {
   const AdminProfileScreen({super.key, this.embedded = false});
@@ -690,9 +691,9 @@ Guidelines:
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -871,9 +872,9 @@ Guidelines:
         child: Container(
           constraints: const BoxConstraints(maxWidth: 1000),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
+            color: DashboardChrome.cardFill,
             borderRadius: BorderRadius.circular(12.0),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+            border: Border.all(color: DashboardChrome.border),
           ),
           padding: const EdgeInsets.all(40.0),
           child: Column(
@@ -890,7 +891,7 @@ Guidelines:
                         color: Colors.white10,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
+                          color: DashboardChrome.border,
                           width: 2,
                         ),
                       ),
@@ -1097,21 +1098,42 @@ Guidelines:
 
   @override
   Widget build(BuildContext context) {
-    if (widget.embedded) {
-      return _buildProfileContent();
-    }
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: Builder(
+            builder: (context) {
+              if (widget.embedded) {
+                return _buildProfileContent();
+              }
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      body: AppComponents.backgroundWithImage(
-        imagePath: 'assets/khono_bg.png',
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
-          child: _buildProfileContent(),
-        ),
-      ),
+              return Scaffold(
+                backgroundColor: Colors.transparent,
+                extendBodyBehindAppBar: true,
+                appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+                body: AppComponents.backgroundWithImage(
+                  blurSigma: 0,
+                  imagePath: light
+                      ? 'assets/light_mode_bg.png'
+                      : 'assets/khono_bg.png',
+                  gradientColors: light
+                      ? [
+                          Colors.white.withValues(alpha: 0.2),
+                          Colors.white.withValues(alpha: 0.08),
+                        ]
+                      : null,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
+                    child: _buildProfileContent(),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -1123,9 +1145,9 @@ Guidelines:
       margin: const EdgeInsets.only(bottom: 32.0),
       padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -6,6 +6,8 @@ enum ChallengeType { learning, skill, collaboration, innovation, wellness }
 
 enum MilestoneStatus { notStarted, inProgress, completed, overdue }
 
+enum ChallengeSubmissionStatus { notSubmitted, submitted, approved, rejected }
+
 class Season {
   final String id;
   final String title;
@@ -148,6 +150,11 @@ class SeasonChallenge {
   final int points;
   final List<SeasonMilestone> milestones;
   final Map<String, dynamic> requirements;
+  final List<SeasonCourseResource> resources;
+  final bool proofRequired;
+  final String? proofType;
+  final String? courseLevel;
+  final int? estimatedHours;
   final bool isOptional;
 
   const SeasonChallenge({
@@ -158,6 +165,11 @@ class SeasonChallenge {
     required this.points,
     required this.milestones,
     required this.requirements,
+    this.resources = const [],
+    this.proofRequired = false,
+    this.proofType,
+    this.courseLevel,
+    this.estimatedHours,
     this.isOptional = false,
   });
 
@@ -176,6 +188,17 @@ class SeasonChallenge {
           .map((m) => SeasonMilestone.fromMap(m as Map<String, dynamic>, challengeId))
           .toList(),
       requirements: Map<String, dynamic>.from(map['requirements'] ?? {}),
+      resources: (map['resources'] as List<dynamic>? ?? [])
+          .map(
+            (resource) => SeasonCourseResource.fromMap(
+              Map<String, dynamic>.from(resource as Map),
+            ),
+          )
+          .toList(),
+      proofRequired: map['proofRequired'] ?? false,
+      proofType: map['proofType'] as String?,
+      courseLevel: map['courseLevel'] as String?,
+      estimatedHours: map['estimatedHours'] as int?,
       isOptional: map['isOptional'] ?? false,
     );
   }
@@ -189,7 +212,44 @@ class SeasonChallenge {
       'points': points,
       'milestones': milestones.map((m) => m.toMap()).toList(),
       'requirements': requirements,
+      'resources': resources.map((resource) => resource.toMap()).toList(),
+      'proofRequired': proofRequired,
+      'proofType': proofType,
+      'courseLevel': courseLevel,
+      'estimatedHours': estimatedHours,
       'isOptional': isOptional,
+    };
+  }
+}
+
+class SeasonCourseResource {
+  final String title;
+  final String provider;
+  final String url;
+  final bool isFreeResource;
+
+  const SeasonCourseResource({
+    required this.title,
+    required this.provider,
+    required this.url,
+    this.isFreeResource = true,
+  });
+
+  factory SeasonCourseResource.fromMap(Map<String, dynamic> map) {
+    return SeasonCourseResource(
+      title: map['title'] ?? '',
+      provider: map['provider'] ?? '',
+      url: map['url'] ?? '',
+      isFreeResource: map['isFreeResource'] ?? true,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'provider': provider,
+      'url': url,
+      'isFreeResource': isFreeResource,
     };
   }
 }
@@ -242,6 +302,7 @@ class SeasonParticipation {
   final String userName;
   final DateTime joinedAt;
   final Map<String, MilestoneStatus> milestoneProgress;
+  final Map<String, SeasonChallengeSubmission> challengeSubmissions;
   final Map<String, dynamic> customGoals;
   final int totalPoints;
   final List<String> badgesEarned;
@@ -253,6 +314,7 @@ class SeasonParticipation {
     required this.userName,
     required this.joinedAt,
     required this.milestoneProgress,
+    this.challengeSubmissions = const {},
     required this.customGoals,
     required this.totalPoints,
     required this.badgesEarned,
@@ -276,6 +338,16 @@ class SeasonParticipation {
           ),
         ),
       ),
+      challengeSubmissions: Map<String, SeasonChallengeSubmission>.from(
+        (map['challengeSubmissions'] as Map<String, dynamic>? ?? {}).map(
+          (key, value) => MapEntry(
+            key,
+            SeasonChallengeSubmission.fromMap(
+              Map<String, dynamic>.from(value as Map),
+            ),
+          ),
+        ),
+      ),
       customGoals: Map<String, dynamic>.from(map['customGoals'] ?? {}),
       totalPoints: map['totalPoints'] ?? 0,
       badgesEarned: List<String>.from(map['badgesEarned'] ?? []),
@@ -292,6 +364,9 @@ class SeasonParticipation {
       'milestoneProgress': milestoneProgress.map(
         (key, value) => MapEntry(key, value.name),
       ),
+      'challengeSubmissions': challengeSubmissions.map(
+        (key, value) => MapEntry(key, value.toMap()),
+      ),
       'customGoals': customGoals,
       'totalPoints': totalPoints,
       'badgesEarned': badgesEarned,
@@ -299,6 +374,58 @@ class SeasonParticipation {
       'lastActivity': lastActivity != null
           ? Timestamp.fromDate(lastActivity!)
           : null,
+    };
+  }
+}
+
+class SeasonChallengeSubmission {
+  final String challengeId;
+  final String evidence;
+  final ChallengeSubmissionStatus status;
+  final String submittedBy;
+  final DateTime submittedAt;
+  final String? feedback;
+  final String? reviewedBy;
+  final DateTime? reviewedAt;
+
+  const SeasonChallengeSubmission({
+    required this.challengeId,
+    required this.evidence,
+    required this.status,
+    required this.submittedBy,
+    required this.submittedAt,
+    this.feedback,
+    this.reviewedBy,
+    this.reviewedAt,
+  });
+
+  factory SeasonChallengeSubmission.fromMap(Map<String, dynamic> map) {
+    return SeasonChallengeSubmission(
+      challengeId: map['challengeId'] ?? '',
+      evidence: map['evidence'] ?? '',
+      status: ChallengeSubmissionStatus.values.firstWhere(
+        (value) => value.name == (map['status'] ?? 'notSubmitted'),
+        orElse: () => ChallengeSubmissionStatus.notSubmitted,
+      ),
+      submittedBy: map['submittedBy'] ?? '',
+      submittedAt:
+          (map['submittedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      feedback: map['feedback'] as String?,
+      reviewedBy: map['reviewedBy'] as String?,
+      reviewedAt: (map['reviewedAt'] as Timestamp?)?.toDate(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'challengeId': challengeId,
+      'evidence': evidence,
+      'status': status.name,
+      'submittedBy': submittedBy,
+      'submittedAt': Timestamp.fromDate(submittedAt),
+      'feedback': feedback,
+      'reviewedBy': reviewedBy,
+      'reviewedAt': reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
     };
   }
 }

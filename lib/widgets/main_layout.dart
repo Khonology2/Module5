@@ -7,8 +7,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
-import 'package:pdh/widgets/messages_icon.dart';
-import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/widgets/header_action_icons.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 /// MainLayout provides a persistent, collapsible sidebar layout for all
@@ -33,7 +32,6 @@ class MainLayout extends StatelessWidget {
 
   /// Sidebar items; when null, uses [SidebarConfig.employeeItems] (e.g. for manager GW menu use [SidebarConfig.managerItems]).
   final List<SidebarItem>? items;
-
 
   @override
   Widget build(BuildContext context) {
@@ -77,14 +75,7 @@ class MainLayout extends StatelessWidget {
       showAppBar: false,
       items: sidebarItems,
       currentRouteName: currentRouteName,
-      topRightAction: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          MessagesIcon(),
-          SizedBox(width: 8),
-          NotificationsBell(),
-        ],
-      ),
+      topRightAction: const HeaderActionIcons(),
       tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
       sidebarTutorialKeys: null,
       onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
@@ -116,7 +107,12 @@ class MainLayout extends StatelessWidget {
                   ]
                 : null,
             child: Padding(
-              padding: AppSpacing.screenPadding,
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.xxl,
+                0,
+                AppSpacing.xxl,
+                AppSpacing.xxl,
+              ),
               child: body,
             ),
           );

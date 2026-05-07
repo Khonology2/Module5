@@ -6,6 +6,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
@@ -36,11 +37,11 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
       barrierColor: Colors.black54,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: AppColors.cardBackground,
+          backgroundColor: DashboardChrome.cardFill,
           content: Text(
             message,
             style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
             ),
           ),
           actions: [
@@ -61,130 +62,138 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: '',
-      embedded: widget.embedded,
-      items: const [], // Manager-specific items - we'll handle this properly
-      currentRouteName: '/manager_team_workspace',
-      onNavigate: (route) {
-        // Handle navigation
-        Navigator.pushNamed(context, route);
-      },
-      onLogout: () {
-        // Handle logout
-        Navigator.pushReplacementNamed(context, '/sign_in');
-      },
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: AppScaffold(
+            title: '',
+            embedded: widget.embedded,
+            items: const [], // Manager-specific items - we'll handle this properly
+            currentRouteName: '/manager_team_workspace',
+            onNavigate: (route) {
+              // Handle navigation
+              Navigator.pushNamed(context, route);
+            },
+            onLogout: () {
+              // Handle logout
+              Navigator.pushReplacementNamed(context, '/sign_in');
+            },
+            content: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Team Management Hub',
-                        style: AppTypography.heading2.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    ElevatedButton.icon(
-                      onPressed: _showCreateTeamDialog,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Create Team Goal'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.activeColor,
-                        foregroundColor: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  'Create team goals and manage group activities. Monitor team progress and engagement.',
-                  style: AppTypography.bodyLarge.copyWith(
-                    color: AppColors.textSecondary,
+                // Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    color: DashboardChrome.cardFill,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          // Active Team Goals
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Active Team Goals',
-                  style: AppTypography.heading3.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('team_goals')
-                        .where('createdByManager', isEqualTo: true)
-                        .where(
-                          'managerId',
-                          isEqualTo: AuthService().currentUser?.uid,
-                        )
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Text(
-                            'Error loading team goals',
-                            style: AppTypography.bodyLarge.copyWith(
-                              color: AppColors.activeColor,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Team Management Hub',
+                              style: AppTypography.heading2.copyWith(
+                                color: DashboardChrome.fg,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        );
-                      }
+                          const SizedBox(width: AppSpacing.md),
+                          ElevatedButton.icon(
+                            onPressed: _showCreateTeamDialog,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Create Team Goal'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.activeColor,
+                              foregroundColor: DashboardChrome.fg,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Create team goals and manage group activities. Monitor team progress and engagement.',
+                        style: AppTypography.bodyLarge.copyWith(
+                          color: DashboardChrome.fg,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
 
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
+                // Active Team Goals
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Active Team Goals',
+                        style: AppTypography.heading3.copyWith(
+                          color: DashboardChrome.fg,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Expanded(
+                        child: StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('team_goals')
+                              .where('createdByManager', isEqualTo: true)
+                              .where(
+                                'managerId',
+                                isEqualTo: AuthService().currentUser?.uid,
+                              )
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              return Center(
+                                child: Text(
+                                  'Error loading team goals',
+                                  style: AppTypography.bodyLarge.copyWith(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              );
+                            }
 
-                      final teamGoals = snapshot.data?.docs ?? [];
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
 
-                      if (teamGoals.isEmpty) {
-                        return _buildEmptyState();
-                      }
+                            final teamGoals = snapshot.data?.docs ?? [];
 
-                      return ListView.builder(
-                        itemCount: teamGoals.length,
-                        itemBuilder: (context, index) {
-                          final teamGoal =
-                              teamGoals[index].data() as Map<String, dynamic>;
-                          final goalId = teamGoals[index].id;
-                          return _buildTeamGoalCard(goalId, teamGoal);
-                        },
-                      );
-                    },
+                            if (teamGoals.isEmpty) {
+                              return _buildEmptyState();
+                            }
+
+                            return ListView.builder(
+                              itemCount: teamGoals.length,
+                              itemBuilder: (context, index) {
+                                final teamGoal =
+                                    teamGoals[index].data() as Map<String, dynamic>;
+                                final goalId = teamGoals[index].id;
+                                return _buildTeamGoalCard(goalId, teamGoal);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -193,19 +202,19 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.group_add, size: 80, color: AppColors.textSecondary),
+          Icon(Icons.group_add, size: 80, color: DashboardChrome.fg),
           const SizedBox(height: AppSpacing.lg),
           Text(
             'No Team Goals Yet',
             style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             'Create your first team goal to get started',
             style: AppTypography.bodyLarge.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -215,7 +224,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
             label: const Text('Create Team Goal'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: DashboardChrome.fg,
             ),
           ),
         ],
@@ -235,9 +244,9 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.textSecondary, width: 1),
+        border: Border.all(color: DashboardChrome.border, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,7 +258,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
                 child: Text(
                   title,
                   style: AppTypography.heading3.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                   ),
                 ),
               ),
@@ -276,7 +285,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
           Text(
             description,
             style: AppTypography.bodyLarge.copyWith(
-              color: AppColors.textSecondary,
+              color: DashboardChrome.fg,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -328,7 +337,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -339,7 +348,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
           Text(
             label,
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textPrimary,
+              color: DashboardChrome.fg,
             ),
           ),
         ],

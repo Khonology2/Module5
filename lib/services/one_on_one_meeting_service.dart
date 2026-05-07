@@ -35,6 +35,13 @@ class OneOnOneMeetingService {
     });
   }
 
+  static Stream<OneOnOneMeeting?> streamMeeting(String meetingId) {
+    return FirestoreSafe.stream(_col.doc(meetingId).snapshots()).map((snap) {
+      if (!snap.exists) return null;
+      return OneOnOneMeeting.fromFirestore(snap);
+    });
+  }
+
   static Future<OneOnOneMeeting?> getMeeting(String meetingId) async {
     try {
       final snap = await FirestoreSafe.getDoc(_col.doc(meetingId));
