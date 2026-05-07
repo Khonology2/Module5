@@ -78,7 +78,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   
   
   /// Which supervision alert sections are expanded (Show All). Key: section id.
-  final Map<String, bool> _supervisionSectionExpanded = <String, bool>{};
+  Map<String, bool> _supervisionSectionExpanded = <String, bool>{};
 
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
   final bool _showNudgeTrend = true;
@@ -457,9 +457,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               final decisionDate = g.approvedAt ?? g.targetDate;
               return Container(
                 decoration: BoxDecoration(
-                  color: Color(0xFF838383), // #8383834D - Light mode card background
+                  color: DashboardChrome.cardFill,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+                  border: Border.all(color: DashboardChrome.border),
                 ),
                 child: ListTile(
                   leading: isApproved
@@ -561,181 +561,192 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Team Supervision Dashboard',
-      showAppBar: false,
-      embedded: widget.embedded,
-      items: SidebarConfig.getItemsForRole('manager'),
-      currentRouteName: '/manager_alerts_nudges',
-      onNavigate: (route) {
-        // Keep manager navigation inside the portal so sidebar order changes
-        // don't break content routing.
-        if (widget.embedded) return;
-        Navigator.pushReplacementNamed(
-          context,
-          '/manager_portal',
-          arguments: {'initialRoute': route},
-        );
-      },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await AuthService().signOut();
-        if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-        }
-      },
-      content: StreamBuilder<List<EmployeeData>>(
-        key: ValueKey(
-          'team_data_stream_${widget.forAdminOversight}_${widget.selectedManagerId}',
-        ),
-        stream: widget.forAdminOversight
-            ? ManagerRealtimeService.getManagersDataStreamForAdmin(
-                selectedManagerId: widget.selectedManagerId,
-              )
-            : ManagerRealtimeService.getTeamDataStream(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: AppSpacing.screenPadding,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      color: AppColors.dangerColor,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Error loading team data',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: DashboardChrome.fg,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${snapshot.error}',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: DashboardChrome.fg,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: AppScaffold(
+            title: 'Team Supervision Dashboard',
+            showAppBar: false,
+            embedded: widget.embedded,
+            items: SidebarConfig.getItemsForRole('manager'),
+            currentRouteName: '/manager_alerts_nudges',
+            onNavigate: (route) {
+              // Keep manager navigation inside the portal so sidebar order changes
+              // don't break content routing.
+              if (widget.embedded) return;
+              Navigator.pushReplacementNamed(
+                context,
+                '/manager_portal',
+                arguments: {'initialRoute': route},
+              );
+            },
+            onLogout: () async {
+              final navigator = Navigator.of(context);
+              await AuthService().signOut();
+              if (mounted) {
+                navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+              }
+            },
+            content: StreamBuilder<List<EmployeeData>>(
+              key: ValueKey(
+                'team_data_stream_${widget.forAdminOversight}_${widget.selectedManagerId}',
               ),
-            );
-          }
-
-          final incoming = snapshot.data;
-          final hasPlaceholderBatch =
-              incoming != null &&
-              incoming.isNotEmpty &&
-              incoming.every((e) => e.isPlaceholder);
-
-          // Keep last known-good enriched list so the UI does not
-          // "flash empty" or show placeholder-only data when the
-          // stream re-emits (for example, after sending a nudge).
-          if (snapshot.hasData &&
-              (snapshot.data?.isNotEmpty ?? false) &&
-              !hasPlaceholderBatch) {
-            _lastEmployees = snapshot.data!;
-          }
-
-          // If we only have placeholders and no enriched cache yet,
-          // still show employees immediately (for stats/alerts), but
-          // rely on the subsequent enriched payload to refine data.
-          final employees = hasPlaceholderBatch
-              ? incoming
-              : (snapshot.data ?? _lastEmployees);
-
-          if ((employees.isEmpty) &&
-              snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
-            );
-          }
-
-          try {
-            return DashboardThemedBackground(
-              embedded: widget.embedded,
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
+              stream: widget.forAdminOversight
+                  ? ManagerRealtimeService.getManagersDataStreamForAdmin(
+                      selectedManagerId: widget.selectedManagerId)
+                  : ManagerRealtimeService.getTeamDataStream(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
                     child: Padding(
                       padding: AppSpacing.screenPadding,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          employees.isEmpty
-                              ? _buildStatsRowSkeleton()
-                              : _buildStatsRow(employees),
-                          const SizedBox(height: AppSpacing.md),
-                          _buildFilterBar(),
-                          const SizedBox(height: AppSpacing.md),
+                          Icon(
+                            Icons.error_outline,
+                            color: AppColors.dangerColor,
+                            size: 48,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading team data',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: DashboardChrome.fg,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${snapshot.error}',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: DashboardChrome.fg,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                  // Direct alert content (no tabs)
-                  _buildAllAlertsContent(employees),
-                ],
-              ),
-            );
-          } catch (e, stack) {
-            developer.log(
-              'Manager Alerts screen build error: $e',
-              name: 'ManagerAlerts',
-            );
-            developer.log('Stack: $stack', name: 'ManagerAlerts');
-            return Center(
+                  );
+                }
+
+                final incoming = snapshot.data;
+                final hasPlaceholderBatch =
+                    incoming != null &&
+                    incoming.isNotEmpty &&
+                    incoming.every((e) => e.isPlaceholder);
+
+                // Keep last known-good enriched list so the UI does not
+                // "flash empty" or show placeholder-only data when the
+                // stream re-emits (for example, after sending a nudge).
+                if (snapshot.hasData &&
+                    (snapshot.data?.isNotEmpty ?? false) &&
+                    !hasPlaceholderBatch) {
+                  _lastEmployees = snapshot.data!;
+                }
+
+                // If we only have placeholders and no enriched cache yet,
+                // still show employees immediately (for stats/alerts), but
+                // rely on the subsequent enriched payload to refine data.
+                final employees = hasPlaceholderBatch
+                    ? incoming
+                    : (snapshot.data ?? _lastEmployees);
+
+                if ((employees.isEmpty) &&
+                    snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.activeColor,
+                      ),
+                    ),
+                  );
+                }
+
+                return _buildMainContent(employees, light);
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMainContent(List<EmployeeData> employees, bool light) {
+    try {
+      return DashboardThemedBackground(
+        embedded: widget.embedded,
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
               child: Padding(
                 padding: AppSpacing.screenPadding,
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.error_outline,
-                      color: AppColors.dangerColor,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Unable to load team alerts',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: DashboardChrome.fg,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Please check your connection and try again.',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: DashboardChrome.fg,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => setState(() {}),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.activeColor,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Retry'),
-                    ),
+                    employees.isEmpty
+                        ? _buildStatsRowSkeleton()
+                        : _buildStatsRow(employees),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildFilterBar(),
+                    const SizedBox(height: AppSpacing.md),
                   ],
                 ),
               ),
-            );
-          }
-        },
-      ),
-    );
+            ),
+            // Direct alert content (no tabs)
+            _buildAllAlertsContent(employees),
+          ],
+        ),
+      );
+    } catch (e, stack) {
+      developer.log(
+        'Manager Alerts screen build error: $e',
+        name: 'ManagerAlerts',
+      );
+      developer.log('Stack: $stack', name: 'ManagerAlerts');
+      return Center(
+        child: Padding(
+          padding: AppSpacing.screenPadding,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: AppColors.dangerColor,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Unable to load team alerts',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: DashboardChrome.fg,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Please check your connection and try again.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: DashboardChrome.fg,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => setState(() {}),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.activeColor,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildAllAlertsContent(List<EmployeeData> employees) {
@@ -1273,9 +1284,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1324,9 +1335,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.1),
@@ -1398,9 +1409,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1905,9 +1916,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2049,7 +2060,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isSelected 
@@ -2650,9 +2661,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -2688,9 +2699,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3114,9 +3125,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3328,9 +3339,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3482,9 +3493,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Row(
         children: [
@@ -3522,9 +3533,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3565,9 +3576,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: Color(0xFF838383), // #8383834D - Light mode card background
+                    color: DashboardChrome.cardFill,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+                    border: Border.all(color: DashboardChrome.border),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -3728,9 +3739,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         children: [
@@ -3755,9 +3766,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF838383)), // #8383834D - Light mode border
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: Column(
         children: [
@@ -4223,7 +4234,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFF838383), // #8383834D - Light mode card background
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
       ),

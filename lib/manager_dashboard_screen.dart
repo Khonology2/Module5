@@ -613,38 +613,54 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
     if (widget.embedded) {
       // ManagerPortal provides background + theme scope
-      return content;
+      return ValueListenableBuilder<bool>(
+        valueListenable: employeeDashboardLightModeNotifier,
+        builder: (context, light, _) {
+          return EmployeeDashboardThemeScope(
+            light: light,
+            child: content,
+          );
+        },
+      );
     }
 
-    return AppScaffold(
-      title: '',
-      showAppBar: false,
-      items: SidebarConfig.managerItems,
-      currentRouteName: '/dashboard',
-      tutorialStepIndex: _shouldShowTutorial ? _currentTutorialStep : null,
-      sidebarTutorialKeys:
-          _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-          ? _sidebarTutorialKeys
-          : null,
-      onTutorialNext: _shouldShowTutorial ? _moveToNextTutorialStep : null,
-      onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
-      onNavigate: (route) {
-        // Keep manager navigation inside the portal so moved sidebar items
-        // always load the correct content (e.g. Review Team).
-        Navigator.pushReplacementNamed(
-          context,
-          '/manager_portal',
-          arguments: {'initialRoute': route},
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: AppScaffold(
+            title: '',
+            showAppBar: false,
+            items: SidebarConfig.managerItems,
+            currentRouteName: '/dashboard',
+            tutorialStepIndex: _shouldShowTutorial ? _currentTutorialStep : null,
+            sidebarTutorialKeys:
+                _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
+                ? _sidebarTutorialKeys
+                : null,
+            onTutorialNext: _shouldShowTutorial ? _moveToNextTutorialStep : null,
+            onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
+            onNavigate: (route) {
+              // Keep manager navigation inside the portal so moved sidebar items
+              // always load the correct content (e.g. Review Team).
+              Navigator.pushReplacementNamed(
+                context,
+                '/manager_portal',
+                arguments: {'initialRoute': route},
+              );
+            },
+            onLogout: () async {
+              final navigator = Navigator.of(context);
+              await AuthService().signOut();
+              if (mounted) {
+                navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+              }
+            },
+            content: DashboardThemedBackground(child: content),
+          ),
         );
       },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await AuthService().signOut();
-        if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-        }
-      },
-      content: DashboardThemedBackground(child: content),
     );
   }
 
