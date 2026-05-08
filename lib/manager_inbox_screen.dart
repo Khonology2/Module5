@@ -273,6 +273,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       case AlertType.managerGeneral:
       case AlertType.milestoneDeleted:
       case AlertType.milestoneDeletionRejected:
+      case AlertType.profileIncomplete:
         return true;
       case AlertType.goalOverdue:
         return _isManagerScopedGoalOverdue(alert) ||
@@ -1368,7 +1369,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (!context.mounted) return;
-        navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+        navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
       },
       content: _buildContent(),
     );
@@ -1530,9 +1531,19 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   .toList();
 
               if (widget.forAdminOversight && !_showArchived) {
-                // Fallback to standard inbox rendering when admin-pending-goals
-                // helpers are unavailable in this branch snapshot.
-                return _buildInboxListContent(sourceItems: items, user: user);
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _adminPendingGoalsStream(),
+                  builder: (context, pendingSnapshot) {
+                    final pendingDocs = pendingSnapshot.data?.docs ?? const [];
+                    final mergedItems = _mergeAdminPendingGoalFallbackAlerts(
+                      baseItems: items,
+                      goalDocs: pendingDocs,
+                      adminUserId: user.uid,
+                    );
+                    if (p != 0) return p;
+                    return b.createdAt.compareTo(a.createdAt);
+                  },
+                );
               }
 
               return _buildInboxListContent(

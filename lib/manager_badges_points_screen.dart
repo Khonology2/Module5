@@ -205,49 +205,40 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: employeeDashboardLightModeNotifier,
-      builder: (context, light, _) {
-        return EmployeeDashboardThemeScope(
-          light: light,
-          child: AppScaffold(
-            title: '',
-            showAppBar: false,
-            embedded: widget.embedded,
-            items: SidebarConfig.getItemsForRole(
-              widget.forAdminSelf ? 'admin' : 'manager',
-            ),
-            currentRouteName: widget.forAdminSelf
-                ? '/admin_badges_points'
-                : '/manager_badges_points',
-            onNavigate: (route) {
-              // Managers should navigate via the portal so the sidebar remains persistent
-              // and moved items (e.g. Review Team) open the correct content.
-              if (widget.embedded) return;
-              if (widget.forAdminSelf) {
-                Navigator.pushReplacementNamed(
-                  context,
-                  '/admin_portal',
-                  arguments: {'initialRoute': route},
-                );
-              } else {
-                Navigator.pushReplacementNamed(
-                  context,
-                  '/manager_portal',
-                  arguments: {'initialRoute': route},
-                );
-              }
-            },
-            onLogout: () async {
-              final navigator = Navigator.of(context);
-              await AuthService().signOut();
-              if (mounted) {
-                navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-              }
-            },
-            content: _buildContent(),
-          ),
-        );
+    return AppScaffold(
+      title: '',
+      showAppBar: false,
+      embedded: widget.embedded,
+      items: SidebarConfig.getItemsForRole(
+        widget.forAdminSelf ? 'admin' : 'manager',
+      ),
+      currentRouteName: widget.forAdminSelf
+          ? '/admin_badges_points'
+          : '/manager_badges_points',
+      onNavigate: (route) {
+        // Managers should navigate via the portal so the sidebar remains persistent
+        // and moved items (e.g. Review Team) open the correct content.
+        if (widget.embedded) return;
+        if (widget.forAdminSelf) {
+          Navigator.pushReplacementNamed(
+            context,
+            '/admin_portal',
+            arguments: {'initialRoute': route},
+          );
+        } else {
+          Navigator.pushReplacementNamed(
+            context,
+            '/manager_portal',
+            arguments: {'initialRoute': route},
+          );
+        }
+      },
+      onLogout: () async {
+        final navigator = Navigator.of(context);
+        await AuthService().signOut();
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
+        }
       },
     );
   }

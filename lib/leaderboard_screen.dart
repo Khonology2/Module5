@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_ai/firebase_ai.dart';
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/models/user_profile.dart';
@@ -332,11 +332,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return num.tryParse(value.toString()) ?? fallback;
   }
 
-  List<Map<String, dynamic>> _processLeaderboardData(
+  Future<List<Map<String, dynamic>>> _processLeaderboardData(
     List<dynamic> docs, {
     String? userRole,
     bool forAdminOversight = false,
-  }) {
+  }) async {
     try {
       developer.log('Processing ${docs.length} documents for leaderboard');
 
@@ -410,7 +410,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       }
 
       // Process and sort data with better error handling
-      List<Map<String, dynamic>> processedData = filteredDocs.map((doc) {
+      // First pass: extract all data without async operations
+      final List<Map<String, dynamic>> initialData = filteredDocs.map((doc) {
         Map<String, dynamic> data;
         String docId;
 
@@ -513,6 +514,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           developer.log('Error processing streaks for user $docId: $e');
         }
 
+        // Get display name - will fetch from profile if missing in second pass
+        String displayName = data['displayName']?.toString() ?? '';
+        if (displayName.isEmpty || displayName == 'Anonymous') {
+          displayName = ''; // Mark for fetching
+        }
+
         return {
           'userId': docId,
           'name': data['displayName']?.toString() ?? 'Anonymous',
@@ -523,8 +530,35 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           'longestStreak': longestStreak,
           'department': data['department']?.toString() ?? 'Unknown',
           'jobTitle': data['jobTitle']?.toString() ?? 'Unknown',
+          'email': data['email']?.toString() ?? '',
+          'needsNameFetch': displayName.isEmpty,
         };
       }).toList();
+
+      // Second pass: fetch names for users that need it
+      final List<Map<String, dynamic>> processedData = await Future.wait(
+        initialData.map((userData) async {
+          if (userData['needsNameFetch'] == true) {
+            try {
+              final profile = await DatabaseService.getUserProfile(
+                userData['userId'] as String,
+              );
+              userData['name'] = profile.displayName.isNotEmpty
+                  ? profile.displayName
+                  : (userData['email']?.toString().split('@').first ??
+                        userData['userId']);
+            } catch (_) {
+              userData['name'] =
+                  userData['email']?.toString().split('@').first ??
+                  userData['userId'];
+            }
+          }
+          // Remove helper field
+          userData.remove('needsNameFetch');
+          userData.remove('email');
+          return userData;
+        }),
+      );
 
       // Sort by the selected metric based on filters
       // Priority: Filter selections > Dropdown menu selection
@@ -1635,36 +1669,24 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         comparisonData.writeln('');
       }
 
-      // Generate AI analysis
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
+      // Generate AI analysis (Firebase AI first, backend Gemini fallback)
+      const sysInstr =
           'You are an AI assistant specialized in analyzing leaderboard performance and providing actionable insights. '
           'Compare the current user\'s performance with competitors ranked above and below them. '
-          'Identify specific differences in:\n'
-          '1. Points earned and how they\'re distributed\n'
-          '2. Goal completion rates and types\n'
-          '3. Badge achievements and types\n'
-          '4. Activity patterns and consistency\n'
-          '\n'
-          'Provide specific, actionable recommendations on what the user should focus on to improve their ranking. '
-          'Be encouraging but direct. Format your response in clear sections with bullet points.',
-        ),
-      );
-
-      final prompt = [
-        Content.text(
+          'Identify specific differences in points, goal completion, badges, and activity patterns. '
+          'Provide specific, actionable recommendations. Be encouraging but direct. Format in clear sections with bullet points.';
+      final userPrompt =
           'Analyze this leaderboard comparison data and provide insights:\n\n'
           '$comparisonData\n\n'
           'What specific actions or achievements do the competitors have that the current user doesn\'t? '
-          'What should the current user focus on to move up in the rankings?',
-        ),
-      ];
-
-      final response = await model.generateContent(prompt);
-      final analysis =
-          response.text?.replaceAll('*', '').trim() ??
-          'Unable to generate analysis. Please try again.';
+          'What should the current user focus on to move up in the rankings?';
+      final raw = await AiFallbackService.generateTextWithFallback(
+        userPrompt: userPrompt,
+        systemInstruction: sysInstr,
+      );
+      final analysis = raw.replaceAll('*', '').trim().isEmpty
+          ? 'Unable to generate analysis. Please try again.'
+          : raw.replaceAll('*', '').trim();
 
       // Close loading dialog
       if (context.mounted) {

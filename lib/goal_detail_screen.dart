@@ -22,10 +22,17 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/alert.dart';
 
+enum GoalDetailMode { view, adjustScope, addMilestones }
+
 class GoalDetailScreen extends StatefulWidget {
   final Goal goal;
+  final GoalDetailMode initialMode;
 
-  const GoalDetailScreen({super.key, required this.goal});
+  const GoalDetailScreen({
+    super.key, 
+    required this.goal,
+    this.initialMode = GoalDetailMode.view,
+  });
 
   @override
   State<GoalDetailScreen> createState() => _GoalDetailScreenState();
@@ -616,7 +623,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             if (!context.mounted) return;
             Navigator.of(
               context,
-            ).pushNamedAndRemoveUntil('/sign_in', (route) => false);
+            ).pushNamedAndRemoveUntil('/landing', (route) => false);
           },
           content: Container(
             width: double.infinity,
