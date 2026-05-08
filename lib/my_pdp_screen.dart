@@ -128,15 +128,13 @@ Color _pdpEvidenceInnerBg(bool light) =>
 const double _kpiExcellenceHeaderHeight = 74.54;
 /// Leading icon badge (Figma ~63×62); use square box so [BoxShape.circle] reads cleanly.
 const double _kpiExcellenceIconSize = 62;
-/// Padding inside the white circle — keep small so the red asset reads large (Figma: fills most of the disc).
-const double _kpaIconInnerPadding = 5.0;
-
 /// PNG paths under [assets/] for each KPA row (aligned with dashboard / manager KPI usage).
 const String _kpaIconOperational =
     'assets/Goal_Target/Goal_Target_White_Badge_Red.png';
 const String _kpaIconCustomer =
     'assets/Approved_Tick/Approved_White_Badge_Red.png';
-const String _kpaIconFinancial = 'assets/Star.png';
+const String _kpaIconFinancial =
+    'assets/Financial Growth_Development/Financial Growth_Development_White Badge_Red.png';
 const String _kpaIconOrganisational = _kpaIconOperational;
 const String _kpaIconPeople = _kpaIconCustomer;
 
@@ -1259,17 +1257,6 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     return ValueListenableBuilder<bool>(
       valueListenable: employeeDashboardLightModeNotifier,
       builder: (context, light, _) {
-        final user = FirebaseAuth.instance.currentUser;
-        String userName = 'Name Surname';
-        if ((user?.displayName ?? '').trim().isNotEmpty) {
-          userName = user!.displayName!.trim();
-        } else if ((user?.email ?? '').trim().isNotEmpty) {
-          userName = user!.email!.split('@').first;
-        }
-        final headingTitle = managerOwnGoalsOnly
-            ? 'Employee Personal Development Plan'
-            : 'My Personal Development Plan';
-
         return PopScope(
           canPop: false, // Prevents popping if we handle it explicitly
           onPopInvokedWithResult: (bool didPop, dynamic result) {
@@ -1299,32 +1286,6 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            headingTitle,
-                            style: AppTypography.heading4.copyWith(
-                              color: _pdpFg(light),
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Flexible(
-                          child: Text(
-                            'Hello, $userName',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: _pdpFg(light),
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
                     _buildExcellenceArea(
                       light: light,
                       title: 'Operational Excellence',
@@ -1383,27 +1344,20 @@ class _MyPdpScreenState extends State<MyPdpScreen>
   }
 
   Widget _buildKpaLeadingIcon(String iconAsset) {
-    final inner = _kpiExcellenceIconSize - 2 * _kpaIconInnerPadding;
-    // Fixed badge size; image fills inner square so glyphs stay large and visible (matches Figma).
+    final inner = _kpiExcellenceIconSize;
+    // Keep icon clean with no outer badge/background.
     return SizedBox(
       width: _kpiExcellenceIconSize,
       height: _kpiExcellenceIconSize,
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(_kpaIconInnerPadding),
-          child: Image.asset(
-            iconAsset,
-            width: inner,
-            height: inner,
-            fit: BoxFit.contain,
-            gaplessPlayback: true,
-            filterQuality: FilterQuality.high,
-            isAntiAlias: true,
-          ),
+      child: Center(
+        child: Image.asset(
+          iconAsset,
+          width: inner,
+          height: inner,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.high,
+          isAntiAlias: true,
         ),
       ),
     );
@@ -1442,18 +1396,30 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                         _buildKpaLeadingIcon(iconAsset),
                         SizedBox(width: _kpiIconToTitleGap),
                         Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
+                          child: Row(
                             children: [
-                              Text(
-                                title,
-                                style: _kpaExcellenceTitleStyle(light),
+                              SizedBox(
+                                width: 160,
+                                child: Text(
+                                  title,
+                                  style: _kpaExcellenceTitleStyle(light),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
+                              if (!expanded) ...[
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildCollapsedKpaSummary(
+                                    light: light,
+                                    excellence: title,
+                                    managerOwnGoalsOnly: managerOwnGoalsOnly,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Icon(
                           expanded
                               ? Icons.keyboard_arrow_up

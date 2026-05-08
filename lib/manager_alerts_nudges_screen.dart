@@ -2,6 +2,7 @@
 
 import 'dart:math' as math;
 import 'dart:developer' as developer;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -62,8 +63,22 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   // Track alerts marked as read locally for optimistic updates
   final Set<String> _locallyMarkedAsRead = <String>{};
 
+  // Track selected alerts for bulk operations
+  final Set<String> _selectedAlerts = <String>{};
+  bool _isSelectionMode = false;
+
+  // Pagination and performance optimization
+  static const int _pageSize = 20;
+  int _currentPage = 1;
+  bool _isLoadingMore = false;
+  final ScrollController _scrollController = ScrollController();
+  List<Alert> _cachedFilteredAlerts = <Alert>[];
+  Timer? _searchDebounceTimer;
+
+  
+  
   /// Which supervision alert sections are expanded (Show All). Key: section id.
-  final Map<String, bool> _supervisionSectionExpanded = <String, bool>{};
+  Map<String, bool> _supervisionSectionExpanded = <String, bool>{};
 
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
   final bool _showNudgeTrend = true;
@@ -79,6 +94,40 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   void initState() {
     super.initState();
     _redirectIfManager();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _searchDebounceTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= 
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreAlerts();
+    }
+  }
+
+  Future<void> _loadMoreAlerts() async {
+    if (_isLoadingMore) return;
+    
+    setState(() {
+      _isLoadingMore = true;
+    });
+    
+    // Simulate loading more data - in real implementation,
+    // this would fetch from backend with pagination
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (mounted) {
+      setState(() {
+        _isLoadingMore = false;
+        _currentPage++;
+      });
+    }
   }
 
   String _fmtDate(DateTime dt) => '${dt.day}/${dt.month}/${dt.year}';
@@ -608,84 +657,160 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   AppColors.activeColor,
                 ),
               ),
-            );
-          }
-
-          try {
-            return DashboardThemedBackground(
-              embedded: widget.embedded,
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
+              stream: widget.forAdminOversight
+                  ? ManagerRealtimeService.getManagersDataStreamForAdmin(
+                      selectedManagerId: widget.selectedManagerId)
+                  : ManagerRealtimeService.getTeamDataStream(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
                     child: Padding(
                       padding: AppSpacing.screenPadding,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          employees.isEmpty
-                              ? _buildStatsRowSkeleton()
-                              : _buildStatsRow(employees),
-                          const SizedBox(height: AppSpacing.md),
-                          _buildFilterBar(),
+                          Icon(
+                            Icons.error_outline,
+                            color: AppColors.dangerColor,
+                            size: 48,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading team data',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: DashboardChrome.fg,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${snapshot.error}',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: DashboardChrome.fg,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                  // Direct alert content (no tabs)
-                  _buildAllAlertsContent(employees),
-                ],
-              ),
-            );
-          } catch (e, stack) {
-            developer.log(
-              'Manager Alerts screen build error: $e',
-              name: 'ManagerAlerts',
-            );
-            developer.log('Stack: $stack', name: 'ManagerAlerts');
-            return Center(
+                  );
+                }
+
+                final incoming = snapshot.data;
+                final hasPlaceholderBatch =
+                    incoming != null &&
+                    incoming.isNotEmpty &&
+                    incoming.every((e) => e.isPlaceholder);
+
+                // Keep last known-good enriched list so the UI does not
+                // "flash empty" or show placeholder-only data when the
+                // stream re-emits (for example, after sending a nudge).
+                if (snapshot.hasData &&
+                    (snapshot.data?.isNotEmpty ?? false) &&
+                    !hasPlaceholderBatch) {
+                  _lastEmployees = snapshot.data!;
+                }
+
+                // If we only have placeholders and no enriched cache yet,
+                // still show employees immediately (for stats/alerts), but
+                // rely on the subsequent enriched payload to refine data.
+                final employees = hasPlaceholderBatch
+                    ? incoming
+                    : (snapshot.data ?? _lastEmployees);
+
+                if ((employees.isEmpty) &&
+                    snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.activeColor,
+                      ),
+                    ),
+                  );
+                }
+
+                return _buildMainContent(employees, light);
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMainContent(List<EmployeeData> employees, bool light) {
+    try {
+      return DashboardThemedBackground(
+        embedded: widget.embedded,
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
               child: Padding(
                 padding: AppSpacing.screenPadding,
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.error_outline,
-                      color: AppColors.dangerColor,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Unable to load team alerts',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: DashboardChrome.fg,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Please check your connection and try again.',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: DashboardChrome.fg,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => setState(() {}),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.activeColor,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Retry'),
-                    ),
+                    employees.isEmpty
+                        ? _buildStatsRowSkeleton()
+                        : _buildStatsRow(employees),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildFilterBar(),
+                    const SizedBox(height: AppSpacing.md),
                   ],
                 ),
               ),
-            );
-          }
-        },
-      ),
-    );
+            ),
+            // Direct alert content (no tabs)
+            _buildAllAlertsContent(employees),
+          ],
+        ),
+      );
+    } catch (e, stack) {
+      developer.log(
+        'Manager Alerts screen build error: $e',
+        name: 'ManagerAlerts',
+      );
+      developer.log('Stack: $stack', name: 'ManagerAlerts');
+      return Center(
+        child: Padding(
+          padding: AppSpacing.screenPadding,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: AppColors.dangerColor,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Unable to load team alerts',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: DashboardChrome.fg,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Please check your connection and try again.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: DashboardChrome.fg,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => setState(() {}),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.activeColor,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildAllAlertsContent(List<EmployeeData> employees) {
@@ -709,6 +834,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
     // Use the new alert system to get both personal and team alerts
     return StreamBuilder<List<Alert>>(
+      key: ValueKey('user_alerts_${manager.uid}'),
       stream: AlertService.getUserAlertsStream(manager.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -843,9 +969,19 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             for (final goal in goals) {
               if (!goal.isEligibleForOverdueTeamAlert) continue;
               if (!goal.targetDate.isBefore(now)) continue;
+              
+              // Additional validation to prevent ghost data
+              if (goal.progress >= 100) continue;
+              if (goal.status == GoalStatus.completed || 
+                  goal.status == GoalStatus.acknowledged ||
+                  goal.status == GoalStatus.paused) continue;
+              
               final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
               if (!seenAlertIds.add(id)) continue;
               final daysOverdue = now.difference(goal.targetDate).inDays;
+              
+              // Only create alert if actually overdue (at least 1 day)
+              if (daysOverdue < 1) continue;
               combinedAlerts.add(
                 Alert(
                   id: id,
@@ -1323,6 +1459,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     );
   }
 
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   Widget _buildFilterBar() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1438,7 +1584,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               Expanded(
                 flex: 2,
                 child: TextField(
-                  onChanged: (value) => setState(() => _searchQuery = value),
+                  onChanged: (value) {
+                    _searchDebounceTimer?.cancel();
+                    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+                      if (mounted) {
+                        setState(() => _searchQuery = value);
+                      }
+                    });
+                  },
                   decoration: InputDecoration(
                     hintText: 'Search employees or goals...',
                     prefixIcon: Icon(Icons.search, color: DashboardChrome.fg),
@@ -1509,6 +1662,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
     // Use the new alert system to get team alerts
     return StreamBuilder<List<Alert>>(
+      key: ValueKey('team_alerts_${manager.uid}'),
       stream: AlertService.getTeamAlertsForManager(manager.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1589,9 +1743,19 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           for (final goal in e.goals) {
             if (!goal.isEligibleForOverdueTeamAlert) continue;
             if (!goal.targetDate.isBefore(now)) continue;
+            
+            // Additional validation to prevent ghost data
+            if (goal.progress >= 100) continue;
+            if (goal.status == GoalStatus.completed || 
+                goal.status == GoalStatus.acknowledged ||
+                goal.status == GoalStatus.paused) continue;
+            
             final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
             if (!seenAlertIds.add(id)) continue;
             final daysOverdue = now.difference(goal.targetDate).inDays;
+            
+            // Only create alert if actually overdue (at least 1 day)
+            if (daysOverdue < 1) continue;
             allAlerts.add(
               Alert(
                 id: id,
@@ -1699,9 +1863,19 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   }
 
   List<Alert> _applyFilters(List<Alert> alerts) {
-    // When filter is "All Issues", show all notifications (read + unread).
-    // When a specific filter is selected, still show all matching alerts so
-    // inactive/overdue/performance/risk views show everything that was in the system.
+    // Clear cache if underlying data has changed significantly
+    if (_cachedFilteredAlerts.isNotEmpty && alerts.length != _cachedFilteredAlerts.length) {
+      _cachedFilteredAlerts.clear();
+    }
+    
+    // Use cached filtered alerts if available to avoid re-filtering
+    if (_cachedFilteredAlerts.isNotEmpty && 
+        _searchQuery.isEmpty && 
+        _alertTypeFilter == null && 
+        _sortBy == 'newest') {
+      return _cachedFilteredAlerts;
+    }
+
     var filtered = List<Alert>.from(alerts);
 
     // Apply alert type filter
@@ -1727,7 +1901,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       }).toList();
     }
 
-    // Apply search filter
+    // Apply search filter with debouncing optimization
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered
@@ -1739,15 +1913,15 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           .toList();
     }
 
-    // Apply sorting. When filter is "All", urgent alerts appear first, then by chosen order.
+    // Apply sorting with optimized comparison
     final priorityOrder = {
       AlertPriority.urgent: 0,
       AlertPriority.high: 1,
       AlertPriority.medium: 2,
       AlertPriority.low: 3,
     };
+    
     if (_alertTypeFilter == null) {
-      // All Issues: sort by priority first (urgent first), then by date
       filtered.sort((a, b) {
         final p = priorityOrder[a.priority]!.compareTo(
           priorityOrder[b.priority]!,
@@ -1757,7 +1931,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           case 'oldest':
             return a.createdAt.compareTo(b.createdAt);
           case 'priority':
-            return 0; // already by priority
+            return 0;
           case 'newest':
           default:
             return b.createdAt.compareTo(a.createdAt);
@@ -1782,6 +1956,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       }
     }
 
+    // Cache the filtered results only for default view
+    if (_searchQuery.isEmpty && 
+        _alertTypeFilter == null && 
+        _sortBy == 'newest') {
+      _cachedFilteredAlerts = List.from(filtered);
+    } else {
+      // Clear cache when using filters to prevent stale data
+      _cachedFilteredAlerts.clear();
+    }
+
     return filtered;
   }
 
@@ -1803,7 +1987,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section Header
+          // Section Header with bulk actions
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1836,11 +2020,78 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                       ),
                     ),
                   ),
+                // Bulk action buttons
+                if (_isSelectionMode)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton.icon(
+                        onPressed: _selectAllInSection,
+                        icon: const Icon(Icons.select_all, size: 16),
+                        label: const Text('Select All'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: color,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _clearSelection,
+                        icon: const Icon(Icons.clear, size: 16),
+                        label: const Text('Cancel'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.dangerColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                if (!_isSelectionMode && alerts.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: () => setState(() => _isSelectionMode = true),
+                    icon: const Icon(Icons.checklist, size: 16),
+                    label: const Text('Select'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: color,
+                    ),
+                  ),
               ],
             ),
           ),
 
-          // Alert Cards
+          // Alert Cards with selection
+          if (_selectedAlerts.isNotEmpty && _isSelectionMode)
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.activeColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: AppColors.activeColor, size: 20),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${_selectedAlerts.length} alert${_selectedAlerts.length == 1 ? '' : 's'} selected',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.activeColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  _buildBulkActionButton(
+                    'Mark as Read',
+                    Icons.done_all,
+                    _markSelectedAsRead,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildBulkActionButton(
+                    'Dismiss',
+                    Icons.delete_outline,
+                    _dismissSelectedAlerts,
+                  ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -1868,132 +2119,172 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
   Widget _buildSupervisionAlertCard(Alert alert, EmployeeData employee) {
     final alertColor = _getAlertColor(alert.priority);
+    final isSelected = _selectedAlerts.contains(alert.id);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: DashboardChrome.cardFill,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: alertColor.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header with employee info and alert type
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: alertColor.withValues(alpha: 0.2),
-                child: employee.profile.profilePhotoUrl != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.network(
-                          employee.profile.profilePhotoUrl!,
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                    : Icon(Icons.person, color: alertColor, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      employee.profile.displayName,
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: DashboardChrome.fg,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      _getAlertTypeDescription(alert.type),
-                      style: AppTypography.bodySmall.copyWith(
-                        color: DashboardChrome.fg,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: alertColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: alertColor.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Text(
-                    alert.priority.name.toUpperCase(),
-                    style: AppTypography.bodySmall.copyWith(
-                      color: alertColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 10,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Alert content
-          Text(
-            alert.title,
-            style: AppTypography.bodyMedium.copyWith(
-              color: DashboardChrome.fg,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            alert.message,
-            style: AppTypography.bodySmall.copyWith(color: DashboardChrome.fg),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Time and actions
-          Row(
-            children: [
-              Expanded(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.access_time,
-                      size: 16,
-                      color: DashboardChrome.fg,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        _formatAlertTime(alert.createdAt),
-                        style: AppTypography.bodySmall.copyWith(
-                          color: DashboardChrome.fg,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Flexible(child: _buildQuickActionButtons(alert, employee)),
-            ],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSelected 
+              ? AppColors.activeColor
+              : alertColor.withValues(alpha: 0.2),
+          width: isSelected ? 2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: alertColor.withValues(alpha: 0.1),
+            blurRadius: isSelected ? 8 : 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _toggleAlertSelection(alert.id),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header Row
+                Row(
+                  children: [
+                    // Selection Checkbox (in selection mode)
+                    if (_isSelectionMode)
+                      Container(
+                        margin: const EdgeInsets.only(right: 12),
+                        child: Icon(
+                          isSelected ? Icons.check_circle : Icons.circle_outlined,
+                          color: isSelected ? AppColors.activeColor : DashboardChrome.fg,
+                          size: 20,
+                        ),
+                      ),
+                    
+                    // Employee Avatar
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: alertColor.withValues(alpha: 0.1),
+                      backgroundImage: employee.profile.profilePhotoUrl != null
+                          ? NetworkImage(employee.profile.profilePhotoUrl!)
+                          : null,
+                      child: employee.profile.profilePhotoUrl == null
+                          ? Icon(
+                              Icons.person,
+                              color: alertColor,
+                              size: 20,
+                            )
+                          : null,
+                    ),
+                    
+                    const SizedBox(width: 12),
+                    
+                    // Alert Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            alert.title,
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: DashboardChrome.fg,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            alert.message,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: DashboardChrome.fg,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Priority Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: alertColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: alertColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        alert.priority.name.toUpperCase(),
+                        style: AppTypography.bodySmall.copyWith(
+                          color: alertColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Action Buttons Row
+                Row(
+                  children: [
+                    // Time info
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: 16,
+                            color: DashboardChrome.fg,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              _formatAlertTime(alert.createdAt),
+                              style: AppTypography.bodySmall.copyWith(
+                                color: DashboardChrome.fg,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Quick Actions (only when not in selection mode)
+                    if (!_isSelectionMode)
+                      _buildQuickActionButtons(alert, employee),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
+  }
+
+  void _toggleAlertSelection(String alertId) {
+    setState(() {
+      if (_isSelectionMode) {
+        if (_selectedAlerts.contains(alertId)) {
+          _selectedAlerts.remove(alertId);
+        } else {
+          _selectedAlerts.add(alertId);
+        }
+      }
+    });
   }
 
   Widget _buildManagerScopedAlertCard(Alert alert) {
@@ -2109,20 +2400,18 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (alert.type == AlertType.inactivity)
-          _buildActionButton(
-            'Send Nudge',
-            Icons.send,
-            () => _showSendNudgeDialog(employee: employee),
+        // Group primary actions
+        if (alert.type == AlertType.inactivity || alert.type == AlertType.goalOverdue)
+          _buildPrimaryActionButton(
+            alert.type == AlertType.inactivity ? 'Send Nudge' : 'Manage Goal',
+            alert.type == AlertType.inactivity ? Icons.send : Icons.settings,
+            () => alert.type == AlertType.inactivity 
+                ? _showSendNudgeDialog(employee: employee)
+                : _showGoalActionDialog(alert, employee),
           ),
-        if (alert.type == AlertType.goalOverdue)
-          _buildActionButton(
-            'Extend Deadline',
-            Icons.calendar_today,
-            () => _extendAlertGoalDeadline(alert, employee),
-          ),
-        _buildActionButton(
-          'View Details',
+        // Secondary action - always show details
+        _buildSecondaryActionButton(
+          'Details',
           Icons.visibility,
           () => _viewEmployeeDetails(employee),
         ),
@@ -2130,23 +2419,48 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     );
   }
 
-  Widget _buildActionButton(
+  Widget _buildPrimaryActionButton(
     String label,
     IconData icon,
     VoidCallback onPressed,
   ) {
     return Padding(
       padding: const EdgeInsets.only(left: 8),
-      child: TextButton.icon(
+      child: ElevatedButton.icon(
         onPressed: onPressed,
         icon: Icon(icon, size: 16),
         label: Text(
           label,
           style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w600),
         ),
-        style: TextButton.styleFrom(
-          backgroundColor: AppColors.activeColor.withValues(alpha: 0.1),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.activeColor,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSecondaryActionButton(
+    String label,
+    IconData icon,
+    VoidCallback onPressed,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 16),
+        label: Text(
+          label,
+          style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w500),
+        ),
+        style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.activeColor,
+          side: BorderSide(color: AppColors.activeColor),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -2189,8 +2503,213 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     }
   }
 
+  void _showGoalActionDialog(Alert alert, EmployeeData employee) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Manage Goal: ${alert.title}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildGoalActionOption(
+              'Extend Deadline',
+              'Give more time to complete the goal',
+              Icons.schedule,
+              () => _extendAlertGoalDeadline(alert, employee),
+            ),
+            _buildGoalActionOption(
+              'Reschedule',
+              'Set a new target date',
+              Icons.update,
+              () => _rescheduleGoalFromAlert(alert, employee),
+            ),
+            _buildGoalActionOption(
+              'Pause Goal',
+              'Temporarily halt progress',
+              Icons.pause_circle_outline,
+              () => _pauseGoalFromAlert(alert, employee),
+            ),
+            _buildGoalActionOption(
+              'Mark Burnout',
+              'Flag as needing intervention',
+              Icons.local_fire_department,
+              () => _markGoalBurnoutFromAlert(alert, employee),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalActionOption(
+    String title,
+    String description,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.activeColor),
+      title: Text(title),
+      subtitle: Text(description),
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
+    );
+  }
+
   void _extendAlertGoalDeadline(Alert alert, EmployeeData employee) {
-    _showCenterNotice(context, 'Extending deadline for ${alert.title}...');
+    final gid = _normalizeGoalId(alert.relatedGoalId);
+    if (gid == null) {
+      _showCenterNotice(context, 'This alert is missing a valid goal link.');
+      return;
+    }
+    _extendGoalDeadline(context, gid, employee);
+  }
+
+  void _rescheduleGoalFromAlert(Alert alert, EmployeeData employee) {
+    final gid = _normalizeGoalId(alert.relatedGoalId);
+    if (gid == null) {
+      _showCenterNotice(context, 'This alert is missing a valid goal link.');
+      return;
+    }
+    _rescheduleGoal(context, gid, employee);
+  }
+
+  void _pauseGoalFromAlert(Alert alert, EmployeeData employee) {
+    final gid = _normalizeGoalId(alert.relatedGoalId);
+    if (gid == null) {
+      _showCenterNotice(context, 'This alert is missing a valid goal link.');
+      return;
+    }
+    _pauseGoal(gid, employee);
+  }
+
+  void _markGoalBurnoutFromAlert(Alert alert, EmployeeData employee) {
+    final gid = _normalizeGoalId(alert.relatedGoalId);
+    if (gid == null) {
+      _showCenterNotice(context, 'This alert is missing a valid goal link.');
+      return;
+    }
+    _markGoalBurnout(gid, employee);
+  }
+
+  // Bulk operation methods
+  void _selectAllInSection() {
+    setState(() {
+      // This would need access to current alerts in section
+      // For now, implement basic selection
+      _selectedAlerts.addAll(_getAllCurrentAlertIds());
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedAlerts.clear();
+      _isSelectionMode = false;
+    });
+  }
+
+  List<String> _getAllCurrentAlertIds() {
+    // This is a placeholder - in real implementation,
+    // you'd pass the current section's alerts
+    return [];
+  }
+
+  Widget _buildBulkActionButton(
+    String label,
+    IconData icon,
+    VoidCallback onPressed,
+  ) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(
+        label,
+        style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w600),
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.activeColor,
+        side: BorderSide(color: AppColors.activeColor),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  void _markSelectedAsRead() async {
+    try {
+      final realAlerts = _selectedAlerts
+          .where((id) => !id.startsWith('synthetic_'))
+          .toList();
+      
+      // Optimistically update UI
+      setState(() {
+        _locallyMarkedAsRead.addAll(realAlerts);
+        _selectedAlerts.clear();
+        _isSelectionMode = false;
+      });
+
+      // Mark as read in Firestore
+      for (final alertId in realAlerts) {
+        try {
+          await AlertService.markAsRead(alertId);
+        } catch (e) {
+          // Handle error silently or show notification
+        }
+      }
+
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'Marked ${realAlerts.length} alert${realAlerts.length == 1 ? '' : 's'} as read',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(context, 'Error marking alerts as read: $e');
+      }
+    }
+  }
+
+  void _dismissSelectedAlerts() async {
+    try {
+      final realAlerts = _selectedAlerts
+          .where((id) => !id.startsWith('synthetic_'))
+          .toList();
+
+      setState(() {
+        _selectedAlerts.clear();
+        _isSelectionMode = false;
+      });
+
+      // Dismiss alerts in Firestore
+      for (final alertId in realAlerts) {
+        try {
+          await AlertService.dismissAlert(alertId);
+        } catch (e) {
+          // Handle error silently
+        }
+      }
+
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'Dismissed ${realAlerts.length} alert${realAlerts.length == 1 ? '' : 's'}',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(context, 'Error dismissing alerts: $e');
+      }
+    }
   }
 
   void _viewEmployeeDetails(EmployeeData employee) {

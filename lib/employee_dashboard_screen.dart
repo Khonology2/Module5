@@ -6,8 +6,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_components.dart';
-import 'package:pdh/widgets/messages_icon.dart';
-import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/widgets/header_action_icons.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
@@ -747,7 +746,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       embedded: widget.embedded,
       items: sidebarItems,
       currentRouteName: routeName,
-      topRightAction: null,
+      topRightAction: const HeaderActionIcons(),
       tutorialStepIndex: tutorialStep,
       sidebarTutorialKeys: tutorialKeys,
       onTutorialNext: onTutorialNext,
@@ -844,13 +843,16 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                           children: [
                             Expanded(
                               child: SingleChildScrollView(
-                                padding: AppSpacing.screenPadding,
+                                padding: EdgeInsets.fromLTRB(
+                                  AppSpacing.xxl,
+                                  0,
+                                  AppSpacing.xxl,
+                                  AppSpacing.xxl,
+                                ),
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildDashboardHeader(),
-                                    const SizedBox(height: AppSpacing.lg),
                                     _buildQuickStats(),
                                     const SizedBox(height: AppSpacing.lg),
                                     _buildMotivationRecentAndQuickActionsRow(),
@@ -1022,48 +1024,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildDashboardHeader() {
-    final user = FirebaseAuth.instance.currentUser;
-    String userName = 'Name Surname';
-    if ((userProfile?.displayName ?? '').trim().isNotEmpty) {
-      userName = userProfile!.displayName.trim();
-    } else if ((user?.displayName ?? '').trim().isNotEmpty) {
-      userName = user!.displayName!.trim();
-    } else if ((user?.email ?? '').trim().isNotEmpty) {
-      userName = user!.email!.split('@').first;
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: Row(
-            children: [
-              Flexible(
-                child: Text(
-                  'Employee Dashboard',
-                  style: AppTypography.heading3.copyWith(color: _dashFg(context)),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Flexible(
-                child: Text(
-                  'Hello, $userName',
-                  style: AppTypography.bodyMedium.copyWith(color: _dashFg(context)),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: AppSpacing.md),
-        const MessagesIcon(),
-        const SizedBox(width: AppSpacing.sm),
-        const NotificationsBell(),
-      ],
     );
   }
 

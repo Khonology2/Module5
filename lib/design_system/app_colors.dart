@@ -17,7 +17,7 @@ class AppColors {
   static const Color activeColor = Color(0xFFC10D00);
 
   /// Card background color (same as main background)
-  static const Color cardBackground = Color(0xFF1F2840);
+  static const Color cardBackground = Color(0xFF838383); // #8383834D - Light mode card background
 
   // ===== TEXT COLORS =====
   /// Primary white text
@@ -54,7 +54,7 @@ class AppColors {
 
   // ===== BORDER COLORS =====
   /// Subtle border color
-  static const Color borderColor = Colors.white12;
+  static const Color borderColor = Color(0xFF838383); // #8383834D - Light mode border
 
   /// Active border color
   static const Color activeBorderColor = Color(0xFFC10D00);

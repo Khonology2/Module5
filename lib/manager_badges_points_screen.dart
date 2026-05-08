@@ -240,7 +240,6 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
         }
       },
-      content: _buildContent(),
     );
   }
 
