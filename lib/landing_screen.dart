@@ -455,15 +455,9 @@ class _PersonalDevelopmentHubScreenState
     await _checkTokenAndAutoLogin(manualToken: token);
   }
 
-  Future<void> _handleGetStarted() async {
+  void _handleGetStarted() {
     if (_isCheckingToken || _isProcessingButton) return;
-    setState(() {
-      _isProcessingButton = true;
-      _isCheckingToken = true;
-    });
-    _bounceController.reset();
-    _bounceController.forward();
-    await _checkTokenAndAutoLogin(manualToken: widget.initialToken);
+    Navigator.pushReplacementNamed(context, '/sign_in');
   }
 
   /// Navigate to appropriate dashboard based on role
