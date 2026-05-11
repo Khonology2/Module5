@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/manager_review_team_dashboard_screen.dart';
+import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 /// Admin-only Team Review screen. Shows managers only (no employees).
 class AdminTeamReviewScreen extends StatelessWidget {
@@ -16,11 +17,14 @@ class AdminTeamReviewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ManagerReviewTeamDashboardScreen(
-      forAdminOversight: true,
-      selectedManagerId: selectedManagerId,
-      initialEmployeeId: initialEmployeeId,
-      initialMeetingId: initialMeetingId,
+    return EmployeeDashboardThemeScope(
+      light: true, // Enable white mode for admin team review
+      child: ManagerReviewTeamDashboardScreen(
+        forAdminOversight: true,
+        selectedManagerId: selectedManagerId,
+        initialEmployeeId: initialEmployeeId,
+        initialMeetingId: initialMeetingId,
+      ),
     );
   }
 }

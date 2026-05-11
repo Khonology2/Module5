@@ -1768,7 +1768,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   final completed = season.participantIds
                       .where((id) => _isSeasonParticipantComplete(season, id))
                       .length;
-                  final progress = total == 0 ? 0.0 : completed / total;
+                  final progress = season.metrics.averageProgress;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.md),
                     child: Column(
@@ -1787,17 +1787,82 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                             color: _dashFg(context),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 8,
-                          borderRadius: BorderRadius.circular(8),
-                          backgroundColor: _dashIsLight()
-                              ? const Color(0x33000000)
-                              : AppColors.borderColor,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            AppColors.activeColor,
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 32,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            color: _dashIsLight()
+                                ? const Color(0x0F000000)
+                                : AppColors.borderColor.withOpacity(0.2),
                           ),
+                          child: Stack(
+                            children: [
+                              // Background progress bar
+                              FractionallySizedBox(
+                                widthFactor: progress,
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.activeColor.withOpacity(0.8),
+                                        AppColors.activeColor,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Progress text
+                              Center(
+                                child: Text(
+                                  '${(progress * 100).toInt()}%',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: progress > 0.5 
+                                        ? Colors.white
+                                        : _dashFg(context),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Visual employee status dots
+                        Row(
+                          children: List.generate(
+                            total.clamp(0, 10), // Limit to 10 dots max
+                            (index) => Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: index < completed
+                                      ? AppColors.activeColor
+                                      : _dashIsLight()
+                                          ? Colors.grey.shade300
+                                          : Colors.grey.shade600,
+                                ),
+                              ),
+                            ),
+                          ) + (total > 10
+                              ? [
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 4),
+                                    child: Text(
+                                      '+${total - 10}',
+                                      style: AppTypography.bodySmall.copyWith(
+                                        color: _dashFg(context).withOpacity(0.7),
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ),
+                                ]
+                              : []),
                         ),
                       ],
                     ),
@@ -1814,21 +1879,23 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   bool _isSeasonParticipantComplete(Season season, String participantId) {
     final participation = season.participations[participantId];
     if (participation == null) return false;
+    
     int totalMilestones = 0;
-    int completed = 0;
+    int completedMilestones = 0;
+
     for (final challenge in season.challenges) {
       totalMilestones += challenge.milestones.length;
       for (final milestone in challenge.milestones) {
-        final key = '${challenge.id}.${milestone.id}';
-        final status =
-            participation.milestoneProgress[key] ??
+        final keyDot = '${challenge.id}.${milestone.id}';
+        final status = participation.milestoneProgress[keyDot] ??
             participation.milestoneProgress[milestone.id];
         if (status == MilestoneStatus.completed) {
-          completed++;
+          completedMilestones++;
         }
       }
     }
-    return totalMilestones > 0 && completed == totalMilestones;
+
+    return totalMilestones > 0 && completedMilestones == totalMilestones;
   }
 
   Widget _buildTopPerformersCard() {

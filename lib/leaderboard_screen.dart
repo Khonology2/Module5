@@ -47,8 +47,17 @@ class _OnboardingUserDoc {
 class LeaderboardScreen extends StatefulWidget {
   /// When true, admin is viewing; show managers only (no employees).
   final bool forAdminOversight;
+  /// When true, enables manager comparison functionality
+  final bool compareManagers;
+  /// When true, the screen is embedded in another widget
+  final bool embedded;
 
-  const LeaderboardScreen({super.key, this.forAdminOversight = false});
+  const LeaderboardScreen({
+    super.key, 
+    this.forAdminOversight = false,
+    this.compareManagers = false,
+    this.embedded = false,
+  });
 
   @override
   State<LeaderboardScreen> createState() => _LeaderboardScreenState();

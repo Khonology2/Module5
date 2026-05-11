@@ -2089,21 +2089,46 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     required String labelText,
     String? hintText,
   }) {
+    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    
+    // Theme-aware colors
+    final Color fillColor = isEmployeeDashboardLight 
+        ? DashboardChrome.cardFill
+        : isLightMode 
+            ? Colors.grey.shade50
+            : _darkFieldColor;
+    
+    final Color borderColor = isEmployeeDashboardLight
+        ? DashboardChrome.border
+        : isLightMode
+            ? Colors.grey.shade300
+            : Colors.white.withValues(alpha: 0.2);
+    
+    final Color labelColor = isEmployeeDashboardLight
+        ? DashboardChrome.fg
+        : isLightMode
+            ? Colors.black87
+            : Colors.white.withValues(alpha: 0.85);
+    
+    final Color hintColor = isEmployeeDashboardLight
+        ? Colors.black54
+        : isLightMode
+            ? Colors.grey.shade600
+            : Colors.white.withValues(alpha: 0.55);
+    
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      borderSide: BorderSide(color: borderColor),
     );
+    
     return InputDecoration(
       labelText: labelText,
       hintText: hintText,
-      labelStyle: AppTypography.bodySmall.copyWith(
-        color: Colors.white.withValues(alpha: 0.85),
-      ),
-      hintStyle: AppTypography.bodySmall.copyWith(
-        color: Colors.white.withValues(alpha: 0.55),
-      ),
+      labelStyle: AppTypography.bodySmall.copyWith(color: labelColor),
+      hintStyle: AppTypography.bodySmall.copyWith(color: hintColor),
       filled: true,
-      fillColor: _darkFieldColor,
+      fillColor: fillColor,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
