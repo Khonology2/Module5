@@ -584,7 +584,10 @@ class _TeamChallengesSeasonsScreenState
                 }
 
                 final seasons = _filterSeasonsForScreen(snapshot.data ?? []);
-                final reviewGroups = _buildSeasonReviewGroups(seasons);
+                final activeSeasons = seasons
+                    .where((s) => s.status == SeasonStatus.active)
+                    .toList();
+                final reviewGroups = _buildSeasonReviewGroups(activeSeasons);
 
                 if (reviewGroups.isEmpty) {
                   return Container(
@@ -1063,19 +1066,13 @@ class _TeamChallengesSeasonsScreenState
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Completed • ${season.theme.toUpperCase()}',
+                      'COMPLETED • ${season.theme.toUpperCase()}',
                       style: AppTypography.bodySmall.copyWith(
                         color: AppColors.successColor,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
-                ),
-              ),
-              Text(
-                '${season.metrics.totalParticipants} participants',
-                style: AppTypography.bodySmall.copyWith(
-                  color: _getThemedSecondaryTextColor(context),
                 ),
               ),
             ],
@@ -1107,13 +1104,39 @@ class _TeamChallengesSeasonsScreenState
                 color: AppColors.successColor,
               ),
               const Spacer(),
-              ElevatedButton.icon(
-                onPressed: () => _viewSeasonCelebration(season),
-                icon: const Icon(Icons.celebration, size: 16),
-                label: const Text('Celebration'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.warningColor,
-                  foregroundColor: Colors.white,
+              Text(
+                '${season.metrics.totalParticipants} participants',
+                style: AppTypography.bodySmall.copyWith(
+                  color: _getThemedSecondaryTextColor(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _reviewCompletedSeason(season),
+                  icon: const Icon(Icons.history, size: 16),
+                  label: const Text('View Evidence'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.activeColor,
+                    side: BorderSide(color: AppColors.activeColor),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _viewSeasonCelebration(season),
+                  icon: const Icon(Icons.celebration, size: 16),
+                  label: const Text('Celebration'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.warningColor,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ),
             ],
@@ -1249,10 +1272,8 @@ class _TeamChallengesSeasonsScreenState
         final entries = <_SeasonReviewEntry>[];
 
         for (final submission in participation.challengeSubmissions.values) {
-          if (submission.status == ChallengeSubmissionStatus.notSubmitted) {
-            continue;
-          }
-
+          // Include ALL submissions in review interface so managers can see all participants
+          // This ensures participants with any submission status appear for review
           final challenge = _findChallengeById(season, submission.challengeId);
           if (challenge == null) continue;
 
@@ -1266,7 +1287,8 @@ class _TeamChallengesSeasonsScreenState
           );
         }
 
-        if (entries.isEmpty) continue;
+        // Always show participant groups, even if entries are empty
+        // This allows managers to see participants who need to submit or have submission issues
 
         entries.sort(
           (a, b) =>
@@ -1753,6 +1775,17 @@ class _TeamChallengesSeasonsScreenState
       context,
       MaterialPageRoute(
         builder: (context) => SeasonManagementScreen(season: season),
+      ),
+    );
+  }
+
+  void _reviewCompletedSeason(Season season) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SeasonDetailsScreen(
+          season: season,
+        ),
       ),
     );
   }
