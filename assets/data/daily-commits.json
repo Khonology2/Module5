@@ -1,6 +1,6 @@
 {
-  "version": "2026.05.CB9.SIT",
-  "generated_at": "2026-05-12T15:50:47Z",
+  "version": "2026.05.CB7.SIT",
+  "generated_at": "2026-05-12T15:57:47Z",
   "commits": [
     {
       "author": "Thembelihle",
@@ -24,18 +24,8 @@
     },
     {
       "author": "creator745",
-      "message": "Seasons Management revamp.",
-      "timestamp": "2026-05-11T16:29:39+02:00"
-    },
-    {
-      "author": "creator745",
-      "message": "Feature - refactor: enhance theme handling and UI updates across multiple screens - Added theme-aware color handling in admin_team_review_screen.dart and team_challenges_seasons_screen.dart - Updated progress display in employee_dashboard_screen.dart with a new visual representation - Improved text color management in manager_inbox_screen.dart for better readability - Refactored manager_leaderboard_screen.dart to utilize shared LeaderboardScreen functionality - Adjusted typography settings in app_typography.dart for improved text clarity",
-      "timestamp": "2026-05-11T13:14:11+02:00"
-    },
-    {
-      "author": "creator745",
-      "message": "chore: update dependencies and refactor manager screens - Updated `matcher` package version from 0.12.18 to 0.12.19 - Updated `test_api` package version from 0.7.9 to 0.7.10 - Removed unused import in `main.dart` - Changed `_supervisionSectionExpanded` to be final in `manager_alerts_nudges_screen.dart` - Refactored goal status checks for clarity in `manager_alerts_nudges_screen.dart` - Enhanced inbox screen with new methods for handling admin pending goals and merging alerts in `manager_inbox_screen.dart` - Cleaned up unused method in `manager_portal_screen.dart`",
-      "timestamp": "2026-05-11T11:23:01+02:00"
+      "message": "Refactor: Enhance leaderboard metrics and UI consistency across screens - Added 'progress' and 'badges' metrics to Leaderboard functionality in leaderboard_screen.dart and manager_leaderboard_screen.dart - Updated color handling in employee_dashboard_screen.dart for better visual representation - Cleaned up ID formatting in manager_inbox_screen.dart for consistency",
+      "timestamp": "2026-05-12T17:57:19+02:00"
     },
     {
       "author": "BhutSipho",
@@ -48,6 +38,6 @@
       "timestamp": "2026-05-12T10:51:04+02:00"
     }
   ],
-  "total_commits": 9,
+  "total_commits": 7,
   "date_range": "2026-05-12"
 }
