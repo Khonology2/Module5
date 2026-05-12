@@ -15,9 +15,14 @@ class TeamChallengesSeasonsScreen extends StatefulWidget {
   /// When true, admin is viewing; no employee-specific data.
   final bool forAdminOversight;
 
+  /// When true, render without an AppBar title — [ManagerPortalScreen] /
+  /// [AdminPortalScreen] already show the page name in [AppContentHeader].
+  final bool embedded;
+
   const TeamChallengesSeasonsScreen({
     super.key,
     this.forAdminOversight = false,
+    this.embedded = false,
   });
 
   @override
@@ -162,15 +167,19 @@ class _TeamChallengesSeasonsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final shellShowsTitle = widget.embedded || widget.forAdminOversight;
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         centerTitle: false,
-        title: Text(
-          'Team Challenges & Growth Seasons',
-          style: AppTypography.heading2.copyWith(color: Colors.white),
-        ),
+        toolbarHeight: shellShowsTitle ? 0 : kToolbarHeight,
+        title: shellShowsTitle
+            ? null
+            : Text(
+                'Team Challenges & Growth Seasons',
+                style: AppTypography.heading2.copyWith(color: Colors.white),
+              ),
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         elevation: 0,

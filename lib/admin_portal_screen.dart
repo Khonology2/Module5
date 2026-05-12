@@ -242,7 +242,14 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
                           showGreeting: _isDashboardRoute(),
                           textColor: DashboardChrome.fg,
                         ),
-                        Expanded(child: _getBodyWidget()),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                              top: AppContentHeader.kGapBelowHeader,
+                            ),
+                            child: _getBodyWidget(),
+                          ),
+                        ),
                       ],
                     ),
                   ),

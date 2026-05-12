@@ -57,15 +57,19 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
           );
     // On web, prefer one-time fetches to avoid listener instability.
     if (kIsWeb) {
-      _employeeFuture = (widget.compareManagers
-              ? ManagerRealtimeService.getManagersDataStream(
-                  timeFilter: _selectedTimeFilter,
-                )
-              : ManagerRealtimeService.getTeamDataStream(
-                  timeFilter: _selectedTimeFilter,
-                ))
-          .first;
+      _refreshWebFuture();
     }
+  }
+
+  void _refreshWebFuture() {
+    _employeeFuture = (widget.compareManagers
+            ? ManagerRealtimeService.getManagersDataStream(
+                timeFilter: _selectedTimeFilter,
+              )
+            : ManagerRealtimeService.getTeamDataStream(
+                timeFilter: _selectedTimeFilter,
+              ))
+        .first;
   }
 
   int _badgeCount(EmployeeData e) {
@@ -185,13 +189,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: () {
-                      setState(() {
-                        _employeeFuture = ManagerRealtimeService
-                            .getTeamDataStream(
-                              timeFilter: _selectedTimeFilter,
-                            )
-                            .first;
-                      });
+                      setState(_refreshWebFuture);
                     },
                     icon: const Icon(Icons.refresh),
                     label: const Text('Retry'),
@@ -231,28 +229,22 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
             return ListView(
               padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
               children: [
-                Row(
-                  children: [
-                    Expanded(child: _buildHeader()),
-                    IconButton(
-                      tooltip: 'Refresh',
-                      onPressed: () {
-                        setState(() {
-                          _employeeFuture = ManagerRealtimeService
-                              .getTeamDataStream(
-                                timeFilter: _selectedTimeFilter,
-                              )
-                              .first;
-                        });
-                      },
-                      icon: const Icon(
-                        Icons.refresh,
-                        color: AppColors.activeColor,
+                if (!widget.embedded) ...[
+                  Row(
+                    children: [
+                      Expanded(child: _buildHeader()),
+                      IconButton(
+                        tooltip: 'Refresh',
+                        onPressed: () => setState(_refreshWebFuture),
+                        icon: const Icon(
+                          Icons.refresh,
+                          color: AppColors.activeColor,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 _buildFiltersBar(),
                 const SizedBox(height: 12),
                 _buildEmptyState(),
@@ -267,28 +259,22 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
           return ListView(
             padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
             children: [
-              Row(
-                children: [
-                  Expanded(child: _buildHeader()),
-                  IconButton(
-                    tooltip: 'Refresh',
-                    onPressed: () {
-                      setState(() {
-                        _employeeFuture = ManagerRealtimeService
-                            .getTeamDataStream(
-                              timeFilter: _selectedTimeFilter,
-                            )
-                            .first;
-                      });
-                    },
-                    icon: const Icon(
-                      Icons.refresh,
-                      color: AppColors.activeColor,
+              if (!widget.embedded) ...[
+                Row(
+                  children: [
+                    Expanded(child: _buildHeader()),
+                    IconButton(
+                      tooltip: 'Refresh',
+                      onPressed: () => setState(_refreshWebFuture),
+                      icon: const Icon(
+                        Icons.refresh,
+                        color: AppColors.activeColor,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
               _buildFiltersBar(),
               const SizedBox(height: 12),
               if (top.isNotEmpty) _buildPodium(top),
@@ -362,8 +348,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _buildHeader(),
-              const SizedBox(height: 16),
+              if (!widget.embedded) ...[
+                _buildHeader(),
+                const SizedBox(height: 16),
+              ],
               _buildFiltersBar(),
               const SizedBox(height: 12),
               _buildEmptyState(),
@@ -375,8 +363,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
           return ListView(
             padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
             children: [
-              _buildHeader(),
-              const SizedBox(height: 16),
+              if (!widget.embedded) ...[
+                _buildHeader(),
+                const SizedBox(height: 16),
+              ],
               _buildFiltersBar(),
               const SizedBox(height: 12),
               _buildEmptyState(),
@@ -391,8 +381,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
         return ListView(
           padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           children: [
-            _buildHeader(),
-            const SizedBox(height: 16),
+            if (!widget.embedded) ...[
+              _buildHeader(),
+              const SizedBox(height: 16),
+            ],
             _buildFiltersBar(),
             const SizedBox(height: 12),
             if (top.isNotEmpty) _buildPodium(top),
@@ -485,6 +477,39 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
       );
     }
 
+    final embeddedStatus = widget.embedded
+        ? Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.circle, color: AppColors.successColor, size: 10),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Live',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.successColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: () {
+                  if (kIsWeb) {
+                    setState(_refreshWebFuture);
+                  } else {
+                    setState(_reloadLeaderboardSource);
+                  }
+                },
+                icon: const Icon(Icons.refresh, color: AppColors.activeColor),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          )
+        : null;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -495,6 +520,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (embeddedStatus != null) ...[
+            embeddedStatus,
+            const SizedBox(height: 10),
+          ],
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -629,8 +658,9 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
       );
     }
 
+    // Tall enough for rank bars + name cards without clipping (was 200 → overflow).
     return SizedBox(
-      height: 200,
+      height: 210,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [

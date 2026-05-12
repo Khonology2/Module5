@@ -97,6 +97,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   String? _statusFilter;
   late final ValueDebouncer<String> _searchDebouncer;
 
+  /// “Your progress” stat tiles — badge icons (match sidebar / design system).
+  static const double _repoAuditStatIconSize = 26;
+  static const String _repoAuditIconTotal =
+      'assets/Goal_Target/Goal_Target_White_Badge_Red.png';
+  static const String _repoAuditIconCreated =
+      'assets/Innovation_Brainstorm/Innovation_Brainstorm_White_Badge_Red.png';
+  static const String _repoAuditIconPending =
+      'assets/Business_Growth_Development/Business_Growth_Development_White_Badge_Red.png';
+  static const String _repoAuditIconVerified =
+      'assets/Approved_Tick/Approved_White_Badge_Red.png';
+  static const String _repoAuditIconRejected =
+      'assets/Cancel_Exit_Escape/Cancel_Exit_Escape_White_Badge_Red.png';
+
   // Single unified stream to prevent Firestore conflicts
   StreamSubscription<QuerySnapshot>? _unifiedStreamSubscription;
   /// Rows from audit_entries before merging admin overlay(s).
@@ -1360,20 +1373,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Repository & Audit',
-                      style: AppTypography.heading2.copyWith(
-                        color: _RepoAuditChrome.fg,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
                     _buildSearchAndFilters(),
                     _buildAdminGoalOwnerScopeBar(),
                     const SizedBox(height: 25),
                     _buildHeader(isManagerView: _useTeamDataView),
+                    const SizedBox(height: AppSpacing.lg),
                     Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _buildRoleSummaryBar(isManager: _useTeamDataView),
+                        const SizedBox(height: AppSpacing.xxl),
                         _buildAuditEntriesList(isManager: _useTeamDataView),
                         const SizedBox(height: 24),
                         _buildPendingApprovalsSection(
@@ -1647,6 +1656,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     required bool isManager,
   }) {
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         color: _RepoAuditChrome.cardFill,
         borderRadius: BorderRadius.circular(12),
@@ -1667,31 +1677,49 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 16,
-            runSpacing: 8,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildStatItem(
-                'Total',
-                stats['total'] ?? 0,
-                AppColors.activeColor,
+              Expanded(
+                child: _buildStatItem(
+                  'Total',
+                  stats['total'] ?? 0,
+                  AppColors.activeColor,
+                  _repoAuditIconTotal,
+                ),
               ),
-              _buildStatItem(
-                'Created',
-                stats['created'] ?? 0,
-                AppColors.infoColor,
+              Expanded(
+                child: _buildStatItem(
+                  'Created',
+                  stats['created'] ?? 0,
+                  AppColors.infoColor,
+                  _repoAuditIconCreated,
+                ),
               ),
-              _buildStatItem(
-                'Pending',
-                stats['pending'] ?? 0,
-                AppColors.warningColor,
+              Expanded(
+                child: _buildStatItem(
+                  'Pending',
+                  stats['pending'] ?? 0,
+                  AppColors.warningColor,
+                  _repoAuditIconPending,
+                ),
               ),
-              _buildStatItem(
-                widget.forAdminOversight ? 'Approved / verified' : 'Verified',
-                stats['verified'] ?? 0,
-                AppColors.successColor,
+              Expanded(
+                child: _buildStatItem(
+                  widget.forAdminOversight ? 'Approved / verified' : 'Verified',
+                  stats['verified'] ?? 0,
+                  AppColors.successColor,
+                  _repoAuditIconVerified,
+                ),
               ),
-              _buildStatItem('Rejected', stats['rejected'] ?? 0, Colors.red),
+              Expanded(
+                child: _buildStatItem(
+                  'Rejected',
+                  stats['rejected'] ?? 0,
+                  Colors.red,
+                  _repoAuditIconRejected,
+                ),
+              ),
             ],
           ),
         ],
@@ -1699,30 +1727,68 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, int count, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            count.toString(),
-            style: TextStyle(
-              color: color,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+  Widget _buildStatItem(
+    String label,
+    int count,
+    Color color,
+    String iconAsset,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.5)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: _repoAuditStatIconSize,
+              height: _repoAuditStatIconSize,
+              child: Image.asset(
+                iconAsset,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.medium,
+                errorBuilder: (context, error, stackTrace) =>
+                    Icon(Icons.image_not_supported_outlined, size: 18, color: color),
+              ),
             ),
-          ),
-          Text(
-            label,
-            style: TextStyle(color: _RepoAuditChrome.fg, fontSize: 12),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    count.toString(),
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _RepoAuditChrome.fg,
+                      fontSize: 10.5,
+                      height: 1.15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

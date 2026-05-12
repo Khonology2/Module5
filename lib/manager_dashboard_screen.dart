@@ -402,16 +402,27 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final content = SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.xxl,
-        0,
-        AppSpacing.xxl,
-        AppSpacing.xxl,
-      ),
-      child: StreamBuilder<List<EmployeeData>>(
-        stream: _employeesStream,
-        builder: (context, employeesSnap) {
+    // LayoutBuilder must sit *outside* SingleChildScrollView: inside the scroll view the
+    // child gets unbounded height and web/layout can hit "RenderBox was not laid out"
+    // for the nested LayoutBuilder during scaffold paint.
+    final content = LayoutBuilder(
+      builder: (context, outerConstraints) {
+        final horizontalPad = AppSpacing.xxl * 2;
+        final rawW = outerConstraints.maxWidth;
+        final layoutW =
+            rawW.isFinite ? rawW : MediaQuery.sizeOf(context).width;
+        final width = (layoutW - horizontalPad).clamp(0.0, double.infinity);
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.xxl,
+            0,
+            AppSpacing.xxl,
+            AppSpacing.xxl,
+          ),
+          child: StreamBuilder<List<EmployeeData>>(
+            stream: _employeesStream,
+            builder: (context, employeesSnap) {
           if (employeesSnap.hasError) {
             return Center(
               child: Text('Error loading employees: ${employeesSnap.error}'),
@@ -512,103 +523,100 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           // Compute metrics locally to avoid adding another Firestore listener
           final metrics = _computeTeamMetrics(employees);
 
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final topGridColumns = width >= 920
-                  ? 3
-                  : width >= 640
-                  ? 2
-                  : 1;
-              final middleTwoColumns = width >= 920;
+          final topGridColumns = width >= 920
+              ? 3
+              : width >= 640
+              ? 2
+              : 1;
+          final middleTwoColumns = width >= 920;
 
-              final now = DateTime.now();
-              final today = DateTime(now.year, now.month, now.day);
-              final sevenDaysAgo = now.subtract(const Duration(days: 7));
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final sevenDaysAgo = now.subtract(const Duration(days: 7));
 
-              final activeToday = employees
-                  .where((e) => e.lastActivity.isAfter(today))
-                  .length;
-              final activeThisWeek = employees
-                  .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
-                  .length;
-              final inactive = employees
-                  .where((e) => e.status == EmployeeStatus.inactive)
-                  .length;
-              final overdue = employees
-                  .where((e) => e.status == EmployeeStatus.overdue)
-                  .length;
-              final atRisk = employees
-                  .where((e) => e.status == EmployeeStatus.atRisk)
-                  .length;
-              final onTrack = employees
-                  .where((e) => e.status == EmployeeStatus.onTrack)
-                  .length;
+          final activeToday = employees
+              .where((e) => e.lastActivity.isAfter(today))
+              .length;
+          final activeThisWeek = employees
+              .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+              .length;
+          final inactive = employees
+              .where((e) => e.status == EmployeeStatus.inactive)
+              .length;
+          final overdue = employees
+              .where((e) => e.status == EmployeeStatus.overdue)
+              .length;
+          final atRisk = employees
+              .where((e) => e.status == EmployeeStatus.atRisk)
+              .length;
+          final onTrack = employees
+              .where((e) => e.status == EmployeeStatus.onTrack)
+              .length;
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTopStatsGrid(
-                    columns: topGridColumns,
-                    activeToday: activeToday,
-                    activeThisWeek: activeThisWeek,
-                    inactive: inactive,
-                    overdue: overdue,
-                    atRisk: atRisk,
-                    onTrack: onTrack,
-                  ),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTopStatsGrid(
+                columns: topGridColumns,
+                activeToday: activeToday,
+                activeThisWeek: activeThisWeek,
+                inactive: inactive,
+                overdue: overdue,
+                atRisk: atRisk,
+                onTrack: onTrack,
+              ),
 
-                  const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.lg),
 
-                  if (middleTwoColumns)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            key: _middleLeftKey,
-                            children: [
-                              _buildDailyMotivationCard(),
-                              const SizedBox(height: AppSpacing.md),
-                              _buildRecentActivitiesCard(employees),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
-                          child: _buildQuickActions(
-                            expand: false,
-                            minHeight: _middleLeftHeight,
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    Column(
-                      children: [
-                        _buildDailyMotivationCard(),
-                        const SizedBox(height: AppSpacing.md),
-                        _buildRecentActivitiesCard(employees),
-                        const SizedBox(height: AppSpacing.md),
-                        _buildQuickActions(expand: false),
-                      ],
+              if (middleTwoColumns)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        key: _middleLeftKey,
+                        children: [
+                          _buildDailyMotivationCard(),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildRecentActivitiesCard(employees),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _buildQuickActions(
+                        expand: false,
+                        minHeight: _middleLeftHeight,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  children: [
+                    _buildDailyMotivationCard(),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildRecentActivitiesCard(employees),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildQuickActions(expand: false),
+                  ],
+                ),
 
-                  const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.lg),
 
-                  _buildBottomKpisAndHealth(
-                    metrics,
-                    employees,
-                    maxWidth: width,
-                  ),
+              _buildBottomKpisAndHealth(
+                metrics,
+                employees,
+                maxWidth: width,
+              ),
 
-                  const SizedBox(height: AppSpacing.xxl),
-                ],
-              );
-            },
+              const SizedBox(height: AppSpacing.xxl),
+            ],
           );
-        },
-      ),
+            },
+          ),
+        );
+      },
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
