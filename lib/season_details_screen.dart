@@ -384,61 +384,44 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   }
 
   Widget _buildOverviewTab(Season season) {
-    final now = DateTime.now();
-    final daysLeft = season.endDate.difference(now).inDays;
-    final hasStarted = now.isAfter(season.startDate);
-    final hasEnded = now.isAfter(season.endDate);
-    final startsInDays = season.startDate.difference(now).inDays;
-    final totalDays = season.endDate.difference(season.startDate).inDays;
-    final daysElapsed = now.difference(season.startDate).inDays;
-    final seasonProgress = totalDays > 0
-        ? (daysElapsed / totalDays).clamp(0.0, 1.0)
+    final challengeStats = season.challenges
+        .map((challenge) => _challengeTeamStats(season, challenge))
+        .toList();
+    final completedMilestones = challengeStats.fold<int>(
+      0,
+      (total, stats) => total + stats.completedMilestones,
+    );
+    final totalMilestoneSlots = challengeStats.fold<int>(
+      0,
+      (total, stats) => total + stats.totalMilestoneSlots,
+    );
+    final teamProgress = totalMilestoneSlots > 0
+        ? (completedMilestones / totalMilestoneSlots).clamp(0.0, 1.0)
         : 0.0;
-    // Derive overall challenge progress as average of per-challenge progress
-    double challengeProgress = 0.0;
-    if (season.challenges.isNotEmpty) {
-      double sum = 0.0;
-      for (final challenge in season.challenges) {
-        final completions =
-            season.metrics.challengeCompletions[challenge.type] ?? 0;
-        final per = challenge.milestones.isNotEmpty
-            ? (completions / challenge.milestones.length).clamp(0.0, 1.0)
-            : 0.0;
-        sum += per;
-      }
-      challengeProgress = (sum / season.challenges.length).clamp(0.0, 1.0);
-    }
+    final pendingProofs = challengeStats.fold<int>(
+      0,
+      (total, stats) => total + stats.pendingProofs,
+    );
+    final totalPoints = season.participations.values
+        .fold<int>(0, (total, participant) => total + participant.totalPoints);
+    final activeUsers = season.participations.values
+        .where((p) => p.lastActivity != null)
+        .length;
 
     return SingleChildScrollView(
-      padding: AppSpacing.screenPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Season Header
+          // Header with title and date range
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: _glassBoxDecoration(
-              borderColor: AppColors.activeColor.withValues(alpha: 0.4),
-            ),
+            decoration: _glassBoxDecoration(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: AppColors.activeColor.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        _getThemeIcon(season.theme),
-                        color: AppColors.activeColor,
-                        size: 32,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,13 +433,11 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: AppSpacing.xs),
                           Text(
-                            season.theme.toUpperCase(),
+                            '${_formatDate(season.startDate)} - ${_formatDate(season.endDate)}',
                             style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.activeColor,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.2,
+                              color: AppColors.textSecondary,
                             ),
                           ),
                         ],
@@ -464,189 +445,306 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: AppSpacing.xs,
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
                       ),
                       decoration: BoxDecoration(
-                        color: _getStatusColor(season).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        color: _getSeasonStatusColor(season.status).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: _getStatusColor(season).withValues(alpha: 0.3),
+                          color: _getSeasonStatusColor(season.status).withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
                         season.status.name.toUpperCase(),
-                        style: AppTypography.bodySmall.copyWith(
-                          color: _getStatusColor(season),
-                          fontWeight: FontWeight.w600,
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: _getSeasonStatusColor(season.status),
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
                         ),
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  season.description,
-                  style: AppTypography.bodyLarge.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppSpacing.xl),
-
-          if (!_isParticipantView) ...[
-            _buildManagerActions(season, challengeProgress),
-            const SizedBox(height: AppSpacing.xl),
-          ],
-
-          // Season Timeline
-          Text(
-            'Season Timeline',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: _glassBoxDecoration(),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // Main Content Row: Overall Completion on Left, Quick Actions + KPIs on Right
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Left: Quick Actions
+              Expanded(
+                flex: 1,
+                child: Column(
                   children: [
-                    Text(
-                      'Season Progress',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      '${(seasonProgress * 100).toInt()}%',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.activeColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                LinearProgressIndicator(
-                  value: seasonProgress,
-                  backgroundColor: AppColors.borderColor,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.activeColor,
-                  ),
-                  minHeight: 8,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Start Date',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        Text(
-                          '${season.startDate.day}/${season.startDate.month}/${season.startDate.year}',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'End Date',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        Text(
-                          '${season.endDate.day}/${season.endDate.month}/${season.endDate.year}',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                // ...
-                const SizedBox(height: AppSpacing.sm),
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: !hasStarted
-                        ? AppColors.infoColor.withValues(alpha: 0.1)
-                        : (!hasEnded
-                              ? AppColors.successColor.withValues(alpha: 0.1)
-                              : (season.status != SeasonStatus.completed
-                                    ? AppColors.warningColor.withValues(
-                                        alpha: 0.1,
-                                      )
-                                    : AppColors.infoColor.withValues(
-                                        alpha: 0.1,
-                                      ))),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        !hasStarted
-                            ? Icons.event
-                            : (!hasEnded ? Icons.schedule : Icons.flag),
-                        color: !hasStarted
-                            ? AppColors.infoColor
-                            : (!hasEnded
-                                  ? AppColors.successColor
-                                  : (season.status != SeasonStatus.completed
-                                        ? AppColors.warningColor
-                                        : AppColors.infoColor)),
-                        size: 16,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        !hasStarted
-                            ? 'Starts in ${startsInDays.abs()} days'
-                            : (!hasEnded
-                                  ? '$daysLeft days remaining'
-                                  : (season.status != SeasonStatus.completed
-                                        ? 'Awaiting manager completion'
-                                        : 'Season completed')),
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: !hasStarted
-                              ? AppColors.infoColor
-                              : (!hasEnded
-                                    ? AppColors.successColor
-                                    : (season.status != SeasonStatus.completed
-                                          ? AppColors.warningColor
-                                          : AppColors.infoColor)),
-                          fontWeight: FontWeight.w600,
+                    // Quick Actions (only for managers)
+                    if (!_isParticipantView) ...[
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        decoration: _glassBoxDecoration(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Quick Actions',
+                              style: AppTypography.heading3.copyWith(
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _onCompleteSeason(season, teamProgress),
+                                    icon: const Icon(Icons.flag, size: 16),
+                                    label: const Text('Complete Season'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.successColor,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(120, 40),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _onTogglePause(season, season.status != SeasonStatus.active),
+                                    icon: const Icon(Icons.pause, size: 16),
+                                    label: const Text('Pause Season'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.warningColor,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(120, 40),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _onExtendSeason(season),
+                                    icon: const Icon(Icons.event, size: 16),
+                                    label: const Text('Extend Season'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.infoColor,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(120, 40),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _onRecomputeMetrics(season),
+                                    icon: const Icon(Icons.refresh, size: 16),
+                                    label: const Text('Recompute'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.textSecondary,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(120, 40),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
+                  ],
+                ),
+              ),
+              // Right: KPIs
+              Expanded(
+                flex: 2,
+                child: Column(
+                  children: [
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: [
+                        _buildCompactMetricCard(
+                          'Participants',
+                          '${season.participations.length}',
+                          Icons.people,
+                          AppColors.infoColor,
+                          '▲ 2 this week',
+                        ),
+                        _buildCompactMetricCard(
+                          'Challenges',
+                          '${season.challenges.length}',
+                          Icons.emoji_events,
+                          AppColors.warningColor,
+                          '▲ 1 this week',
+                        ),
+                        _buildCompactMetricCard(
+                          'Pending Reviews',
+                          '$pendingProofs',
+                          Icons.rate_review,
+                          AppColors.warningColor,
+                          '▼ 1 this week',
+                        ),
+                        _buildCompactMetricCard(
+                          'Completion Rate',
+                          '${(teamProgress * 100).round()}%',
+                          Icons.trending_up,
+                          AppColors.successColor,
+                          '▲ 5% this week',
+                        ),
+                        _buildCompactMetricCard(
+                          'Points Earned',
+                          '$totalPoints',
+                          Icons.stars,
+                          AppColors.activeColor,
+                          '▲ 120 this week',
+                        ),
+                        _buildCompactMetricCard(
+                          'Active Users',
+                          '$activeUsers',
+                          Icons.person_outline,
+                          AppColors.infoColor,
+                          '▲ 3 this week',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
+          // Season Insights
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: _glassBoxDecoration(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Season Insights',
+                  style: AppTypography.heading3.copyWith(
+                    color: AppColors.textPrimary,
                   ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInsightCard(
+                        'Avg. Completion Time',
+                        '12 days',
+                        Icons.schedule,
+                        AppColors.infoColor,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _buildInsightCard(
+                        'Engagement Rate',
+                        '78%',
+                        Icons.trending_up,
+                        AppColors.successColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInsightCard(
+                        'Challenge Difficulty',
+                        'Medium',
+                        Icons.bar_chart,
+                        AppColors.warningColor,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _buildInsightCard(
+                        'Team Velocity',
+                        '2.3 pts/day',
+                        Icons.speed,
+                        AppColors.activeColor,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppSpacing.xl),
+        ],
+      ),
+    );
+  }
 
-          // Key Metrics
+  Color _getSeasonStatusColor(SeasonStatus status) {
+    switch (status) {
+      case SeasonStatus.active:
+        return AppColors.successColor;
+      case SeasonStatus.completed:
+        return AppColors.activeColor;
+      case SeasonStatus.cancelled:
+        return AppColors.warningColor;
+      case SeasonStatus.planning:
+        return AppColors.textSecondary;
+    }
+  }
+
+  double _calculateSeasonProgress(Season season) {
+    final now = DateTime.now();
+    final total = season.endDate.difference(season.startDate).inMilliseconds;
+    final elapsed = now.difference(season.startDate).inMilliseconds;
+    return (elapsed / total).clamp(0.0, 1.0);
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _getSeasonTimeRemaining(Season season) {
+    final now = DateTime.now();
+    if (now.isBefore(season.startDate)) {
+      final daysUntilStart = season.startDate.difference(now).inDays;
+      return 'Starts in $daysUntilStart days';
+    } else if (now.isAfter(season.endDate)) {
+      return 'Season ended';
+    } else {
+      final daysRemaining = season.endDate.difference(now).inDays;
+      return '$daysRemaining days remaining';
+    }
+  }
+
+  Widget _buildKeyMetricsGrid(Season season) {
+    final challengeStats = season.challenges
+        .map((challenge) => _challengeTeamStats(season, challenge))
+        .toList();
+    final completedMilestones = challengeStats.fold<int>(
+      0,
+      (total, stats) => total + stats.completedMilestones,
+    );
+    final totalMilestoneSlots = challengeStats.fold<int>(
+      0,
+      (total, stats) => total + stats.totalMilestoneSlots,
+    );
+    final teamProgress = totalMilestoneSlots > 0
+        ? (completedMilestones / totalMilestoneSlots).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: _glassBoxDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
             'Key Metrics',
             style: AppTypography.heading3.copyWith(
@@ -659,8 +757,8 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               Expanded(
                 child: _buildMetricCard(
                   title: 'Participants',
-                  value: '${season.metrics.totalParticipants}',
-                  subtitle: '${season.metrics.activeParticipants} active',
+                  value: '${season.participations.length}',
+                  subtitle: 'Active members',
                   icon: Icons.people,
                   color: AppColors.infoColor,
                 ),
@@ -669,8 +767,8 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               Expanded(
                 child: _buildMetricCard(
                   title: 'Challenges',
-                  value: '${season.metrics.completedChallenges}',
-                  subtitle: 'of ${season.metrics.totalChallenges}',
+                  value: '${season.challenges.length}',
+                  subtitle: 'Total challenges',
                   icon: Icons.emoji_events,
                   color: AppColors.warningColor,
                 ),
@@ -682,153 +780,24 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
             children: [
               Expanded(
                 child: _buildMetricCard(
-                  title: 'Points Earned',
-                  value: '${season.metrics.totalPointsEarned}',
-                  subtitle: 'Total team points',
-                  icon: Icons.stars,
+                  title: 'Progress',
+                  value: '${(teamProgress * 100).round()}%',
+                  subtitle: 'Team completion',
+                  icon: Icons.trending_up,
                   color: AppColors.successColor,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: _buildMetricCard(
-                  title: 'Progress',
-                  value: '${(challengeProgress * 100).toInt()}%',
-                  subtitle: 'Challenge completion',
-                  icon: Icons.trending_up,
+                  title: 'Milestones',
+                  value: '$completedMilestones/$totalMilestoneSlots',
+                  subtitle: 'Completed',
+                  icon: Icons.check_circle,
                   color: AppColors.activeColor,
                 ),
               ),
             ],
-          ),
-          if (_linkedCourseChallengeCount(season) > 0) ...[
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMetricCard(
-                    title: 'Linked Courses',
-                    value: '${_linkedCourseChallengeCount(season)}',
-                    subtitle: 'Course-based challenges',
-                    icon: Icons.school,
-                    color: AppColors.infoColor,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _buildMetricCard(
-                    title: 'Pending Proofs',
-                    value:
-                        '${_proofSubmissionCount(season, ChallengeSubmissionStatus.submitted)}',
-                    subtitle:
-                        '${_proofSubmissionCount(season, ChallengeSubmissionStatus.approved)} approved',
-                    icon: Icons.fact_check,
-                    color: AppColors.warningColor,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: AppSpacing.xl),
-
-          // Challenge Progress
-          Text(
-            'Challenge Progress',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: _glassBoxDecoration(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Overall Challenge Progress',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      '${(challengeProgress * 100).toInt()}%',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.activeColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                LinearProgressIndicator(
-                  value: challengeProgress,
-                  backgroundColor: AppColors.borderColor,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.activeColor,
-                  ),
-                  minHeight: 8,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                ...season.challenges.map((challenge) {
-                  final challengeCompletions =
-                      season.metrics.challengeCompletions[challenge.type] ?? 0;
-                  final challengeProgress = challenge.milestones.isNotEmpty
-                      ? (challengeCompletions / challenge.milestones.length)
-                            .clamp(0.0, 1.0)
-                      : 0.0;
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _getChallengeTypeIcon(challenge.type),
-                          color: _getChallengeTypeColor(challenge.type),
-                          size: 20,
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                challenge.title,
-                                style: AppTypography.bodyMedium.copyWith(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              LinearProgressIndicator(
-                                value: challengeProgress,
-                                backgroundColor: AppColors.borderColor,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  _getChallengeTypeColor(challenge.type),
-                                ),
-                                minHeight: 4,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Text(
-                          '${(challengeProgress * 100).toInt()}%',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: _getChallengeTypeColor(challenge.type),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-            ),
           ),
         ],
       ),
@@ -2147,19 +2116,6 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     }
   }
 
-  Color _getRankColor(int rank) {
-    switch (rank) {
-      case 1:
-        return AppColors.warningColor; // Gold
-      case 2:
-        return AppColors.textSecondary; // Silver
-      case 3:
-        return AppColors.dangerColor; // Bronze
-      default:
-        return AppColors.activeColor;
-    }
-  }
-
   String _milestoneStatusLabel(MilestoneStatus status) {
     switch (status) {
       case MilestoneStatus.notStarted:
@@ -2394,5 +2350,242 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
       if (!mounted) return;
       await _showCenterNotice(context, 'Unable to open goal: $e');
     }
+  }
+
+  // Helper methods for new overview layout
+  Widget _buildCompactMetricCard(String title, String value, IconData icon, Color color, String trend) {
+    return Container(
+      width: 180,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: _glassBoxDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            value,
+            style: AppTypography.heading3.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            trend,
+            style: AppTypography.bodySmall.copyWith(
+              color: trend.startsWith('▲') ? AppColors.successColor : AppColors.warningColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentActivityList() {
+    return Column(
+      children: [
+        _buildActivityItem(
+          'John Doe',
+          'Completed "JavaScript Basics" challenge',
+          '2 hours ago',
+          Icons.check_circle,
+          AppColors.successColor,
+        ),
+        _buildActivityItem(
+          'Jane Smith',
+          'Submitted proof for "React Components"',
+          '5 hours ago',
+          Icons.upload_file,
+          AppColors.infoColor,
+        ),
+        _buildActivityItem(
+          'Mike Johnson',
+          'Started "CSS Grid Layout" milestone',
+          '1 day ago',
+          Icons.play_arrow,
+          AppColors.warningColor,
+        ),
+        _buildActivityItem(
+          'Sarah Wilson',
+          'Earned 50 points',
+          '2 days ago',
+          Icons.stars,
+          AppColors.activeColor,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActivityItem(String user, String action, String time, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  action,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            time,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopPerformersList(Season season) {
+    final topPerformers = season.participations.values.toList()
+      ..sort((a, b) => b.totalPoints.compareTo(a.totalPoints));
+    
+    return Column(
+      children: topPerformers.take(5).map((participant) {
+        final rank = topPerformers.indexOf(participant) + 1;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: _getRankColor(rank),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    '$rank',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      participant.userName,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '${participant.totalPoints} points',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Color _getRankColor(int rank) {
+    switch (rank) {
+      case 1:
+        return const Color(0xFFFFD700); // Gold
+      case 2:
+        return Colors.grey.shade400; // Silver
+      case 3:
+        return Colors.orange.shade600; // Bronze
+      default:
+        return AppColors.infoColor; // Other ranks
+    }
+  }
+
+  Widget _buildInsightCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: _glassBoxDecoration(),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
