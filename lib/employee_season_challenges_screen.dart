@@ -448,9 +448,7 @@ class _EmployeeSeasonChallengesScreenState
                 const SizedBox(width: AppSpacing.xs),
                 Text(
                   '$linkedCourseCount course links',
-                  style: AppTypography.caption.copyWith(
-                    color: _SeasonChrome.fg,
-                  ),
+                  style: AppTypography.caption.copyWith(color: _SeasonChrome.fg),
                 ),
               ],
             ],
@@ -541,16 +539,38 @@ class _EmployeeSeasonChallengesScreenState
             style: AppTypography.caption.copyWith(color: _SeasonChrome.fg),
           ),
           const SizedBox(height: AppSpacing.md),
-          OutlinedButton.icon(
-            onPressed: () => _viewSeasonDetails(season),
-            icon: const Icon(Icons.visibility),
-            label: const Text('View Details'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.activeColor,
-              side: const BorderSide(color: AppColors.activeColor),
-              minimumSize: const Size.fromHeight(40),
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _viewSeasonDetails(season),
+                  icon: const Icon(Icons.visibility),
+                  label: const Text('View Details'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.activeColor,
+                    side: const BorderSide(color: AppColors.activeColor),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.sm,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _completeSeasonGoals(season),
+                  icon: const Icon(Icons.check_circle),
+                  label: const Text('Continue Season'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.successColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.sm,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           if (season.challenges.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
@@ -638,9 +658,7 @@ class _EmployeeSeasonChallengesScreenState
               children: challenge.resources.map((resource) {
                 final label = resource.provider.isNotEmpty
                     ? '${resource.provider}${resource.isFreeResource ? ' • Free' : ''}'
-                    : (resource.isFreeResource
-                          ? 'Free resource'
-                          : 'External resource');
+                    : (resource.isFreeResource ? 'Free resource' : 'External resource');
                 return Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm,
@@ -1062,6 +1080,10 @@ class _EmployeeSeasonChallengesScreenState
     );
   }
 
+  void _completeSeasonGoals(Season season) {
+    _openSeasonGoalDetail(season);
+  }
+
   Future<void> _openSeasonGoalDetail(
     Season season, {
     String? preferredChallengeId,
@@ -1092,22 +1114,18 @@ class _EmployeeSeasonChallengesScreenState
         .collection('goals')
         .where('userId', isEqualTo: currentUserId)
         .get();
-    final docs =
-        seasonGoalDocs.docs.where((doc) {
-          final data = doc.data();
-          return data['isSeasonGoal'] == true &&
-              (data['seasonId'] ?? '').toString() == season.id;
-        }).toList()..sort((a, b) {
-          final aCreated = a.data()['createdAt'];
-          final bCreated = b.data()['createdAt'];
-          final aDate = aCreated is Timestamp
-              ? aCreated.toDate()
-              : DateTime(1970);
-          final bDate = bCreated is Timestamp
-              ? bCreated.toDate()
-              : DateTime(1970);
-          return bDate.compareTo(aDate);
-        });
+    final docs = seasonGoalDocs.docs.where((doc) {
+      final data = doc.data();
+      return data['isSeasonGoal'] == true &&
+          (data['seasonId'] ?? '').toString() == season.id;
+    }).toList()
+      ..sort((a, b) {
+        final aCreated = a.data()['createdAt'];
+        final bCreated = b.data()['createdAt'];
+        final aDate = aCreated is Timestamp ? aCreated.toDate() : DateTime(1970);
+        final bDate = bCreated is Timestamp ? bCreated.toDate() : DateTime(1970);
+        return bDate.compareTo(aDate);
+      });
 
     if (seasonGoals.isEmpty || docs.isEmpty) {
       if (!mounted) return;
