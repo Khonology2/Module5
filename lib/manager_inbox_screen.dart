@@ -2591,7 +2591,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
       // Create a fallback alert for the pending goal
       final fallbackAlert = Alert(
-        id: 'fallback_${goalId}_${adminUserId}',
+        id: 'fallback_${goalId}_$adminUserId',
         userId: adminUserId,
         type: AlertType.goalApprovalRequested,
         audience: AlertAudience.personal,

@@ -220,6 +220,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
                 final byProgress = b.avgProgress.compareTo(a.avgProgress);
                 if (byProgress != 0) return byProgress;
                 return a.profile.displayName.compareTo(b.profile.displayName);
+              case LeaderboardMetric.badges:
+                final byBadges = b.profile.badges.length.compareTo(a.profile.badges.length);
+                if (byBadges != 0) return byBadges;
+                return a.profile.displayName.compareTo(b.profile.displayName);
             }
           });
 
@@ -334,6 +338,10 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
             case LeaderboardMetric.progress:
               final byProgress = b.avgProgress.compareTo(a.avgProgress);
               if (byProgress != 0) return byProgress;
+              return a.profile.displayName.compareTo(b.profile.displayName);
+            case LeaderboardMetric.badges:
+              final byBadges = b.profile.badges.length.compareTo(a.profile.badges.length);
+              if (byBadges != 0) return byBadges;
               return a.profile.displayName.compareTo(b.profile.displayName);
           }
         });
@@ -683,6 +691,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen>
       LeaderboardMetric.points => '${e.totalPoints} pts',
       LeaderboardMetric.streaks => '${e.streakDays} day streak',
       LeaderboardMetric.progress => '${e.avgProgress.toStringAsFixed(1)}%',
+      LeaderboardMetric.badges => '${e.profile.badges.length} badges',
     };
 
     return Container(

@@ -1754,7 +1754,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                             borderRadius: BorderRadius.circular(16),
                             color: _dashIsLight()
                                 ? const Color(0x0F000000)
-                                : AppColors.borderColor.withOpacity(0.2),
+                                : AppColors.borderColor.withValues(alpha: 0.2),
                           ),
                           child: Stack(
                             children: [
@@ -1767,7 +1767,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                     gradient: LinearGradient(
                                       colors: [
-                                        AppColors.activeColor.withOpacity(0.8),
+                                        AppColors.activeColor.withValues(alpha: 0.8),
                                         AppColors.activeColor,
                                       ],
                                     ),
@@ -1816,7 +1816,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                                     child: Text(
                                       '+${total - 10}',
                                       style: AppTypography.bodySmall.copyWith(
-                                        color: _dashFg(context).withOpacity(0.7),
+                                        color: _dashFg(context).withValues(alpha:0.7),
                                         fontSize: 10,
                                       ),
                                     ),

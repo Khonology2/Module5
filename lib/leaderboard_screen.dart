@@ -23,7 +23,7 @@ enum LeaderboardFilter {
   organization,
 }
 
-enum LeaderboardMetric { points, badges, streaks }
+enum LeaderboardMetric { points, badges, streaks, progress }
 
 class _LeaderboardChrome {
   _LeaderboardChrome._();
@@ -59,6 +59,8 @@ class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({
     super.key,
     this.forAdminOversight = false,
+    this.compareManagers = false,
+    this.embedded = false,
     this.suppressShellTitleBanner = true,
   });
 
@@ -584,6 +586,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                   (b['longestStreak'] as int?) ??
                   0;
               return bStreak.compareTo(aStreak);
+            });
+            break;
+          case LeaderboardMetric.progress:
+            processedData.sort((a, b) {
+              final aProgress = (a['progress'] as num?) ?? 0;
+              final bProgress = (b['progress'] as num?) ?? 0;
+              return bProgress.compareTo(aProgress);
             });
             break;
         }
