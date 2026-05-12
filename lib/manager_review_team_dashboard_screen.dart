@@ -7,10 +7,15 @@ import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/audit_service.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class ManagerReviewTeamDashboardScreen extends StatefulWidget {
+  /// When true, rendered inside [ManagerPortalScreen] / admin shell: no nested app bar
+  /// and no duplicate top inset (shell already provides header + gap).
+  final bool embedded;
+
   /// When true, admin is viewing; show managers only (no employees).
   final bool forAdminOversight;
   /// When set with [forAdminOversight], show data for this manager only.
@@ -22,6 +27,7 @@ class ManagerReviewTeamDashboardScreen extends StatefulWidget {
 
   const ManagerReviewTeamDashboardScreen({
     super.key,
+    this.embedded = false,
     this.forAdminOversight = false,
     this.selectedManagerId,
     this.initialEmployeeId,
@@ -466,41 +472,29 @@ class _ManagerReviewTeamDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor:
-          Colors.transparent, // Set Scaffold background to transparent
-      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          color: DashboardChrome.fg,
-          onPressed: () => Navigator.of(context).pop(),
-          tooltip: 'Back',
+    Widget scrollBody(BoxConstraints constraints) {
+      final horizontalPadding = widget.embedded
+          ? AppSpacing.xxl
+          : (constraints.maxWidth < 400
+              ? 12.0
+              : constraints.maxWidth < 700
+                  ? 16.0
+                  : 24.0);
+      final topInset = widget.embedded
+          ? 0.0
+          : (MediaQuery.paddingOf(context).top + kToolbarHeight + 16.0);
+
+      return SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          topInset,
+          horizontalPadding,
+          16.0,
         ),
-        title: const SizedBox.shrink(),
-        centerTitle: false,
-        actions: const [],
-      ),
-      body: DashboardThemedBackground(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final horizontalPadding = constraints.maxWidth < 400
-                ? 12.0
-                : constraints.maxWidth < 700
-                    ? 16.0
-                    : 24.0;
-            return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                horizontalPadding,
-                MediaQuery.of(context).padding.top + kToolbarHeight + 16.0,
-                horizontalPadding,
-                16.0,
-              ),
-              child: StreamBuilder<List<EmployeeData>>(
-                stream: _employeesStream,
-                builder: (context, employeesSnapshot) {
+        child: StreamBuilder<List<EmployeeData>>(
+          stream: _employeesStream,
+          builder: (context, employeesSnapshot) {
                         final incoming = employeesSnapshot.data;
                         final hasPlaceholderBatch =
                             incoming != null &&
@@ -549,18 +543,19 @@ class _ManagerReviewTeamDashboardScreenState
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildHeader(),
-                            const SizedBox(height: 20),
-
-                            const Text(
-                              'Team Overview',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                            // Portal shell already shows the route title (e.g. Team Review).
+                            if (!widget.embedded) ...[
+                              const SizedBox(height: 20),
+                              const Text(
+                                'Team Overview',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 10),
+                              const SizedBox(height: 10),
+                            ],
                             _buildEmployeeSearchBar(
                               totalCount: employees.length,
                               filteredCount: _filterByStatus(
@@ -593,15 +588,37 @@ class _ManagerReviewTeamDashboardScreenState
                         );
                   },
                 ),
-            );
-          },
-        ),
+      );
+    }
+
+    final themedContent = DashboardThemedBackground(
+      child: LayoutBuilder(
+        builder: (context, constraints) => scrollBody(constraints),
       ),
     );
-  }
 
-  Widget _buildHeader() {
-    return const SizedBox.shrink();
+    if (widget.embedded) {
+      return themedContent;
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          color: DashboardChrome.fg,
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
+        ),
+        title: const SizedBox.shrink(),
+        centerTitle: false,
+        actions: const [],
+      ),
+      body: themedContent,
+    );
   }
 
   Widget _buildAIManagerInsights(

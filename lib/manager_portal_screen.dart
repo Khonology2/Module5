@@ -160,7 +160,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/settings':
         return const SettingsScreen();
       case '/manager_review_team_dashboard':
-        return const ManagerReviewTeamDashboardScreen();
+        return const ManagerReviewTeamDashboardScreen(embedded: true);
       // Manager Goal Workspace dropdown – same UI as employee, manager-scoped; body-only to avoid second sidebar
       case '/manager_gw_menu_dashboard':
         return const EmployeeDashboardScreen(
