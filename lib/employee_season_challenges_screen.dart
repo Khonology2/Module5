@@ -196,16 +196,7 @@ class _EmployeeSeasonChallengesScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Season Challenges',
-                              style: AppTypography.heading2.copyWith(
-                                color: _SeasonChrome.fg,
-                              ),
-                            ),
-                          ],
-                        ),
+                        // Page title comes from [AppScaffold] / portal [AppContentHeader] only.
                         TabBar(
                           controller: _tabController,
                           indicatorColor: light

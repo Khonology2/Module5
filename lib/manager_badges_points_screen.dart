@@ -488,13 +488,15 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Managers – Badges & Points',
-                style: AppTypography.heading2.copyWith(
-                  color: AppColors.textPrimary,
+              if (!widget.embedded) ...[
+                Text(
+                  'Managers – Badges & Points',
+                  style: AppTypography.heading2.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
               if (managers.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(24),

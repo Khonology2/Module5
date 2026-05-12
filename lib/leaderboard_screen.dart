@@ -52,11 +52,14 @@ class LeaderboardScreen extends StatefulWidget {
   /// When true, the screen is embedded in another widget
   final bool embedded;
 
+  /// When true, hide the in-content title row; [MainLayout]/portal [AppContentHeader]
+  /// already shows the page name.
+  final bool suppressShellTitleBanner;
+
   const LeaderboardScreen({
-    super.key, 
+    super.key,
     this.forAdminOversight = false,
-    this.compareManagers = false,
-    this.embedded = false,
+    this.suppressShellTitleBanner = true,
   });
 
   @override
@@ -664,27 +667,38 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(child: _buildHeader()),
-                                const SizedBox(width: 12),
-                                IconButton(
-                                  tooltip: 'Refresh',
-                                  onPressed: () async {
-                                    await _ensureUsersFetched(force: true);
-                                    await _ensureOnboardingFetched(force: true);
-                                    if (mounted) setState(() {});
-                                  },
-                                  icon: Icon(
-                                    Icons.refresh,
-                                    color: _LeaderboardChrome.fg,
+                            if (!widget.suppressShellTitleBanner) ...[
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(child: _buildHeader()),
+                                  const SizedBox(width: 12),
+                                  IconButton(
+                                    tooltip: 'Refresh',
+                                    onPressed: () async {
+                                      await _ensureUsersFetched(force: true);
+                                      await _ensureOnboardingFetched(force: true);
+                                      if (mounted) setState(() {});
+                                    },
+                                    icon: Icon(
+                                      Icons.refresh,
+                                      color: _LeaderboardChrome.fg,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                            ],
+                            _buildFiltersBar(
+                              isManager: isManager,
+                              compactShellChrome: widget.suppressShellTitleBanner,
+                              onToolbarRefresh: () async {
+                                await _ensureUsersFetched(force: true);
+                                await _ensureOnboardingFetched(force: true);
+                                if (mounted) setState(() {});
+                              },
                             ),
-                            const SizedBox(height: 20),
-                            _buildFiltersBar(isManager: isManager),
                             const SizedBox(height: 16),
                             leaderboardData.isEmpty
                                 ? _buildEmptyState()
@@ -802,7 +816,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     );
   }
 
-  Widget _buildFiltersBar({required bool isManager}) {
+  Widget _buildFiltersBar({
+    required bool isManager,
+    bool compactShellChrome = false,
+    Future<void> Function()? onToolbarRefresh,
+  }) {
     Widget chip(String label, LeaderboardFilter filter) {
       final isSelected = _selectedFilters.contains(filter);
       return GestureDetector(
@@ -832,6 +850,43 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       );
     }
 
+    final toolbar = compactShellChrome && onToolbarRefresh != null
+        ? Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  SizedBox(
+                    width: 35,
+                    height: 35,
+                    child: Image.asset(
+                      'assets/Internet_Web_Browser/Live.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const SizedBox.shrink(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Live',
+                    style: TextStyle(
+                      color: AppColors.successColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: onToolbarRefresh,
+                icon: Icon(Icons.refresh, color: _LeaderboardChrome.fg),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          )
+        : null;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -842,6 +897,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (toolbar != null) ...[
+            toolbar,
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
               Expanded(

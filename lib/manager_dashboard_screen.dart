@@ -21,8 +21,7 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
-import 'package:pdh/widgets/messages_icon.dart';
-import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/widgets/header_action_icons.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
@@ -403,11 +402,27 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final content = SingleChildScrollView(
-      padding: AppSpacing.screenPadding,
-      child: StreamBuilder<List<EmployeeData>>(
-        stream: _employeesStream,
-        builder: (context, employeesSnap) {
+    // LayoutBuilder must sit *outside* SingleChildScrollView: inside the scroll view the
+    // child gets unbounded height and web/layout can hit "RenderBox was not laid out"
+    // for the nested LayoutBuilder during scaffold paint.
+    final content = LayoutBuilder(
+      builder: (context, outerConstraints) {
+        final horizontalPad = AppSpacing.xxl * 2;
+        final rawW = outerConstraints.maxWidth;
+        final layoutW =
+            rawW.isFinite ? rawW : MediaQuery.sizeOf(context).width;
+        final width = (layoutW - horizontalPad).clamp(0.0, double.infinity);
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.xxl,
+            0,
+            AppSpacing.xxl,
+            AppSpacing.xxl,
+          ),
+          child: StreamBuilder<List<EmployeeData>>(
+            stream: _employeesStream,
+            builder: (context, employeesSnap) {
           if (employeesSnap.hasError) {
             return Center(
               child: Text('Error loading employees: ${employeesSnap.error}'),
@@ -508,106 +523,100 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           // Compute metrics locally to avoid adding another Firestore listener
           final metrics = _computeTeamMetrics(employees);
 
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final topGridColumns = width >= 920
-                  ? 3
-                  : width >= 640
-                  ? 2
-                  : 1;
-              final middleTwoColumns = width >= 920;
+          final topGridColumns = width >= 920
+              ? 3
+              : width >= 640
+              ? 2
+              : 1;
+          final middleTwoColumns = width >= 920;
 
-              final now = DateTime.now();
-              final today = DateTime(now.year, now.month, now.day);
-              final sevenDaysAgo = now.subtract(const Duration(days: 7));
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final sevenDaysAgo = now.subtract(const Duration(days: 7));
 
-              final activeToday = employees
-                  .where((e) => e.lastActivity.isAfter(today))
-                  .length;
-              final activeThisWeek = employees
-                  .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
-                  .length;
-              final inactive = employees
-                  .where((e) => e.status == EmployeeStatus.inactive)
-                  .length;
-              final overdue = employees
-                  .where((e) => e.status == EmployeeStatus.overdue)
-                  .length;
-              final atRisk = employees
-                  .where((e) => e.status == EmployeeStatus.atRisk)
-                  .length;
-              final onTrack = employees
-                  .where((e) => e.status == EmployeeStatus.onTrack)
-                  .length;
+          final activeToday = employees
+              .where((e) => e.lastActivity.isAfter(today))
+              .length;
+          final activeThisWeek = employees
+              .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+              .length;
+          final inactive = employees
+              .where((e) => e.status == EmployeeStatus.inactive)
+              .length;
+          final overdue = employees
+              .where((e) => e.status == EmployeeStatus.overdue)
+              .length;
+          final atRisk = employees
+              .where((e) => e.status == EmployeeStatus.atRisk)
+              .length;
+          final onTrack = employees
+              .where((e) => e.status == EmployeeStatus.onTrack)
+              .length;
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDashboardHeader(),
-                  const SizedBox(height: AppSpacing.lg),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTopStatsGrid(
+                columns: topGridColumns,
+                activeToday: activeToday,
+                activeThisWeek: activeThisWeek,
+                inactive: inactive,
+                overdue: overdue,
+                atRisk: atRisk,
+                onTrack: onTrack,
+              ),
 
-                  _buildTopStatsGrid(
-                    columns: topGridColumns,
-                    activeToday: activeToday,
-                    activeThisWeek: activeThisWeek,
-                    inactive: inactive,
-                    overdue: overdue,
-                    atRisk: atRisk,
-                    onTrack: onTrack,
-                  ),
+              const SizedBox(height: AppSpacing.lg),
 
-                  const SizedBox(height: AppSpacing.lg),
-
-                  if (middleTwoColumns)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            key: _middleLeftKey,
-                            children: [
-                              _buildDailyMotivationCard(),
-                              const SizedBox(height: AppSpacing.md),
-                              _buildRecentActivitiesCard(employees),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
-                          child: _buildQuickActions(
-                            expand: false,
-                            minHeight: _middleLeftHeight,
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    Column(
-                      children: [
-                        _buildDailyMotivationCard(),
-                        const SizedBox(height: AppSpacing.md),
-                        _buildRecentActivitiesCard(employees),
-                        const SizedBox(height: AppSpacing.md),
-                        _buildQuickActions(expand: false),
-                      ],
+              if (middleTwoColumns)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        key: _middleLeftKey,
+                        children: [
+                          _buildDailyMotivationCard(),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildRecentActivitiesCard(employees),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _buildQuickActions(
+                        expand: false,
+                        minHeight: _middleLeftHeight,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  children: [
+                    _buildDailyMotivationCard(),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildRecentActivitiesCard(employees),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildQuickActions(expand: false),
+                  ],
+                ),
 
-                  const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.lg),
 
-                  _buildBottomKpisAndHealth(
-                    metrics,
-                    employees,
-                    maxWidth: width,
-                  ),
+              _buildBottomKpisAndHealth(
+                metrics,
+                employees,
+                maxWidth: width,
+              ),
 
-                  const SizedBox(height: AppSpacing.xxl),
-                ],
-              );
-            },
+              const SizedBox(height: AppSpacing.xxl),
+            ],
           );
-        },
-      ),
+            },
+          ),
+        );
+      },
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -631,6 +640,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       showAppBar: false,
       items: SidebarConfig.managerItems,
       currentRouteName: '/dashboard',
+      topRightAction: HeaderActionIcons(
+        onNotificationTap: widget.forAdminOversight
+            ? () => Navigator.pushNamed(context, '/admin_inbox')
+            : null,
+      ),
       tutorialStepIndex: _shouldShowTutorial ? _currentTutorialStep : null,
       sidebarTutorialKeys:
           _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
@@ -697,45 +711,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         // If an asset is missing, avoid crashing the dashboard.
         return SizedBox(width: size, height: size);
       },
-    );
-  }
-
-  Widget _buildDashboardHeader() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Row(
-            children: [
-              Text(
-                'Manager Dashboard',
-                style: AppTypography.heading2.copyWith(
-                  color: DashboardChrome.fg,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  'Hello, ${_resolveManagerName()}',
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: DashboardChrome.fg,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        const MessagesIcon(),
-        const SizedBox(width: 8),
-        if (widget.forAdminOversight)
-          NotificationsBell(
-            onTap: () => Navigator.pushNamed(context, '/admin_inbox'),
-          )
-        else
-          const NotificationsBell(),
-      ],
     );
   }
 
@@ -1146,7 +1121,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  // _buildWelcomeCard removed (dashboard now uses _buildDashboardHeader).
+  // _buildWelcomeCard removed; portal shell shows title + actions via [AppContentHeader].
 
   Widget _buildDailyMotivationCard() {
     return _card(
@@ -1183,19 +1158,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   // legacy: daily motivation picker removed (dashboard now matches screenshot copy)
 
   // legacy: _getManagerProfileStream removed (unused in redesigned dashboard)
-
-  String _resolveManagerName() {
-    // Prefer the loaded manager name if available
-    if (_managerName.isNotEmpty && _managerName != 'Manager') {
-      return _managerName.split(' ').first;
-    }
-    final authUser = FirebaseAuth.instance.currentUser;
-    final display = (authUser?.displayName ?? '').trim();
-    if (display.isNotEmpty) return display.split(' ').first;
-    final email = (authUser?.email ?? '').trim();
-    if (email.isNotEmpty) return email.split('@').first;
-    return 'Manager';
-  }
 
   TeamMetrics _computeTeamMetrics(List<EmployeeData> employees) {
     final now = DateTime.now();

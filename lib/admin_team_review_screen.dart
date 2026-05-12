@@ -17,14 +17,12 @@ class AdminTeamReviewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EmployeeDashboardThemeScope(
-      light: true, // Enable white mode for admin team review
-      child: ManagerReviewTeamDashboardScreen(
-        forAdminOversight: true,
-        selectedManagerId: selectedManagerId,
-        initialEmployeeId: initialEmployeeId,
-        initialMeetingId: initialMeetingId,
-      ),
+    return ManagerReviewTeamDashboardScreen(
+      embedded: true,
+      forAdminOversight: true,
+      selectedManagerId: selectedManagerId,
+      initialEmployeeId: initialEmployeeId,
+      initialMeetingId: initialMeetingId,
     );
   }
 }

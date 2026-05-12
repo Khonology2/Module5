@@ -29,11 +29,11 @@ import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
-import 'package:pdh/widgets/notifications_bell.dart';
-import 'package:pdh/widgets/messages_icon.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/app_content_header.dart';
+import 'package:pdh/widgets/header_action_icons.dart';
 
 class ManagerPortalScreen extends StatefulWidget {
   const ManagerPortalScreen({super.key});
@@ -95,13 +95,39 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     switch (route) {
       case '/my_pdp':
       case '/manager_gw_menu_goal_workspace':
-        return AppSpacing.screenPadding;
+        return EdgeInsets.fromLTRB(
+          AppSpacing.xxl,
+          AppContentHeader.kGapBelowHeader,
+          AppSpacing.xxl,
+          AppSpacing.xxl,
+        );
       default:
-        return EdgeInsets.zero;
+        return const EdgeInsets.only(top: AppContentHeader.kGapBelowHeader);
     }
   }
 
-  
+  bool _isDashboardRoute(String route) {
+    return route == '/dashboard' || route == '/manager_gw_menu_dashboard';
+  }
+
+  String _resolveHeaderTitle() {
+    if (_currentRoute == '/dashboard' || _currentRoute == '/manager_gw_menu_dashboard') {
+      return 'Manager Dashboard';
+    }
+    final allItems = <SidebarItem>[
+      ...SidebarConfig.managerWorkspaceItems,
+      ...SidebarConfig.managerMyWorkspaceItems,
+      ...SidebarConfig.globalItems,
+    ];
+    final match = allItems.where((item) => item.route == _currentRoute);
+    if (match.isNotEmpty) return match.first.label;
+    return 'Workspace';
+  }
+
+  Widget _buildHeaderActions() {
+    return const HeaderActionIcons();
+  }
+
   Widget _getBodyWidget() {
     switch (_currentRoute) {
       case '/dashboard':
@@ -111,7 +137,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_profile':
         return const ManagerProfileScreen(embedded: true);
       case '/team_challenges_seasons':
-        return const TeamChallengesSeasonsScreen();
+        return const TeamChallengesSeasonsScreen(embedded: true);
       case '/progress_visuals':
         return const ProgressVisualsScreen(embedded: true);
       case '/manager_alerts_nudges':
@@ -134,7 +160,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/settings':
         return const SettingsScreen();
       case '/manager_review_team_dashboard':
-        return const ManagerReviewTeamDashboardScreen();
+        return const ManagerReviewTeamDashboardScreen(embedded: true);
       // Manager Goal Workspace dropdown – same UI as employee, manager-scoped; body-only to avoid second sidebar
       case '/manager_gw_menu_dashboard':
         return const EmployeeDashboardScreen(
@@ -239,13 +265,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   bool _isPortalRoute(String route) => _portalRoutes.contains(route);
-
-  bool _shouldShowPortalTopActions(String route) {
-    // Keep dashboard-style screens uncluttered because those screens already
-    // render their own message/notification icons in their header.
-    final show = route != '/dashboard' && route != '/manager_gw_menu_dashboard';
-    return show;
-  }
 
   String? _routeFromPortalUrl() {
     // Hash strategy URL example:
@@ -357,48 +376,43 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       body: DashboardThemedBackground(
-        child: Stack(
+        child: Row(
           children: [
-            Row(
-              children: [
-                ResponsiveSidebar(
-                  items: SidebarConfig.managerItems,
-                  onNavigate: _onNavigate,
-                  currentRouteName: _currentRoute,
-                  onLogout: _onLogout,
-                  tutorialStepIndex: _shouldShowTutorial
-                      ? _currentTutorialStep
-                      : null,
-                  sidebarTutorialKeys:
-                      _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-                      ? _sidebarTutorialKeys
-                      : null,
-                  onTutorialNext: _shouldShowTutorial
-                      ? _moveToNextTutorialStep
-                      : null,
-                  onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: _portalMainContentPadding(_currentRoute),
-                    child: _getBodyWidget(),
-                  ),
-                ),
-              ],
+            ResponsiveSidebar(
+              items: SidebarConfig.managerItems,
+              onNavigate: _onNavigate,
+              currentRouteName: _currentRoute,
+              onLogout: _onLogout,
+              tutorialStepIndex: _shouldShowTutorial
+                  ? _currentTutorialStep
+                  : null,
+              sidebarTutorialKeys:
+                  _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
+                  ? _sidebarTutorialKeys
+                  : null,
+              onTutorialNext: _shouldShowTutorial
+                  ? _moveToNextTutorialStep
+                  : null,
+              onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
             ),
-            if (_shouldShowPortalTopActions(_currentRoute))
-              Positioned(
-                top: 24,
-                right: 24,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const MessagesIcon(),
-                    const SizedBox(width: 8),
-                    const NotificationsBell(),
-                  ],
-                ),
+            Expanded(
+              child: Column(
+                children: [
+                  AppContentHeader(
+                    title: _resolveHeaderTitle(),
+                    actions: _buildHeaderActions(),
+                    showGreeting: _isDashboardRoute(_currentRoute),
+                    textColor: DashboardChrome.fg,
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: _portalMainContentPadding(_currentRoute),
+                      child: _getBodyWidget(),
+                    ),
+                  ),
+                ],
               ),
+            ),
           ],
         ),
       ),

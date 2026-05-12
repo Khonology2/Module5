@@ -82,41 +82,31 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
         // Custom header with TabBar (since we don't have AppBar)
         Container(
           color: AppColors.elevatedBackground.withValues(alpha: 0.9),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Milestone Audit Trail',
-                      style: AppTypography.heading2.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+              Expanded(
+                child: TabBar(
+                  controller: _tabController,
+                  labelStyle: AppTypography.bodyLarge.copyWith(
+                    color: AppColors.activeColor,
+                    fontWeight: FontWeight.bold,
                   ),
-                  IconButton(
-                    icon: Icon(Icons.refresh, color: AppColors.activeColor),
-                    onPressed: _loadAuditCounts,
+                  unselectedLabelStyle: AppTypography.bodyLarge.copyWith(
+                    color: AppColors.textSecondary,
                   ),
-                ],
+                  indicatorColor: AppColors.activeColor,
+                  tabs: const [
+                    Tab(text: 'Timeline'),
+                    Tab(text: 'Statistics'),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              TabBar(
-                controller: _tabController,
-                labelStyle: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.activeColor,
-                  fontWeight: FontWeight.bold,
-                ),
-                unselectedLabelStyle: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                indicatorColor: AppColors.activeColor,
-                tabs: const [
-                  Tab(text: 'Timeline'),
-                  Tab(text: 'Statistics'),
-                ],
+              IconButton(
+                tooltip: 'Refresh counts',
+                icon: Icon(Icons.refresh, color: AppColors.activeColor),
+                onPressed: _loadAuditCounts,
               ),
             ],
           ),
