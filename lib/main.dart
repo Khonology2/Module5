@@ -473,7 +473,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/admin_settings': (context) => RoleGate(
                   requiredRole: RequiredRole.admin,
-                  child: const SettingsScreen(),
+                  child: const SettingsScreen(adminPortalExport: true),
                 ),
                 '/dashboard': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
