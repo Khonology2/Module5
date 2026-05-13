@@ -4,6 +4,7 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class SeasonCelebrationScreen extends StatefulWidget {
   final Season season;
@@ -91,11 +92,7 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
     if (_isLoadingCelebration) {
       return const Scaffold(
         backgroundColor: AppColors.cardBackground,
-        body: Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-          ),
-        ),
+        body: CustomLogoLoader(centerInViewport: true),
       );
     }
 

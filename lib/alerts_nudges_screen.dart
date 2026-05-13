@@ -27,6 +27,7 @@ import 'package:pdh/badges_v2/badge_category_detail_screen.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 /// Shared light/dark chrome for this screen (usable from nested State classes).
 class _AlertsChrome {
@@ -438,13 +439,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                                   alertsSnapshot.connectionState ==
                                       ConnectionState.waiting &&
                                   _cachedAlerts == null) {
-                                return const Center(
-                                  child: CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      AppColors.activeColor,
-                                    ),
-                                  ),
-                                );
+                                return const CustomLogoLoader(centerInViewport: true);
                               }
 
                               // Filter: hide overdue goal alerts in this view
@@ -1048,12 +1043,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             SizedBox(
               width: 20,
               height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
+              child: const CustomLogoLoaderInline(),
             ),
             const SizedBox(width: 12),
             Text(
@@ -2167,12 +2157,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         ? SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                _AlertsChrome.fg,
-                              ),
-                            ),
+                            child: const CustomLogoLoaderInline(),
                           )
                         : const Icon(Icons.send, size: 18),
                     label: Text(
@@ -2849,12 +2834,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.activeColor,
-                                ),
-                              ),
+                              child: const CustomLogoLoaderInline(),
                             ),
                             const SizedBox(width: 8),
                             Text(

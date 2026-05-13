@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/services/role_service.dart'; // Import RoleService
 import 'package:pdh/employee_drawer.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -19,7 +20,7 @@ class AppDrawer extends StatelessWidget {
         if (role == null) {
           return const Drawer(
             backgroundColor: Colors.red,
-            child: Center(child: CircularProgressIndicator()),
+            child: CustomLogoLoader(centerInViewport: true),
           ); // Or a loading indicator
         }
 

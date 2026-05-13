@@ -4,6 +4,7 @@ import 'app_colors.dart';
 import 'app_typography.dart';
 import 'app_spacing.dart';
 import 'app_breakpoints.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 /// Comprehensive component library for the Personal Development Hub app
 /// Provides standardized UI components following the design system
@@ -133,10 +134,7 @@ class AppComponents {
             ? const SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
+                child: CustomLogoLoaderInline(),
               )
             : Icon(icon, color: Colors.white, size: 16),
         label: Text(label),

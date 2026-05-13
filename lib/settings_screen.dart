@@ -25,6 +25,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class _SettingsChrome {
   _SettingsChrome._();
@@ -274,11 +275,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Settings are taking too long to load. Please check your connection and try again.',
                         );
                       }
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.activeColor,
-                        ),
-                      );
+                      return const CustomLogoLoader(centerInViewport: true);
                     }
 
                     // If still null after waiting, try to load default settings or show error
@@ -301,11 +298,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Settings are taking too long to load. Please check your connection and try again.',
                         );
                       }
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.activeColor,
-                        ),
-                      );
+                      return const CustomLogoLoader(centerInViewport: true);
                     }
 
                     // Use StreamBuilder for role, but with initial data to avoid waiting
@@ -2449,12 +2442,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(
               height: 20,
               width: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
+              child: CustomLogoLoaderInline(),
             ),
             const SizedBox(width: 12),
             Expanded(

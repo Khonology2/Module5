@@ -27,6 +27,8 @@ import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/version_control_widget.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
+import 'package:pdh/widgets/branded_refresh_indicator.dart';
 
 /// Employee dashboard card surface (requested #3D3D40; user note had a typo).
 // In dark mode we intentionally reduce alpha so the background image shows through.
@@ -822,13 +824,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                                 'We couldn’t load your profile. This is usually caused by a connection issues.',
                           );
                         }
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.activeColor,
-                            ),
-                          ),
-                        );
+                        return const CustomLogoLoader(centerInViewport: true);
                       }
 
                       // Update local state with latest (or fallback) data
@@ -839,7 +835,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                         _initialProfileLoadWatch.stop();
                       }
 
-                      return RefreshIndicator(
+                      return BrandedRefreshIndicator(
                         onRefresh: () async {
                           setState(() {}); // Trigger rebuild to restart streams
                         },

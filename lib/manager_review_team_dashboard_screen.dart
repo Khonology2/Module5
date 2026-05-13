@@ -10,6 +10,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class ManagerReviewTeamDashboardScreen extends StatefulWidget {
   /// When true, rendered inside [ManagerPortalScreen] / admin shell: no nested app bar
@@ -1800,7 +1801,7 @@ class _ManagerReviewTeamDashboardScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: Color(0xFFC10D00)),
+            CustomLogoLoader(centerInViewport: false),
             SizedBox(height: 12),
             Text(
               'Loading team data...',
@@ -2093,9 +2094,7 @@ class _EmployeeActivityScreen extends StatelessWidget {
             ),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-                );
+                return const CustomLogoLoader(centerInViewport: true);
               }
 
               final activities = snapshot.data!;

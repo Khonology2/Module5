@@ -7,6 +7,7 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class TeamManagementScreen extends StatefulWidget {
   final String teamGoalId;
@@ -193,7 +194,7 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
                   );
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const CustomLogoLoader(centerInViewport: true);
                 }
 
                 return FutureBuilder<List<Map<String, dynamic>>>(
@@ -201,7 +202,7 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
                   builder: (context, employeesSnapshot) {
                     if (employeesSnapshot.connectionState ==
                         ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const CustomLogoLoader(centerInViewport: true);
                     }
 
                     final allEmployees = employeesSnapshot.data ?? [];

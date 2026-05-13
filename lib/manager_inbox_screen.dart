@@ -19,6 +19,7 @@ import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 @immutable
 class _NudgeFeedback {
@@ -1485,9 +1486,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                   ? const SizedBox(
                                       width: 16,
                                       height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
+                                      child: CustomLogoLoaderInline(),
                                     )
                                   : const Icon(Icons.mark_email_read_outlined),
                               label: const Text('Mark all as read'),
@@ -1516,13 +1515,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             stream: AlertService.getUserAlertsStream(user.uid, maxItems: null),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
-                );
+                return const CustomLogoLoader(centerInViewport: true);
               }
               var items = snapshot.data ?? const <Alert>[];
               items = items
@@ -2541,7 +2534,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
       // Create a fallback alert for the pending goal
       final fallbackAlert = Alert(
-        id: 'fallback_${goalId}_${adminUserId}',
+        id: 'fallback_${goalId}_$adminUserId',
         userId: adminUserId,
         type: AlertType.goalApprovalRequested,
         audience: AlertAudience.personal,
