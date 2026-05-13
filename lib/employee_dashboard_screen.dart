@@ -771,125 +771,112 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       content: ValueListenableBuilder<bool>(
         valueListenable: employeeDashboardLightModeNotifier,
         builder: (context, light, _) {
-          return AppComponents.backgroundWithImage(
-            blurSigma: 0,
-            imagePath: light
-                ? 'assets/light_mode_bg.png'
-                : 'assets/khono_bg.png',
-            gradientColors: light
-                ? [
-                    Colors.white.withValues(alpha: 0.2),
-                    Colors.white.withValues(alpha: 0.08),
-                  ]
-                : null,
-            child: EmployeeDashboardThemeScope(
-              light: light,
-              child: StreamBuilder<UserProfile?>(
-                stream: _userProfileStream,
-                builder: (context, profileSnapshot) {
-                  return StreamBuilder<List<Goal>>(
-                    stream: _userGoalsStream,
-                    builder: (context, goalsSnapshot) {
-                      // Use any available data while streams connect to avoid showing a spinner
-                      // Always prefer stream data, but fall back to cached data if streams fail
-                      // This prevents flashing of error messages when streams temporarily fail
-                      final effectiveProfile =
-                          profileSnapshot.data ??
-                          userProfile ??
-                          _fallbackUserProfileFromAuth();
-                      final effectiveGoals = goalsSnapshot.data ?? userGoals;
+          return EmployeeDashboardThemeScope(
+            light: light,
+            child: StreamBuilder<UserProfile?>(
+              stream: _userProfileStream,
+              builder: (context, profileSnapshot) {
+                return StreamBuilder<List<Goal>>(
+                  stream: _userGoalsStream,
+                  builder: (context, goalsSnapshot) {
+                    // Use any available data while streams connect to avoid showing a spinner
+                    // Always prefer stream data, but fall back to cached data if streams fail
+                    // This prevents flashing of error messages when streams temporarily fail
+                    final effectiveProfile =
+                        profileSnapshot.data ??
+                        userProfile ??
+                        _fallbackUserProfileFromAuth();
+                    final effectiveGoals = goalsSnapshot.data ?? userGoals;
 
-                      // Log errors but don't block the dashboard from showing
-                      if (profileSnapshot.hasError || goalsSnapshot.hasError) {
-                        final error =
-                            profileSnapshot.error ?? goalsSnapshot.error;
-                        developer.log(
-                          'Dashboard stream error (showing dashboard anyway): $error',
-                          name: 'EmployeeDashboardScreen',
-                          error: error,
+                    // Log errors but don't block the dashboard from showing
+                    if (profileSnapshot.hasError || goalsSnapshot.hasError) {
+                      final error =
+                          profileSnapshot.error ?? goalsSnapshot.error;
+                      developer.log(
+                        'Dashboard stream error (showing dashboard anyway): $error',
+                        name: 'EmployeeDashboardScreen',
+                        error: error,
+                      );
+                    }
+
+                    // If we have no profile data at all, show loading spinner
+                    if (effectiveProfile == null && _effectiveUserId != null) {
+                      final timedOut =
+                          _initialProfileLoadWatch.elapsed >
+                          const Duration(seconds: 12);
+                      if (timedOut) {
+                        return _buildLoadTimeout(
+                          message:
+                              'We couldn’t load your profile. This is usually caused by a connection issues.',
                         );
                       }
-
-                      // If we have no profile data at all, show loading spinner
-                      if (effectiveProfile == null &&
-                          _effectiveUserId != null) {
-                        final timedOut =
-                            _initialProfileLoadWatch.elapsed >
-                            const Duration(seconds: 12);
-                        if (timedOut) {
-                          return _buildLoadTimeout(
-                            message:
-                                'We couldn’t load your profile. This is usually caused by a connection issues.',
-                          );
-                        }
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.activeColor,
-                            ),
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.activeColor,
                           ),
-                        );
-                      }
-
-                      // Update local state with latest (or fallback) data
-                      userProfile = effectiveProfile;
-                      userGoals = List<Goal>.from(effectiveGoals);
-                      // We have data; stop the timeout watch.
-                      if (_initialProfileLoadWatch.isRunning) {
-                        _initialProfileLoadWatch.stop();
-                      }
-
-                      return RefreshIndicator(
-                        onRefresh: () async {
-                          setState(() {}); // Trigger rebuild to restart streams
-                        },
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: SingleChildScrollView(
-                                padding: EdgeInsets.fromLTRB(
-                                  AppSpacing.xxl,
-                                  0,
-                                  AppSpacing.xxl,
-                                  AppSpacing.xxl,
-                                ),
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildQuickStats(),
-                                    const SizedBox(height: AppSpacing.lg),
-                                    _buildMotivationRecentAndQuickActionsRow(),
-                                    const SizedBox(height: AppSpacing.lg),
-                                    _buildSeasonAndTopPerformersRow(),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            SafeArea(
-                              top: false,
-                              child: Padding(
-                                padding: EdgeInsets.only(
-                                  left: AppSpacing.xxl,
-                                  right: AppSpacing.xxl,
-                                  bottom: AppSpacing.md,
-                                ),
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: VersionControlWidget(
-                                    textColor: _dashFg(context),
-                                    hoverColor: _dashFg(context),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
                       );
-                    },
-                  );
-                },
-              ),
+                    }
+
+                    // Update local state with latest (or fallback) data
+                    userProfile = effectiveProfile;
+                    userGoals = List<Goal>.from(effectiveGoals);
+                    // We have data; stop the timeout watch.
+                    if (_initialProfileLoadWatch.isRunning) {
+                      _initialProfileLoadWatch.stop();
+                    }
+
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        setState(() {}); // Trigger rebuild to restart streams
+                      },
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: EdgeInsets.fromLTRB(
+                                AppSpacing.xxl,
+                                0,
+                                AppSpacing.xxl,
+                                AppSpacing.xxl,
+                              ),
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildQuickStats(),
+                                  const SizedBox(height: AppSpacing.lg),
+                                  _buildMotivationRecentAndQuickActionsRow(),
+                                  const SizedBox(height: AppSpacing.lg),
+                                  _buildSeasonAndTopPerformersRow(),
+                                ],
+                              ),
+                            ),
+                          ),
+                          SafeArea(
+                            top: false,
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                left: AppSpacing.xxl,
+                                right: AppSpacing.xxl,
+                                bottom: AppSpacing.md,
+                              ),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: VersionControlWidget(
+                                  textColor: _dashFg(context),
+                                  hoverColor: _dashFg(context),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           );
         },

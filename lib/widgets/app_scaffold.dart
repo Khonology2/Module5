@@ -3,9 +3,32 @@ import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/app_content_header.dart';
 import 'package:pdh/widgets/header_action_icons.dart';
+
+/// Full-bleed dashboard image behind [AppScaffold] content so the inset below
+/// the fixed header (see [AppContentHeader.kGapBelowHeader]) is not unpainted
+/// (which reads as a white band on web).
+Widget _appScaffoldShellBackdrop() {
+  return ValueListenableBuilder<bool>(
+    valueListenable: employeeDashboardLightModeNotifier,
+    builder: (context, light, _) {
+      return AppComponents.backgroundWithImage(
+        blurSigma: 0,
+        imagePath: light ? 'assets/light_mode_bg.png' : 'assets/khono_bg.png',
+        gradientColors: light
+            ? [
+                Colors.white.withValues(alpha: 0.2),
+                Colors.white.withValues(alpha: 0.08),
+              ]
+            : null,
+        child: const SizedBox.expand(),
+      );
+    },
+  );
+}
 
 class AppScaffold extends StatelessWidget {
   // Temporary UX override: keep non-mobile sidebar expanded.
@@ -156,6 +179,7 @@ class AppScaffold extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
+              Positioned.fill(child: _appScaffoldShellBackdrop()),
               Positioned.fill(
                 child: maybeFocusTraversal(
                   Focus(
@@ -163,7 +187,8 @@ class AppScaffold extends StatelessWidget {
                     descendantsAreFocusable: true,
                     child: Padding(
                       padding: const EdgeInsets.only(
-                        top: AppContentHeader.kHeaderHeight +
+                        top:
+                            AppContentHeader.kHeaderHeight +
                             AppContentHeader.kGapBelowHeader,
                       ),
                       child: content,
@@ -239,11 +264,13 @@ class AppScaffold extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
+                        Positioned.fill(child: _appScaffoldShellBackdrop()),
                         Positioned.fill(
                           child: maybeFocusTraversal(
                             Padding(
                               padding: const EdgeInsets.only(
-                                top: AppContentHeader.kHeaderHeight +
+                                top:
+                                    AppContentHeader.kHeaderHeight +
                                     AppContentHeader.kGapBelowHeader,
                               ),
                               child: content,

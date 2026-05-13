@@ -409,8 +409,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       builder: (context, outerConstraints) {
         final horizontalPad = AppSpacing.xxl * 2;
         final rawW = outerConstraints.maxWidth;
-        final layoutW =
-            rawW.isFinite ? rawW : MediaQuery.sizeOf(context).width;
+        final layoutW = rawW.isFinite ? rawW : MediaQuery.sizeOf(context).width;
         final width = (layoutW - horizontalPad).clamp(0.0, double.infinity);
 
         return SingleChildScrollView(
@@ -423,196 +422,198 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           child: StreamBuilder<List<EmployeeData>>(
             stream: _employeesStream,
             builder: (context, employeesSnap) {
-          if (employeesSnap.hasError) {
-            return Center(
-              child: Text('Error loading employees: ${employeesSnap.error}'),
-            );
-          }
-          if (!employeesSnap.hasData) {
-            final timedOut =
-                _employeesLoadWatch.elapsed > const Duration(seconds: 12);
-            if (timedOut) {
-              return Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 560),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: _card(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Still loading…',
-                            style: AppTypography.heading4,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'We couldn’t load your team data. This is usually caused by a connection issue or missing Firestore permissions.',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: DashboardChrome.fg,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            alignment: WrapAlignment.center,
+              if (employeesSnap.hasError) {
+                return Center(
+                  child: Text(
+                    'Error loading employees: ${employeesSnap.error}',
+                  ),
+                );
+              }
+              if (!employeesSnap.hasData) {
+                final timedOut =
+                    _employeesLoadWatch.elapsed > const Duration(seconds: 12);
+                if (timedOut) {
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: _card(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              ElevatedButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _employeesStream = _realtime
-                                        .employeesStream();
-                                    _employeesLoadWatch
-                                      ..reset()
-                                      ..start();
-                                  });
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.activeColor,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text('Retry'),
+                              Text(
+                                'Still loading…',
+                                style: AppTypography.heading4,
+                                textAlign: TextAlign.center,
                               ),
-                              OutlinedButton(
-                                onPressed: () async {
-                                  final navigator = Navigator.of(context);
-                                  await AuthService().signOut();
-                                  if (mounted) {
-                                    navigator.pushNamedAndRemoveUntil(
-                                      '/sign_in',
-                                      (route) => false,
-                                    );
-                                  }
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: DashboardChrome.fg,
-                                  side: BorderSide(
-                                    color: _dashboardCardBorder(),
-                                  ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'We couldn’t load your team data. This is usually caused by a connection issue or missing Firestore permissions.',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: DashboardChrome.fg,
                                 ),
-                                child: const Text('Sign out'),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                alignment: WrapAlignment.center,
+                                children: [
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _employeesStream = _realtime
+                                            .employeesStream();
+                                        _employeesLoadWatch
+                                          ..reset()
+                                          ..start();
+                                      });
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.activeColor,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: const Text('Retry'),
+                                  ),
+                                  OutlinedButton(
+                                    onPressed: () async {
+                                      final navigator = Navigator.of(context);
+                                      await AuthService().signOut();
+                                      if (mounted) {
+                                        navigator.pushNamedAndRemoveUntil(
+                                          '/sign_in',
+                                          (route) => false,
+                                        );
+                                      }
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: DashboardChrome.fg,
+                                      side: BorderSide(
+                                        color: _dashboardCardBorder(),
+                                      ),
+                                    ),
+                                    child: const Text('Sign out'),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return SizedBox(
+                  height: 360,
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.activeColor,
                       ),
                     ),
                   ),
-                ),
+                );
+              }
+              final employees = employeesSnap.data!;
+              if (_employeesLoadWatch.isRunning) {
+                _employeesLoadWatch.stop();
+              }
+
+              // Compute metrics locally to avoid adding another Firestore listener
+              final metrics = _computeTeamMetrics(employees);
+
+              final topGridColumns = width >= 920
+                  ? 3
+                  : width >= 640
+                  ? 2
+                  : 1;
+              final middleTwoColumns = width >= 920;
+
+              final now = DateTime.now();
+              final today = DateTime(now.year, now.month, now.day);
+              final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+              final activeToday = employees
+                  .where((e) => e.lastActivity.isAfter(today))
+                  .length;
+              final activeThisWeek = employees
+                  .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+                  .length;
+              final inactive = employees
+                  .where((e) => e.status == EmployeeStatus.inactive)
+                  .length;
+              final overdue = employees
+                  .where((e) => e.status == EmployeeStatus.overdue)
+                  .length;
+              final atRisk = employees
+                  .where((e) => e.status == EmployeeStatus.atRisk)
+                  .length;
+              final onTrack = employees
+                  .where((e) => e.status == EmployeeStatus.onTrack)
+                  .length;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTopStatsGrid(
+                    columns: topGridColumns,
+                    activeToday: activeToday,
+                    activeThisWeek: activeThisWeek,
+                    inactive: inactive,
+                    overdue: overdue,
+                    atRisk: atRisk,
+                    onTrack: onTrack,
+                  ),
+
+                  const SizedBox(height: AppSpacing.lg),
+
+                  if (middleTwoColumns)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            key: _middleLeftKey,
+                            children: [
+                              _buildDailyMotivationCard(),
+                              const SizedBox(height: AppSpacing.md),
+                              _buildRecentActivitiesCard(employees),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: _buildQuickActions(
+                            expand: false,
+                            minHeight: _middleLeftHeight,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Column(
+                      children: [
+                        _buildDailyMotivationCard(),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildRecentActivitiesCard(employees),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildQuickActions(expand: false),
+                      ],
+                    ),
+
+                  const SizedBox(height: AppSpacing.lg),
+
+                  _buildBottomKpisAndHealth(
+                    metrics,
+                    employees,
+                    maxWidth: width,
+                  ),
+
+                  const SizedBox(height: AppSpacing.xxl),
+                ],
               );
-            }
-            return SizedBox(
-              height: 360,
-              child: const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.activeColor,
-                  ),
-                ),
-              ),
-            );
-          }
-          final employees = employeesSnap.data!;
-          if (_employeesLoadWatch.isRunning) {
-            _employeesLoadWatch.stop();
-          }
-
-          // Compute metrics locally to avoid adding another Firestore listener
-          final metrics = _computeTeamMetrics(employees);
-
-          final topGridColumns = width >= 920
-              ? 3
-              : width >= 640
-              ? 2
-              : 1;
-          final middleTwoColumns = width >= 920;
-
-          final now = DateTime.now();
-          final today = DateTime(now.year, now.month, now.day);
-          final sevenDaysAgo = now.subtract(const Duration(days: 7));
-
-          final activeToday = employees
-              .where((e) => e.lastActivity.isAfter(today))
-              .length;
-          final activeThisWeek = employees
-              .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
-              .length;
-          final inactive = employees
-              .where((e) => e.status == EmployeeStatus.inactive)
-              .length;
-          final overdue = employees
-              .where((e) => e.status == EmployeeStatus.overdue)
-              .length;
-          final atRisk = employees
-              .where((e) => e.status == EmployeeStatus.atRisk)
-              .length;
-          final onTrack = employees
-              .where((e) => e.status == EmployeeStatus.onTrack)
-              .length;
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTopStatsGrid(
-                columns: topGridColumns,
-                activeToday: activeToday,
-                activeThisWeek: activeThisWeek,
-                inactive: inactive,
-                overdue: overdue,
-                atRisk: atRisk,
-                onTrack: onTrack,
-              ),
-
-              const SizedBox(height: AppSpacing.lg),
-
-              if (middleTwoColumns)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        key: _middleLeftKey,
-                        children: [
-                          _buildDailyMotivationCard(),
-                          const SizedBox(height: AppSpacing.md),
-                          _buildRecentActivitiesCard(employees),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: _buildQuickActions(
-                        expand: false,
-                        minHeight: _middleLeftHeight,
-                      ),
-                    ),
-                  ],
-                )
-              else
-                Column(
-                  children: [
-                    _buildDailyMotivationCard(),
-                    const SizedBox(height: AppSpacing.md),
-                    _buildRecentActivitiesCard(employees),
-                    const SizedBox(height: AppSpacing.md),
-                    _buildQuickActions(expand: false),
-                  ],
-                ),
-
-              const SizedBox(height: AppSpacing.lg),
-
-              _buildBottomKpisAndHealth(
-                metrics,
-                employees,
-                maxWidth: width,
-              ),
-
-              const SizedBox(height: AppSpacing.xxl),
-            ],
-          );
             },
           ),
         );
@@ -668,7 +669,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
-      content: DashboardThemedBackground(child: content),
+      content: ValueListenableBuilder<bool>(
+        valueListenable: employeeDashboardLightModeNotifier,
+        builder: (context, light, _) {
+          return EmployeeDashboardThemeScope(light: light, child: content);
+        },
+      ),
     );
   }
 
