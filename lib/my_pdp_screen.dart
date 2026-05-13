@@ -1,5 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
@@ -219,6 +221,9 @@ class _MyPdpScreenState extends State<MyPdpScreen>
   bool _isFinancialExpanded = true;
   bool _isOrganisationalExpanded = true;
   bool _isPeopleExpanded = true;
+
+  // Cache for goals to prevent unnecessary rebuilds
+  // Removed unused fields to keep state minimal and avoid analyzer warnings
 
   String _mapGoalToExcellence(Goal goal) {
     // Prefer explicit kpa if available
@@ -666,11 +671,20 @@ class _MyPdpScreenState extends State<MyPdpScreen>
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 try {
-                  web.window.open(evidence, '_blank');
+                  final user = FirebaseAuth.instance.currentUser;
+                  final token = await user?.getIdToken();
+                  final uri = Uri.parse(evidence);
+                  final qp = Map<String, String>.from(uri.queryParameters);
+                  if (token != null && token.isNotEmpty) {
+                    qp['token'] = token;
+                  }
+                  final urlWithToken = uri
+                      .replace(queryParameters: qp)
+                      .toString();
+                  web.window.open(urlWithToken, '_blank');
                 } catch (_) {
-                  // On non-web platforms, just close the dialog
                   Navigator.of(ctx).pop();
                 }
               },
@@ -1435,242 +1449,6 @@ class _MyPdpScreenState extends State<MyPdpScreen>
       ),
     );
   }
-
-  List<Goal> _filterGoalsForExcellence(List<Goal> goals, String excellence) {
-    return goals
-        .where((g) => !g.isSeasonGoal && _mapGoalToExcellence(g) == excellence)
-        .toList();
-  }
-
-  Map<String, int> _collapsedKpaSummaryCounts(List<Goal> goals) {
-    final total = goals.length;
-    final pendingApproval = goals
-        .where((g) => g.approvalStatus == GoalApprovalStatus.pending)
-        .length;
-    final rejected = goals
-        .where((g) => g.approvalStatus == GoalApprovalStatus.rejected)
-        .length;
-    final inProgress = goals
-        .where(
-          (g) =>
-              g.approvalStatus == GoalApprovalStatus.approved &&
-              g.status == GoalStatus.inProgress,
-        )
-        .length;
-    final completed = goals
-        .where(
-          (g) =>
-              g.approvalStatus == GoalApprovalStatus.approved &&
-              (g.status == GoalStatus.completed ||
-                  g.status == GoalStatus.acknowledged),
-        )
-        .length;
-    return <String, int>{
-      'total': total,
-      'inProgress': inProgress,
-      'completed': completed,
-      'pendingApproval': pendingApproval,
-      'rejected': rejected,
-    };
-  }
-
-  Widget _buildCollapsedKpaCountItem({
-    required bool light,
-    required String iconAsset,
-    required int value,
-    required String label,
-  }) {
-    return SizedBox(
-      width: 102,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 1),
-            child: Image.asset(
-              iconAsset,
-              width: 20,
-              height: 20,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: AppTypography.bodySmall.copyWith(
-                    color: _pdpFg(light),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  '$value',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: AppTypography.bodySmall.copyWith(
-                    color: _pdpMuted(light),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCollapsedKpaSummaryView({
-    required bool light,
-    required Map<String, int> counts,
-  }) {
-    final total = counts['total'] ?? 0;
-    final inProgress = counts['inProgress'] ?? 0;
-    final completed = counts['completed'] ?? 0;
-    final pendingApproval = counts['pendingApproval'] ?? 0;
-    final rejected = counts['rejected'] ?? 0;
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-        Wrap(
-          alignment: WrapAlignment.start,
-          spacing: 6,
-          runSpacing: 2,
-          children: [
-            _buildCollapsedKpaCountItem(
-              light: light,
-              iconAsset: 'assets/Goal_Target/Goal_Target_Red.png',
-              value: total,
-              label: 'Goals',
-            ),
-            _buildCollapsedKpaCountItem(
-              light: light,
-              iconAsset:
-                  'assets/Project_Direction_Acceleration/Project Direction_Acceleration_Red.png',
-              value: inProgress,
-              label: 'In Progress',
-            ),
-            _buildCollapsedKpaCountItem(
-              light: light,
-              iconAsset: 'assets/Approved_Tick/Approved_Red.png',
-              value: completed,
-              label: 'Completed',
-            ),
-            _buildCollapsedKpaCountItem(
-              light: light,
-              iconAsset: 'assets/Data_Approval/Data Approval_Red.png',
-              value: pendingApproval,
-              label: 'Pending',
-            ),
-            _buildCollapsedKpaCountItem(
-              light: light,
-              iconAsset: 'assets/Cancel_Exit_Escape/Cancel_Exit_Escape_Red.png',
-              value: rejected,
-              label: 'Rejected',
-            ),
-          ],
-        ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCollapsedKpaSummary({
-    required bool light,
-    required String excellence,
-    required bool managerOwnGoalsOnly,
-  }) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, authSnap) {
-        final user = authSnap.data;
-        if (user == null) {
-          return _buildCollapsedKpaSummaryView(
-            light: light,
-            counts: const <String, int>{
-              'total': 0,
-              'inProgress': 0,
-              'completed': 0,
-              'pendingApproval': 0,
-              'rejected': 0,
-            },
-          );
-        }
-
-        return FutureBuilder<String?>(
-          future: RoleService.instance.getRole(),
-          builder: (context, roleSnap) {
-            final role = roleSnap.data ?? RoleService.instance.cachedRole;
-            final isManager = role == 'manager';
-
-            if (isManager && managerOwnGoalsOnly) {
-              return StreamBuilder<List<Goal>>(
-                stream: DatabaseService.getUserGoalsStream(user.uid),
-                builder: (context, goalsSnap) {
-                  final goals = _filterGoalsForExcellence(
-                    goalsSnap.data ?? const <Goal>[],
-                    excellence,
-                  );
-                  return _buildCollapsedKpaSummaryView(
-                    light: light,
-                    counts: _collapsedKpaSummaryCounts(goals),
-                  );
-                },
-              );
-            }
-
-            if (isManager) {
-              return StreamBuilder<List<EmployeeData>>(
-                stream: ManagerRealtimeService.getTeamDataStream(),
-                builder: (context, teamSnap) {
-                  final allGoals = <Goal>[];
-                  for (final emp in teamSnap.data ?? const <EmployeeData>[]) {
-                    allGoals.addAll(emp.goals);
-                  }
-                  final goals = _filterGoalsForExcellence(allGoals, excellence);
-                  return _buildCollapsedKpaSummaryView(
-                    light: light,
-                    counts: _collapsedKpaSummaryCounts(goals),
-                  );
-                },
-              );
-            }
-
-            return StreamBuilder<List<Goal>>(
-              stream: DatabaseService.getUserGoalsStream(user.uid),
-              builder: (context, goalsSnap) {
-                final goals = _filterGoalsForExcellence(
-                  goalsSnap.data ?? const <Goal>[],
-                  excellence,
-                );
-                return _buildCollapsedKpaSummaryView(
-                  light: light,
-                  counts: _collapsedKpaSummaryCounts(goals),
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
   Widget _buildGoalsForExcellence(
     String excellence,
     bool light,

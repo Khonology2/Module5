@@ -3,7 +3,6 @@ import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
-import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 /// Workspace context switcher widget for the sidebar
 class WorkspaceContextSwitcher extends StatefulWidget {
@@ -53,111 +52,186 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = !employeeDashboardLightModeNotifier.value;
-    final switcherTextColor = isDark ? Colors.white : const Color(0xFF000000);
-    final switcherBorderColor = isDark
-        ? Colors.white.withValues(alpha: 0.2)
-        : const Color(0xFF000000);
-    final myWorkspaceTextColor = _workspaceService.isMyWorkspace
-        ? Colors.white
-        : switcherTextColor;
-    final managerWorkspaceTextColor = _workspaceService.isManagerWorkspace
-        ? Colors.white
-        : switcherTextColor;
-    final contextPaddingH = 12.0;
-    final contextPaddingV = 8.0;
+  TextStyle _labelStyle({
+    required Color color,
+    required FontWeight weight,
+    required double fontSize,
+  }) {
+    return AppTypography.bodySmall.copyWith(
+      color: color,
+      fontWeight: weight,
+      fontSize: fontSize,
+      height: 1.15,
+    );
+  }
 
-    // Only show switcher if user can access manager workspace
-    if (!_workspaceService.canAccessManagerWorkspace) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(
-          color: switcherBorderColor,
-          width: 1,
+  /// Red pill — width follows the label only (intrinsic), not the full sidebar.
+  Widget _pillSegment({
+    required String label,
+    required Color textColor,
+    required bool isActive,
+    required double fontSize,
+    required double padH,
+    required double padV,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.activeColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            softWrap: false,
+            style: _labelStyle(
+              color: textColor,
+              weight: isActive ? FontWeight.w600 : FontWeight.w400,
+              fontSize: fontSize,
+            ),
+          ),
         ),
       ),
-      child: Row(
-        children: [
-          // My Workspace option
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                _workspaceService.switchToContext(WorkspaceContext.myWorkspace);
-                _navigateToWorkspace(context, WorkspaceContext.myWorkspace);
-              },
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: contextPaddingH,
-                  vertical: contextPaddingV,
-                ),
-                decoration: BoxDecoration(
-                  color: _workspaceService.isMyWorkspace
-                      ? AppColors.activeColor
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'My Workspace',
-                  textAlign: TextAlign.center,
-                  style: AppTypography.bodySmall.copyWith(
-                    color: myWorkspaceTextColor,
-                    fontWeight: _workspaceService.isMyWorkspace
-                        ? FontWeight.w600
-                        : FontWeight.w400,
-                    fontSize: 9.5, // Update font size to 9.5
-                  ),
-                ),
-              ),
-            ),
+    );
+  }
+
+  /// Inactive label — intrinsic width; row + [FittedBox] handles fitting.
+  Widget _plainLabel({
+    required String label,
+    required Color textColor,
+    required bool isActive,
+    required double fontSize,
+    required double padH,
+    required double padV,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
+        child: Text(
+          label,
+          maxLines: 1,
+          softWrap: false,
+          style: _labelStyle(
+            color: textColor,
+            weight: isActive ? FontWeight.w600 : FontWeight.w400,
+            fontSize: fontSize,
           ),
-          // Manager Workspace option
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                _workspaceService.switchToContext(
-                  WorkspaceContext.managerWorkspace,
-                );
-                _navigateToWorkspace(
-                  context,
-                  WorkspaceContext.managerWorkspace,
-                );
-              },
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: contextPaddingH,
-                  vertical: contextPaddingV,
-                ),
-                decoration: BoxDecoration(
-                  color: _workspaceService.isManagerWorkspace
-                      ? AppColors.activeColor
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'Manager Workspace',
-                  textAlign: TextAlign.center,
-                  style: AppTypography.bodySmall.copyWith(
-                    color: managerWorkspaceTextColor,
-                    fontWeight: _workspaceService.isManagerWorkspace
-                        ? FontWeight.w600
-                        : FontWeight.w400,
-                    fontSize: 9.5, // Update font size to 9.5
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Rebuild when role stream emits so switcher appears as soon as role loads.
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      initialData: RoleService.instance.cachedRole,
+      builder: (context, snapshot) {
+        // Only managers can access manager workspace.
+        if (!_workspaceService.canAccessManagerWorkspace) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(25),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.2),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              // My Workspace option
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    _workspaceService.switchToContext(WorkspaceContext.myWorkspace);
+                    _navigateToWorkspace(context, WorkspaceContext.myWorkspace);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _workspaceService.isMyWorkspace
+                          ? AppColors.activeColor
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'My Workspace',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: _workspaceService.isMyWorkspace
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.7),
+                        fontWeight: _workspaceService.isMyWorkspace
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        fontSize: 9.5, // Update font size to 9.5
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Manager Workspace option
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    _workspaceService.switchToContext(
+                      WorkspaceContext.managerWorkspace,
+                    );
+                    _navigateToWorkspace(
+                      context,
+                      WorkspaceContext.managerWorkspace,
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _workspaceService.isManagerWorkspace
+                          ? AppColors.activeColor
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Manager Workspace',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: _workspaceService.isManagerWorkspace
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.7),
+                        fontWeight: _workspaceService.isManagerWorkspace
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        fontSize: 9.5, // Update font size to 9.5
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

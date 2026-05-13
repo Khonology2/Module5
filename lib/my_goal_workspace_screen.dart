@@ -12,6 +12,7 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/kpa_excellence_surface.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/models/goal.dart';
@@ -127,6 +128,32 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   String? _customCategory; // For "Other" category custom input
   bool _isOtherCategorySelected = false;
   bool _isSavingGoal = false;
+
+  Future<GenerateContentResponse> _generateContentWithRetry(
+    GenerativeModel model,
+    List<Content> prompt, {
+    void Function(String phase)? onPhase,
+  }) async {
+    const maxAttempts = 3;
+    Object? lastError;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (attempt > 1 && onPhase != null) {
+          onPhase('Retrying AI generation (attempt $attempt/$maxAttempts)...');
+        }
+        return await model.generateContent(prompt);
+      } catch (e) {
+        lastError = e;
+        if (attempt < maxAttempts) {
+          await Future.delayed(Duration(milliseconds: 500 * attempt));
+          continue;
+        }
+      }
+    }
+
+    throw Exception('AI generation failed after $maxAttempts attempts: $lastError');
+  }
 
   // Lists for dropdowns
   final List<String> _goalCategories = [
@@ -284,7 +311,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               final step = EmployeeSidebarTutorialConfig
                   .steps[tutorialService.currentTutorialStep];
               if (step.route == currentRoute ||
-                  (step.route == '__collapse_toggle__' &&
+                  (step.route == '_collapse_toggle_' &&
                       tutorialService.currentTutorialStep ==
                           SidebarConfig.employeeItems.length)) {
                 // This screen matches the current tutorial step, show popup
@@ -331,7 +358,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             final navigator = Navigator.of(context);
             await AuthService().signOut();
             if (mounted) {
-              navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+              navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
             }
           },
           content: ValueListenableBuilder<bool>(
@@ -729,9 +756,33 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   'Generating dependencies and prerequisites...',
                 );
 
-                final response = await model.generateContent(prompt);
-                final responseText =
-                    response.text?.replaceAll('*', '').trim() ?? '';
+                String responseText;
+                try {
+                  final response = await _generateContentWithRetry(
+                    model,
+                    prompt,
+                    onPhase: (p) {
+                      updatePhase(p);
+                    },
+                  );
+                  responseText =
+                      response.text?.replaceAll('*', '').trim() ?? '';
+                } catch (_) {
+                  const systemInstruction =
+                      'You are an AI assistant specialized in creating comprehensive personal development goal plans and evaluating SMART criteria. '
+                      'When given a goal title, generate four components: DESCRIPTION, DEPENDENCIES AND PREREQUISITES (5), SUCCESS METRICS, and SMART SCORES (1-5 each). '
+                      'Respond in this EXACT JSON format (no other text): '
+                      '{"description": "...", "dependencies": "• ...\\n• ...", "successMetrics": "...", "smartScores": {"clarity": 3, "measurability": 4, "achievability": 4, "relevance": 5, "timeline": 3}}';
+                  final userPrompt =
+                      'Generate a comprehensive plan for this personal development goal: $goalTitle\n\n'
+                      'First, create the description, 5 dependencies/prerequisites, and success metrics. '
+                      'Then, based on the complete goal information, evaluate and assign SMART criteria scores (1-5 for each).';
+                  responseText =
+                      await AiFallbackService.generateViaBackend(
+                        prompt: userPrompt,
+                        systemInstruction: systemInstruction,
+                      ).then((s) => s.replaceAll('*', '').trim());
+                }
 
                 await updatePhase('Selecting SMART verification scores...');
 
@@ -744,20 +795,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
                   // Parse JSON response
                   String jsonText = responseText.trim();
-                  // Remove markdown code blocks if present
                   if (jsonText.contains('```json')) {
-                    jsonText = jsonText
-                        .split('```json')[1]
-                        .split('```')[0]
-                        .trim();
+                    jsonText =
+                        jsonText.split('```json')[1].split('```')[0].trim();
                   } else if (jsonText.contains('```')) {
                     jsonText = jsonText.split('```')[1].split('```')[0].trim();
                   }
 
                   // Extract JSON object
-                  final jsonMatch = RegExp(
-                    r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',
-                  ).firstMatch(jsonText);
+                  final jsonMatch =
+                      RegExp(r'\{[\s\S]*\}', dotAll: true).firstMatch(jsonText);
 
                   if (jsonMatch != null) {
                     final jsonString = jsonMatch.group(0) ?? '{}';
@@ -1331,12 +1378,25 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         ),
       ];
 
-      final response = await model.generateContent(prompt);
-      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
+      String responseText;
+      try {
+        final response = await _generateContentWithRetry(model, prompt);
+        responseText = response.text?.replaceAll('*', '').trim() ?? '';
+      } catch (_) {
+        const systemInstruction =
+            'You are an AI assistant that analyzes personal development goal descriptions and suggests appropriate categories, priorities, and key performance areas. '
+            'Suggest ONE category from: Career, Skills, Wellness, Finance, or Other; ONE priority: High, Medium, or Low; ONE KPA from: Operational Excellence, Customer Excellence, Financial Excellence, Organisational Excellence, or People Excellence. '
+            'Respond ONLY with a JSON object: {"category": "...", "priority": "...", "kpa": "..."}';
+        responseText =
+            await AiFallbackService.generateViaBackend(
+              prompt:
+                  'Analyze this goal description and suggest the category, priority, and key performance area:\n\n$description',
+              systemInstruction: systemInstruction,
+            ).then((s) => s.replaceAll('*', '').trim());
+      }
 
       // Parse JSON response
       String jsonText = responseText.trim();
-      // Remove markdown code blocks if present
       if (jsonText.contains('```json')) {
         jsonText = jsonText.split('```json')[1].split('```')[0].trim();
       } else if (jsonText.contains('```')) {
@@ -1344,9 +1404,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       }
 
       // Extract JSON object using regex
-      final jsonMatch = RegExp(
-        r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',
-      ).firstMatch(jsonText);
+      final jsonMatch =
+          RegExp(r'\{[\s\S]*\}', dotAll: true).firstMatch(jsonText);
       if (jsonMatch == null) {
         throw Exception('Could not find JSON object in AI response');
       }

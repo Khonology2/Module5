@@ -157,7 +157,19 @@ class AppScaffold extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Positioned.fill(
-                child: maybeFocusTraversal(content),
+                child: maybeFocusTraversal(
+                  Focus(
+                    canRequestFocus: true,
+                    descendantsAreFocusable: true,
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                        top: AppContentHeader.kHeaderHeight +
+                            AppContentHeader.kGapBelowHeader,
+                      ),
+                      child: content,
+                    ),
+                  ),
+                ),
               ),
               Positioned(top: 0, left: 0, right: 0, child: _buildFixedHeader()),
             ],

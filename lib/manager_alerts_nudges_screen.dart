@@ -78,7 +78,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   
   
   /// Which supervision alert sections are expanded (Show All). Key: section id.
-  Map<String, bool> _supervisionSectionExpanded = <String, bool>{};
+  final Map<String, bool> _supervisionSectionExpanded = <String, bool>{};
 
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
   final bool _showNudgeTrend = true;
@@ -561,37 +561,101 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: employeeDashboardLightModeNotifier,
-      builder: (context, light, _) {
-        return EmployeeDashboardThemeScope(
-          light: light,
-          child: AppScaffold(
-            title: 'Team Supervision Dashboard',
-            showAppBar: false,
-            embedded: widget.embedded,
-            items: SidebarConfig.getItemsForRole('manager'),
-            currentRouteName: '/manager_alerts_nudges',
-            onNavigate: (route) {
-              // Keep manager navigation inside the portal so sidebar order changes
-              // don't break content routing.
-              if (widget.embedded) return;
-              Navigator.pushReplacementNamed(
-                context,
-                '/manager_portal',
-                arguments: {'initialRoute': route},
-              );
-            },
-            onLogout: () async {
-              final navigator = Navigator.of(context);
-              await AuthService().signOut();
-              if (mounted) {
-                navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-              }
-            },
-            content: StreamBuilder<List<EmployeeData>>(
-              key: ValueKey(
-                'team_data_stream_${widget.forAdminOversight}_${widget.selectedManagerId}',
+    return AppScaffold(
+      title: 'Team Supervision Dashboard',
+      showAppBar: false,
+      embedded: widget.embedded,
+      items: SidebarConfig.getItemsForRole('manager'),
+      currentRouteName: '/manager_alerts_nudges',
+      onNavigate: (route) {
+        // Keep manager navigation inside the portal so sidebar order changes
+        // don't break content routing.
+        if (widget.embedded) return;
+        Navigator.pushReplacementNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': route},
+        );
+      },
+      onLogout: () async {
+        final navigator = Navigator.of(context);
+        await AuthService().signOut();
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
+        }
+      },
+      content: StreamBuilder<List<EmployeeData>>(
+        key: ValueKey(
+          'team_data_stream_${widget.forAdminOversight}_${widget.selectedManagerId}',
+        ),
+        stream: widget.forAdminOversight
+            ? ManagerRealtimeService.getManagersDataStreamForAdmin(
+                selectedManagerId: widget.selectedManagerId,
+              )
+            : ManagerRealtimeService.getTeamDataStream(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: AppSpacing.screenPadding,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: AppColors.dangerColor,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error loading team data',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: DashboardChrome.fg,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${snapshot.error}',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: DashboardChrome.fg,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final incoming = snapshot.data;
+          final hasPlaceholderBatch =
+              incoming != null &&
+              incoming.isNotEmpty &&
+              incoming.every((e) => e.isPlaceholder);
+
+          // Keep last known-good enriched list so the UI does not
+          // "flash empty" or show placeholder-only data when the
+          // stream re-emits (for example, after sending a nudge).
+          if (snapshot.hasData &&
+              (snapshot.data?.isNotEmpty ?? false) &&
+              !hasPlaceholderBatch) {
+            _lastEmployees = snapshot.data!;
+          }
+
+          // If we only have placeholders and no enriched cache yet,
+          // still show employees immediately (for stats/alerts), but
+          // rely on the subsequent enriched payload to refine data.
+          final employees = hasPlaceholderBatch
+              ? incoming
+              : (snapshot.data ?? _lastEmployees);
+
+          if ((employees.isEmpty) &&
+              snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.activeColor,
+                ),
               ),
               stream: widget.forAdminOversight
                   ? ManagerRealtimeService.getManagersDataStreamForAdmin(
@@ -910,7 +974,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               if (goal.progress >= 100) continue;
               if (goal.status == GoalStatus.completed || 
                   goal.status == GoalStatus.acknowledged ||
-                  goal.status == GoalStatus.paused) continue;
+                  goal.status == GoalStatus.paused) {
+                continue;
+              }
               
               final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
               if (!seenAlertIds.add(id)) continue;
@@ -1684,7 +1750,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             if (goal.progress >= 100) continue;
             if (goal.status == GoalStatus.completed || 
                 goal.status == GoalStatus.acknowledged ||
-                goal.status == GoalStatus.paused) continue;
+                goal.status == GoalStatus.paused) {
+              continue;
+            }
             
             final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
             if (!seenAlertIds.add(id)) continue;

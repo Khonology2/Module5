@@ -8,6 +8,6 @@ class AdminSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SettingsScreen();
+    return const SettingsScreen(adminPortalExport: true);
   }
 }
