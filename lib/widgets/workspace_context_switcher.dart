@@ -52,6 +52,84 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
     }
   }
 
+  TextStyle _labelStyle({
+    required Color color,
+    required FontWeight weight,
+    required double fontSize,
+  }) {
+    return AppTypography.bodySmall.copyWith(
+      color: color,
+      fontWeight: weight,
+      fontSize: fontSize,
+      height: 1.15,
+    );
+  }
+
+  /// Red pill — width follows the label only (intrinsic), not the full sidebar.
+  Widget _pillSegment({
+    required String label,
+    required Color textColor,
+    required bool isActive,
+    required double fontSize,
+    required double padH,
+    required double padV,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.activeColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            softWrap: false,
+            style: _labelStyle(
+              color: textColor,
+              weight: isActive ? FontWeight.w600 : FontWeight.w400,
+              fontSize: fontSize,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Inactive label — intrinsic width; row + [FittedBox] handles fitting.
+  Widget _plainLabel({
+    required String label,
+    required Color textColor,
+    required bool isActive,
+    required double fontSize,
+    required double padH,
+    required double padV,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
+        child: Text(
+          label,
+          maxLines: 1,
+          softWrap: false,
+          style: _labelStyle(
+            color: textColor,
+            weight: isActive ? FontWeight.w600 : FontWeight.w400,
+            fontSize: fontSize,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Rebuild when role stream emits so switcher appears as soon as role loads.

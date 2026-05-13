@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_brace_in_string_interps
+
 import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1540,8 +1542,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       goalDocs: pendingDocs,
                       adminUserId: user.uid,
                     );
-                    if (p != 0) return p;
-                    return b.createdAt.compareTo(a.createdAt);
+                    return _buildInboxListContent(
+                      sourceItems: mergedItems,
+                      user: user,
+                    );
                   },
                 );
               }
@@ -2486,6 +2490,17 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   Color get _glassFieldColor => DashboardChrome.cardFill;
 
+  /// Stream for admin oversight: fetches goals that are pending approval
+  Stream<QuerySnapshot<Map<String, dynamic>>> _adminPendingGoalsStream() {
+    return FirestoreSafe.stream<QuerySnapshot<Map<String, dynamic>>>(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('approvalStatus', isEqualTo: 'pending')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+    );
+  }
+
   Color _getAlertColor(AlertPriority priority) {
     switch (priority) {
       case AlertPriority.low:
@@ -2497,5 +2512,67 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       case AlertPriority.urgent:
         return AppColors.dangerColor;
     }
+  }
+
+  /// Merges pending goal documents with existing alerts to create fallback alerts for admin oversight
+  List<Alert> _mergeAdminPendingGoalFallbackAlerts({
+    required List<Alert> baseItems,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> goalDocs,
+    required String adminUserId,
+  }) {
+    final mergedItems = <Alert>[];
+    final existingGoalIds = baseItems
+        .where((alert) => alert.relatedGoalId != null)
+        .map((alert) => alert.relatedGoalId!)
+        .toSet();
+
+    // Add existing alerts
+    mergedItems.addAll(baseItems);
+
+    // Create fallback alerts for pending goals that don't have corresponding alerts
+    for (final goalDoc in goalDocs) {
+      final goalData = goalDoc.data();
+      final goalId = goalDoc.id;
+      
+      // Skip if we already have an alert for this goal
+      if (existingGoalIds.contains(goalId)) continue;
+
+      final goalTitle = goalData['title']?.toString() ?? 'Untitled Goal';
+      final requestedByUserId = goalData['requestedByUserId']?.toString();
+      final requestedByUserName = goalData['requestedByUserName']?.toString() ?? 'Unknown User';
+      final createdAt = (goalData['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+
+      // Create a fallback alert for the pending goal
+      final fallbackAlert = Alert(
+        id: 'fallback_${goalId}_${adminUserId}',
+        userId: adminUserId,
+        type: AlertType.goalApprovalRequested,
+        audience: AlertAudience.personal,
+        priority: AlertPriority.high,
+        title: 'Pending Goal Approval',
+        message: '$goalTitle - Submitted by $requestedByUserName',
+        actionText: 'Review',
+        actionRoute: null, // Will be handled by the existing goal review flow
+        actionData: {
+          'goalId': goalId,
+          'requestedByUserId': requestedByUserId,
+          'requestedByUserName': requestedByUserName,
+          'isFallback': true,
+        },
+        createdAt: createdAt,
+        isRead: false,
+        isDismissed: false,
+        relatedGoalId: goalId,
+        fromUserId: requestedByUserId,
+        fromUserName: requestedByUserName,
+      );
+
+      mergedItems.add(fallbackAlert);
+    }
+
+    // Sort by creation date (newest first)
+    mergedItems.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    
+    return mergedItems;
   }
 }

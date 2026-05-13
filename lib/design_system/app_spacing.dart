@@ -41,13 +41,16 @@ class AppSpacing {
   /// Card padding with large spacing
   static const EdgeInsets cardPaddingLarge = EdgeInsets.all(xl);
 
-  /// Screen padding
-  static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(xxl, 100, xxl, xxl);
+  /// Insets for scrollable page bodies inside [AppScaffold] / portal shells.
+  ///
+  /// Top is **zero** so content aligns under the fixed [AppContentHeader]; the shell
+  /// already reserves vertical space.
+  static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(xxl, 0, xxl, xxl);
 
-  /// Screen padding for mobile
+  /// Same horizontal rhythm as [screenPadding] with tighter sides for narrow viewports.
   static const EdgeInsets screenPaddingMobile = EdgeInsets.fromLTRB(
     md,
-    80,
+    0,
     md,
     lg,
   );

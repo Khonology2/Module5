@@ -587,57 +587,57 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     onTrack: onTrack,
                   ),
 
-                  const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.lg),
 
-                  if (middleTwoColumns)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            key: _middleLeftKey,
-                            children: [
-                              _buildDailyMotivationCard(),
-                              const SizedBox(height: AppSpacing.md),
-                              _buildRecentActivitiesCard(employees),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
-                          child: _buildQuickActions(
-                            expand: false,
-                            minHeight: _middleLeftHeight,
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    Column(
-                      children: [
-                        _buildDailyMotivationCard(),
-                        const SizedBox(height: AppSpacing.md),
-                        _buildRecentActivitiesCard(employees),
-                        const SizedBox(height: AppSpacing.md),
-                        _buildQuickActions(expand: false),
-                      ],
+              if (middleTwoColumns)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        key: _middleLeftKey,
+                        children: [
+                          _buildDailyMotivationCard(),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildRecentActivitiesCard(employees),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _buildQuickActions(
+                        expand: false,
+                        minHeight: _middleLeftHeight,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  children: [
+                    _buildDailyMotivationCard(),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildRecentActivitiesCard(employees),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildQuickActions(expand: false),
+                  ],
+                ),
 
-                  const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.lg),
 
-                  _buildBottomKpisAndHealth(
-                    metrics,
-                    employees,
-                    maxWidth: width,
-                  ),
+              _buildBottomKpisAndHealth(
+                metrics,
+                employees,
+                maxWidth: width,
+              ),
 
-                  const SizedBox(height: AppSpacing.xxl),
-                ],
-              );
-            },
+              const SizedBox(height: AppSpacing.xxl),
+            ],
           );
-        },
-      ),
+            },
+          ),
+        );
+      },
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1144,7 +1144,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  // _buildWelcomeCard removed (dashboard now uses _buildDashboardHeader).
+  // _buildWelcomeCard removed; portal shell shows title + actions via [AppContentHeader].
 
   Widget _buildDailyMotivationCard() {
     return _card(

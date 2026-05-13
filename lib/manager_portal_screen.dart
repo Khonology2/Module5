@@ -101,8 +101,26 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           AppSpacing.xxl,
         );
       default:
-        return EdgeInsets.zero;
+        return const EdgeInsets.only(top: AppContentHeader.kGapBelowHeader);
     }
+  }
+
+  bool _isDashboardRoute(String route) {
+    return route == '/dashboard' || route == '/manager_gw_menu_dashboard';
+  }
+
+  String _resolveHeaderTitle() {
+    if (_currentRoute == '/dashboard' || _currentRoute == '/manager_gw_menu_dashboard') {
+      return 'Manager Dashboard';
+    }
+    final allItems = <SidebarItem>[
+      ...SidebarConfig.managerWorkspaceItems,
+      ...SidebarConfig.managerMyWorkspaceItems,
+      ...SidebarConfig.globalItems,
+    ];
+    final match = allItems.where((item) => item.route == _currentRoute);
+    if (match.isNotEmpty) return match.first.label;
+    return 'Workspace';
   }
 
   bool _shouldShowPortalTopActions(String route) {
@@ -124,7 +142,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_profile':
         return const ManagerProfileScreen(embedded: true);
       case '/team_challenges_seasons':
-        return const TeamChallengesSeasonsScreen();
+        return const TeamChallengesSeasonsScreen(embedded: true);
       case '/progress_visuals':
         return const ProgressVisualsScreen(embedded: true);
       case '/manager_alerts_nudges':
@@ -147,7 +165,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/settings':
         return const SettingsScreen();
       case '/manager_review_team_dashboard':
-        return const ManagerReviewTeamDashboardScreen();
+        return const ManagerReviewTeamDashboardScreen(embedded: true);
       // Manager Goal Workspace dropdown – same UI as employee, manager-scoped; body-only to avoid second sidebar
       case '/manager_gw_menu_dashboard':
         return const EmployeeDashboardScreen(

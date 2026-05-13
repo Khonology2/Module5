@@ -13,6 +13,38 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/services/role_service.dart';
 
+/// Full-width hairline for sidebar section separation (no extra vertical spacing).
+Widget _sidebarHairlineDivider({required bool light}) {
+  final Color line = light
+      ? const Color(0x33000000)
+      : Colors.white.withValues(alpha: 0.42);
+  return SizedBox(
+    height: 1,
+    width: double.infinity,
+    child: DecoratedBox(decoration: BoxDecoration(color: line)),
+  );
+}
+
+bool _sidebarRouteIsProfile(String route) {
+  return route == '/my_profile' ||
+      route == '/manager_profile' ||
+      route == '/admin_profile';
+}
+
+bool _sidebarRouteIsSettings(String route) {
+  return route == '/settings' || route == '/admin_settings';
+}
+
+/// Shared style for the two-line welcome block under the sidebar logo (must match exactly).
+TextStyle _sidebarWelcomeSubtitleStyle(Color color) {
+  return AppTypography.bodySmall.copyWith(
+    color: color,
+    fontWeight: FontWeight.w600,
+    fontSize: 11,
+    height: 1.15,
+  );
+}
+
 /// Light palette for the nav rail (white panel, black labels), driven by
 /// [employeeDashboardLightModeNotifier] with the employee dashboard light toggle.
 class _SidebarLightMode extends InheritedWidget {
@@ -419,12 +451,13 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
 
     // Expanded header needs room for logo + welcome text (fixed height was causing
     // RenderFlex overflow on web when text wrapped to two lines).
+    // Slightly taller logo slot when expanded so panoramic `khono.png` wordmark scales cleanly.
     final double headerHeight = collapsed
         ? (isUltraCompact ? 52.0 : 64.0)
-        : (isVeryCompact ? 84.0 : 102.0);
+        : (isVeryCompact ? 90.0 : 108.0);
     final double logoBoxHeight = collapsed
         ? (isUltraCompact ? 52.0 : 64.0)
-        : (isVeryCompact ? 42.0 : 52.0);
+        : (isVeryCompact ? 48.0 : 56.0);
 
     return Container(
       height: headerHeight,
@@ -449,6 +482,9 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
               24.0,
               math.min(targetWidth, availableWidth - 16.0),
             );
+            final double dpr = MediaQuery.devicePixelRatioOf(context);
+            final int decodeWidth =
+                (clampedWidth * dpr).round().clamp(120, 900);
 
             return Column(
               mainAxisAlignment: MainAxisAlignment.start,
@@ -463,47 +499,48 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                     curve: Curves.easeInOut,
                     alignment: Alignment.center,
                     child: Image.asset(
-                      'assets/Red_Khono_Discs.png',
+                      'assets/khono.png',
                       fit: BoxFit.contain,
-                      filterQuality: FilterQuality.low,
-                      // Scale decode near the rendered size for perf
-                      cacheWidth: 300,
-                      errorBuilder: (context, error, stack) =>
-                          const SizedBox.shrink(),
+                      alignment: Alignment.center,
+                      filterQuality: FilterQuality.medium,
+                      cacheWidth: decodeWidth,
+                      errorBuilder: (context, error, stack) => Icon(
+                        Icons.broken_image_outlined,
+                        size: math.min(logoBoxHeight * 0.45, 28),
+                        color: welcomeTextColor.withValues(alpha: 0.45),
+                      ),
                     ),
                   ),
                 ),
                 if (!collapsed) ...[
                   const SizedBox(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                      'Welcome',
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.bodySmall.copyWith(
-                            color: welcomeTextColor,
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
+                  // Nudge the welcome block up so it sits closer under the logo
+                  // without changing centered logo alignment in the slot above.
+                  Transform.translate(
+                    offset: const Offset(0, -12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Welcome to',
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _sidebarWelcomeSubtitleStyle(welcomeTextColor),
                           ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          'Personal Development Hub',
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.bodySmall.copyWith(
-                            color: welcomeTextColor,
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
+                          const SizedBox(height: 3),
+                          Text(
+                            'Personal Development Hub',
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: _sidebarWelcomeSubtitleStyle(welcomeTextColor),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],

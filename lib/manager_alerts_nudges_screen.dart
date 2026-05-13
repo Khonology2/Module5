@@ -78,7 +78,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   
   
   /// Which supervision alert sections are expanded (Show All). Key: section id.
-  Map<String, bool> _supervisionSectionExpanded = <String, bool>{};
+  final Map<String, bool> _supervisionSectionExpanded = <String, bool>{};
 
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
   final bool _showNudgeTrend = true;
@@ -974,7 +974,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
               if (goal.progress >= 100) continue;
               if (goal.status == GoalStatus.completed || 
                   goal.status == GoalStatus.acknowledged ||
-                  goal.status == GoalStatus.paused) continue;
+                  goal.status == GoalStatus.paused) {
+                continue;
+              }
               
               final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
               if (!seenAlertIds.add(id)) continue;
@@ -1748,7 +1750,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             if (goal.progress >= 100) continue;
             if (goal.status == GoalStatus.completed || 
                 goal.status == GoalStatus.acknowledged ||
-                goal.status == GoalStatus.paused) continue;
+                goal.status == GoalStatus.paused) {
+              continue;
+            }
             
             final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
             if (!seenAlertIds.add(id)) continue;
