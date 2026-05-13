@@ -14,11 +14,15 @@ class AppContentHeader extends StatelessWidget {
     this.backgroundColor,
   });
 
+  /// Height of the title / actions row inside the header strip.
   static const double kHeaderHeight = 64;
 
-  /// Space between the fixed header strip and the scrollable page body.
-  /// Shells combine this with [kHeaderHeight] for content insets (not scroll padding).
+  /// Breathing room below the title row, **painted with the same color** as the header
+  /// so shells do not show a transparent band (often reads as white over the canvas).
   static const double kGapBelowHeader = AppSpacing.lg;
+
+  /// Total height of the fixed header widget (row + gap). Shell top padding should match.
+  static const double kTotalHeaderHeight = kHeaderHeight + kGapBelowHeader;
 
   final String title;
   final Widget actions;
@@ -40,45 +44,56 @@ class AppContentHeader extends StatelessWidget {
     final Color headerBg = backgroundColor ?? DashboardChrome.cardFill;
 
     return SizedBox(
-      height: kHeaderHeight,
+      height: kTotalHeaderHeight,
       child: ColoredBox(
         color: headerBg,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Row(
-            children: [
-              Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: kHeaderHeight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Row(
                   children: [
-                    Flexible(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.heading3.copyWith(color: textColor),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.heading3.copyWith(
+                                color: textColor,
+                              ),
+                            ),
+                          ),
+                          if (showGreeting) ...[
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Text(
+                                'Hello, ${_resolveUserName()}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: textColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                    if (showGreeting) ...[
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          'Hello, ${_resolveUserName()}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: textColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
+                    const SizedBox(width: 12),
+                    actions,
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              actions,
-            ],
-          ),
+            ),
+            SizedBox(height: kGapBelowHeader, child: const SizedBox.shrink()),
+          ],
         ),
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/services/timeline_service.dart';
 import 'package:pdh/models/audit_timeline_event.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class AuditTimelineWidget extends StatelessWidget {
   final String goalId;
@@ -39,7 +40,7 @@ class AuditTimelineWidget extends StatelessWidget {
       stream: TimelineService.getTimelineStream(goalId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const CustomLogoLoader(centerInViewport: true);
         }
         final events = snapshot.data ?? const <AuditTimelineEvent>[];
         if (events.isEmpty) {

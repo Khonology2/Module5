@@ -5,6 +5,7 @@ import '../design_system/app_colors.dart';
 import '../design_system/app_typography.dart';
 import '../design_system/app_spacing.dart';
 import '../services/unified_milestone_audit.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class MilestoneAuditScreen extends StatefulWidget {
   const MilestoneAuditScreen({super.key});
@@ -138,13 +139,7 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
         stream: UnifiedMilestoneAudit.getAllMilestoneAuditStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
-            );
+            return const CustomLogoLoader(centerInViewport: true);
           }
 
           if (snapshot.hasError) {
@@ -277,13 +272,7 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
         ),
       ),
       child: _isLoadingCounts
-          ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
-            )
+          ? CustomLogoLoader(centerInViewport: true)
           : SingleChildScrollView(
               padding: AppSpacing.screenPadding,
               child: Column(

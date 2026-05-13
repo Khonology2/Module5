@@ -20,6 +20,8 @@ import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/widgets/badge_celebration_dialog.dart';
 import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
+import 'package:pdh/widgets/branded_refresh_indicator.dart';
 
 class ManagerBadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -297,11 +299,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       initialData: const [],
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         final allBadges = (snapshot.data ?? const <badge_model.Badge>[])
@@ -466,11 +464,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       stream: ManagerRealtimeService.getManagersDataStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
         if (snapshot.hasError) {
           return Center(
@@ -591,7 +585,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   });
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const CustomLogoLoader(centerInViewport: true);
                 }
                 if (!snapshot.hasData) {
                   return Center(
@@ -607,7 +601,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   );
                 }
 
-                return RefreshIndicator(
+                return BrandedRefreshIndicator(
                   onRefresh: () async {
                     await ManagerBadgeEvaluator.evaluate(manager.uid);
                     await SeasonService.syncCurrentManagerSeasonPoints();

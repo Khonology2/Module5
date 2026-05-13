@@ -13,6 +13,8 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
+import 'package:pdh/widgets/branded_refresh_indicator.dart';
 
 enum LeaderboardFilter {
   thisMonth,
@@ -658,7 +660,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       leaderboardData = _lastLeaderboardData;
                     }
 
-                    return RefreshIndicator(
+                    return BrandedRefreshIndicator(
                       onRefresh: () async {
                         await _ensureUsersFetched(force: true);
                         await _ensureOnboardingFetched(force: true);
@@ -1660,11 +1662,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-          ),
-        ),
+        builder: (context) => const CustomLogoLoader(centerInViewport: true),
       );
     }
 

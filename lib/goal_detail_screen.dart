@@ -21,6 +21,7 @@ import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/alert.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class GoalDetailScreen extends StatefulWidget {
   final Goal goal;
@@ -265,7 +266,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CustomLogoLoaderInline(),
                         )
                       : const Icon(Icons.send),
                   label: Text(submitting ? 'Submitting...' : 'Submit Final Review'),
@@ -1252,12 +1253,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
+                          child: CustomLogoLoaderInline(),
                         )
                       : const Icon(Icons.send),
                   label: Text(
@@ -1329,10 +1325,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
+                      child: CustomLogoLoaderInline(),
                     )
                   : const Icon(Icons.play_arrow),
               label: Text(
@@ -1362,10 +1355,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
+                      child: CustomLogoLoaderInline(),
                     )
                   : const Icon(Icons.check_circle),
               label: Text(
@@ -1645,7 +1635,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 return const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
-                    child: CircularProgressIndicator(),
+                    child: CustomLogoLoader(),
                   ),
                 );
               }
@@ -2027,7 +2017,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CustomLogoLoaderInline(),
                         )
                       : Text(
                           milestone == null
@@ -2488,7 +2478,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CustomLogoLoaderInline(),
                     )
                   : const Text('Submit Evidence'),
             ),
@@ -2811,7 +2801,7 @@ class _GoalMilestoneTile extends StatelessWidget {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CustomLogoLoaderInline(),
                       )
                     : const Text('Upload'),
               ),

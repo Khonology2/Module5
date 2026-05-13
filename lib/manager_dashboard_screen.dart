@@ -22,6 +22,7 @@ import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/header_action_icons.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
@@ -506,13 +507,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             }
             return SizedBox(
               height: 360,
-              child: const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.activeColor,
-                  ),
-                ),
-              ),
+              child: const CustomLogoLoader(centerInViewport: true),
             );
           }
           final employees = employeesSnap.data!;
@@ -1345,7 +1340,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             stream: SeasonService.getManagerSeasonsStream(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const CustomLogoLoader(centerInViewport: true);
               }
 
               if (snapshot.hasError || !snapshot.hasData) {
