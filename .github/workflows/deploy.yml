@@ -83,6 +83,12 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Regenerate bundled version JSON (must match flutter build web)
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        run: |
+          set -euo pipefail
+          bash tool/gen_daily_commits_json.sh
+
       - name: Analyze
         run: flutter analyze
 
@@ -135,15 +141,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Safety: CI must not mutate tracked files outside build/web (e.g. pubspec.lock).
-          if [ -n "$(git status --porcelain -- . ':!build/web')" ]; then
-            echo "::error::Working tree has changes outside build/web after build steps. Refusing to deploy."
-            git status --porcelain -- . ':!build/web' || true
+          # Safety: CI must not mutate tracked files outside build/web and the version asset.
+          if [ -n "$(git status --porcelain -- . ':!build/web' ':!assets/data/daily-commits.json')" ]; then
+            echo "::error::Working tree has changes outside build/web and assets/data/daily-commits.json after build steps. Refusing to deploy."
+            git status --porcelain -- . ':!build/web' ':!assets/data/daily-commits.json' || true
             exit 1
           fi
 
-          # build/ is typically gitignored in Flutter projects; force-add only the built web bundle.
-          git add -f build/web
+          # build/ is typically gitignored in Flutter projects; force-add the web bundle. Version label is bundled from assets/data/daily-commits.json.
+          git add -f build/web assets/data/daily-commits.json
           if git diff --staged --quiet; then
             echo "No build/web changes to commit"
           else
@@ -423,6 +429,10 @@ jobs:
 
             echo "### App version"
             echo "- **pubspec.yaml version**: \`${APP_VERSION}\`"
+            if [ -f "assets/data/daily-commits.json" ]; then
+              BUNDLE_VER="$(jq -r .version assets/data/daily-commits.json 2>/dev/null || echo unknown)"
+              echo "- **Bundled SIT version (assets/data/daily-commits.json)**: \`${BUNDLE_VER}\`"
+            fi
             echo ""
 
             echo "### Toolchain"

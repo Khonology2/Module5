@@ -49,49 +49,11 @@ jobs:
       - name: Generate daily commits JSON and job summary
         run: |
           set -euo pipefail
+          bash tool/gen_daily_commits_json.sh
 
-          TODAY=$(date -u +"%Y-%m-%d")
-          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-          COMMITS_JSON=$(git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | \
-            jq -R -s '
-              split("\n") |
-              map(select(length > 0)) |
-              map(split("|") | {author: .[0], message: .[1], timestamp: .[2]})
-            ')
-
-          COMMIT_COUNT=$(git log --since="${TODAY}T00:00:00Z" --oneline --no-merges | wc -l)
-          COMMIT_COUNT=$(echo "$COMMIT_COUNT" | tr -d ' ')
-
-          if [ "$COMMIT_COUNT" -eq 0 ]; then
-            COMMITS_JSON="[]"
-            COMMIT_COUNT=0
-          fi
-
-          YEAR=$(date -u +"%Y")
-          MONTH=$(date -u +"%m")
-          DAY=$(date -u +"%d")
-
-          WEEK_OF_MONTH=$(( (10#$DAY - 1) / 7 + 1 ))
-          WEEK_LETTER=$(echo "ABCD" | cut -c$(( (WEEK_OF_MONTH - 1) % 4 + 1 )))
-
-          VERSION="${YEAR}.${MONTH}.${WEEK_LETTER}B${COMMIT_COUNT}.SIT"
-
-          jq -n \
-            --arg version "$VERSION" \
-            --arg generated_at "$TIMESTAMP" \
-            --argjson commits "$COMMITS_JSON" \
-            --arg total_commits "$COMMIT_COUNT" \
-            --arg date_range "$TODAY" \
-            '{
-              version: $version,
-              generated_at: $generated_at,
-              commits: $commits,
-              total_commits: ($total_commits | tonumber),
-              date_range: $date_range
-            }' > assets/data/daily-commits.json
-
-          echo "Generated commit data for $TODAY with $COMMIT_COUNT commits"
+          VERSION="$(jq -r .version assets/data/daily-commits.json)"
+          COMMIT_COUNT="$(jq -r .total_commits assets/data/daily-commits.json)"
+          VERSION_SHORT="${VERSION%.SIT}"
 
           # --- Feature commit / commits since last feat (conventional commits) ---
           HEAD_SUBJECT=$(git log -1 --pretty=%s)
@@ -112,9 +74,6 @@ jobs:
             COMMITS_SINCE_FEATURE=$(git rev-list --count HEAD 2>/dev/null || echo "0")
           fi
 
-          # Short label for summary (matches common display: YYYY.MM.<week+build> without .SIT)
-          VERSION_SHORT="${YEAR}.${MONTH}.${WEEK_LETTER}B${COMMIT_COUNT}"
-
           {
             echo "## update-version summary"
             echo ""
@@ -127,7 +86,7 @@ jobs:
             echo "- **Commits since feature:** ${COMMITS_SINCE_FEATURE}"
             echo "- **Commits today (UTC):** ${COMMIT_COUNT}"
             echo ""
-            echo "_Job summary generated at run-time._"
+            echo "_Job summary uses the same file written to \`assets/data/daily-commits.json\`._"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify JSON is valid
