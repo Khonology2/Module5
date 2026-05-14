@@ -60,6 +60,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/agent_debug_log.dart';
 import 'dart:ui' as ui;
 
 final GlobalKey<NavigatorState> navigatorKey =
@@ -316,7 +317,6 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return ShowCaseWidget(
       builder: (context) => _GlobalChatbotWrapper(
-        currentRouteNotifier: currentRouteNotifier,
         child: ValueListenableBuilder<Locale?>(
           valueListenable: appLocaleNotifier,
           builder: (context, locale, _) {
@@ -363,10 +363,70 @@ class _MyAppState extends State<MyApp> {
                 // `WidgetOrderTraversalPolicy` queries semantic bounds before layout
                 // (e.g. `RenderTapRegionSurface was not laid out`), which causes a full
                 // page reload. Disable the global traversal group on web.
-                if (kIsWeb) return child;
-                return FocusTraversalGroup(
-                  policy: WidgetOrderTraversalPolicy(),
-                  child: child,
+                final Widget core = kIsWeb
+                    ? child
+                    : FocusTraversalGroup(
+                        policy: WidgetOrderTraversalPolicy(),
+                        child: child,
+                      );
+                // Chat FABs must live *inside* MaterialApp so they share layout/hit-test
+                // order with the Navigator. A Stack wrapping the entire MaterialApp
+                // caused web hit-tests on `_ScaffoldSlot.floatingActionButton` before layout.
+                //
+                // [StackFit.expand] alone is not enough: the builder can still receive a
+                // parent with unbounded max width, so [Positioned] only on right/bottom
+                // leaves the FAB [Row] with maxWidth=infinity → "BoxConstraints forces an
+                // infinite width". Clamp to the view size so the overlay stack is always
+                // finite on both axes.
+                final viewSize = MediaQuery.sizeOf(context);
+                // #region agent log
+                agentDebugLog(
+                  hypothesisId: 'I',
+                  location: 'main.dart:MaterialApp.builder',
+                  message: 'overlay_clamped_size',
+                  data: {'w': viewSize.width, 'h': viewSize.height},
+                );
+                // #endregion
+                return SizedBox(
+                  width: viewSize.width,
+                  height: viewSize.height,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    clipBehavior: Clip.none,
+                    textDirection: TextDirection.ltr,
+                    children: [
+                      core,
+                      // [Positioned] with only [right]/[bottom] leaves maxWidth unbounded
+                      // for the child, which breaks [Row]/[SizeTransition] in the chat FAB.
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 20,
+                        child: Align(
+                          alignment: Alignment.bottomRight,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 20),
+                            child: Directionality(
+                              textDirection: TextDirection.ltr,
+                              child: ValueListenableBuilder<String?>(
+                                valueListenable: currentRouteNotifier,
+                                builder: (context, currentRoute, _) {
+                                  if (kIsWeb) {
+                                    return _WebDeferredChatFabHost(
+                                      route: currentRoute,
+                                    );
+                                  }
+                                  return ChatFloatingActionButtons(
+                                    currentRoute: currentRoute,
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               },
               onGenerateRoute: (settings) {
@@ -684,11 +744,9 @@ class _MyAppState extends State<MyApp> {
 
 class _GlobalChatbotWrapper extends StatefulWidget {
   final Widget child;
-  final ValueNotifier<String?> currentRouteNotifier;
 
   const _GlobalChatbotWrapper({
     required this.child,
-    required this.currentRouteNotifier,
   });
 
   @override
@@ -717,27 +775,107 @@ class _GlobalChatbotWrapperState extends State<_GlobalChatbotWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      textDirection: TextDirection.ltr,
-      children: [
-        widget.child,
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: ValueListenableBuilder<String?>(
-            valueListenable: widget.currentRouteNotifier,
-            builder: (context, currentRoute, _) {
-              return ChatFloatingActionButtons(currentRoute: currentRoute);
-            },
-          ),
-        ),
-      ],
+    // #region agent log
+    agentDebugLog(
+      hypothesisId: 'F',
+      location: 'main.dart:_GlobalChatbotWrapperState.build',
+      message: 'global_shell_pass_through',
+      data: {
+        'route': currentRouteNotifier.value,
+        'vw': MediaQuery.sizeOf(context).width,
+        'vh': MediaQuery.sizeOf(context).height,
+      },
     );
+    // #endregion
+    return widget.child;
+  }
+}
+
+/// On web, mounting [ChatFloatingActionButtons] in the same frame as a route
+/// that introduces a new [Scaffold] correlated with FAB hit-test errors and
+/// `mouse_tracker` reentrancy; skip two frames when the FAB first becomes visible.
+class _WebDeferredChatFabHost extends StatefulWidget {
+  final String? route;
+
+  const _WebDeferredChatFabHost({required this.route});
+
+  @override
+  State<_WebDeferredChatFabHost> createState() =>
+      _WebDeferredChatFabHostState();
+}
+
+class _WebDeferredChatFabHostState extends State<_WebDeferredChatFabHost> {
+  bool _holdOneFrame = false;
+  Object? _holdSeq;
+
+  static bool _fabVisible(String? route) =>
+      route != null &&
+      !ChatFloatingActionButtons.fabHiddenRouteNames.contains(route);
+
+  void _scheduleHoldIfNeeded(String? route, String? oldRoute) {
+    if (!_fabVisible(route)) {
+      _holdOneFrame = false;
+      _holdSeq = null;
+      return;
+    }
+    final oldVisible = oldRoute != null && _fabVisible(oldRoute);
+    if (oldVisible) {
+      return;
+    }
+    _holdOneFrame = true;
+    final seq = Object();
+    _holdSeq = seq;
+    // #region agent log
+    agentDebugLog(
+      hypothesisId: 'G',
+      location: 'main.dart:_WebDeferredChatFabHost',
+      message: 'web_fab_defer_one_frame',
+      data: {'route': route, 'oldRoute': oldRoute},
+    );
+    // #endregion
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _holdSeq != seq) return;
+      // One frame was not always enough for scaffold + FAB slot to settle on web.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _holdSeq != seq) return;
+        setState(() => _holdOneFrame = false);
+      });
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleHoldIfNeeded(widget.route, null);
+  }
+
+  @override
+  void didUpdateWidget(covariant _WebDeferredChatFabHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _scheduleHoldIfNeeded(widget.route, oldWidget.route);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_holdOneFrame) {
+      return const SizedBox.shrink();
+    }
+    return ChatFloatingActionButtons(currentRoute: widget.route);
   }
 }
 
 /// Single FAB that expands to show Chatbot and Team Chat actions.
 class ChatFloatingActionButtons extends StatefulWidget {
+  /// Route names where the global chat FAB must not appear (auth, landing, etc.).
+  static const Set<String> fabHiddenRouteNames = {
+    '/',
+    '/landing',
+    '/register',
+    '/sign_in',
+    '/ai_chatbot',
+    '/team_chats',
+  };
+
   final String? currentRoute;
 
   const ChatFloatingActionButtons({super.key, this.currentRoute});
@@ -752,15 +890,6 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
   bool _expanded = false;
   late AnimationController _animationController;
   late Animation<double> _expandAnimation;
-
-  static const Set<String> _hiddenRoutes = {
-    '/',
-    '/landing',
-    '/register',
-    '/sign_in',
-    '/ai_chatbot',
-    '/team_chats',
-  };
 
   @override
   void initState() {
@@ -808,104 +937,114 @@ class _ChatFloatingActionButtonsState extends State<ChatFloatingActionButtons>
   @override
   Widget build(BuildContext context) {
     final route = widget.currentRoute;
-    if (route == null || _hiddenRoutes.contains(route)) {
+    // #region agent log
+    agentDebugLog(
+      hypothesisId: 'B',
+      location: 'main.dart:ChatFloatingActionButtons.build',
+      message: 'chat_fab_visibility',
+      data: {
+        'route': route,
+        'hidden':
+            route == null ||
+                ChatFloatingActionButtons.fabHiddenRouteNames.contains(route),
+      },
+    );
+    // #endregion
+    if (route == null ||
+        ChatFloatingActionButtons.fabHiddenRouteNames.contains(route)) {
       return const SizedBox.shrink();
     }
 
     const double miniFabSize = 48.0;
     const double spacing = 12.0;
 
-    return Positioned(
-      bottom: 20,
-      right: 20,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Expanded child buttons (open leftward from the bottom-right dropdown).
-          SizeTransition(
-            sizeFactor: _expandAnimation,
-            axis: Axis.horizontal,
-            axisAlignment: 1,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(width: spacing),
-                ValueListenableBuilder<bool>(
-                  valueListenable: employeeDashboardLightModeNotifier,
-                  builder: (context, light, _) {
-                    return _MiniFab(
-                      size: miniFabSize,
-                      onTap: () {
-                        employeeDashboardLightModeNotifier.value = !light;
-                      },
-                      child: Icon(
-                        light
-                            ? Icons.dark_mode_outlined
-                            : Icons.light_mode_outlined,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                      backgroundColor: AppColors.activeColor,
-                    );
-                  },
-                ),
-                const SizedBox(width: spacing),
-                _MiniFab(
-                  size: miniFabSize,
-                  onTap: _openTeamChat,
-                  child: Image.asset(
-                    'assets/Team_Meeting/Team.png',
-                    width: 28,
-                    height: 28,
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.high,
-                    // ignore: unnecessary_underscores
-                    errorBuilder: (_, _, _) =>
-                        const Icon(Icons.chat, color: Colors.white, size: 24),
-                  ),
-                  backgroundColor: AppColors.activeColor,
-                ),
-                const SizedBox(width: spacing),
-                _MiniFab(
-                  size: miniFabSize,
-                  onTap: _openChatbot,
-                  child: Image.asset(
-                    'assets/AI_Red.png',
-                    width: 28,
-                    height: 28,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.smart_toy,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Expanded child buttons (open leftward from the bottom-right dropdown).
+        SizeTransition(
+          sizeFactor: _expandAnimation,
+          axis: Axis.horizontal,
+          axisAlignment: 1,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(width: spacing),
+              ValueListenableBuilder<bool>(
+                valueListenable: employeeDashboardLightModeNotifier,
+                builder: (context, light, _) {
+                  return _MiniFab(
+                    size: miniFabSize,
+                    onTap: () {
+                      employeeDashboardLightModeNotifier.value = !light;
+                    },
+                    child: Icon(
+                      light
+                          ? Icons.dark_mode_outlined
+                          : Icons.light_mode_outlined,
                       color: Colors.white,
                       size: 24,
                     ),
+                    backgroundColor: AppColors.activeColor,
+                  );
+                },
+              ),
+              const SizedBox(width: spacing),
+              _MiniFab(
+                size: miniFabSize,
+                onTap: _openTeamChat,
+                child: Image.asset(
+                  'assets/Team_Meeting/Team.png',
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  // ignore: unnecessary_underscores
+                  errorBuilder: (_, _, _) =>
+                      const Icon(Icons.chat, color: Colors.white, size: 24),
+                ),
+                backgroundColor: AppColors.activeColor,
+              ),
+              const SizedBox(width: spacing),
+              _MiniFab(
+                size: miniFabSize,
+                onTap: _openChatbot,
+                child: Image.asset(
+                  'assets/AI_Red.png',
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.smart_toy,
+                    color: Colors.white,
+                    size: 24,
                   ),
-                  backgroundColor: Colors.white,
                 ),
-                const SizedBox(width: spacing),
-              ],
-            ),
+                backgroundColor: Colors.white,
+              ),
+              const SizedBox(width: spacing),
+            ],
           ),
-          const SizedBox(width: spacing),
-          // Main dropdown – arrow icon only, no background
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _toggleExpanded,
-              borderRadius: BorderRadius.circular(24),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Icon(
-                  _expanded ? Icons.arrow_left_rounded : Icons.arrow_drop_down,
-                  color: Colors.white,
-                  size: 32,
-                ),
+        ),
+        const SizedBox(width: spacing),
+        // Main dropdown – arrow icon only, no background
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _toggleExpanded,
+            borderRadius: BorderRadius.circular(24),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Icon(
+                _expanded ? Icons.arrow_left_rounded : Icons.arrow_drop_down,
+                color: Colors.white,
+                size: 32,
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -955,17 +1094,50 @@ class _MiniFab extends StatelessWidget {
 class MyNavigatorObserver extends NavigatorObserver {
   @override
   void didPush(Route route, Route? previousRoute) {
+    // #region agent log
+    agentDebugLog(
+      hypothesisId: 'E',
+      location: 'main.dart:MyNavigatorObserver.didPush',
+      message: 'nav_push',
+      data: {
+        'pushed': route.settings.name,
+        'previous': previousRoute?.settings.name,
+      },
+    );
+    // #endregion
     currentRouteNotifier.value = route.settings.name;
   }
 
   @override
   void didReplace({Route? newRoute, Route? oldRoute}) {
+    // #region agent log
+    agentDebugLog(
+      hypothesisId: 'E',
+      location: 'main.dart:MyNavigatorObserver.didReplace',
+      message: 'nav_replace',
+      data: {
+        'newRoute': newRoute?.settings.name,
+        'oldRoute': oldRoute?.settings.name,
+      },
+    );
+    // #endregion
     currentRouteNotifier.value = newRoute?.settings.name;
   }
 
   // ADDITIONAL CONFLICT TEST: This method will conflict with MAIN branch
   @override
   void didRemove(Route route, Route? previousRoute) {
+    // #region agent log
+    agentDebugLog(
+      hypothesisId: 'E',
+      location: 'main.dart:MyNavigatorObserver.didRemove',
+      message: 'nav_remove',
+      data: {
+        'removed': route.settings.name,
+        'previous': previousRoute?.settings.name,
+      },
+    );
+    // #endregion
     currentRouteNotifier.value = previousRoute?.settings.name;
     // Added extra logging for conflict testing
     debugPrint('Route removed: ${route.settings.name}');
@@ -976,6 +1148,17 @@ class MyNavigatorObserver extends NavigatorObserver {
 
   @override
   void didPop(Route route, Route? previousRoute) {
+    // #region agent log
+    agentDebugLog(
+      hypothesisId: 'E',
+      location: 'main.dart:MyNavigatorObserver.didPop',
+      message: 'nav_pop',
+      data: {
+        'popped': route.settings.name,
+        'previous': previousRoute?.settings.name,
+      },
+    );
+    // #endregion
     currentRouteNotifier.value = previousRoute?.settings.name;
   }
 }

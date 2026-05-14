@@ -9,9 +9,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/widgets/version_control_widget.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
-/// Set to true to show the token input field and Login button on the landing screen.
+/// Set to true to show the token field, Login, and Proceed (to sign-in) on the landing screen.
 /// Set to false to hide them (e.g. when using only URL-based token flow).
-const bool kShowTokenLoginUI = false;
+const bool kShowTokenLoginUI = true;
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -721,6 +721,36 @@ class _PersonalDevelopmentHubScreenState
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                        child: OutlinedButton(
+                          onPressed: _isProcessingButton
+                              ? null
+                              : () {
+                                  if (!mounted) return;
+                                  Navigator.of(context).pushNamed('/sign_in');
+                                },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _solidTextColor,
+                            side: BorderSide(
+                              color: _solidTextColor.withAlpha(140),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Proceed',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: _solidTextColor,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 32),

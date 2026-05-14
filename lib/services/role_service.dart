@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/services/token_auth_service.dart';
+import 'package:pdh/agent_debug_log.dart';
 
 class RoleService {
   RoleService._internal();
@@ -269,12 +270,12 @@ class RoleService {
 
   // Method to ensure role is loaded and cached
   Future<void> ensureRoleLoaded() async {
-    if (_cachedRole == null) {
+    if (_cachedRole != null) return;
+    for (var attempt = 0; attempt < 4 && _cachedRole == null; attempt++) {
       await getRole(refresh: true);
-      // If still null after first attempt, wait a bit and retry (for timing issues)
-      if (_cachedRole == null) {
-        await Future.delayed(const Duration(milliseconds: 500));
-        await getRole(refresh: true);
+      if (_cachedRole != null) return;
+      if (attempt < 3) {
+        await Future.delayed(Duration(milliseconds: 200 * (attempt + 1)));
       }
     }
   }
@@ -310,6 +311,17 @@ class _RoleGateState extends State<RoleGate> {
   Future<void> _initializeRole() async {
     // Ensure role is loaded before showing the stream
     await RoleService.instance.ensureRoleLoaded();
+    // #region agent log
+    agentDebugLog(
+      hypothesisId: 'C',
+      location: 'role_service.dart:_RoleGateState._initializeRole',
+      message: 'role_gate_init_done',
+      data: {
+        'required': widget.requiredRole.name,
+        'cachedRole': RoleService.instance.cachedRole,
+      },
+    );
+    // #endregion
     if (mounted) {
       setState(() {
         _isInitializing = false;
@@ -319,6 +331,18 @@ class _RoleGateState extends State<RoleGate> {
 
   @override
   Widget build(BuildContext context) {
+    // #region agent log
+    agentDebugLog(
+      hypothesisId: 'C',
+      location: 'role_service.dart:RoleGate.build',
+      message: 'role_gate_frame',
+      data: {
+        'required': widget.requiredRole.name,
+        'initializing': _isInitializing,
+        'authUid': FirebaseAuth.instance.currentUser?.uid != null,
+      },
+    );
+    // #endregion
     if (_isInitializing) {
       // Do not block employee views during initial role warm-up
       if (widget.requiredRole == RequiredRole.employee ||
@@ -340,7 +364,11 @@ class _RoleGateState extends State<RoleGate> {
           Navigator.pushNamedAndRemoveUntil(context, target, (route) => false);
         }
       });
-      return const SizedBox.shrink();
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFFC10D00)),
+        ),
+      );
     }
 
     return StreamBuilder<String?>(
@@ -402,6 +430,19 @@ class _RoleGateState extends State<RoleGate> {
                 role == 'employee') ||
             (widget.requiredRole == RequiredRole.admin &&
                 RoleService.isAdminPortalRole(role));
+        // #region agent log
+        agentDebugLog(
+          hypothesisId: 'C',
+          location: 'role_service.dart:RoleGate.StreamBuilder',
+          message: 'role_gate_stream',
+          data: {
+            'required': widget.requiredRole.name,
+            'role': role,
+            'conn': snapshot.connectionState.name,
+            'ok': ok,
+          },
+        );
+        // #endregion
         if (ok) return widget.child;
         SchedulerBinding.instance.addPostFrameCallback((_) {
           if (!context.mounted) return;

@@ -62,3 +62,5 @@ untranslated_messages.txt
 # Node dependencies (ignore all nested node_modules, including Firebase functions)
 **/node_modules/
 functions/node_modules/
+
+Personal-Development-Hub-Android_Build/lib/landing_screen.dart

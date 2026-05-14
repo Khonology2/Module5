@@ -411,9 +411,13 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
               ),
             );
 
+            // On narrow viewports [isSmall] we still sit in a [Row] next to an
+            // [Expanded] main pane. [width: double.infinity] is invalid there: the
+            // rail must have a finite width so the row can split space and the
+            // scaffold body can complete layout (avoids web FAB / mouse_tracker).
             final Widget shell = Container(
               width: isSmall
-                  ? double.infinity
+                  ? (72 * _sidebarZoomFactor)
                   : (effectiveCollapsed
                         ? (72 * _sidebarZoomFactor)
                         : _desktopSidebarWidth),

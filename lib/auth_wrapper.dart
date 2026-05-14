@@ -3,6 +3,7 @@ import 'package:pdh/sign_in_screen.dart'; // Import LoginScreen which is the act
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/token_auth_service.dart';
+import 'package:pdh/agent_debug_log.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -24,6 +25,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
 
         final user = snapshot.data;
+        // #region agent log
+        agentDebugLog(
+          hypothesisId: 'C',
+          location: 'auth_wrapper.dart:StreamBuilder',
+          message: 'auth_state',
+          data: {
+            'hasUser': user != null,
+            'tokenUrl': TokenAuthService.hasTokenInCurrentUrl(),
+          },
+        );
+        // #endregion
 
         // If no authenticated user, show the normal login screen
         if (user == null) {
@@ -72,6 +84,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
             final normalized = RoleService.instance.normalizeRoleLabel(role);
             final targetRoute = RoleService.instance.routeForRole(normalized);
+            // #region agent log
+            agentDebugLog(
+              hypothesisId: 'C',
+              location: 'auth_wrapper.dart:FutureBuilder',
+              message: 'auth_wrapper_nav',
+              data: {
+                'rawRole': role,
+                'normalized': normalized,
+                'targetRoute': targetRoute,
+              },
+            );
+            // #endregion
 
             // Navigate after the current frame to avoid build-time navigation
             WidgetsBinding.instance.addPostFrameCallback((_) {
