@@ -31,6 +31,7 @@ import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/services/workspace_context_service.dart';
+import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/app_content_header.dart';
 import 'package:pdh/widgets/header_action_icons.dart';
@@ -297,7 +298,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       if (!mounted) return;
       final screen = _currentRoute;
       final fragment = '/manager_portal?screen=${Uri.encodeComponent(screen)}';
-      if (Uri.base.fragment == fragment) return;
+      if (TokenAuthService.webHashFragmentEquals(fragment)) return;
       final uri = Uri.base.replace(fragment: fragment);
       SystemNavigator.routeInformationUpdated(
         uri: uri,

@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 //import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
@@ -114,6 +115,11 @@ Future<void> _clearFirestoreCache() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Force `/#/...` URLs on web so portal sidebar sync (fragment-based) matches the router
+  // and static hosts (e.g. Render) do not fight path-style history updates.
+  if (kIsWeb) {
+    setUrlStrategy(HashUrlStrategy());
+  }
   await _initializeFirebase();
   // CONFLICT TEST: This line will conflict with MAIN branch
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks

@@ -21,6 +21,7 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_content_header.dart';
 import 'package:pdh/widgets/header_action_icons.dart';
+import 'package:pdh/services/token_auth_service.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -155,7 +156,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
       if (!mounted) return;
       final screen = _currentRoute;
       final fragment = '/admin_portal?screen=${Uri.encodeComponent(screen)}';
-      if (Uri.base.fragment == fragment) return;
+      if (TokenAuthService.webHashFragmentEquals(fragment)) return;
       final uri = Uri.base.replace(fragment: fragment);
       SystemNavigator.routeInformationUpdated(
         uri: uri,

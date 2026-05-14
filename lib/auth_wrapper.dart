@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdh/sign_in_screen.dart'; // Import LoginScreen which is the actual sign-in screen
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/role_service.dart';
@@ -100,6 +101,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
             // Navigate after the current frame to avoid build-time navigation
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
+              if (kIsWeb) {
+                TokenAuthService.stripTokenFromCurrentWebUrl();
+              }
               Navigator.pushReplacementNamed(context, targetRoute);
             });
 

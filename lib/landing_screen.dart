@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/scheduler.dart';
 import 'dart:async'; // For Timer
 import 'package:pdh/services/token_auth_service.dart';
@@ -367,6 +368,9 @@ class _PersonalDevelopmentHubScreenState
               _isCheckingToken = true;
               _isProcessingButton = false;
             });
+            if (kIsWeb) {
+              TokenAuthService.stripTokenFromCurrentWebUrl();
+            }
             _navigateToDashboard(pdhRole);
             return;
           }
