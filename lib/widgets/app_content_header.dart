@@ -12,6 +12,7 @@ class AppContentHeader extends StatelessWidget {
     this.backgroundColor = const Color(0xA6101522),
   });
 
+  /// Height of the title / actions row inside the header strip.
   static const double kHeaderHeight = 64;
 
   final String title;
@@ -32,7 +33,7 @@ class AppContentHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: kHeaderHeight,
+      height: kTotalHeaderHeight,
       child: ColoredBox(
         color: backgroundColor,
         child: Padding(
@@ -42,35 +43,44 @@ class AppContentHeader extends StatelessWidget {
               Expanded(
                 child: Row(
                   children: [
-                    Flexible(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.heading3.copyWith(color: textColor),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.heading3.copyWith(
+                                color: textColor,
+                              ),
+                            ),
+                          ),
+                          if (showGreeting) ...[
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Text(
+                                'Hello, ${_resolveUserName()}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: textColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                    if (showGreeting) ...[
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          'Hello, ${_resolveUserName()}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: textColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
+                    const SizedBox(width: 12),
+                    actions,
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              actions,
-            ],
-          ),
+            ),
+            SizedBox(height: kGapBelowHeader, child: const SizedBox.shrink()),
+          ],
         ),
       ),
     );

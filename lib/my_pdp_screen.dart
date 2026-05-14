@@ -22,6 +22,7 @@ import 'package:pdh/models/audit_entry.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/goal_detail_screen.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 // Drawer removed in favor of persistent sidebar
 
 class MyPdpScreen extends StatefulWidget {
@@ -90,10 +91,7 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
           const SizedBox(
             height: 20,
             width: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
-            ),
+            child: CustomLogoLoaderInline(),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1458,10 +1456,10 @@ class _MyPdpScreenState extends State<MyPdpScreen>
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnap) {
         if (authSnap.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: CustomLogoLoader(),
             ),
           );
         }
@@ -1482,9 +1480,11 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                     }),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: CircularProgressIndicator(),
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: CustomLogoLoader(),
+                      ),
                     );
                   }
                   if (snapshot.hasError) {
@@ -1523,12 +1523,10 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 stream: ManagerRealtimeService.getTeamDataStream(),
                 builder: (context, teamSnap) {
                   if (teamSnap.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.activeColor,
-                        ),
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: CustomLogoLoader(),
                       ),
                     );
                   }
@@ -1586,12 +1584,10 @@ class _MyPdpScreenState extends State<MyPdpScreen>
               }),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.activeColor,
-                      ),
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CustomLogoLoader(),
                     ),
                   );
                 }

@@ -8,6 +8,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/widgets/season_milestone_progress_card.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class SeasonGoalCompletionScreen extends StatefulWidget {
   final String seasonId;
@@ -92,7 +93,7 @@ class _SeasonGoalCompletionScreenState
         elevation: 0,
       ),
       body: _currentUserId == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const CustomLogoLoader(centerInViewport: true)
           : _buildContent(),
     );
   }
@@ -107,7 +108,7 @@ class _SeasonGoalCompletionScreenState
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         if (snapshot.hasError) {
@@ -299,12 +300,7 @@ class _SeasonGoalCompletionScreenState
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
+                          child: CustomLogoLoaderInline(),
                         )
                       : const Icon(Icons.check_circle),
                   label: Text(
@@ -544,7 +540,7 @@ class _SeasonGoalCompletionScreenState
           return const Card(
             child: Padding(
               padding: EdgeInsets.all(AppSpacing.lg),
-              child: Center(child: CircularProgressIndicator()),
+              child: CustomLogoLoader(centerInViewport: true),
             ),
           );
         }

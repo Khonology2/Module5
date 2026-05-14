@@ -9,6 +9,7 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class RarityBadgesListScreen extends StatelessWidget {
   final badge_model.BadgeRarity rarity;
@@ -204,13 +205,7 @@ class RarityBadgesListScreen extends StatelessWidget {
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.activeColor,
-                              ),
-                            ),
-                          );
+                          return const CustomLogoLoader(centerInViewport: true);
                         }
                         final all = (snapshot.data ?? <badge_model.Badge>[])
                           ..removeWhere((b) => b.id == 'init');

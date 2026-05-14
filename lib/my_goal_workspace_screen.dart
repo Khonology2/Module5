@@ -22,6 +22,7 @@ import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/ai_generation_indicator.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 /// Theme-local colors for [MyGoalWorkspaceScreen] (light vs dark surfaces and text).
 class _GoalWorkspacePalette {
@@ -1346,11 +1347,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             elevation: 4,
             child: const Padding(
               padding: EdgeInsets.all(28),
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
+              child: CustomLogoLoader(),
             ),
           ),
         );
@@ -1842,12 +1839,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
+                  child: const CustomLogoLoaderInline(),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

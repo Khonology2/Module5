@@ -9,6 +9,7 @@ import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/season_celebration_screen.dart';
 import 'package:pdh/utils/attachment_opener_io.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class SeasonDetailsScreen extends StatefulWidget {
   final Season season;
@@ -91,13 +92,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           return Scaffold(
             backgroundColor: Colors.transparent,
             body: _buildSeasonBackground(
-              child: const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.activeColor,
-                  ),
-                ),
-              ),
+              child: const CustomLogoLoader(centerInViewport: true),
             ),
           );
         }
@@ -368,7 +363,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+      builder: (_) => const CustomLogoLoader(centerInViewport: true),
     );
     try {
       await SeasonService.recomputeSeasonMetrics(season.id);

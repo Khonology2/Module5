@@ -279,11 +279,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Settings are taking too long to load. Please check your connection and try again.',
                         );
                       }
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.activeColor,
-                        ),
-                      );
+                      return const CustomLogoLoader(centerInViewport: true);
                     }
 
                     // If still null after waiting, try to load default settings or show error
@@ -306,11 +302,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Settings are taking too long to load. Please check your connection and try again.',
                         );
                       }
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.activeColor,
-                        ),
-                      );
+                      return const CustomLogoLoader(centerInViewport: true);
                     }
 
                     // Use StreamBuilder for role, but with initial data to avoid waiting
@@ -2486,12 +2478,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(
               height: 20,
               width: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
+              child: CustomLogoLoaderInline(),
             ),
             const SizedBox(width: 12),
             Expanded(

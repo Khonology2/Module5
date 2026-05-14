@@ -8,6 +8,7 @@ import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class ManagerMilestoneReviewWidget extends StatefulWidget {
   final String goalId;
@@ -373,12 +374,7 @@ class _ManagerMilestoneReviewWidgetState
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
+                                child: CustomLogoLoaderInline(),
                               )
                             : const Icon(Icons.attach_file, size: 16),
                         label: Text(
@@ -475,12 +471,7 @@ class _ManagerMilestoneReviewWidgetState
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
+                          child: CustomLogoLoaderInline(),
                         )
                       : Text(
                           'Acknowledge Completion',

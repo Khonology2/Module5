@@ -27,6 +27,8 @@ import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
+import 'package:pdh/widgets/branded_refresh_indicator.dart';
 
 /// Shared light/dark chrome for progress visuals (matches My Goal Workspace).
 class _ProgressChrome {
@@ -248,19 +250,11 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
         // Only show loading if we truly don't have any data
         if (profileSnapshot.connectionState == ConnectionState.waiting &&
             effectiveProfile == null) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         if (effectiveProfile == null) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         userProfile = effectiveProfile;
@@ -277,7 +271,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
               gradientColors: _ProgressChrome.lightGradient,
               child: EmployeeDashboardThemeScope(
                 light: light,
-                child: RefreshIndicator(
+                child: BrandedRefreshIndicator(
                   onRefresh: () async {
                     setState(() {});
                   },
@@ -1215,11 +1209,7 @@ class _ManagerProgressVisualsContentState
       stream: BadgeService.getUserBadgesStream(user.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         final badges = snapshot.data ?? <badge_model.Badge>[];
@@ -4820,13 +4810,7 @@ class _EmployeeProgressVisualsContentState
             stream: _getUserGoalsStream(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
-                );
+                return const CustomLogoLoader(centerInViewport: true);
               }
 
               if (snapshot.hasError) {
@@ -5673,12 +5657,7 @@ $progressDetails
                 SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
+                  child: const CustomLogoLoaderInline(),
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -6389,12 +6368,7 @@ $progressDetails
               SizedBox(
                 width: 14,
                 height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    AppColors.activeColor,
-                  ),
-                ),
+                child: const CustomLogoLoaderInline(),
               ),
               const SizedBox(width: 8),
               Text(
@@ -6660,7 +6634,7 @@ class GoalTrendDialog extends StatelessWidget {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const SizedBox(
                 height: 260,
-                child: Center(child: CircularProgressIndicator()),
+                child: CustomLogoLoader(centerInViewport: true),
               );
             }
             if (snapshot.hasError) {
@@ -6894,12 +6868,7 @@ class GoalMilestoneAnalyticsCard extends StatelessWidget {
                 SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
+                  child: const CustomLogoLoaderInline(),
                 ),
                 const SizedBox(width: 12),
                 Text(

@@ -33,8 +33,8 @@ import 'package:pdh/services/robust_stream_manager.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:html'
-    as html; // Keep using dart:html for now until migration to package:web is complete
+import 'dart:html' as html; // Keep using dart:html for now until migration to package:web is complete
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class _RepoAuditChrome {
   _RepoAuditChrome._();
@@ -1988,9 +1988,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   Widget _buildAuditEntriesList({required bool isManager}) {
     final entries = getCachedAuditEntries();
     if (!_hasLoadedOnce && _isLoadingMilestones) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.activeColor),
-      );
+      return const CustomLogoLoader(centerInViewport: true);
     }
     if (entries.isEmpty) {
       return _buildEmptyState(isManager: isManager);
@@ -2486,10 +2484,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.activeColor,
-                      ),
+                      child: CustomLogoLoaderInline(),
                     )
                   : const Icon(Icons.refresh, color: AppColors.activeColor),
             ),
@@ -2512,9 +2507,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     if (!_hasLoadedOnce && _isLoadingMilestones) {
       return const Padding(
         padding: EdgeInsets.all(32.0),
-        child: Center(
-          child: CircularProgressIndicator(color: AppColors.activeColor),
-        ),
+        child: CustomLogoLoader(centerInViewport: true),
       );
     }
 

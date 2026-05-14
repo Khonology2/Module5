@@ -23,6 +23,7 @@ import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class ManagerAlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -719,13 +720,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
                 if ((employees.isEmpty) &&
                     snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.activeColor,
-                      ),
-                    ),
-                  );
+                  return const CustomLogoLoader(centerInViewport: true);
                 }
 
                 return _buildMainContent(employees, light);
@@ -840,13 +835,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
-            ),
+            child: CustomLogoLoader(centerInViewport: true),
           );
         }
 
@@ -1668,11 +1657,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       stream: AlertService.getTeamAlertsForManager(manager.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         if (snapshot.hasError) {

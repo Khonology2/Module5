@@ -6,6 +6,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class TeamDetailsScreen extends StatefulWidget {
   final String teamGoalId;
@@ -51,7 +52,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
           }
 
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const CustomLogoLoader(centerInViewport: true);
           }
 
           final teamGoal = snapshot.data!.data() ?? const <String, dynamic>{};

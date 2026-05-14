@@ -11,6 +11,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class EmployeeProfileDetailScreen extends StatefulWidget {
   final String employeeId;
@@ -81,11 +82,7 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
               stream: _getEmployeeProfileStream(),
               builder: (context, profileSnapshot) {
                 if (profileSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                    ),
-                  );
+                  return const CustomLogoLoader(centerInViewport: true);
                 }
 
                 if (profileSnapshot.hasError) {
@@ -442,11 +439,7 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
           stream: ManagerRealtimeService.getEmployeeActivitiesStream(employeeId: widget.employeeId),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                ),
-              );
+              return const CustomLogoLoader(centerInViewport: true);
             }
 
             if (snapshot.hasError) {
@@ -547,11 +540,7 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
           stream: _getEmployeeGoalsStream(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                ),
-              );
+              return const CustomLogoLoader(centerInViewport: true);
             }
 
             if (snapshot.hasError) {

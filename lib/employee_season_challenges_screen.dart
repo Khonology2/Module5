@@ -15,6 +15,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/season_details_screen.dart';
 import 'package:pdh/season_celebration_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class _SeasonChrome {
   _SeasonChrome._();
@@ -243,7 +244,7 @@ class _EmployeeSeasonChallengesScreenState
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         if (snapshot.hasError) {
@@ -282,7 +283,7 @@ class _EmployeeSeasonChallengesScreenState
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         if (snapshot.hasError) {
@@ -316,14 +317,14 @@ class _EmployeeSeasonChallengesScreenState
   Widget _buildCompletedSeasonsTab() {
     final uid = _currentUserId;
     if (uid == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const CustomLogoLoader(centerInViewport: true);
     }
 
     return StreamBuilder<List<Season>>(
       stream: SeasonService.getParticipantSeasonsStream(uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         if (snapshot.hasError) {
@@ -1016,7 +1017,7 @@ class _EmployeeSeasonChallengesScreenState
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
+        builder: (context) => const CustomLogoLoader(centerInViewport: true),
       );
 
       await SeasonService.joinSeason(

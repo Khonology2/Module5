@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:pdh/services/onboarding_service.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class RoleService {
   RoleService._internal();
@@ -393,7 +394,7 @@ class _RoleGateState extends State<RoleGate> {
         return widget.child;
       }
       // Admin and manager see loading until role is resolved
-      return Center(child: CircularProgressIndicator(color: Color(0xFFC10D00)));
+      return CustomLogoLoader(centerInViewport: true);
     }
 
     // Check authentication - either Firebase Auth or token-based
@@ -470,9 +471,7 @@ class _RoleGateState extends State<RoleGate> {
         // employees are allowed through.
         if (isLoading) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
-          return Center(
-            child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-          );
+          return CustomLogoLoader(centerInViewport: true);
         }
 
         if (snapshot.hasError) {
@@ -488,9 +487,7 @@ class _RoleGateState extends State<RoleGate> {
               snapshot.connectionState == ConnectionState.waiting ||
               snapshot.connectionState == ConnectionState.none;
           if (isStillWaiting) {
-            return Center(
-              child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-            );
+            return CustomLogoLoader(centerInViewport: true);
           }
           return widget.unauthorized ?? const _RoleUnknown();
         }

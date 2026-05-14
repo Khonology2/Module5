@@ -11,6 +11,7 @@ import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 Color _categoryAccent(badge_model.BadgeCategory _) => AppColors.activeColor;
 
@@ -281,11 +282,7 @@ class _BadgeCategoryDetailScreenState extends State<BadgeCategoryDetailScreen> {
                             return const Center(
                               child: Padding(
                                 padding: EdgeInsets.all(24),
-                                child: CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    AppColors.activeColor,
-                                  ),
-                                ),
+                                child: CustomLogoLoader(),
                               ),
                             );
                           }

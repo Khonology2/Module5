@@ -12,6 +12,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class UpcomingGoalsListScreen extends StatelessWidget {
   const UpcomingGoalsListScreen({super.key});
@@ -70,13 +71,7 @@ class UpcomingGoalsListScreen extends StatelessWidget {
             stream: _getUpcomingGoalsStream(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
-                );
+                return const CustomLogoLoader(centerInViewport: true);
               }
               final goals = snapshot.data ?? const <Goal>[];
               return AppComponents.backgroundWithImage(

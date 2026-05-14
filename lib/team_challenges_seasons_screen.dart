@@ -10,6 +10,7 @@ import 'package:pdh/season_celebration_screen.dart';
 import 'package:pdh/season_management_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class TeamChallengesSeasonsScreen extends StatefulWidget {
   /// When true, admin is viewing; no employee-specific data.
@@ -365,13 +366,7 @@ class _TeamChallengesSeasonsScreenState
               stream: SeasonService.getManagerSeasonsStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.activeColor,
-                      ),
-                    ),
-                  );
+                  return const CustomLogoLoader(centerInViewport: true);
                 }
 
                 if (snapshot.hasError) {
@@ -501,13 +496,7 @@ class _TeamChallengesSeasonsScreenState
               stream: SeasonService.getManagerSeasonsStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.activeColor,
-                      ),
-                    ),
-                  );
+                  return const CustomLogoLoader(centerInViewport: true);
                 }
 
                 if (snapshot.hasError) {
@@ -619,11 +608,7 @@ class _TeamChallengesSeasonsScreenState
   Widget _buildActiveSeasonsLoading() {
     return SizedBox(
       height: 200,
-      child: Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-        ),
-      ),
+      child: CustomLogoLoader(centerInViewport: true),
     );
   }
 
@@ -1508,7 +1493,7 @@ class _TeamChallengesSeasonsScreenState
                         ? const SizedBox(
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CustomLogoLoaderInline(),
                           )
                         : const Icon(Icons.close_rounded, size: 18),
                     label: const Text('Reject'),
@@ -1528,12 +1513,7 @@ class _TeamChallengesSeasonsScreenState
                         ? const SizedBox(
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
+                            child: CustomLogoLoaderInline(),
                           )
                         : const Icon(Icons.check_rounded, size: 18),
                     label: const Text('Approve'),
@@ -2172,7 +2152,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CustomLogoLoaderInline(),
                     )
                   : const Icon(Icons.add),
               label: Text(_isCreating ? 'Creating...' : 'Create Season'),

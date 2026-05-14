@@ -5,6 +5,7 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/utils/attachment_opener_io.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class SeasonMilestoneProgressCard extends StatefulWidget {
   final Season season;
@@ -246,12 +247,7 @@ class _SeasonMilestoneProgressCardState
                 child: SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
+                  child: const CustomLogoLoaderInline(),
                 ),
               ),
             ),
@@ -402,7 +398,7 @@ class _SeasonMilestoneProgressCardState
                   ? const SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CustomLogoLoaderInline(),
                     )
                   : const Icon(Icons.upload_file, size: 16),
               label: Text(

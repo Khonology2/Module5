@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pdh/sign_in_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -61,7 +62,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             // While role is unknown, keep a loading screen to avoid misrouting
             if (roleSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
+                body: CustomLogoLoader(centerInViewport: true),
               );
             }
 
@@ -96,7 +97,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
             // Temporary placeholder while navigation happens
             return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
+              body: CustomLogoLoader(centerInViewport: true),
             );
           },
         );

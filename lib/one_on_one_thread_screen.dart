@@ -9,6 +9,7 @@ import 'package:pdh/models/one_on_one_meeting.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/one_on_one_meeting_service.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class OneOnOneThreadScreen extends StatefulWidget {
   const OneOnOneThreadScreen({
@@ -649,7 +650,7 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
-                  child: CircularProgressIndicator(color: AppColors.activeColor),
+                  child: CustomLogoLoader(),
                 ),
               ),
             if (primary != null)

@@ -101,7 +101,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           AppSpacing.xxl,
         );
       default:
-        return const EdgeInsets.only(top: AppContentHeader.kGapBelowHeader);
+        return EdgeInsets.zero;
     }
   }
 
