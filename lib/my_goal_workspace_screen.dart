@@ -8,7 +8,6 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
-import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/kpa_excellence_surface.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
@@ -124,7 +123,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   // Dropdown selected values
   String? _goalCategory;
   String? _currentStatus;
-  String? _kpa; // 'operational' | 'customer' | 'financial' | 'organisational' | 'people'
+  String?
+  _kpa; // 'operational' | 'customer' | 'financial' | 'organisational' | 'people'
   String? _customCategory; // For "Other" category custom input
   bool _isOtherCategorySelected = false;
   bool _isSavingGoal = false;
@@ -176,10 +176,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         precacheImage(const AssetImage('assets/khono_bg.png'), context);
-        precacheImage(
-          const AssetImage('assets/light_mode_bg.png'),
-          context,
-        );
+        precacheImage(const AssetImage('assets/light_mode_bg.png'), context);
         precacheImage(
           const AssetImage(
             'Calendar_Date_Picker/Date_Picker_White_Badge_Red.png',
@@ -290,7 +287,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       builder: (context, roleSnapshot) {
         final role =
             roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
-        final items = widget.forManagerGwMenu && widget.managerGwMenuRoute != null
+        final items =
+            widget.forManagerGwMenu && widget.managerGwMenuRoute != null
             ? SidebarConfig.managerItems
             : SidebarConfig.getItemsForRole(role);
         // Get tutorial state from global service (only for employees)
@@ -365,186 +363,179 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             valueListenable: employeeDashboardLightModeNotifier,
             builder: (context, light, _) {
               final gw = _GoalWorkspacePalette.of(context);
-              return AppComponents.backgroundWithImage(
-                blurSigma: 0,
-                imagePath: light ? 'assets/light_mode_bg.png' : 'assets/khono_bg.png',
-                gradientColors: light
-                    ? [
-                        Colors.white.withValues(alpha: 0.2),
-                        Colors.white.withValues(alpha: 0.08),
-                      ]
-                    : null,
-                child: EmployeeDashboardThemeScope(
-                  light: light,
-                  child: Theme(
-                    data: Theme.of(context).copyWith(
-                      outlinedButtonTheme: OutlinedButtonThemeData(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: gw.textPrimary,
-                          side: BorderSide(
-                            color: light
-                                ? const Color(0x66000000)
-                                : Colors.white54,
-                          ),
+              return EmployeeDashboardThemeScope(
+                light: light,
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    outlinedButtonTheme: OutlinedButtonThemeData(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: gw.textPrimary,
+                        side: BorderSide(
+                          color: light
+                              ? const Color(0x66000000)
+                              : Colors.white54,
                         ),
                       ),
                     ),
-                    child: SingleChildScrollView(
-                      padding: AppSpacing.screenPadding,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Create Personal Development Goal',
-                            style: AppTypography.heading2.copyWith(
-                              color: gw.textPrimary,
-                            ),
-                          ),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildSectionCard(
-                    gw,
-                    light,
-                    children: [
-                      _buildTextFieldWithGenerate(
-                        gw,
-                        controller: _goalTitleController,
-                        hintText: 'Enter your development goal title (required)',
-                        onGenerate: () =>
-                            _showGenerateDescriptionDialog(context),
-                      ),
-                      _buildTextField(
-                        gw,
-                        controller: _goalDescriptionController,
-                        hintText: 'Describe your goal in detail (optional)...',
-                        maxLines: 5,
-                      ),
-                    ],
                   ),
-                  const SizedBox(height: AppSpacing.xl),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildSectionHeader('Goal Details', gw),
-                      ElevatedButton.icon(
-                        onPressed:
-                            _goalDescriptionController.text.trim().isEmpty
-                            ? null
-                            : () => _suggestGoalDetails(context),
-                        icon: const Icon(Icons.auto_awesome, size: 18),
-                        label: const Text('Suggest'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.activeColor,
-                          foregroundColor: gw.textPrimary,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+                  child: SingleChildScrollView(
+                    padding: AppSpacing.screenPadding,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Create Personal Development Goal',
+                          style: AppTypography.heading2.copyWith(
+                            color: gw.textPrimary,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  _buildSectionCard(
-                    gw,
-                    light,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildDateInput(
+                        const SizedBox(height: AppSpacing.xl),
+                        _buildSectionCard(
+                          gw,
+                          light,
+                          children: [
+                            _buildTextFieldWithGenerate(
                               gw,
-                              context,
-                              'Start Date',
-                              _startDate,
-                              isStartDate: true,
+                              controller: _goalTitleController,
+                              hintText:
+                                  'Enter your development goal title (required)',
+                              onGenerate: () =>
+                                  _showGenerateDescriptionDialog(context),
+                            ),
+                            _buildTextField(
+                              gw,
+                              controller: _goalDescriptionController,
+                              hintText:
+                                  'Describe your goal in detail (optional)...',
+                              maxLines: 5,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildSectionHeader('Goal Details', gw),
+                            ElevatedButton.icon(
+                              onPressed:
+                                  _goalDescriptionController.text.trim().isEmpty
+                                  ? null
+                                  : () => _suggestGoalDetails(context),
+                              icon: const Icon(Icons.auto_awesome, size: 18),
+                              label: const Text('Suggest'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.activeColor,
+                                foregroundColor: gw.textPrimary,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        _buildSectionCard(
+                          gw,
+                          light,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildDateInput(
+                                    gw,
+                                    context,
+                                    'Start Date',
+                                    _startDate,
+                                    isStartDate: true,
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: _buildDateInput(
+                                    gw,
+                                    context,
+                                    'Target Date (required)',
+                                    _targetDate,
+                                    isStartDate: false,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            _buildCategoryDropdown(gw),
+                            _buildDropdownField(
+                              gw,
+                              hintText: 'Select priority',
+                              value: _currentStatus,
+                              items: ['High', 'Medium', 'Low'],
+                              onChanged: (String? newValue) {
+                                setState(() {
+                                  _currentStatus = newValue;
+                                });
+                              },
+                            ),
+                            _buildDropdownField(
+                              gw,
+                              hintText: 'Select Key Performance Area',
+                              value: Goal.kpaLabel(_kpa),
+                              items: _kpaOptions,
+                              onChanged: (String? newValue) {
+                                setState(() {
+                                  _kpa = Goal.normalizeKpaKey(newValue);
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        _buildSmartCriteriaSection(gw),
+                        const SizedBox(height: AppSpacing.xl),
+                        _buildSectionHeader('Dependencies & Prerequisites', gw),
+                        _buildSectionCard(
+                          gw,
+                          light,
+                          children: [
+                            _buildTextField(
+                              gw,
+                              controller: _dependenciesController,
+                              hintText:
+                                  'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
+                              maxLines: 4,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        _buildSectionHeader('Success Metrics', gw),
+                        _buildSectionCard(
+                          gw,
+                          light,
+                          children: [
+                            _buildTextField(
+                              gw,
+                              controller: _successMetricsController,
+                              hintText:
+                                  'Define specific metrics or milestones...',
+                              maxLines: 4,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xxl),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: Text(
+                            'You can create a goal with just a title and target date. '
+                            'Suggest and Generate are optional.',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: gw.textSecondary,
                             ),
                           ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: _buildDateInput(
-                              gw,
-                              context,
-                              'Target Date (required)',
-                              _targetDate,
-                              isStartDate: false,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      _buildCategoryDropdown(gw),
-                      _buildDropdownField(
-                        gw,
-                        hintText: 'Select priority',
-                        value: _currentStatus,
-                        items: ['High', 'Medium', 'Low'],
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _currentStatus = newValue;
-                          });
-                        },
-                      ),
-                      _buildDropdownField(
-                        gw,
-                        hintText: 'Select Key Performance Area',
-                        value: Goal.kpaLabel(_kpa),
-                        items: _kpaOptions,
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _kpa = Goal.normalizeKpaKey(newValue);
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildSmartCriteriaSection(gw),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildSectionHeader('Dependencies & Prerequisites', gw),
-                  _buildSectionCard(
-                    gw,
-                    light,
-                    children: [
-                      _buildTextField(
-                        gw,
-                        controller: _dependenciesController,
-                        hintText:
-                            'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
-                        maxLines: 4,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildSectionHeader('Success Metrics', gw),
-                  _buildSectionCard(
-                    gw,
-                    light,
-                    children: [
-                      _buildTextField(
-                        gw,
-                        controller: _successMetricsController,
-                        hintText: 'Define specific metrics or milestones...',
-                        maxLines: 4,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.xxl),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: Text(
-                      'You can create a goal with just a title and target date. '
-                      'Suggest and Generate are optional.',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: gw.textSecondary,
-                      ),
-                    ),
-                  ),
-                  _buildSectionCard(
-                    gw,
-                    light,
-                    children: [_buildActionButtons(gw)],
-                  ),
-                        ],
-                      ),
+                        ),
+                        _buildSectionCard(
+                          gw,
+                          light,
+                          children: [_buildActionButtons(gw)],
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -600,9 +591,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         child: TextField(
           controller: controller,
           maxLines: maxLines,
-          style: AppTypography.bodyMedium.copyWith(
-            color: gw.textPrimary,
-          ),
+          style: AppTypography.bodyMedium.copyWith(color: gw.textPrimary),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: AppTypography.bodyMedium.copyWith(
@@ -641,9 +630,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         color: Colors.transparent,
         child: TextField(
           controller: controller,
-          style: AppTypography.bodyMedium.copyWith(
-            color: gw.textPrimary,
-          ),
+          style: AppTypography.bodyMedium.copyWith(color: gw.textPrimary),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: AppTypography.bodyMedium.copyWith(
@@ -948,9 +935,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               backgroundColor: gw.widgetBg,
               title: Text(
                 'Generate Goal Description',
-                style: AppTypography.heading4.copyWith(
-                  color: gw.textPrimary,
-                ),
+                style: AppTypography.heading4.copyWith(color: gw.textPrimary),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -974,15 +959,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                         fillColor: gw.widgetBg,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: gw.borderColor,
-                          ),
+                          borderSide: BorderSide(color: gw.borderColor),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: gw.borderColor,
-                          ),
+                          borderSide: BorderSide(color: gw.borderColor),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -1045,10 +1026,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: gw.widgetBg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: gw.borderColor,
-          width: 1,
-        ),
+        border: Border.all(color: gw.borderColor, width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1063,9 +1041,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     ? '${date.day}/${date.month}/${date.year}'
                     : hintText,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: date != null
-                      ? gw.textPrimary
-                      : gw.textSecondary,
+                  color: date != null ? gw.textPrimary : gw.textSecondary,
                 ),
               ),
               SizedBox(
@@ -1092,9 +1068,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           if (_isOtherCategorySelected) ...[
             TextField(
               controller: _customCategoryController,
-              style: AppTypography.bodyMedium.copyWith(
-                color: gw.textPrimary,
-              ),
+              style: AppTypography.bodyMedium.copyWith(color: gw.textPrimary),
               decoration: InputDecoration(
                 labelText: 'Category (Other)',
                 labelStyle: AppTypography.bodyMedium.copyWith(
@@ -1108,15 +1082,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 fillColor: gw.widgetBg,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: gw.borderColor,
-                  ),
+                  borderSide: BorderSide(color: gw.borderColor),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: gw.borderColor,
-                  ),
+                  borderSide: BorderSide(color: gw.borderColor),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1183,9 +1153,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         child: DropdownButtonFormField<String>(
           initialValue: value,
           dropdownColor: gw.dropdownMenuBg,
-          style: AppTypography.bodyMedium.copyWith(
-            color: gw.textPrimary,
-          ),
+          style: AppTypography.bodyMedium.copyWith(color: gw.textPrimary),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: AppTypography.bodyMedium.copyWith(
@@ -1219,9 +1187,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               value: value,
               child: Text(
                 value,
-                style: AppTypography.bodyMedium.copyWith(
-                  color: gw.textPrimary,
-                ),
+                style: AppTypography.bodyMedium.copyWith(color: gw.textPrimary),
               ),
             );
           }).toList(),
@@ -1526,9 +1492,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 const SizedBox(width: 10),
                 Text(
                   'SMART Criteria Verification',
-                  style: AppTypography.heading4.copyWith(
-                    color: gw.textPrimary,
-                  ),
+                  style: AppTypography.heading4.copyWith(color: gw.textPrimary),
                 ),
                 const Spacer(),
                 Container(
@@ -1652,17 +1616,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         children: [
           Text(
             title,
-            style: AppTypography.bodyLarge.copyWith(
-              color: gw.textPrimary,
-            ),
+            style: AppTypography.bodyLarge.copyWith(color: gw.textPrimary),
           ),
           if (helper != null) ...[
             const SizedBox(height: 4),
             Text(
               helper,
-              style: AppTypography.bodySmall.copyWith(
-                color: gw.textSecondary,
-              ),
+              style: AppTypography.bodySmall.copyWith(color: gw.textSecondary),
             ),
           ],
           const SizedBox(height: 8),
@@ -1681,9 +1641,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   '$score',
                   style: AppTypography.bodyMedium.copyWith(
                     color: enabled
-                        ? (selected
-                              ? gw.textPrimary
-                              : gw.textSecondary)
+                        ? (selected ? gw.textPrimary : gw.textSecondary)
                         : (selected ? gw.textPrimary : gw.textSecondary),
                   ),
                 ),
@@ -1722,9 +1680,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       child: CheckboxListTile(
         title: Text(
           title,
-          style: AppTypography.bodyMedium.copyWith(
-            color: gw.textPrimary,
-          ),
+          style: AppTypography.bodyMedium.copyWith(color: gw.textPrimary),
         ),
         value: value,
         onChanged: onChanged,
@@ -1883,10 +1839,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         final targetRoute = widget.forManagerGwMenu
             ? '/manager_portal'
             : '/employee_dashboard';
-        navigator.pushNamedAndRemoveUntil(
-          targetRoute,
-          (route) => false,
-        );
+        navigator.pushNamedAndRemoveUntil(targetRoute, (route) => false);
       }
     } catch (e) {
       // Close dialog first; unfocus to avoid focus traversal null errors when tree updates.
@@ -1901,14 +1854,18 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         final msg = e.toString();
         String userMsg = 'Couldn\'t create goal. Please try again.';
         final isFirestoreInternalState =
-            msg.contains('INTERNAL ASSERTION') || msg.contains('Unexpected state');
-        if (msg.contains('permission-denied') || msg.contains('PERMISSION_DENIED')) {
-          userMsg = 'Permission denied. Make sure you\'re signed in and try again.';
+            msg.contains('INTERNAL ASSERTION') ||
+            msg.contains('Unexpected state');
+        if (msg.contains('permission-denied') ||
+            msg.contains('PERMISSION_DENIED')) {
+          userMsg =
+              'Permission denied. Make sure you\'re signed in and try again.';
         } else if (msg.contains('unavailable') || msg.contains('network')) {
           userMsg = 'Network issue. Check your connection and try again.';
         } else if (isFirestoreInternalState) {
           if (kIsWeb) {
-            userMsg = 'Temporary Firestore issue on web. Reload the page and try creating the goal again.';
+            userMsg =
+                'Temporary Firestore issue on web. Reload the page and try creating the goal again.';
             FirestoreWebCircuitBreaker.maybeReload(e);
           } else {
             userMsg = 'Temporary issue. Wait a moment and try again.';

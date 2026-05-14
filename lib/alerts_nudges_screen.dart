@@ -322,199 +322,183 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       content: ValueListenableBuilder<bool>(
         valueListenable: employeeDashboardLightModeNotifier,
         builder: (context, light, _) {
-          return AppComponents.backgroundWithImage(
-            blurSigma: 0,
-            imagePath: light
-                ? 'assets/light_mode_bg.png'
-                : 'assets/khono_bg.png',
-            gradientColors: light
-                ? [
-                    Colors.white.withValues(alpha: 0.2),
-                    Colors.white.withValues(alpha: 0.08),
-                  ]
-                : null,
-            child: EmployeeDashboardThemeScope(
-              light: light,
-              child: Theme(
-                data: Theme.of(context).copyWith(
-                  outlinedButtonTheme: OutlinedButtonThemeData(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: light
-                          ? const Color(0xFF1F2840)
-                          : Colors.white70,
-                      side: BorderSide(
-                        color: light ? const Color(0x66000000) : Colors.white54,
-                      ),
+          return EmployeeDashboardThemeScope(
+            light: light,
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                outlinedButtonTheme: OutlinedButtonThemeData(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: light
+                        ? const Color(0xFF1F2840)
+                        : Colors.white70,
+                    side: BorderSide(
+                      color: light ? const Color(0x66000000) : Colors.white54,
                     ),
                   ),
                 ),
-                child: SingleChildScrollView(
-                  padding: AppSpacing.screenPadding,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: StreamBuilder<String?>(
-                    stream: RoleService.instance.roleStream(),
-                    initialData: RoleService.instance.cachedRole ?? 'employee',
-                    builder: (context, roleSnapshot) {
-                      // role stream is observed to ensure auth context is alive; defaulting prevents spinners
-                      // Role is available via roleSnapshot.data or cachedRole if needed
+              ),
+              child: SingleChildScrollView(
+                padding: AppSpacing.screenPadding,
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: StreamBuilder<String?>(
+                  stream: RoleService.instance.roleStream(),
+                  initialData: RoleService.instance.cachedRole ?? 'employee',
+                  builder: (context, roleSnapshot) {
+                    // role stream is observed to ensure auth context is alive; defaulting prevents spinners
+                    // Role is available via roleSnapshot.data or cachedRole if needed
 
-                      final user = FirebaseAuth.instance.currentUser;
-                      if (user == null) {
-                        return Center(
-                          child: Text(
-                            'Please sign in to view alerts',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: _AlertsChrome.muted,
-                            ),
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user == null) {
+                      return Center(
+                        child: Text(
+                          'Please sign in to view alerts',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: _AlertsChrome.muted,
                           ),
-                        );
-                      }
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          StreamBuilder<List<Alert>>(
-                            stream: AlertService.getUserAlertsStream(user.uid),
-                            initialData: _cachedAlerts,
-                            builder: (context, alertsSnapshot) {
-                              final streamedAlerts = alertsSnapshot.data;
-                              // Update cache when fresh data arrives
-                              if (streamedAlerts != null &&
-                                  streamedAlerts != _cachedAlerts) {
-                                _cachedAlerts = streamedAlerts;
-                              }
-
-                              // Prefer cached alerts to avoid spinner on transient errors
-                              if (alertsSnapshot.hasError &&
-                                  _cachedAlerts == null) {
-                                final errorMessage = alertsSnapshot.error
-                                    .toString();
-
-                                // Check if it's a permission error
-                                if (errorMessage.contains(
-                                      'permission-denied',
-                                    ) ||
-                                    errorMessage.contains(
-                                      'Missing or insufficient permissions',
-                                    )) {
-                                  return _buildPermissionErrorState();
-                                }
-
-                                return Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.error_outline,
-                                        size: 48,
-                                        color: AppColors.dangerColor,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'Error loading alerts',
-                                        style: AppTypography.heading4.copyWith(
-                                          color: _AlertsChrome.fg,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Please try again later',
-                                        style: AppTypography.bodyMedium
-                                            .copyWith(
-                                              color: _AlertsChrome.muted,
-                                            ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
-
-                              final alerts =
-                                  streamedAlerts ?? _cachedAlerts ?? [];
-
-                              if (alerts.isEmpty &&
-                                  alertsSnapshot.connectionState ==
-                                      ConnectionState.waiting &&
-                                  _cachedAlerts == null) {
-                                return const Center(
-                                  child: CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      AppColors.activeColor,
-                                    ),
-                                  ),
-                                );
-                              }
-
-                              // Filter: hide overdue goal alerts in this view
-                              final filtered = alerts.where((a) {
-                                if (a.type == AlertType.goalOverdue) {
-                                  return false;
-                                }
-                                if (widget.forManagerGwMenu &&
-                                    _isManagerSideAlertForGw(a)) {
-                                  return false;
-                                }
-                                return true;
-                              }).toList();
-
-                              return Column(
-                                children: [
-                                  _buildAlertSummary(filtered),
-                                  const SizedBox(height: AppSpacing.lg),
-                                  _buildPredictiveRiskAlerts(),
-                                  const SizedBox(height: AppSpacing.lg),
-                                  _buildOneOnOneMeetingsSection(
-                                    employeeId: user.uid,
-                                  ),
-                                  const SizedBox(height: AppSpacing.lg),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Recent Alerts',
-                                        style: AppTypography.heading3.copyWith(
-                                          color: _AlertsChrome.fg,
-                                        ),
-                                      ),
-                                      ElevatedButton.icon(
-                                        onPressed: () => _showAIChatAssistant(
-                                          context,
-                                          filtered,
-                                        ),
-                                        icon: const Icon(
-                                          Icons.chat_bubble_outline,
-                                          size: 18,
-                                        ),
-                                        label: const Text('AI Assistant'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              AppColors.activeColor,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              28,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: AppSpacing.md),
-                                  _buildAlertsList(filtered),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
+                        ),
                       );
-                    },
-                  ),
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        StreamBuilder<List<Alert>>(
+                          stream: AlertService.getUserAlertsStream(user.uid),
+                          initialData: _cachedAlerts,
+                          builder: (context, alertsSnapshot) {
+                            final streamedAlerts = alertsSnapshot.data;
+                            // Update cache when fresh data arrives
+                            if (streamedAlerts != null &&
+                                streamedAlerts != _cachedAlerts) {
+                              _cachedAlerts = streamedAlerts;
+                            }
+
+                            // Prefer cached alerts to avoid spinner on transient errors
+                            if (alertsSnapshot.hasError &&
+                                _cachedAlerts == null) {
+                              final errorMessage = alertsSnapshot.error
+                                  .toString();
+
+                              // Check if it's a permission error
+                              if (errorMessage.contains('permission-denied') ||
+                                  errorMessage.contains(
+                                    'Missing or insufficient permissions',
+                                  )) {
+                                return _buildPermissionErrorState();
+                              }
+
+                              return Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.error_outline,
+                                      size: 48,
+                                      color: AppColors.dangerColor,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Error loading alerts',
+                                      style: AppTypography.heading4.copyWith(
+                                        color: _AlertsChrome.fg,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Please try again later',
+                                      style: AppTypography.bodyMedium.copyWith(
+                                        color: _AlertsChrome.muted,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            final alerts =
+                                streamedAlerts ?? _cachedAlerts ?? [];
+
+                            if (alerts.isEmpty &&
+                                alertsSnapshot.connectionState ==
+                                    ConnectionState.waiting &&
+                                _cachedAlerts == null) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.activeColor,
+                                  ),
+                                ),
+                              );
+                            }
+
+                            // Filter: hide overdue goal alerts in this view
+                            final filtered = alerts.where((a) {
+                              if (a.type == AlertType.goalOverdue) {
+                                return false;
+                              }
+                              if (widget.forManagerGwMenu &&
+                                  _isManagerSideAlertForGw(a)) {
+                                return false;
+                              }
+                              return true;
+                            }).toList();
+
+                            return Column(
+                              children: [
+                                _buildAlertSummary(filtered),
+                                const SizedBox(height: AppSpacing.lg),
+                                _buildPredictiveRiskAlerts(),
+                                const SizedBox(height: AppSpacing.lg),
+                                _buildOneOnOneMeetingsSection(
+                                  employeeId: user.uid,
+                                ),
+                                const SizedBox(height: AppSpacing.lg),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Recent Alerts',
+                                      style: AppTypography.heading3.copyWith(
+                                        color: _AlertsChrome.fg,
+                                      ),
+                                    ),
+                                    ElevatedButton.icon(
+                                      onPressed: () => _showAIChatAssistant(
+                                        context,
+                                        filtered,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.chat_bubble_outline,
+                                        size: 18,
+                                      ),
+                                      label: const Text('AI Assistant'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.activeColor,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 12,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            28,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                _buildAlertsList(filtered),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -699,88 +683,86 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             m.status == OneOnOneMeetingStatus.proposed);
 
     return GestureDetector(
-      onTap: () => _openOneOnOneThread(
-        meetingId: m.meetingId,
-        employeeId: m.employeeId,
-      ),
+      onTap: () =>
+          _openOneOnOneThread(meetingId: m.meetingId, employeeId: m.employeeId),
       child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _AlertsChrome.cardFillSoft,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _AlertsChrome.borderH15),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: FutureBuilder<String>(
-                  future: _userDisplayName(m.managerId),
-                  builder: (context, snap) {
-                    final label = (snap.data != null && snap.data!.isNotEmpty)
-                        ? snap.data!
-                        : 'Manager';
-                    return Text(
-                      'From: $label',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: _AlertsChrome.fg,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.activeColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: AppColors.activeColor.withValues(alpha: 0.25),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _AlertsChrome.cardFillSoft,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _AlertsChrome.borderH15),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: FutureBuilder<String>(
+                    future: _userDisplayName(m.managerId),
+                    builder: (context, snap) {
+                      final label = (snap.data != null && snap.data!.isNotEmpty)
+                          ? snap.data!
+                          : 'Manager';
+                      return Text(
+                        'From: $label',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: _AlertsChrome.fg,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      );
+                    },
                   ),
                 ),
-                child: Text(
-                  statusText,
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.activeColor,
-                    fontWeight: FontWeight.w600,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
                   ),
+                  decoration: BoxDecoration(
+                    color: AppColors.activeColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.activeColor.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.activeColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if ((m.agenda ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                m.agenda!.trim(),
+                style: AppTypography.bodySmall.copyWith(
+                  color: _AlertsChrome.muted,
                 ),
               ),
             ],
-          ),
-          if ((m.agenda ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              m.agenda!.trim(),
-              style: AppTypography.bodySmall.copyWith(
-                color: _AlertsChrome.muted,
+            if (timeText != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                (m.status == OneOnOneMeetingStatus.accepted)
+                    ? 'Confirmed: $timeText'
+                    : 'Proposed: $timeText',
+                style: AppTypography.bodySmall.copyWith(
+                  color: _AlertsChrome.muted,
+                ),
               ),
-            ),
+            ],
+            if (canRespond) ...[
+              const SizedBox(height: 10),
+              _buildMeetingActions(m),
+            ],
           ],
-          if (timeText != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              (m.status == OneOnOneMeetingStatus.accepted)
-                  ? 'Confirmed: $timeText'
-                  : 'Proposed: $timeText',
-              style: AppTypography.bodySmall.copyWith(
-                color: _AlertsChrome.muted,
-              ),
-            ),
-          ],
-          if (canRespond) ...[
-            const SizedBox(height: 10),
-            _buildMeetingActions(m),
-          ],
-        ],
-      ),
+        ),
       ),
     );
   }
@@ -894,16 +876,19 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 children: [
                   Text(
                     'Choose admin for 1:1',
-                    style: AppTypography.heading4.copyWith(color: _AlertsChrome.fg),
+                    style: AppTypography.heading4.copyWith(
+                      color: _AlertsChrome.fg,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   ...admins.map((doc) {
                     final data = doc.data();
-                    final name = (data['displayName'] ??
-                            data['name'] ??
-                            data['email'] ??
-                            'Admin')
-                        .toString();
+                    final name =
+                        (data['displayName'] ??
+                                data['name'] ??
+                                data['email'] ??
+                                'Admin')
+                            .toString();
                     return ListTile(
                       title: Text(
                         name,
@@ -923,10 +908,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
       if (selectedAdminId == null || selectedAdminId.isEmpty) return;
       if (!mounted) return;
-      _openOneOnOneThread(
-        employeeId: employeeId,
-        managerId: selectedAdminId,
-      );
+      _openOneOnOneThread(employeeId: employeeId, managerId: selectedAdminId);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

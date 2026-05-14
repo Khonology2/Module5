@@ -220,10 +220,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   bool _isAdminSupervisionAlertForManager(Alert alert) {
-    final requiredApproverRole = (alert.actionData?['requiredApproverRole'] ?? '')
-        .toString()
-        .trim()
-        .toLowerCase();
+    final requiredApproverRole =
+        (alert.actionData?['requiredApproverRole'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
     final approvalChain = (alert.actionData?['approvalChain'] ?? '')
         .toString()
         .trim()
@@ -456,9 +457,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   /// Prefer real display name/email from Firestore when the alert used a generic label.
   Future<String> _resolvedRequesterDisplay(Alert alert) async {
-    final uid = (alert.actionData?['requestedByUserId'] ?? alert.fromUserId ?? '')
-        .toString()
-        .trim();
+    final uid =
+        (alert.actionData?['requestedByUserId'] ?? alert.fromUserId ?? '')
+            .toString()
+            .trim();
     final rawFrom = (alert.fromUserName ?? '').trim();
     if (rawFrom.isNotEmpty && !_isGenericPlaceholderName(rawFrom)) {
       return rawFrom;
@@ -482,13 +484,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     return FutureBuilder<String>(
       future: _resolvedRequesterDisplay(alert),
       builder: (context, snap) {
-        final fallback =
-            (alert.fromUserName ?? '').trim().isNotEmpty
-                ? alert.fromUserName!.trim()
-                : '';
+        final fallback = (alert.fromUserName ?? '').trim().isNotEmpty
+            ? alert.fromUserName!.trim()
+            : '';
         final label =
-            snap.data ??
-            (fallback.isNotEmpty ? fallback : 'Loading…');
+            snap.data ?? (fallback.isNotEmpty ? fallback : 'Loading…');
         return Text(
           'Requested by: $label',
           style: AppTypography.bodySmall.copyWith(color: Colors.white70),
@@ -747,347 +747,360 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               .snapshots(),
                         ),
                     builder: (streamCtx, snap) {
-                  Goal? goal;
-                  if (snap.hasData && (snap.data?.exists ?? false)) {
-                    try {
-                      goal = Goal.fromFirestore(snap.data!);
-                    } catch (_) {}
-                  }
-                  final bool finalDecision =
-                      goal != null &&
-                      (goal.approvalStatus == GoalApprovalStatus.approved ||
-                          goal.approvalStatus == GoalApprovalStatus.rejected);
-                  final bool finalApproved =
-                      goal?.approvalStatus == GoalApprovalStatus.approved;
-                  return ListView(
-                    controller: scrollController,
-                    children: [
-                      Row(
+                      Goal? goal;
+                      if (snap.hasData && (snap.data?.exists ?? false)) {
+                        try {
+                          goal = Goal.fromFirestore(snap.data!);
+                        } catch (_) {}
+                      }
+                      final bool finalDecision =
+                          goal != null &&
+                          (goal.approvalStatus == GoalApprovalStatus.approved ||
+                              goal.approvalStatus ==
+                                  GoalApprovalStatus.rejected);
+                      final bool finalApproved =
+                          goal?.approvalStatus == GoalApprovalStatus.approved;
+                      return ListView(
+                        controller: scrollController,
                         children: [
-                          Text(
-                            'Goal Review',
-                            style: AppTypography.heading3.copyWith(
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: () => Navigator.pop(modalContext),
-                            icon: const Icon(Icons.close),
-                            color: Colors.white,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      if (goal != null) ...[
-                        Text(
-                          goal.title,
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        if ((goal.description).isNotEmpty)
-                          Text(
-                            goal.description,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _chip('Category', goal.category.name),
-                            if (goal.kpa != null && goal.kpa!.isNotEmpty)
-                              _chip(
-                                'KPA',
-                                Goal.kpaLabel(goal.kpa) ??
-                                    (goal.kpa![0].toUpperCase() +
-                                        goal.kpa!.substring(1)),
+                          Row(
+                            children: [
+                              Text(
+                                'Goal Review',
+                                style: AppTypography.heading3.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
                               ),
-                            _chip('Created', _fmtDateTime(goal.createdAt)),
-                            _chip('Target', _fmtDate(goal.targetDate)),
+                              const Spacer(),
+                              IconButton(
+                                onPressed: () => Navigator.pop(modalContext),
+                                icon: const Icon(Icons.close),
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          if (goal != null) ...[
+                            Text(
+                              goal.title,
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if ((goal.description).isNotEmpty)
+                              Text(
+                                goal.description,
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _chip('Category', goal.category.name),
+                                if (goal.kpa != null && goal.kpa!.isNotEmpty)
+                                  _chip(
+                                    'KPA',
+                                    Goal.kpaLabel(goal.kpa) ??
+                                        (goal.kpa![0].toUpperCase() +
+                                            goal.kpa!.substring(1)),
+                                  ),
+                                _chip('Created', _fmtDateTime(goal.createdAt)),
+                                _chip('Target', _fmtDate(goal.targetDate)),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
                           ],
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.rule,
-                            color: AppColors.activeColor,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'SMART Review',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const Spacer(),
-                          _scorePill(_smartTotal(goalId)),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      _scoreRow(
-                        'Clarity (Specific)',
-                        goalId,
-                        _clarity,
-                        '1=vague, 5=precise',
-                        onScoresChanged: () => setModalState(() {}),
-                      ),
-                      _scoreRow(
-                        'Measurability',
-                        goalId,
-                        _measurability,
-                        '1=no KPI, 5=KPI+baseline+target',
-                        onScoresChanged: () => setModalState(() {}),
-                      ),
-                      _scoreRow(
-                        'Achievability',
-                        goalId,
-                        _achievability,
-                        '1=unlikely, 5=realistic',
-                        onScoresChanged: () => setModalState(() {}),
-                      ),
-                      _scoreRow(
-                        'Relevance',
-                        goalId,
-                        _relevance,
-                        '1=not aligned, 5=directly aligned',
-                        onScoresChanged: () => setModalState(() {}),
-                      ),
-                      _scoreRow(
-                        'Timeline',
-                        goalId,
-                        _timeline,
-                        '1=no date, 5=realistic date',
-                        onScoresChanged: () => setModalState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      if (finalDecision) ...[
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color:
-                                (finalApproved
-                                        ? AppColors.successColor
-                                        : AppColors.dangerColor)
-                                    .withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color:
-                                  (finalApproved
-                                          ? AppColors.successColor
-                                          : AppColors.dangerColor)
-                                      .withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Row(
+                          Row(
                             children: [
                               Icon(
-                                finalApproved
-                                    ? Icons.check_circle_outline
-                                    : Icons.cancel_outlined,
-                                color: finalApproved
-                                    ? AppColors.successColor
-                                    : AppColors.dangerColor,
+                                Icons.rule,
+                                color: AppColors.activeColor,
+                                size: 18,
                               ),
                               const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'This goal is already ${finalApproved ? 'approved' : 'rejected'}. Further approval decisions are locked.',
-                                  style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.textPrimary,
+                              Text(
+                                'SMART Review',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              _scorePill(_smartTotal(goalId)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          _scoreRow(
+                            'Clarity (Specific)',
+                            goalId,
+                            _clarity,
+                            '1=vague, 5=precise',
+                            onScoresChanged: () => setModalState(() {}),
+                          ),
+                          _scoreRow(
+                            'Measurability',
+                            goalId,
+                            _measurability,
+                            '1=no KPI, 5=KPI+baseline+target',
+                            onScoresChanged: () => setModalState(() {}),
+                          ),
+                          _scoreRow(
+                            'Achievability',
+                            goalId,
+                            _achievability,
+                            '1=unlikely, 5=realistic',
+                            onScoresChanged: () => setModalState(() {}),
+                          ),
+                          _scoreRow(
+                            'Relevance',
+                            goalId,
+                            _relevance,
+                            '1=not aligned, 5=directly aligned',
+                            onScoresChanged: () => setModalState(() {}),
+                          ),
+                          _scoreRow(
+                            'Timeline',
+                            goalId,
+                            _timeline,
+                            '1=no date, 5=realistic date',
+                            onScoresChanged: () => setModalState(() {}),
+                          ),
+                          const SizedBox(height: 12),
+                          if (finalDecision) ...[
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color:
+                                    (finalApproved
+                                            ? AppColors.successColor
+                                            : AppColors.dangerColor)
+                                        .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color:
+                                      (finalApproved
+                                              ? AppColors.successColor
+                                              : AppColors.dangerColor)
+                                          .withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    finalApproved
+                                        ? Icons.check_circle_outline
+                                        : Icons.cancel_outlined,
+                                    color: finalApproved
+                                        ? AppColors.successColor
+                                        : AppColors.dangerColor,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'This goal is already ${finalApproved ? 'approved' : 'rejected'}. Further approval decisions are locked.',
+                                      style: AppTypography.bodySmall.copyWith(
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          TextField(
+                            controller: _reviewNotes[goalId],
+                            maxLines: 3,
+                            decoration: const InputDecoration(
+                              labelText:
+                                  'Review note (required for Request changes/Reject)',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: finalDecision
+                                    ? null
+                                    : () async {
+                                        final messenger =
+                                            ScaffoldMessenger.maybeOf(
+                                              modalContext,
+                                            );
+                                        messenger?.showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Saving…'),
+                                            duration: Duration(seconds: 30),
+                                          ),
+                                        );
+                                        try {
+                                          await _persistReview(
+                                            goalId,
+                                            decision: 'approved',
+                                          );
+                                          final ok = await _approveGoal(goalId);
+                                          messenger?.hideCurrentSnackBar();
+                                          if (!modalContext.mounted || !ok) {
+                                            return;
+                                          }
+                                          Navigator.pop(modalContext);
+                                        } catch (e, st) {
+                                          messenger?.hideCurrentSnackBar();
+                                          developer.log(
+                                            'persistReview failed',
+                                            error: e,
+                                            stackTrace: st,
+                                          );
+                                          if (!modalContext.mounted) return;
+                                          await _showCenterNotice(
+                                            modalContext,
+                                            'Could not save review: $e',
+                                          );
+                                        }
+                                      },
+                                icon: const Icon(Icons.check),
+                                label: const Text('Approve'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.successColor,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: finalDecision
+                                    ? null
+                                    : () async {
+                                        final note =
+                                            _reviewNotes[goalId]?.text.trim() ??
+                                            '';
+                                        if (note.isEmpty) {
+                                          await _showCenterNotice(
+                                            modalContext,
+                                            'Please add a note for Request changes',
+                                          );
+                                          return;
+                                        }
+                                        final messenger =
+                                            ScaffoldMessenger.maybeOf(
+                                              modalContext,
+                                            );
+                                        messenger?.showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Saving…'),
+                                            duration: Duration(seconds: 30),
+                                          ),
+                                        );
+                                        try {
+                                          await _persistReview(
+                                            goalId,
+                                            decision: 'changes_requested',
+                                          );
+                                          final ok = await _rejectGoal(
+                                            goalId,
+                                            reason: note,
+                                          );
+                                          messenger?.hideCurrentSnackBar();
+                                          if (!modalContext.mounted || !ok) {
+                                            return;
+                                          }
+                                          Navigator.pop(modalContext);
+                                        } catch (e, st) {
+                                          messenger?.hideCurrentSnackBar();
+                                          developer.log(
+                                            'reject/persist failed',
+                                            error: e,
+                                            stackTrace: st,
+                                          );
+                                          if (!modalContext.mounted) return;
+                                          await _showCenterNotice(
+                                            modalContext,
+                                            'Could not save review: $e',
+                                          );
+                                        }
+                                      },
+                                icon: const Icon(Icons.edit_note),
+                                label: const Text('Request changes'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.warningColor,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: finalDecision
+                                    ? null
+                                    : () async {
+                                        final note =
+                                            _reviewNotes[goalId]?.text.trim() ??
+                                            '';
+                                        if (note.isEmpty) {
+                                          await _showCenterNotice(
+                                            modalContext,
+                                            'Please add a reason to reject',
+                                          );
+                                          return;
+                                        }
+                                        final messenger =
+                                            ScaffoldMessenger.maybeOf(
+                                              modalContext,
+                                            );
+                                        messenger?.showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Saving…'),
+                                            duration: Duration(seconds: 30),
+                                          ),
+                                        );
+                                        try {
+                                          await _persistReview(
+                                            goalId,
+                                            decision: 'rejected',
+                                          );
+                                          final ok = await _rejectGoal(
+                                            goalId,
+                                            reason: note,
+                                          );
+                                          messenger?.hideCurrentSnackBar();
+                                          if (!modalContext.mounted || !ok) {
+                                            return;
+                                          }
+                                          Navigator.pop(modalContext);
+                                        } catch (e, st) {
+                                          messenger?.hideCurrentSnackBar();
+                                          developer.log(
+                                            'reject/persist failed',
+                                            error: e,
+                                            stackTrace: st,
+                                          );
+                                          if (!modalContext.mounted) return;
+                                          await _showCenterNotice(
+                                            modalContext,
+                                            'Could not save review: $e',
+                                          );
+                                        }
+                                      },
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                ),
+                                label: const Text('Reject'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.dangerColor,
+                                  side: BorderSide(
+                                    color: AppColors.dangerColor,
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                      TextField(
-                        controller: _reviewNotes[goalId],
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText:
-                              'Review note (required for Request changes/Reject)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: finalDecision
-                                ? null
-                                : () async {
-                                    final messenger =
-                                        ScaffoldMessenger.maybeOf(modalContext);
-                                    messenger?.showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Saving…'),
-                                        duration: Duration(seconds: 30),
-                                      ),
-                                    );
-                                    try {
-                                      await _persistReview(
-                                        goalId,
-                                        decision: 'approved',
-                                      );
-                                      final ok =
-                                          await _approveGoal(goalId);
-                                      messenger?.hideCurrentSnackBar();
-                                      if (!modalContext.mounted || !ok) {
-                                        return;
-                                      }
-                                      Navigator.pop(modalContext);
-                                    } catch (e, st) {
-                                      messenger?.hideCurrentSnackBar();
-                                      developer.log(
-                                        'persistReview failed',
-                                        error: e,
-                                        stackTrace: st,
-                                      );
-                                      if (!modalContext.mounted) return;
-                                      await _showCenterNotice(
-                                        modalContext,
-                                        'Could not save review: $e',
-                                      );
-                                    }
-                                  },
-                            icon: const Icon(Icons.check),
-                            label: const Text('Approve'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.successColor,
-                              foregroundColor: Colors.white,
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: finalDecision
-                                ? null
-                                : () async {
-                                    final note =
-                                        _reviewNotes[goalId]?.text.trim() ?? '';
-                                    if (note.isEmpty) {
-                                      await _showCenterNotice(
-                                        modalContext,
-                                        'Please add a note for Request changes',
-                                      );
-                                      return;
-                                    }
-                                    final messenger =
-                                        ScaffoldMessenger.maybeOf(modalContext);
-                                    messenger?.showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Saving…'),
-                                        duration: Duration(seconds: 30),
-                                      ),
-                                    );
-                                    try {
-                                      await _persistReview(
-                                        goalId,
-                                        decision: 'changes_requested',
-                                      );
-                                      final ok = await _rejectGoal(
-                                        goalId,
-                                        reason: note,
-                                      );
-                                      messenger?.hideCurrentSnackBar();
-                                      if (!modalContext.mounted || !ok) {
-                                        return;
-                                      }
-                                      Navigator.pop(modalContext);
-                                    } catch (e, st) {
-                                      messenger?.hideCurrentSnackBar();
-                                      developer.log(
-                                        'reject/persist failed',
-                                        error: e,
-                                        stackTrace: st,
-                                      );
-                                      if (!modalContext.mounted) return;
-                                      await _showCenterNotice(
-                                        modalContext,
-                                        'Could not save review: $e',
-                                      );
-                                    }
-                                  },
-                            icon: const Icon(Icons.edit_note),
-                            label: const Text('Request changes'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.warningColor,
-                              foregroundColor: Colors.white,
-                            ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: finalDecision
-                                ? null
-                                : () async {
-                                    final note =
-                                        _reviewNotes[goalId]?.text.trim() ?? '';
-                                    if (note.isEmpty) {
-                                      await _showCenterNotice(
-                                        modalContext,
-                                        'Please add a reason to reject',
-                                      );
-                                      return;
-                                    }
-                                    final messenger =
-                                        ScaffoldMessenger.maybeOf(modalContext);
-                                    messenger?.showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Saving…'),
-                                        duration: Duration(seconds: 30),
-                                      ),
-                                    );
-                                    try {
-                                      await _persistReview(
-                                        goalId,
-                                        decision: 'rejected',
-                                      );
-                                      final ok = await _rejectGoal(
-                                        goalId,
-                                        reason: note,
-                                      );
-                                      messenger?.hideCurrentSnackBar();
-                                      if (!modalContext.mounted || !ok) {
-                                        return;
-                                      }
-                                      Navigator.pop(modalContext);
-                                    } catch (e, st) {
-                                      messenger?.hideCurrentSnackBar();
-                                      developer.log(
-                                        'reject/persist failed',
-                                        error: e,
-                                        stackTrace: st,
-                                      );
-                                      if (!modalContext.mounted) return;
-                                      await _showCenterNotice(
-                                        modalContext,
-                                        'Could not save review: $e',
-                                      );
-                                    }
-                                  },
-                            icon: const Icon(Icons.close, color: Colors.white),
-                            label: const Text('Reject'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.dangerColor,
-                              side: BorderSide(color: AppColors.dangerColor),
-                            ),
-                          ),
                         ],
-                      ),
-                    ],
-                  );
+                      );
                     },
                   ),
                 );
@@ -1391,173 +1404,182 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       );
     }
 
-    return DashboardThemedBackground(
-      embedded: widget.embedded,
-      child: NestedScrollView(
-        headerSliverBuilder: (context, innerScrolled) {
-          return [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: AppSpacing.screenPadding,
-                child: Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: _glassCardDecoration(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return EmployeeDashboardThemeScope(
+          light: light,
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerScrolled) {
+              return [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: AppSpacing.screenPadding,
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: _glassCardDecoration(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
                             children: [
-                              Text(
-                                widget.forAdminOversight
-                                    ? 'Admin Inbox'
-                                    : _showArchived
-                                    ? 'Archived Messages'
-                                    : 'Manager Inbox',
-                                style: AppTypography.heading3.copyWith(
-                                  color: DashboardChrome.fg,
-                                  fontWeight: FontWeight.bold,
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.forAdminOversight
+                                        ? 'Admin Inbox'
+                                        : _showArchived
+                                        ? 'Archived Messages'
+                                        : 'Manager Inbox',
+                                    style: AppTypography.heading3.copyWith(
+                                      color: DashboardChrome.fg,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    widget.forAdminOversight
+                                        ? _showArchived
+                                              ? 'Review previously read admin alerts and oversight notifications.'
+                                              : 'Review admin alerts and oversight notifications in one place.'
+                                        : _showArchived
+                                        ? 'Review previously read messages and completed conversations.'
+                                        : 'Review alerts, nudges, and approvals in one place.',
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: DashboardChrome.fg,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Spacer(),
+                              // Context Switcher Toggle
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(25),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildContextButton(
+                                      'Inbox',
+                                      !_showArchived,
+                                      () => _switchContext(false),
+                                    ),
+                                    _buildContextButton(
+                                      'Archived',
+                                      _showArchived,
+                                      () => _switchContext(true),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                widget.forAdminOversight
-                                    ? _showArchived
-                                          ? 'Review previously read admin alerts and oversight notifications.'
-                                          : 'Review admin alerts and oversight notifications in one place.'
-                                    : _showArchived
-                                    ? 'Review previously read messages and completed conversations.'
-                                    : 'Review alerts, nudges, and approvals in one place.',
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: DashboardChrome.fg,
+                              const SizedBox(width: 12),
+                              // Only show "Mark all as read" button in inbox view
+                              if (!_showArchived)
+                                TextButton.icon(
+                                  onPressed: _bulkMarking
+                                      ? null
+                                      : () async {
+                                          final user =
+                                              FirebaseAuth.instance.currentUser;
+                                          if (user == null) return;
+                                          setState(() => _bulkMarking = true);
+                                          await AlertService.markAllAsRead(
+                                            user.uid,
+                                          );
+                                          if (!mounted) return;
+                                          setState(() => _bulkMarking = false);
+                                          await _showCenterNotice(
+                                            this.context,
+                                            'All alerts marked as read',
+                                          );
+                                        },
+                                  icon: _bulkMarking
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.mark_email_read_outlined,
+                                        ),
+                                  label: const Text('Mark all as read'),
                                 ),
-                              ),
                             ],
                           ),
-                          const Spacer(),
-                          // Context Switcher Toggle
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(25),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildContextButton(
-                                  'Inbox',
-                                  !_showArchived,
-                                  () => _switchContext(false),
-                                ),
-                                _buildContextButton(
-                                  'Archived',
-                                  _showArchived,
-                                  () => _switchContext(true),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Only show "Mark all as read" button in inbox view
-                          if (!_showArchived)
-                            TextButton.icon(
-                              onPressed: _bulkMarking
-                                  ? null
-                                  : () async {
-                                      final user =
-                                          FirebaseAuth.instance.currentUser;
-                                      if (user == null) return;
-                                      setState(() => _bulkMarking = true);
-                                      await AlertService.markAllAsRead(
-                                        user.uid,
-                                      );
-                                      if (!mounted) return;
-                                      setState(() => _bulkMarking = false);
-                                      await _showCenterNotice(
-                                        this.context,
-                                        'All alerts marked as read',
-                                      );
-                                    },
-                              icon: _bulkMarking
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.mark_email_read_outlined),
-                              label: const Text('Mark all as read'),
-                            ),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildFilters(),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      _buildFilters(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ];
-        },
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.center,
-              radius: 1.1,
-              colors: [Color(0x880A0F1F), Color(0x88040610)],
-              stops: [0.0, 1.0],
-            ),
-          ),
-          child: StreamBuilder<List<Alert>>(
-            stream: AlertService.getUserAlertsStream(user.uid, maxItems: null),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
                     ),
                   ),
-                );
-              }
-              var items = snapshot.data ?? const <Alert>[];
-              items = items
-                  .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
-                  .toList();
-
-              if (widget.forAdminOversight && !_showArchived) {
-                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _adminPendingGoalsStream(),
-                  builder: (context, pendingSnapshot) {
-                    final pendingDocs = pendingSnapshot.data?.docs ?? const [];
-                    final mergedItems = _mergeAdminPendingGoalFallbackAlerts(
-                      baseItems: items,
-                      goalDocs: pendingDocs,
-                      adminUserId: user.uid,
-                    );
-                    return _buildInboxListContent(
-                      sourceItems: mergedItems,
-                      user: user,
-                    );
-                  },
-                );
-              }
-
-              return _buildInboxListContent(
-                sourceItems: items,
-                user: user,
-              );
+                ),
+              ];
             },
+            body: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.1,
+                  colors: [Color(0x880A0F1F), Color(0x88040610)],
+                  stops: [0.0, 1.0],
+                ),
+              ),
+              child: StreamBuilder<List<Alert>>(
+                stream: AlertService.getUserAlertsStream(
+                  user.uid,
+                  maxItems: null,
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.activeColor,
+                        ),
+                      ),
+                    );
+                  }
+                  var items = snapshot.data ?? const <Alert>[];
+                  items = items
+                      .where((a) => _isManagerInboxRelevantAlert(a, user.uid))
+                      .toList();
+
+                  if (widget.forAdminOversight && !_showArchived) {
+                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: _adminPendingGoalsStream(),
+                      builder: (context, pendingSnapshot) {
+                        final pendingDocs =
+                            pendingSnapshot.data?.docs ?? const [];
+                        final mergedItems =
+                            _mergeAdminPendingGoalFallbackAlerts(
+                              baseItems: items,
+                              goalDocs: pendingDocs,
+                              adminUserId: user.uid,
+                            );
+                        return _buildInboxListContent(
+                          sourceItems: mergedItems,
+                          user: user,
+                        );
+                      },
+                    );
+                  }
+
+                  return _buildInboxListContent(sourceItems: items, user: user);
+                },
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1710,7 +1732,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       }).toList();
     } else if (_typeFilter == 'approval_request') {
       // Approvals: only goal approval requests
-      items = items.where((a) => a.type == AlertType.goalApprovalRequested).toList();
+      items = items
+          .where((a) => a.type == AlertType.goalApprovalRequested)
+          .toList();
     } else if (_typeFilter == 'nudge') {
       // Nudges: only manager nudge alerts (nudge feedback is added in the nudge UI branch)
       items = items.where((a) => a.type == AlertType.managerNudge).toList();
@@ -1727,7 +1751,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       };
       items = List<Alert>.from(items)
         ..sort((a, b) {
-          final p = priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!);
+          final p = priorityOrder[a.priority]!.compareTo(
+            priorityOrder[b.priority]!,
+          );
           if (p != 0) return p;
           return b.createdAt.compareTo(a.createdAt);
         });
@@ -1751,7 +1777,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           }
           final rawFeedback = feedbackMaps.map(_NudgeFeedback.fromMap).toList();
 
-          final managerNameLower = (user.displayName ?? '').toLowerCase().trim();
+          final managerNameLower = (user.displayName ?? '')
+              .toLowerCase()
+              .trim();
           final feedback = rawFeedback.where((f) {
             final meta = f.metadata;
             final mid = (meta['managerId'] ?? meta['senderId'])?.toString();
@@ -1770,7 +1798,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             }
 
             // Match by manager name if available
-            if (managerNameLower.isNotEmpty && mname != null && mname.isNotEmpty) {
+            if (managerNameLower.isNotEmpty &&
+                mname != null &&
+                mname.isNotEmpty) {
               return mname == managerNameLower;
             }
 
@@ -1857,10 +1887,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             );
           }
 
-          return ListView(
-            padding: EdgeInsets.zero,
-            children: widgets,
-          );
+          return ListView(padding: EdgeInsets.zero, children: widgets);
         },
       );
     }
@@ -1873,9 +1900,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             _showArchived
                 ? 'No archived messages found.'
                 : 'No inbox items match your filters.',
-            style: AppTypography.bodyMedium.copyWith(
-              color: Colors.white70,
-            ),
+            style: AppTypography.bodyMedium.copyWith(color: Colors.white70),
           ),
         ),
       );
@@ -2533,18 +2558,20 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     for (final goalDoc in goalDocs) {
       final goalData = goalDoc.data();
       final goalId = goalDoc.id;
-      
+
       // Skip if we already have an alert for this goal
       if (existingGoalIds.contains(goalId)) continue;
 
       final goalTitle = goalData['title']?.toString() ?? 'Untitled Goal';
       final requestedByUserId = goalData['requestedByUserId']?.toString();
-      final requestedByUserName = goalData['requestedByUserName']?.toString() ?? 'Unknown User';
-      final createdAt = (goalData['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+      final requestedByUserName =
+          goalData['requestedByUserName']?.toString() ?? 'Unknown User';
+      final createdAt =
+          (goalData['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
 
       // Create a fallback alert for the pending goal
       final fallbackAlert = Alert(
-        id: 'fallback_${goalId}_${adminUserId}',
+        id: 'fallback_${goalId}_$adminUserId',
         userId: adminUserId,
         type: AlertType.goalApprovalRequested,
         audience: AlertAudience.personal,
@@ -2572,7 +2599,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
     // Sort by creation date (newest first)
     mergedItems.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    
+
     return mergedItems;
   }
 }

@@ -478,21 +478,18 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                             runSpacing: 10,
                             alignment: WrapAlignment.center,
                             children: [
-                              ElevatedButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _employeesStream = _realtime
-                                        .employeesStream();
-                                    _employeesLoadWatch
-                                      ..reset()
-                                      ..start();
-                                  });
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.activeColor,
-                                  foregroundColor: Colors.white,
+                              Text(
+                                'Still loading…',
+                                style: AppTypography.heading4,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'We couldn’t load your team data. This is usually caused by a connection issue or missing Firestore permissions.',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: DashboardChrome.fg,
                                 ),
-                                child: const Text('Retry'),
+                                textAlign: TextAlign.center,
                               ),
                               OutlinedButton(
                                 onPressed: () async {
@@ -510,33 +507,49 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                                   side: BorderSide(
                                     color: _dashboardCardBorder(),
                                   ),
-                                ),
-                                child: const Text('Sign out'),
+                                  OutlinedButton(
+                                    onPressed: () async {
+                                      final navigator = Navigator.of(context);
+                                      await AuthService().signOut();
+                                      if (mounted) {
+                                        navigator.pushNamedAndRemoveUntil(
+                                          '/sign_in',
+                                          (route) => false,
+                                        );
+                                      }
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: DashboardChrome.fg,
+                                      side: BorderSide(
+                                        color: _dashboardCardBorder(),
+                                      ),
+                                    ),
+                                    child: const Text('Sign out'),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return SizedBox(
+                  height: 360,
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.activeColor,
                       ),
                     ),
                   ),
-                ),
-              );
-            }
-            return SizedBox(
-              height: 360,
-              child: const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.activeColor,
-                  ),
-                ),
-              ),
-            );
-          }
-          final employees = employeesSnap.data!;
-          if (_employeesLoadWatch.isRunning) {
-            _employeesLoadWatch.stop();
-          }
+                );
+              }
+              final employees = employeesSnap.data!;
+              if (_employeesLoadWatch.isRunning) {
+                _employeesLoadWatch.stop();
+              }
 
           // Compute metrics locally to avoid adding another Firestore listener
           final metrics = _computeTeamMetrics(employees);
@@ -587,53 +600,66 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     onTrack: onTrack,
                   ),
 
-              const SizedBox(height: AppSpacing.lg),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTopStatsGrid(
+                    columns: topGridColumns,
+                    activeToday: activeToday,
+                    activeThisWeek: activeThisWeek,
+                    inactive: inactive,
+                    overdue: overdue,
+                    atRisk: atRisk,
+                    onTrack: onTrack,
+                  ),
 
-              if (middleTwoColumns)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        key: _middleLeftKey,
-                        children: [
-                          _buildDailyMotivationCard(),
-                          const SizedBox(height: AppSpacing.md),
-                          _buildRecentActivitiesCard(employees),
-                        ],
-                      ),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  if (middleTwoColumns)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            key: _middleLeftKey,
+                            children: [
+                              _buildDailyMotivationCard(),
+                              const SizedBox(height: AppSpacing.md),
+                              _buildRecentActivitiesCard(employees),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: _buildQuickActions(
+                            expand: false,
+                            minHeight: _middleLeftHeight,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Column(
+                      children: [
+                        _buildDailyMotivationCard(),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildRecentActivitiesCard(employees),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildQuickActions(expand: false),
+                      ],
                     ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: _buildQuickActions(
-                        expand: false,
-                        minHeight: _middleLeftHeight,
-                      ),
-                    ),
-                  ],
-                )
-              else
-                Column(
-                  children: [
-                    _buildDailyMotivationCard(),
-                    const SizedBox(height: AppSpacing.md),
-                    _buildRecentActivitiesCard(employees),
-                    const SizedBox(height: AppSpacing.md),
-                    _buildQuickActions(expand: false),
-                  ],
-                ),
 
-              const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: AppSpacing.lg),
 
-              _buildBottomKpisAndHealth(
-                metrics,
-                employees,
-                maxWidth: width,
-              ),
+                  _buildBottomKpisAndHealth(
+                    metrics,
+                    employees,
+                    maxWidth: width,
+                  ),
 
-              const SizedBox(height: AppSpacing.xxl),
-            ],
-          );
+                  const SizedBox(height: AppSpacing.xxl),
+                ],
+              );
             },
           ),
         );
@@ -689,7 +715,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
         }
       },
-      content: DashboardThemedBackground(child: content),
+      content: ValueListenableBuilder<bool>(
+        valueListenable: employeeDashboardLightModeNotifier,
+        builder: (context, light, _) {
+          return EmployeeDashboardThemeScope(light: light, child: content);
+        },
+      ),
     );
   }
 

@@ -22,7 +22,6 @@ import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/rarity_badges_list_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/widgets/badge_celebration_dialog.dart';
-import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class BadgesPointsScreen extends StatefulWidget {
@@ -58,12 +57,6 @@ class _BadgesChrome {
   static Color get border =>
       light ? const Color(0x33000000) : Colors.white.withValues(alpha: 0.2);
   static Color get fg => light ? const Color(0xFF000000) : Colors.white;
-  static List<Color>? get lightGradient => light
-      ? [
-          Colors.white.withValues(alpha: 0.2),
-          Colors.white.withValues(alpha: 0.08),
-        ]
-      : null;
 }
 
 class _BadgesPointsScreenState extends State<BadgesPointsScreen>
@@ -508,16 +501,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 child: body,
               );
 
-              if (widget.embedded) return themedBody;
-
-              return AppComponents.backgroundWithImage(
-                blurSigma: 0,
-                imagePath: light
-                    ? 'assets/light_mode_bg.png'
-                    : 'assets/khono_bg.png',
-                gradientColors: _BadgesChrome.lightGradient,
-                child: themedBody,
-              );
+              return themedBody;
             },
           ),
         );

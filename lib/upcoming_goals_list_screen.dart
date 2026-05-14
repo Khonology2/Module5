@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
-import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/auth_service.dart';
@@ -26,20 +25,20 @@ class UpcomingGoalsListScreen extends StatelessWidget {
           .where('userId', isEqualTo: user.uid)
           .snapshots(),
     ).map((snapshot) {
-          final goals = snapshot.docs
-              .map((doc) => Goal.fromFirestore(doc))
-              .where(
-                (g) =>
-                    !g.isSeasonGoal &&
-                    g.approvalStatus == GoalApprovalStatus.approved &&
-                    g.status != GoalStatus.completed &&
-                    g.progress < 100,
-              )
-              .toList();
+      final goals = snapshot.docs
+          .map((doc) => Goal.fromFirestore(doc))
+          .where(
+            (g) =>
+                !g.isSeasonGoal &&
+                g.approvalStatus == GoalApprovalStatus.approved &&
+                g.status != GoalStatus.completed &&
+                g.progress < 100,
+          )
+          .toList();
 
-          goals.sort((a, b) => a.targetDate.compareTo(b.targetDate));
-          return goals;
-        });
+      goals.sort((a, b) => a.targetDate.compareTo(b.targetDate));
+      return goals;
+    });
   }
 
   @override
@@ -79,67 +78,64 @@ class UpcomingGoalsListScreen extends StatelessWidget {
                 );
               }
               final goals = snapshot.data ?? const <Goal>[];
-              return AppComponents.backgroundWithImage(
-                imagePath: 'assets/khono_bg.png',
-                child: SafeArea(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: AppSpacing.md),
-                      Center(
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(24),
-                          onTap: () {
-                            Navigator.pushReplacementNamed(
-                              context,
-                              '/employee_dashboard',
-                            );
-                          },
-                          child: SizedBox(
-                            width: 40,
-                            height: 40,
-                            child: Center(
-                              child: Image.asset(
-                                'assets/BackButton-Red.png',
-                                width: 24,
-                                height: 24,
-                                fit: BoxFit.contain,
-                                filterQuality: FilterQuality.high,
-                              ),
+              return SafeArea(
+                child: Column(
+                  children: [
+                    const SizedBox(height: AppSpacing.md),
+                    Center(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: () {
+                          Navigator.pushReplacementNamed(
+                            context,
+                            '/employee_dashboard',
+                          );
+                        },
+                        child: SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Center(
+                            child: Image.asset(
+                              'assets/BackButton-Red.png',
+                              width: 24,
+                              height: 24,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      Expanded(
-                        child: ListView.builder(
-                          padding: AppSpacing.screenPadding,
-                          itemCount: goals.length + 1,
-                          itemBuilder: (context, index) {
-                            if (index == 0) {
-                              return Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppSpacing.lg,
-                                ),
-                                child: Text(
-                                  'All Upcoming Goals',
-                                  style: AppTypography.heading2.copyWith(
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              );
-                            }
-                            final goal = goals[index - 1];
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: AppSpacing.screenPadding,
+                        itemCount: goals.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == 0) {
                             return Padding(
                               padding: const EdgeInsets.only(
-                                bottom: AppSpacing.sm,
+                                bottom: AppSpacing.lg,
                               ),
-                              child: _GoalListItem(goal: goal),
+                              child: Text(
+                                'All Upcoming Goals',
+                                style: AppTypography.heading2.copyWith(
+                                  color: Colors.white,
+                                ),
+                              ),
                             );
-                          },
-                        ),
+                          }
+                          final goal = goals[index - 1];
+                          return Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
+                            ),
+                            child: _GoalListItem(goal: goal),
+                          );
+                        },
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               );
             },
