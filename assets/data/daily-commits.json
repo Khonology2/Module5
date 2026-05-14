@@ -1,7 +1,22 @@
 {
-  "version": "2026.05.BB14.SIT",
-  "generated_at": "2026-05-14T14:38:44Z",
+  "version": "2026.05.BB17.SIT",
+  "generated_at": "2026-05-14T15:01:34Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "refactor: improve route argument handling and token management in web",
+      "timestamp": "2026-05-14T17:00:58+02:00"
+    },
+    {
+      "author": "github-actions[bot]",
+      "message": "chore: update Flutter web build [skip ci]",
+      "timestamp": "2026-05-14T14:42:10Z"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "chore: update daily commits data [2026-05-14] [skip ci]",
+      "timestamp": "2026-05-14T14:38:44Z"
+    },
     {
       "author": "Nathi2266",
       "message": "refactor: enhance token management and URL handling for web",
@@ -73,6 +88,6 @@
       "timestamp": "2026-05-14T13:32:42+02:00"
     }
   ],
-  "total_commits": 14,
+  "total_commits": 17,
   "date_range": "2026-05-14"
 }
