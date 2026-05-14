@@ -19,8 +19,8 @@ import 'package:pdh/admin_repository_audit_screen.dart';
 import 'package:pdh/admin_settings_screen.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/design_system/app_components.dart';
-import 'package:pdh/widgets/app_content_header.dart';
 import 'package:pdh/widgets/header_action_icons.dart';
+import 'package:pdh/widgets/app_content_header.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -120,6 +120,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   }
 
   void _onNavigate(String route) {
+    debugPrint('[AdminPortal] navigate from=$_currentRoute to=$route');
     setState(() {
       _currentRoute = route;
     });
@@ -243,12 +244,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
                           textColor: DashboardChrome.fg,
                         ),
                         Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(
-                              top: AppContentHeader.kGapBelowHeader,
-                            ),
-                            child: _getBodyWidget(),
-                          ),
+                          child: _getBodyWidget(),
                         ),
                       ],
                     ),

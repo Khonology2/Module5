@@ -1,8 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_typography.dart';
-import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 class AppContentHeader extends StatelessWidget {
   const AppContentHeader({
@@ -11,20 +9,16 @@ class AppContentHeader extends StatelessWidget {
     required this.actions,
     this.showGreeting = false,
     this.textColor = Colors.white,
-    this.backgroundColor,
+    this.backgroundColor = const Color(0xA6101522),
   });
 
   static const double kHeaderHeight = 64;
-
-  /// Space between the fixed header strip and the scrollable page body.
-  /// Shells combine this with [kHeaderHeight] for content insets (not scroll padding).
-  static const double kGapBelowHeader = AppSpacing.lg;
 
   final String title;
   final Widget actions;
   final bool showGreeting;
   final Color textColor;
-  final Color? backgroundColor;
+  final Color backgroundColor;
 
   String _resolveUserName() {
     final user = FirebaseAuth.instance.currentUser;
@@ -37,12 +31,10 @@ class AppContentHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color headerBg = backgroundColor ?? DashboardChrome.cardFill;
-
     return SizedBox(
       height: kHeaderHeight,
       child: ColoredBox(
-        color: headerBg,
+        color: backgroundColor,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           child: Row(

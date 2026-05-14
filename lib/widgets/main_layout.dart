@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element, duplicate_import
+
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
@@ -79,14 +81,16 @@ class MainLayout extends StatelessWidget {
       onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
       onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
       onNavigate: (route) {
-        if (ModalRoute.of(context)?.settings.name != route) {
+        final activeRoute = ModalRoute.of(context)?.settings.name ?? currentRouteName;
+        debugPrint('[MainLayout] navigate from=$activeRoute to=$route');
+        if (activeRoute != route) {
           Navigator.pushNamed(context, route);
         }
       },
       onLogout: () async {
         await AuthService().signOut();
         // ignore: use_build_context_synchronously
-        Navigator.pushNamedAndRemoveUntil(context, '/sign_in', (r) => false);
+        Navigator.pushNamedAndRemoveUntil(context, '/landing', (r) => false);
       },
       // Horizontal page margins; full-bleed background is painted by [AppScaffold].
       content: Padding(

@@ -63,7 +63,7 @@ class UpcomingGoalsListScreen extends StatelessWidget {
           onLogout: () async {
             final navigator = Navigator.of(context);
             await AuthService().signOut();
-            navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+            navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
           },
           content: StreamBuilder<List<Goal>>(
             stream: _getUpcomingGoalsStream(),

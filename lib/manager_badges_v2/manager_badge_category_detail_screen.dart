@@ -197,7 +197,7 @@ class _ManagerBadgeCategoryDetailScreenState
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (context.mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+          navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
         }
       },
       content: FocusTraversalGroup(

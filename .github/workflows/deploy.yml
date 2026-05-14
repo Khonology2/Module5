@@ -1,0 +1,397 @@
+# 1) Flutter analyze
+# 2) On khono-v2: pull latest, flutter build web, stamp build/web with source commit SHA,
+#    commit + push build/web (always when SHA changes), wait, POST RENDER_DEPLOY_HOOK
+#
+# Render must serve pre-built files only (Static Site): buildCommand = no-op, publish = build/web.
+# The version label (Ver … SIT) comes from assets/data/daily-commits.json bundled at build time.
+#
+# Secrets: RENDER_DEPLOY_HOOK = full URL from Render → Service → Settings → Deploy Hook
+
+name: deploy-check
+
+on:
+  workflow_call:
+    inputs:
+      deploy_branch:
+        description: "Branch that requested deployment"
+        required: true
+        type: string
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  checks-build-deploy:
+    name: Flutter CI, web build, Render deploy
+    runs-on: ubuntu-latest
+    env:
+      TARGET_DEPLOY_BRANCH: deployed-v2
+      DEPLOY_BRANCH: ${{ github.event_name == 'workflow_call' && inputs.deploy_branch || github.ref_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          clean: true
+          ref: ${{ env.DEPLOY_BRANCH }}
+
+      - name: Sync branch tip (ensure latest remote HEAD)
+        run: |
+          set -euo pipefail
+          BRANCH="${DEPLOY_BRANCH}"
+          if [ "$BRANCH" != "${TARGET_DEPLOY_BRANCH}" ]; then
+            echo "Not the deploy branch ($BRANCH != ${TARGET_DEPLOY_BRANCH}). Exiting."
+            exit 0
+          fi
+          echo "Syncing branch: $BRANCH"
+          git fetch origin "$BRANCH"
+          git checkout "$BRANCH"
+          git reset --hard "origin/$BRANCH"
+
+      - name: Show deployment commit identity
+        run: |
+          set -euo pipefail
+          echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
+          echo "Commit: $(git rev-parse HEAD)"
+          git log -1 --pretty=fuller
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: false
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Build web (for Render — not built on Render)
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        run: flutter build web --release --base-href /
+
+      - name: Disable service worker in web bundle (avoid stale cached JS after deploy)
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        run: python3 tool/strip_web_service_worker.py
+
+      - name: Stamp build with source commit (forces deploy when HEAD changes)
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        run: |
+          mkdir -p build/web
+          SOURCE_SHA=$(git rev-parse HEAD)
+          printf '%s\n' "$SOURCE_SHA" > build/web/.ci-source-commit
+          printf '{"sha":"%s","run_id":"%s","run_attempt":"%s"}\n' \
+            "$SOURCE_SHA" "${GITHUB_RUN_ID}" "${GITHUB_RUN_ATTEMPT}" > build/web/.ci-build-meta.json
+
+      - name: Restore lockfile changes from CI resolver
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        run: |
+          # flutter pub get may update pubspec.lock on CI; keep source tree clean for deploy commit.
+          git restore --source=HEAD --worktree -- "pubspec.lock" || true
+
+      - name: Commit and push build/web
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Safety: CI must not mutate tracked files outside build/web (e.g. pubspec.lock).
+          if [ -n "$(git status --porcelain -- . ':!build/web')" ]; then
+            echo "::error::Working tree has changes outside build/web after build steps. Refusing to deploy."
+            git status --porcelain -- . ':!build/web' || true
+            exit 1
+          fi
+
+          # build/ is typically gitignored in Flutter projects; force-add only the built web bundle.
+          git add -f build/web
+          if git diff --staged --quiet; then
+            echo "No build/web changes to commit"
+          else
+            git commit -m "chore: update Flutter web build [skip ci]"
+            git fetch origin deployed-v2
+            if ! git pull origin deployed-v2 --rebase; then
+              echo "::error::Rebase failed (conflicts with origin/deployed-v2). Resolve on the branch and re-run workflow."
+              exit 1
+            fi
+            if ! git push origin deployed-v2; then
+              git pull origin deployed-v2 --rebase
+              git push origin deployed-v2
+            fi
+          fi
+
+      - name: Wait for GitHub default branch tip (Render clones latest)
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        run: sleep 20
+
+      - name: Verify branch tip is latest before deploy
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        run: |
+          TARGET_BRANCH=deployed-v2
+          LOCAL_SHA=$(git rev-parse HEAD)
+          echo "Expecting remote $TARGET_BRANCH to be at $LOCAL_SHA"
+
+          for i in $(seq 1 12); do
+            git fetch origin "$TARGET_BRANCH"
+            REMOTE_SHA=$(git rev-parse "origin/$TARGET_BRANCH")
+            if [ "$REMOTE_SHA" = "$LOCAL_SHA" ]; then
+              echo "Remote is up to date at $REMOTE_SHA"
+              exit 0
+            fi
+            echo "Attempt $i/12: remote is $REMOTE_SHA, waiting for latest tip..."
+            sleep 5
+          done
+
+          echo "::error::Remote tip did not match workflow SHA; refusing to deploy stale code."
+          exit 1
+
+      - name: Trigger Render deploy hook
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RENDER_DEPLOY_HOOK}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+          # Mask hook target (never print the full hook URL)
+          RENDER_HOOK_TARGET="$(python3 - <<'PY'
+          import os, urllib.parse
+          u = os.environ.get("RENDER_DEPLOY_HOOK","")
+          try:
+              p = urllib.parse.urlparse(u)
+              host = p.hostname or "unknown-host"
+              path = (p.path or "").strip("/")
+              parts = [x for x in path.split("/") if x]
+              tail = "/".join(parts[:2]) if parts else ""
+              print(f"{host}/{tail}" if tail else host)
+          except Exception:
+              print("unknown")
+          PY
+          )"
+
+          DEPLOY_START_ISO="$(date -Is)"
+          DEPLOY_START_EPOCH="$(date +%s)"
+
+          # Capture body + status (Render may return empty body; that's fine)
+          CURL_OUT="$(mktemp)"
+          HTTP_CODE="$(curl -sS -o "$CURL_OUT" -w "%{http_code}" -X POST "$RENDER_DEPLOY_HOOK" || true)"
+          DEPLOY_END_ISO="$(date -Is)"
+          DEPLOY_END_EPOCH="$(date +%s)"
+          DEPLOY_SECONDS="$((DEPLOY_END_EPOCH - DEPLOY_START_EPOCH))"
+          DEPLOY_BODY="$(tr -d '\r' < "$CURL_OUT" | head -c 2000 || true)"
+          rm -f "$CURL_OUT" || true
+
+          # Export for summary step
+          {
+            echo "RENDER_HOOK_TARGET=$RENDER_HOOK_TARGET"
+            echo "RENDER_DEPLOY_START_ISO=$DEPLOY_START_ISO"
+            echo "RENDER_DEPLOY_END_ISO=$DEPLOY_END_ISO"
+            echo "RENDER_DEPLOY_SECONDS=$DEPLOY_SECONDS"
+            echo "RENDER_DEPLOY_HTTP_CODE=$HTTP_CODE"
+            echo "RENDER_DEPLOY_BODY<<__EOF__"
+            echo "$DEPLOY_BODY"
+            echo "__EOF__"
+          } >> "$GITHUB_ENV"
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "Render deploy hook invoked successfully (HTTP $HTTP_CODE)."
+          else
+            echo "::error::Render deploy hook returned HTTP $HTTP_CODE"
+            echo "Response body (truncated):"
+            echo "$DEPLOY_BODY"
+            exit 1
+          fi
+
+      - name: Deploy summary
+        if: ${{ always() && env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH }}
+        run: |
+          set -euo pipefail
+
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          BUILT_BRANCH_SHA="$(git rev-parse HEAD)"
+
+          # The "real" app code SHA that was bundled into build/web.
+          CURRENT_SOURCE_SHA=""
+          if [ -f "build/web/.ci-source-commit" ]; then
+            CURRENT_SOURCE_SHA="$(cat build/web/.ci-source-commit | tr -d '\r\n' || true)"
+          fi
+
+          # Best-effort previous deployed source SHA: read from previous commit's build/web stamp.
+          PREVIOUS_SOURCE_SHA=""
+          if git show HEAD~1:build/web/.ci-source-commit >/dev/null 2>&1; then
+            PREVIOUS_SOURCE_SHA="$(git show HEAD~1:build/web/.ci-source-commit | tr -d '\r\n' || true)"
+          fi
+
+          # App version from pubspec (e.g. 1.2.3+45)
+          APP_VERSION="$(python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path("pubspec.yaml")
+          if not p.exists():
+              print("unknown")
+              raise SystemExit(0)
+          m = re.search(r"^version:\s*([^\s#]+)", p.read_text(encoding="utf-8"), re.M)
+          print(m.group(1) if m else "unknown")
+          PY
+          )"
+
+          # Toolchain
+          FLUTTER_VERSION="$(flutter --version 2>/dev/null | head -n 1 || true)"
+          DART_VERSION="$(dart --version 2>/dev/null || true)"
+
+          # Build artifact fingerprints (help debug caching/stale bundles)
+          INDEX_HASH=""
+          MAIN_JS_HASH=""
+          ASSET_MANIFEST_HASH=""
+          BUILD_WEB_SIZE=""
+          if [ -d "build/web" ]; then
+            BUILD_WEB_SIZE="$(du -sh build/web 2>/dev/null | awk '{print $1}' || true)"
+          fi
+          if [ -f "build/web/index.html" ]; then
+            INDEX_HASH="$(sha256sum build/web/index.html | awk '{print $1}' || true)"
+          fi
+          if [ -f "build/web/main.dart.js" ]; then
+            MAIN_JS_HASH="$(sha256sum build/web/main.dart.js | awk '{print $1}' || true)"
+          fi
+          if [ -f "build/web/assets/AssetManifest.json" ]; then
+            ASSET_MANIFEST_HASH="$(sha256sum build/web/assets/AssetManifest.json | awk '{print $1}' || true)"
+          fi
+
+          {
+            echo "## deploy-check summary"
+            echo ""
+            echo "### Deployment identity"
+            echo "- **Workflow**: \`${GITHUB_WORKFLOW}\`"
+            echo "- **Job**: \`${GITHUB_JOB}\`"
+            echo "- **Run**: \`${GITHUB_RUN_ID}\` (attempt \`${GITHUB_RUN_ATTEMPT}\`)"
+            echo "- **Branch built**: \`${BRANCH_NAME}\`"
+            echo "- **Branch tip commit (contains build/web)**: \`${BUILT_BRANCH_SHA}\`"
+            if [ -n "${CURRENT_SOURCE_SHA}" ]; then
+              echo "- **App source commit bundled into build/web**: \`${CURRENT_SOURCE_SHA}\`"
+            else
+              echo "- **App source commit bundled into build/web**: _(missing \`build/web/.ci-source-commit\`)_"
+            fi
+            echo ""
+
+            echo "### App version"
+            echo "- **pubspec.yaml version**: \`${APP_VERSION}\`"
+            echo ""
+
+            echo "### Toolchain"
+            if [ -n "${FLUTTER_VERSION}" ]; then
+              echo "- **Flutter**: \`${FLUTTER_VERSION}\`"
+            fi
+            if [ -n "${DART_VERSION}" ]; then
+              echo "- **Dart**: \`${DART_VERSION}\`"
+            fi
+            echo ""
+
+            echo "### Render deploy hook + timing"
+            echo "- **Target**: \`${RENDER_HOOK_TARGET:-unknown}\`"
+            echo "- **HTTP**: \`${RENDER_DEPLOY_HTTP_CODE:-unknown}\`"
+            echo "- **Start**: \`${RENDER_DEPLOY_START_ISO:-unknown}\`"
+            echo "- **End**: \`${RENDER_DEPLOY_END_ISO:-unknown}\`"
+            echo "- **Duration**: \`${RENDER_DEPLOY_SECONDS:-unknown}s\`"
+            if [ -n "${RENDER_DEPLOY_BODY:-}" ]; then
+              echo ""
+              echo "**Deploy hook response body (truncated)**"
+              echo ""
+              echo "\`\`\`"
+              echo "${RENDER_DEPLOY_BODY}"
+              echo "\`\`\`"
+            fi
+            echo ""
+
+            echo "### What changed in this deployment"
+            if [ -n "${PREVIOUS_SOURCE_SHA}" ] && [ -n "${CURRENT_SOURCE_SHA}" ] && [ "${PREVIOUS_SOURCE_SHA}" != "${CURRENT_SOURCE_SHA}" ]; then
+              echo "- **Previous deployed source SHA**: \`${PREVIOUS_SOURCE_SHA}\`"
+              echo "- **Current deployed source SHA**: \`${CURRENT_SOURCE_SHA}\`"
+              echo ""
+              echo "**Commits**"
+              echo ""
+              echo "\`\`\`"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" || true
+              echo "\`\`\`"
+              echo ""
+
+              echo "**Release notes (grouped)**"
+              echo ""
+              echo "**Features (\`feat\`)**"
+              echo ""
+              echo "\`\`\`"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|[[:space:]])feat(\(|:|[[:space:]])' || echo "None"
+              echo "\`\`\`"
+              echo ""
+              echo "**Fixes (\`fix\`)**"
+              echo ""
+              echo "\`\`\`"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|[[:space:]])fix(\(|:|[[:space:]])' || echo "None"
+              echo "\`\`\`"
+              echo ""
+              echo "**Chores (\`chore\`)**"
+              echo ""
+              echo "\`\`\`"
+              git log --oneline --no-decorate "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -Ei '(^|[[:space:]])chore(\(|:|[[:space:]])' || echo "None"
+              echo "\`\`\`"
+              echo ""
+              echo "**Breaking (\`BREAKING CHANGE\`)**"
+              echo ""
+              echo "\`\`\`"
+              git log --format=%B "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" | grep -E 'BREAKING CHANGE' || echo "None"
+              echo "\`\`\`"
+              echo ""
+
+              echo "**Changed files (excluding generated build output)**"
+              echo ""
+              echo "\`\`\`"
+              git diff --name-status "${PREVIOUS_SOURCE_SHA}..${CURRENT_SOURCE_SHA}" -- . ':(exclude)build/' || true
+              echo "\`\`\`"
+            elif [ -n "${PREVIOUS_SOURCE_SHA}" ] && [ -n "${CURRENT_SOURCE_SHA}" ] && [ "${PREVIOUS_SOURCE_SHA}" = "${CURRENT_SOURCE_SHA}" ]; then
+              echo "- No source-code changes detected vs previous deploy (\`${CURRENT_SOURCE_SHA}\`)."
+            else
+              echo "- Unable to compute previous deployed SHA (first deploy on branch, or missing historical \`.ci-source-commit\`)."
+              if [ -n "${CURRENT_SOURCE_SHA}" ]; then
+                echo "- Current deployed source SHA: \`${CURRENT_SOURCE_SHA}\`"
+              fi
+            fi
+            echo ""
+
+            echo "### Deployed bundle fingerprints"
+            echo "- **Stamp file**: \`build/web/.ci-source-commit\`"
+            echo "- **Build meta**: \`build/web/.ci-build-meta.json\`"
+            if [ -n "${BUILD_WEB_SIZE}" ]; then
+              echo "- **Total build/web size**: \`${BUILD_WEB_SIZE}\`"
+            fi
+            if [ -n "${INDEX_HASH}" ]; then
+              echo "- **index.html sha256**: \`${INDEX_HASH}\`"
+            fi
+            if [ -n "${MAIN_JS_HASH}" ]; then
+              echo "- **main.dart.js sha256**: \`${MAIN_JS_HASH}\`"
+            fi
+            if [ -n "${ASSET_MANIFEST_HASH}" ]; then
+              echo "- **assets/AssetManifest.json sha256**: \`${ASSET_MANIFEST_HASH}\`"
+            fi
+            echo ""
+            echo "**Top-level build/web files (size)**"
+            echo ""
+            echo "\`\`\`"
+            (cd build/web && ls -la | sed -n '1,120p') || true
+            echo "\`\`\`"
+            echo ""
+
+            echo "### Deployed automation/scripts"
+            echo "- **Workflow**: \`.github/workflows/deploy.yml\`"
+            echo "- **Cache-busting script**: \`tool/strip_web_service_worker.py\`"
+            echo ""
+
+            echo "### Post-deploy verification"
+            echo "- Open \`https://<your-site>/.ci-source-commit\` to confirm the live SHA matches **App source commit** above."
+            echo "- Render: use **only** the deploy hook after this workflow, or disable auto-deploy on push so you never publish a commit before the bot updates \`build/web\`."
+          } >> "$GITHUB_STEP_SUMMARY"

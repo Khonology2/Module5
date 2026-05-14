@@ -1,0 +1,41 @@
+---
+alwaysApply: true
+
+# Debugging and Error Fixing Rules
+
+## Error Analysis and Solution Documentation
+
+When debugging or fixing any error in the application:
+
+- **Problem Explanation**: Always provide exactly 2 lines explaining what the problem is, including the root cause and its impact on the application.
+
+- **Solution Explanation**: Always provide exactly 2 lines explaining the solution, including the approach taken and how it resolves the issue.
+
+## Codebase Analysis Before Fixing
+
+Before fixing any issue or bug:
+
+- **Scan the codebase**: Thoroughly scan and understand the project structure, relevant files, and dependencies related to the issue.
+
+- **Understand the core issue**: Identify the root cause by examining the codebase, not just surface-level symptoms.
+
+- **Comprehensive fix**: Only after understanding the full context, implement a fix that addresses the core issue rather than just patching symptoms.
+
+## Post-Change Verification and Quality Assurance
+
+After making any code changes:
+
+- **Scan for potential issues**: After completing changes, scan the modified code and related files to ensure the changes won't introduce problems, break existing functionality, or create conflicts with other parts of the codebase.
+
+- **Lint error checking**: Always scan the changed files for lint errors after completing the changes, and fix any lint errors that are found before considering the task complete.
+
+## General Development Guidelines
+
+- Always scan the codebase before making changes to understand the architecture and patterns used.
+
+- When fixing bugs, provide clear explanations of both the problem and solution.
+
+- Ensure fixes are comprehensive and address root causes, not just symptoms.
+
+- After making changes, verify they don't introduce new issues and fix any lint errors.
+

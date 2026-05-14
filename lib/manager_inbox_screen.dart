@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_brace_in_string_interps
+
 import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -274,6 +276,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       case AlertType.managerGeneral:
       case AlertType.milestoneDeleted:
       case AlertType.milestoneDeletionRejected:
+      case AlertType.profileIncomplete:
         return true;
       case AlertType.goalOverdue:
         return _isManagerScopedGoalOverdue(alert) ||
@@ -1381,7 +1384,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (!context.mounted) return;
-        navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+        navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
       },
       content: _buildContent(),
     );
