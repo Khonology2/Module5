@@ -1,0 +1,541 @@
+<mxfile host="app.diagrams.net" modified="2024-01-01T00:00:00.000Z" agent="5.0" version="21.0.0" etag="drawio" type="device">
+  <diagram name="PDH System Architecture" id="pdh-arch">
+    <mxGraphModel dx="2400" dy="1600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3200" pageHeight="2400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title" value="Personal Development Hub System Design" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=32;fontStyle=1;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="100" y="40" width="600" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Client - Laptop Icon Style -->
+        <mxCell id="client" value="Client" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEB3B;strokeColor=#F57F17;fontStyle=1;fontSize=14;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="100" y="120" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- DNS - Cloud Icon -->
+        <mxCell id="dns" value="DNS" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#01579B;fontSize=14;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="280" y="120" width="100" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Load Balancer - Red Server Rack -->
+        <mxCell id="lb" value="Load Balancer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF5252;strokeColor=#B71C1C;fontStyle=1;fontSize=13;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="440" y="120" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- API Gateway - Purple Circles Style -->
+        <mxCell id="api-gateway-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#4A148C;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="640" y="100" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="api-gateway-circle1" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#4A148C;" vertex="1" parent="1">
+          <mxGeometry x="660" y="120" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="api-gateway-circle2" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#4A148C;" vertex="1" parent="1">
+          <mxGeometry x="730" y="120" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="api-gateway-circle3" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#4A148C;" vertex="1" parent="1">
+          <mxGeometry x="800" y="120" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="api-gateway-label" value="API Gateway&#xa;(FastAPI Backend)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;fontColor=#4A148C;" vertex="1" parent="1">
+          <mxGeometry x="640" y="160" width="200" height="40" as="geometry" />
+        </mxCell>
+        
+        <!-- CDN - Top Right -->
+        <mxCell id="cdn" value="Content Delivery Network (CDN)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#0D47A1;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="2400" y="120" width="200" height="60" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="static-content" value="Static Content" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="2400" y="200" width="200" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Cloudinary Storage - Cloud Icon -->
+        <mxCell id="cloudinary" value="Photo/Video Storage&#xa;(Cloudinary)" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#01579B;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="2400" y="280" width="200" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- APP Read Server - Blue Server Rack -->
+        <mxCell id="app-read" value="APP Read Server" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;strokeColor=#0D47A1;fontStyle=1;fontSize=13;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="640" y="280" width="180" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- APP Write Server - Blue Server Rack -->
+        <mxCell id="app-write" value="APP Write Server" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;strokeColor=#0D47A1;fontStyle=1;fontSize=13;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="860" y="280" width="180" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Internal Load Balancer -->
+        <mxCell id="internal-lb" value="Internal Load Balancer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF5252;strokeColor=#B71C1C;fontStyle=1;fontSize=13;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="280" width="180" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Cache - Trash Can Style -->
+        <mxCell id="cache" value="Cache" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=20;fillColor=#FFE082;strokeColor=#F57C00;fontSize=14;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="280" width="120" height="100" as="geometry" />
+        </mxCell>
+        
+        <!-- Firestore Database - Multiple DB Icons -->
+        <mxCell id="db-container" value="Metadata/User DB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#01579B;strokeWidth=2;fontSize=13;fontStyle=1;fontColor=#01579B;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="200" width="200" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="db-master" value="Master" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4FC3F7;strokeColor=#0277BD;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="240" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="db-slave1" value="slave 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4FC3F7;strokeColor=#0277BD;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="300" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="db-slave2" value="slave 2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4FC3F7;strokeColor=#0277BD;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="360" width="160" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Collections Info -->
+        <mxCell id="collections" value="Collections:&#xa;users, goals, seasons,&#xa;badges, alerts, teams,&#xa;onboarding" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#4A148C;fontSize=10;align=left;verticalAlign=top;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="440" width="200" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- Directory Based Partitioning -->
+        <mxCell id="partitioning" value="Directory Based Partitioning" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="420" width="160" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Shard Manager -->
+        <mxCell id="shard-manager" value="Shard Manager" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="490" width="160" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Notification Queue - Yellow Cylinder -->
+        <mxCell id="notif-queue" value="Notification Queue" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFF59D;strokeColor=#F57F17;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="100" y="600" width="140" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Notification Service - Bell Icon Style -->
+        <mxCell id="notif-service" value="Notification Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF59D;strokeColor=#F57F17;fontSize=12;fontStyle=1;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="100" y="680" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Email Service -->
+        <mxCell id="email-service" value="Email Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF59D;strokeColor=#F57F17;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="100" y="760" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Feed Generation Task - Trash Can Style -->
+        <mxCell id="feed-task" value="Feed Generation Task" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=20;fillColor=#FFE082;strokeColor=#F57C00;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="860" y="400" width="140" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Feed Generation Queue - Yellow Cylinder -->
+        <mxCell id="feed-queue" value="Feed Generation Queue" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFF59D;strokeColor=#F57F17;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="860" y="480" width="140" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Feed Generation Service -->
+        <mxCell id="feed-service" value="Feed Generation Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="860" y="560" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Dashboard Data -->
+        <mxCell id="dashboard-data" value="Dashboard Data" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="860" y="640" width="140" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Points Service -->
+        <mxCell id="points-service" value="Points Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="640" y="600" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Badge Service -->
+        <mxCell id="badge-service" value="Badge Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="640" y="680" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Season Service -->
+        <mxCell id="season-service" value="Season Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="640" y="760" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Leaderboard Service -->
+        <mxCell id="leaderboard-service" value="Leaderboard Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="640" y="840" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- AI Chatbot Service -->
+        <mxCell id="ai-chatbot" value="AI Chatbot Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#4A148C;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="600" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Speech Recognition Service -->
+        <mxCell id="speech-service" value="Speech Recognition Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#4A148C;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="680" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Team Management Service -->
+        <mxCell id="team-service" value="Team Management Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="760" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Repository Service -->
+        <mxCell id="repo-service" value="Repository Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="840" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Evidence Processing Task - Hourglass Style -->
+        <mxCell id="evidence-task" value="Evidence Processing Task" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE082;strokeColor=#F57C00;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="2400" y="400" width="200" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Evidence Processing Queue -->
+        <mxCell id="evidence-queue" value="Evidence Processing Queue" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFF59D;strokeColor=#F57F17;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="2400" y="480" width="200" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Evidence Processing Service -->
+        <mxCell id="evidence-service" value="Evidence Processing Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#4A148C;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="2400" y="560" width="200" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Workers -->
+        <mxCell id="worker1" value="worker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="2400" y="680" width="60" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="worker2" value="worker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="2480" y="680" width="60" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="worker3" value="worker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=11;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="2560" y="680" width="60" height="40" as="geometry" />
+        </mxCell>
+        
+        <!-- Real-time Updates -->
+        <mxCell id="realtime" value="Real-time Updates&#xa;(Firestore Streams)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="600" width="160" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Goal Approval Service -->
+        <mxCell id="goal-approval" value="Goal Approval Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="700" width="160" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Streak Service -->
+        <mxCell id="streak-service" value="Streak Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="800" width="160" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Database Service -->
+        <mxCell id="db-service" value="Database Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="600" width="200" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Alert Service -->
+        <mxCell id="alert-service" value="Alert Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="680" width="200" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Role Service -->
+        <mxCell id="role-service" value="Role Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="760" width="200" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Onboarding Service -->
+        <mxCell id="onboarding-service" value="Onboarding Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=12;fontColor=#1F2840;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="840" width="200" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Connections -->
+        <!-- Client to DNS - Purple Dashed -->
+        <mxCell id="edge1" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#9C27B0;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="client" target="dns">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Client to CDN - Purple Dashed -->
+        <mxCell id="edge-cdn" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#9C27B0;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="client" target="cdn">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="220" y="150" />
+              <mxPoint x="220" y="50" />
+              <mxPoint x="2400" y="50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- DNS to Load Balancer - Green Solid -->
+        <mxCell id="edge2" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#4CAF50;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="dns" target="lb">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Load Balancer to API Gateway - Green Solid -->
+        <mxCell id="edge3" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#4CAF50;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="lb" target="api-gateway-box">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- API Gateway to APP Read - Green Solid -->
+        <mxCell id="edge5" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#4CAF50;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="api-gateway-box" target="app-read">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- API Gateway to APP Write - Green Solid -->
+        <mxCell id="edge6" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#4CAF50;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="api-gateway-box" target="app-write">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- API Gateway to Internal LB - Blue Solid -->
+        <mxCell id="edge-lb" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#2196F3;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="api-gateway-box" target="internal-lb">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- APP Read to Cache - Red Dashed -->
+        <mxCell id="edge7" value="Metadata (goals, progress)" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#F44336;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=10;fontColor=#C62828;" edge="1" parent="1" source="app-read" target="cache">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- APP Read to Notification Queue - Blue Dashed -->
+        <mxCell id="edge8" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#2196F3;dashed=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="app-read" target="notif-queue">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="500" y="333" />
+              <mxPoint x="170" y="333" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- APP Write to Feed Generation Task - Brown Solid -->
+        <mxCell id="edge9" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#8D6E63;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="app-write" target="feed-task">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- APP Write to Evidence Processing Task - Brown Solid -->
+        <mxCell id="edge-evidence" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#8D6E63;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="app-write" target="evidence-task">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1040" y="333" />
+              <mxPoint x="1040" y="425" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Feed Generation Task to Queue - Brown Solid -->
+        <mxCell id="edge-feed-task" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#8D6E63;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="feed-task" target="feed-queue">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Feed Queue to Service - Blue Dashed -->
+        <mxCell id="edge-feed-queue" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#2196F3;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="feed-queue" target="feed-service">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Feed Service to Dashboard Data -->
+        <mxCell id="edge-feed-dashboard" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#F44336;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="feed-service" target="dashboard-data">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Feed Service to Cache - Red Dashed -->
+        <mxCell id="edge-feed-cache" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#F44336;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="feed-service" target="cache">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Feed Service to DB - Red Dashed -->
+        <mxCell id="edge-feed-db" value="Dashboard Data" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#F44336;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;fontSize=10;fontColor=#C62828;" edge="1" parent="1" source="feed-service" target="db-container">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Cache to DB - Red Dashed Bidirectional -->
+        <mxCell id="edge10" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#F44336;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cache" target="db-container">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Cache to Partitioning - Red Dashed -->
+        <mxCell id="edge-partition" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#F44336;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="cache" target="partitioning">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Partitioning to Shard Manager - Red Dashed -->
+        <mxCell id="edge-shard" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#F44336;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="partitioning" target="shard-manager">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Shard Manager to DB - Red Dashed -->
+        <mxCell id="edge-shard-db" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#F44336;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" edge="1" parent="1" source="shard-manager" target="db-container">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Notification Queue to Notification Service - Yellow Solid -->
+        <mxCell id="edge13" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#FFC107;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="notif-queue" target="notif-service">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Notification Service to Email Service - Yellow Solid -->
+        <mxCell id="edge14" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#FFC107;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="notif-service" target="email-service">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Notification Service to Client - Blue Dashed Bidirectional -->
+        <mxCell id="edge-notif-client" value="" style="endArrow=classic;endFill=0;html=1;strokeWidth=2;strokeColor=#2196F3;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="notif-service" target="client">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="50" y="710" />
+              <mxPoint x="50" y="150" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Evidence Task to Queue - Brown Solid -->
+        <mxCell id="edge-evidence-queue" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#8D6E63;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="evidence-task" target="evidence-queue">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Evidence Queue to Service - Purple Solid -->
+        <mxCell id="edge-evidence-service" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#9C27B0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="evidence-queue" target="evidence-service">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Evidence Service to Workers - Purple Dashed -->
+        <mxCell id="edge-worker1" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#9C27B0;dashed=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="evidence-service" target="worker1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-worker2" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#9C27B0;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="evidence-service" target="worker2">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-worker3" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#9C27B0;dashed=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="evidence-service" target="worker3">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Cloudinary to Evidence Service - Purple Dashed Bidirectional -->
+        <mxCell id="edge-cloudinary" value="" style="endArrow=classic;endFill=0;html=1;strokeWidth=2;strokeColor=#9C27B0;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="cloudinary" target="evidence-service">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- CDN to Static Content - Purple Dashed -->
+        <mxCell id="edge-cdn-static" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#9C27B0;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="cdn" target="static-content">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Static Content to Cloudinary - Purple Dashed -->
+        <mxCell id="edge-static-cloudinary" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#9C27B0;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="static-content" target="cloudinary">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Real-time to DB - Green Solid -->
+        <mxCell id="edge-realtime-db" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#4CAF50;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="realtime" target="db-container">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Real-time to APP Read - Green Dashed -->
+        <mxCell id="edge-realtime-read" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#4CAF50;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="realtime" target="app-read">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1220" y="635" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Services to DB connections -->
+        <mxCell id="edge-db-service" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#F44336;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="db-service" target="db-container">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="400" as="sourcePoint" />
+            <mxPoint x="550" y="350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Footer -->
+        <mxCell id="footer" value="Created by: Personal Development Hub (PDH) Team" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="2200" y="1000" width="400" height="30" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
