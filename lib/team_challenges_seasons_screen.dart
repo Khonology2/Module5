@@ -15,9 +15,14 @@ class TeamChallengesSeasonsScreen extends StatefulWidget {
   /// When true, admin is viewing; no employee-specific data.
   final bool forAdminOversight;
 
+  /// When true, render without an AppBar title — [ManagerPortalScreen] /
+  /// [AdminPortalScreen] already show the page name in [AppContentHeader].
+  final bool embedded;
+
   const TeamChallengesSeasonsScreen({
     super.key,
     this.forAdminOversight = false,
+    this.embedded = false,
   });
 
   @override
@@ -162,15 +167,19 @@ class _TeamChallengesSeasonsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final shellShowsTitle = widget.embedded || widget.forAdminOversight;
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         centerTitle: false,
-        title: Text(
-          'Team Challenges & Growth Seasons',
-          style: AppTypography.heading2.copyWith(color: Colors.white),
-        ),
+        toolbarHeight: shellShowsTitle ? 0 : kToolbarHeight,
+        title: shellShowsTitle
+            ? null
+            : Text(
+                'Team Challenges & Growth Seasons',
+                style: AppTypography.heading2.copyWith(color: Colors.white),
+              ),
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -584,7 +593,10 @@ class _TeamChallengesSeasonsScreenState
                 }
 
                 final seasons = _filterSeasonsForScreen(snapshot.data ?? []);
-                final reviewGroups = _buildSeasonReviewGroups(seasons);
+                final activeSeasons = seasons
+                    .where((s) => s.status == SeasonStatus.active)
+                    .toList();
+                final reviewGroups = _buildSeasonReviewGroups(activeSeasons);
 
                 if (reviewGroups.isEmpty) {
                   return Container(
@@ -1063,19 +1075,13 @@ class _TeamChallengesSeasonsScreenState
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Completed • ${season.theme.toUpperCase()}',
+                      'COMPLETED • ${season.theme.toUpperCase()}',
                       style: AppTypography.bodySmall.copyWith(
                         color: AppColors.successColor,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
-                ),
-              ),
-              Text(
-                '${season.metrics.totalParticipants} participants',
-                style: AppTypography.bodySmall.copyWith(
-                  color: _getThemedSecondaryTextColor(context),
                 ),
               ),
             ],
@@ -1107,13 +1113,39 @@ class _TeamChallengesSeasonsScreenState
                 color: AppColors.successColor,
               ),
               const Spacer(),
-              ElevatedButton.icon(
-                onPressed: () => _viewSeasonCelebration(season),
-                icon: const Icon(Icons.celebration, size: 16),
-                label: const Text('Celebration'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.warningColor,
-                  foregroundColor: Colors.white,
+              Text(
+                '${season.metrics.totalParticipants} participants',
+                style: AppTypography.bodySmall.copyWith(
+                  color: _getThemedSecondaryTextColor(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _reviewCompletedSeason(season),
+                  icon: const Icon(Icons.history, size: 16),
+                  label: const Text('View Evidence'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.activeColor,
+                    side: BorderSide(color: AppColors.activeColor),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _viewSeasonCelebration(season),
+                  icon: const Icon(Icons.celebration, size: 16),
+                  label: const Text('Celebration'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.warningColor,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ),
             ],
@@ -1249,10 +1281,8 @@ class _TeamChallengesSeasonsScreenState
         final entries = <_SeasonReviewEntry>[];
 
         for (final submission in participation.challengeSubmissions.values) {
-          if (submission.status == ChallengeSubmissionStatus.notSubmitted) {
-            continue;
-          }
-
+          // Include ALL submissions in review interface so managers can see all participants
+          // This ensures participants with any submission status appear for review
           final challenge = _findChallengeById(season, submission.challengeId);
           if (challenge == null) continue;
 
@@ -1266,7 +1296,8 @@ class _TeamChallengesSeasonsScreenState
           );
         }
 
-        if (entries.isEmpty) continue;
+        // Always show participant groups, even if entries are empty
+        // This allows managers to see participants who need to submit or have submission issues
 
         entries.sort(
           (a, b) =>
@@ -1757,6 +1788,17 @@ class _TeamChallengesSeasonsScreenState
     );
   }
 
+  void _reviewCompletedSeason(Season season) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SeasonDetailsScreen(
+          season: season,
+        ),
+      ),
+    );
+  }
+
   void _viewSeasonCelebration(Season season) {
     Navigator.push(
       context,
@@ -2089,21 +2131,46 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     required String labelText,
     String? hintText,
   }) {
+    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    
+    // Theme-aware colors
+    final Color fillColor = isEmployeeDashboardLight 
+        ? DashboardChrome.cardFill
+        : isLightMode 
+            ? Colors.grey.shade50
+            : _darkFieldColor;
+    
+    final Color borderColor = isEmployeeDashboardLight
+        ? DashboardChrome.border
+        : isLightMode
+            ? Colors.grey.shade300
+            : Colors.white.withValues(alpha: 0.2);
+    
+    final Color labelColor = isEmployeeDashboardLight
+        ? DashboardChrome.fg
+        : isLightMode
+            ? Colors.black87
+            : Colors.white.withValues(alpha: 0.85);
+    
+    final Color hintColor = isEmployeeDashboardLight
+        ? Colors.black54
+        : isLightMode
+            ? Colors.grey.shade600
+            : Colors.white.withValues(alpha: 0.55);
+    
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      borderSide: BorderSide(color: borderColor),
     );
+    
     return InputDecoration(
       labelText: labelText,
       hintText: hintText,
-      labelStyle: AppTypography.bodySmall.copyWith(
-        color: Colors.white.withValues(alpha: 0.85),
-      ),
-      hintStyle: AppTypography.bodySmall.copyWith(
-        color: Colors.white.withValues(alpha: 0.55),
-      ),
+      labelStyle: AppTypography.bodySmall.copyWith(color: labelColor),
+      hintStyle: AppTypography.bodySmall.copyWith(color: hintColor),
       filled: true,
-      fillColor: _darkFieldColor,
+      fillColor: fillColor,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,

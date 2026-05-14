@@ -1585,7 +1585,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             ),
           ),
           child: StreamBuilder<List<Alert>>(
-            stream: AlertService.getUserAlertsStream(user.uid, maxItems: null),
+            stream: AlertService.getManagerInboxStream(
+              managerId: user.uid,
+              personal: false,
+              typeFilter: null,
+              limit: 100,
+            ),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
@@ -1996,7 +2001,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 child: Text(
                   alert.title,
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textPrimary,
+                    color: _getThemedTextColor(context),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -2013,7 +2018,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           const SizedBox(height: 6),
           Text(
             alert.message,
-            style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+            style: AppTypography.bodySmall.copyWith(
+              color: _getThemedTextColor(context),
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 8),
           if (alert.type == AlertType.goalApprovalRequested) ...[
@@ -2024,7 +2032,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             children: [
               Text(
                 _getTimeAgo(alert.createdAt),
-                style: AppTypography.bodySmall.copyWith(color: Colors.white54),
+                style: AppTypography.bodySmall.copyWith(color: _getThemedSecondaryTextColor(context)),
               ),
               const SizedBox(width: 8),
               if (alert.type == AlertType.goalApprovalRequested &&
@@ -2265,7 +2273,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     : alert.message,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+                style: AppTypography.bodySmall.copyWith(
+                  color: _getThemedTextColor(context),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 8),
               _buildRequestedByLine(alert),
@@ -2275,7 +2286,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   Text(
                     _getTimeAgo(alert.createdAt),
                     style: AppTypography.bodySmall.copyWith(
-                      color: Colors.white54,
+                      color: _getThemedSecondaryTextColor(context),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -2324,7 +2335,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       ? 'Approved goal. Open View Goal for full details.'
                       : 'Rejected goal. Open View Goal for full details.',
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textPrimary,
+                    color: _getThemedTextColor(context),
                   ),
                 ),
               ),
@@ -2352,7 +2363,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             child: Text(
               alert.title,
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
+                color: _getThemedTextColor(context),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -2521,10 +2532,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       onSelected: (_) => onSelected(),
       selectedColor: AppColors.activeColor.withValues(alpha: 0.35),
       backgroundColor: _glassFieldColor,
-      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      side: BorderSide(color: _getThemedBorderColor()),
       labelStyle: AppTypography.bodySmall.copyWith(
-        color: selected ? Colors.white : AppColors.textSecondary,
-        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+        color: selected ? Colors.white : _getThemedTextColor(context),
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
       ),
     );
   }
@@ -2539,12 +2550,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       selected: selected,
       onSelected: onSelected,
       selectedColor: AppColors.warningColor.withValues(alpha: 0.3),
-      checkmarkColor: Colors.white,
+      checkmarkColor: AppColors.activeColor,
       backgroundColor: _glassFieldColor,
-      side: BorderSide(color: DashboardChrome.border),
+      side: BorderSide(color: _getThemedBorderColor()),
       labelStyle: AppTypography.bodySmall.copyWith(
-        color: DashboardChrome.fg,
-        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+        color: _getThemedTextColor(context),
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
       ),
     );
   }
@@ -2558,6 +2569,45 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   Color get _glassFieldColor => DashboardChrome.cardFill;
+
+  Color _getThemedTextColor(BuildContext context) {
+    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    
+    if (isEmployeeDashboardLight) {
+      return DashboardChrome.fg;
+    } else if (isLightMode) {
+      return Colors.black87;
+    } else {
+      return Colors.white;
+    }
+  }
+
+  Color _getThemedSecondaryTextColor(BuildContext context) {
+    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    
+    if (isEmployeeDashboardLight) {
+      return Colors.black54;
+    } else if (isLightMode) {
+      return Colors.black54;
+    } else {
+      return Colors.white70;
+    }
+  }
+
+  Color _getThemedBorderColor() {
+    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
+    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
+    
+    if (isEmployeeDashboardLight) {
+      return DashboardChrome.border;
+    } else if (isLightMode) {
+      return Colors.grey.shade300;
+    } else {
+      return Colors.white.withValues(alpha: 0.2);
+    }
+  }
 
   Color _getAlertColor(AlertPriority priority) {
     switch (priority) {

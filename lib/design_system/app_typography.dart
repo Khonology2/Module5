@@ -88,10 +88,12 @@ class AppTypography {
   /// Small body text
   static const TextStyle bodySmall = TextStyle(
     fontFamily: fontFamily,
-    fontSize: fontSizeSM,
+    fontSize: 9.22,
     fontWeight: fontWeightNormal,
     color: AppColors.textSecondary,
-    height: 1.4,
+    height: 11.06 / 9.22, // Line height ratio
+    letterSpacing: 0.01, // 1% letter spacing
+    fontFeatures: [FontFeature.enable('smcp')], // Small caps
   );
 
   /// Extra small body text

@@ -89,6 +89,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   // does not flash or show placeholder-only data when the stream
   // re-emits (e.g., after sending a nudge).
   List<EmployeeData> _lastEmployees = const [];
+  
+  // Stable data caching to prevent flickering
+  List<Alert> _lastStableAlerts = <Alert>[];
+  DateTime? _lastAlertsUpdate;
+  static const Duration _alertsStabilityThreshold = Duration(seconds: 2);
 
   @override
   void initState() {
@@ -845,15 +850,24 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                   .toList();
         developer.log('Loaded ${allAlerts.length} alerts', name: 'TeamAlerts');
 
+        // Stabilize alerts data to prevent flickering
+        final now = DateTime.now();
+        final shouldUseStaleData = _lastAlertsUpdate != null &&
+            now.difference(_lastAlertsUpdate!).inMilliseconds < _alertsStabilityThreshold.inMilliseconds &&
+            _lastStableAlerts.isNotEmpty;
+        
+        if (!shouldUseStaleData && (allAlerts.isNotEmpty || employees.isNotEmpty)) {
+          // Build the stable alert list
+          _lastStableAlerts = _buildStableAlertList(managerScopedAlerts, employees, manager.uid);
+          _lastAlertsUpdate = now;
+        }
+        
+        final combinedAlerts = shouldUseStaleData ? _lastStableAlerts : _lastStableAlerts;
+
         try {
           final Map<String, EmployeeData> employeesById = {
             for (final e in employees) e.profile.uid: e,
           };
-
-          // Build combined list: manager-addressed alerts + alerts that were already in the system
-          // (employee alerts) + synthetic inactivity + synthetic overdue so filters show everything.
-          final combinedAlerts = <Alert>[];
-          combinedAlerts.addAll(managerScopedAlerts);
 
           // Add each employee's existing alerts (so "All Issues" and type filters show them)
           final seenAlertIds = <String>{};
@@ -4486,6 +4500,99 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         ],
       ),
     );
+  }
+
+  /// Build a stable alert list to prevent flickering
+  List<Alert> _buildStableAlertList(List<Alert> managerScopedAlerts, List<EmployeeData> employees, String managerId) {
+    final combinedAlerts = <Alert>[];
+    combinedAlerts.addAll(managerScopedAlerts);
+
+    // Add each employee's existing alerts (so "All Issues" and type filters show them)
+    final seenAlertIds = <String>{};  
+    for (final a in combinedAlerts) {
+      if (a.id.isNotEmpty) seenAlertIds.add(a.id);
+    }
+    for (final e in employees) {
+      final alerts = e.recentAlerts;
+      if (alerts.isEmpty) continue;
+      for (final a in alerts) {
+        if (!widget.forAdminOversight &&
+            _isAdminSupervisionAlertForManager(a)) {
+          continue;
+        }
+        if (widget.forAdminOversight && !_isAdminOversightTeamAlert(a)) {
+          continue;
+        }
+        if (_isSuppressedStaleGoalOverdueAlert(a, e)) continue;
+        if (a.id.isNotEmpty && seenAlertIds.contains(a.id)) continue;
+        if (a.id.isNotEmpty) seenAlertIds.add(a.id);
+        combinedAlerts.add(a);
+      }
+    }
+
+    // Add synthetic alerts with validation to prevent ghost data
+    final now = DateTime.now();
+    for (final e in employees) {
+      final inactivityDays = now.difference(e.lastActivity).inDays;
+      if (inactivityDays >= 3) {
+        final id = 'synthetic_inactivity_${e.profile.uid}';
+        if (!seenAlertIds.add(id)) continue;
+        combinedAlerts.add(
+          Alert(
+            id: id,
+            userId: e.profile.uid,
+            type: AlertType.inactivity,
+            audience: AlertAudience.team,
+            priority: inactivityDays >= 7
+                ? AlertPriority.high
+                : AlertPriority.medium,
+            title: 'Employee Inactive',
+            message: '${e.profile.displayName} inactive for $inactivityDays days',
+            createdAt: now.subtract(const Duration(hours: 1)),
+          ),
+        );
+      }
+      
+      // Synthetic overdue with better validation
+      final goals = e.goals;
+      for (final goal in goals) {
+        if (!goal.isEligibleForOverdueTeamAlert) continue;
+        if (!goal.targetDate.isBefore(now)) continue;
+        
+        // Additional validation to prevent ghost data
+        if (goal.progress >= 100) continue;
+        if (goal.status == GoalStatus.completed || 
+            goal.status == GoalStatus.acknowledged ||
+            goal.status == GoalStatus.paused) {
+          continue;
+        }
+        
+        final id = 'synthetic_overdue_${goal.id}_${e.profile.uid}';
+        if (!seenAlertIds.add(id)) continue;
+        final daysOverdue = now.difference(goal.targetDate).inDays;
+        
+        // Only create alert if actually overdue (at least 1 day)
+        if (daysOverdue < 1) continue;
+        combinedAlerts.add(
+          Alert(
+            id: id,
+            userId: e.profile.uid,
+            type: AlertType.goalOverdue,
+            audience: AlertAudience.team,
+            priority: AlertPriority.urgent,
+            title: 'Goal Overdue',
+            message: '"${goal.title}" is overdue by $daysOverdue day${daysOverdue == 1 ? '' : 's'}.',
+            actionText: 'Reschedule',
+            actionRoute: '/manager_alerts_nudges',
+            actionData: {'goalId': goal.id},
+            createdAt: now.subtract(const Duration(hours: 1)),
+            relatedGoalId: goal.id,
+          ),
+        );
+      }
+    }
+    
+    return combinedAlerts;
   }
 }
 

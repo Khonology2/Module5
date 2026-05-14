@@ -97,12 +97,12 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_gw_menu_goal_workspace':
         return EdgeInsets.fromLTRB(
           AppSpacing.xxl,
-          0,
+          AppContentHeader.kGapBelowHeader,
           AppSpacing.xxl,
           AppSpacing.xxl,
         );
       default:
-        return EdgeInsets.zero;
+        return const EdgeInsets.only(top: AppContentHeader.kGapBelowHeader);
     }
   }
 
@@ -137,7 +137,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_profile':
         return const ManagerProfileScreen(embedded: true);
       case '/team_challenges_seasons':
-        return const TeamChallengesSeasonsScreen();
+        return const TeamChallengesSeasonsScreen(embedded: true);
       case '/progress_visuals':
         return const ProgressVisualsScreen(embedded: true);
       case '/manager_alerts_nudges':
@@ -160,7 +160,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/settings':
         return const SettingsScreen();
       case '/manager_review_team_dashboard':
-        return const ManagerReviewTeamDashboardScreen();
+        return const ManagerReviewTeamDashboardScreen(embedded: true);
       // Manager Goal Workspace dropdown – same UI as employee, manager-scoped; body-only to avoid second sidebar
       case '/manager_gw_menu_dashboard':
         return const EmployeeDashboardScreen(

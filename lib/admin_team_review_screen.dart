@@ -17,6 +17,7 @@ class AdminTeamReviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ManagerReviewTeamDashboardScreen(
+      embedded: true,
       forAdminOversight: true,
       selectedManagerId: selectedManagerId,
       initialEmployeeId: initialEmployeeId,
