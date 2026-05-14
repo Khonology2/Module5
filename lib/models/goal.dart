@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 enum GoalCategory { personal, work, health, learning }
 
@@ -115,18 +116,18 @@ class Goal {
   });
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>?;
-    final rawCategory = (data?['category'] ?? 'personal')
+    final data = FirestoreSafe.documentDataAsMap(doc);
+    final rawCategory = (data['category'] ?? 'personal')
         .toString()
         .toLowerCase();
-    final rawPriority = (data?['priority'] ?? 'medium')
+    final rawPriority = (data['priority'] ?? 'medium')
         .toString()
         .toLowerCase();
-    final rawStatus = (data?['status'] ?? 'notStarted')
+    final rawStatus = (data['status'] ?? 'notStarted')
         .toString()
         .toLowerCase();
     // Must match goals awaiting review: missing field means pending, not approved.
-    final rawApproval = (data?['approvalStatus'] ?? 'pending')
+    final rawApproval = (data['approvalStatus'] ?? 'pending')
         .toString()
         .toLowerCase();
 
@@ -152,9 +153,9 @@ class Goal {
 
     return Goal(
       id: doc.id,
-      userId: data?['userId'] ?? '',
-      title: data?['title'] ?? '',
-      description: data?['description'] ?? '',
+      userId: data['userId'] ?? '',
+      title: data['title'] ?? '',
+      description: data['description'] ?? '',
       category: GoalCategory.values.firstWhere(
         (e) => e.name.toLowerCase() == rawCategory,
         orElse: () => GoalCategory.personal,
@@ -177,36 +178,36 @@ class Goal {
       ),
       // Coerce numeric values safely to int (Firestore may store as double)
       progress: (() {
-        final raw = data?['progress'];
+        final raw = data['progress'];
         if (raw is int) return raw;
         if (raw is num) return raw.round();
         return 0;
       })(),
-      createdAt: parseDate(data?['createdAt']),
+      createdAt: parseDate(data['createdAt']),
       // tolerate older schemas that used 'dueDate'
-      targetDate: parseDate(data?['targetDate'] ?? data?['dueDate']),
+      targetDate: parseDate(data['targetDate'] ?? data['dueDate']),
       points: (() {
-        final raw = data?['points'];
+        final raw = data['points'];
         if (raw is int) return raw;
         if (raw is num) return raw.round();
         return 0;
       })(),
-      isSeasonGoal: (data?['isSeasonGoal'] ?? false) == true,
-      kpa: (data?['kpa'] as String?)?.toLowerCase(),
-      evidence: parseEvidence(data?['evidence']),
+      isSeasonGoal: (data['isSeasonGoal'] ?? false) == true,
+      kpa: (data['kpa'] as String?)?.toLowerCase(),
+      evidence: parseEvidence(data['evidence']),
       approvalStatus: GoalApprovalStatus.values.firstWhere(
         (e) => e.name.toLowerCase() == rawApproval,
         orElse: () => GoalApprovalStatus.pending,
       ),
-      approvedByUserId: data?['approvedByUserId']?.toString(),
-      approvedByName: data?['approvedByName']?.toString(),
-      approvedAt: data?['approvedAt'] != null
-          ? parseDate(data?['approvedAt'])
+      approvedByUserId: data['approvedByUserId']?.toString(),
+      approvedByName: data['approvedByName']?.toString(),
+      approvedAt: data['approvedAt'] != null
+          ? parseDate(data['approvedAt'])
           : null,
-      approvalRequestedAt: data?['approvalRequestedAt'] != null
-          ? parseDate(data?['approvalRequestedAt'])
+      approvalRequestedAt: data['approvalRequestedAt'] != null
+          ? parseDate(data['approvalRequestedAt'])
           : null,
-      rejectionReason: data?['rejectionReason']?.toString(),
+      rejectionReason: data['rejectionReason']?.toString(),
     );
   }
 

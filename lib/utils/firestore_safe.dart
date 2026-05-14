@@ -204,5 +204,27 @@ class FirestoreSafe {
   }) {
     return retry(() => batch.commit(), retries: retries);
   }
+
+  /// Nested Firestore maps can surface as generic [Map] at runtime; normalize for Dart 3.
+  static Map<String, dynamic> asStringKeyedMap(dynamic value) {
+    if (value == null) return <String, dynamic>{};
+    if (value is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(value);
+    }
+    if (value is Map) {
+      final out = <String, dynamic>{};
+      value.forEach((Object? key, Object? val) {
+        out[key.toString()] = val;
+      });
+      return out;
+    }
+    return <String, dynamic>{};
+  }
+
+  static Map<String, dynamic> documentDataAsMap(DocumentSnapshot doc) {
+    final raw = doc.data();
+    if (raw == null) return <String, dynamic>{};
+    return asStringKeyedMap(raw);
+  }
 }
 

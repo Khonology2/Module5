@@ -5368,7 +5368,7 @@ $progressDetails
               width: 50,
               height: 50,
               child: Image.asset(
-                'Approved_Tick/approved_red_badge_white.png', // Corrected path and filename
+                'assets/Approved_Tick/approved_red_badge_white.png',
                 fit: BoxFit.contain,
               ),
             ),
@@ -5385,7 +5385,7 @@ $progressDetails
               width: 50,
               height: 50,
               child: Image.asset(
-                'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png', // Corrected path and filename
+                'assets/Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
                 fit: BoxFit.contain,
               ),
             ),

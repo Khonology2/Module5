@@ -45,7 +45,7 @@ class _NudgeFeedback {
   });
 
   factory _NudgeFeedback.fromMap(Map<String, dynamic> map) {
-    final metadata = (map['metadata'] as Map<String, dynamic>?) ?? {};
+    final metadata = FirestoreSafe.asStringKeyedMap(map['metadata']);
     final employeeName =
         (metadata['employeeName'] ??
                 metadata['employeeDisplayName'] ??
@@ -95,6 +95,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   bool _bulkMarking = false;
   final Map<String, String> _employeeNameCache = {};
   final Set<String> _pendingEmployeeLookups = {};
+  String? _nudgePrefetchSignature;
 
   // Context switcher state
   bool _showArchived =
@@ -1845,7 +1846,16 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             // If no manager metadata, exclude to avoid showing other managers' reactions
             return false;
           }).toList();
-          _prefetchEmployeeNames(feedback);
+          final prefetchSig = feedback.isEmpty
+              ? ''
+              : '${feedback.length}|${feedback.map((f) => f.id).join('|')}';
+          if (_nudgePrefetchSignature != prefetchSig) {
+            _nudgePrefetchSignature = prefetchSig;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _prefetchEmployeeNames(feedback);
+            });
+          }
 
           final hPad = AppSpacing.screenPadding.left;
           final widgets = <Widget>[];

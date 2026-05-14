@@ -608,7 +608,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             width: 46,
             height: 46,
             child: Image.asset(
-              'Process_Flows_Automation/Points.png',
+              'assets/Process_Flows_Automation/Points.png',
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) =>
                   Icon(Icons.stars, color: _BadgesChrome.fg),
@@ -1464,7 +1464,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                                             width: 21,
                                             height: 21,
                                             child: Image.asset(
-                                              'Approved_Tick/Approve_2.png', // Replaced Image with new asset
+                                              'assets/Approved_Tick/Approve_2.png',
                                               fit: BoxFit.contain,
                                             ),
                                           ), // Replaced Icon with Image.asset
@@ -1657,7 +1657,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                               width: 21,
                               height: 21,
                               child: Image.asset(
-                                'Approved_Tick/Approve_2.png', // Replaced Image with new asset
+                                'assets/Approved_Tick/Approve_2.png',
                                 fit: BoxFit.contain,
                               ),
                             ), // Replaced Icon with Image.asset
@@ -1739,7 +1739,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                     width: 40,
                     height: 40,
                     child: Image.asset(
-                      'Process_Flows_Automation/Points.png', // Corrected path and filename
+                      'assets/Process_Flows_Automation/Points.png',
                       fit: BoxFit.contain,
                     ),
                   ), // Replaced IconData with iconWidget
@@ -1754,7 +1754,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                     width: 40,
                     height: 40,
                     child: Image.asset(
-                      'Approved_Tick/Approve_2.png',
+                      'assets/Approved_Tick/Approve_2.png',
                       fit: BoxFit.contain,
                     ),
                   ), // Replaced IconData with iconWidget
@@ -1979,7 +1979,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           width: 40,
           height: 40,
           child: Image.asset(
-            'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
+            'assets/Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
             fit: BoxFit.contain,
           ),
         ); // Replaced Icon with Image.asset
@@ -1990,7 +1990,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           width: 40,
           height: 40,
           child: Image.asset(
-            'Approved_Tick/approved_red_badge_white.png',
+            'assets/Approved_Tick/approved_red_badge_white.png',
             fit: BoxFit.contain,
           ),
         ); // Replaced Icon with Image.asset
@@ -2005,7 +2005,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           width: 40,
           height: 40,
           child: Image.asset(
-            'Process_Flows_Automation/Points.png',
+            'assets/Process_Flows_Automation/Points.png',
             fit: BoxFit.contain,
           ),
         ); // Replaced Icon with Image.asset

@@ -2045,14 +2045,15 @@ class ManagerRealtimeService {
           .snapshots(),
     ).map((snapshot) {
       return snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
+        final data = FirestoreSafe.documentDataAsMap(doc);
+        final ts = data['timestamp'];
+        return <String, dynamic>{
           'id': doc.id,
           'employeeId': data['userId'],
           'activityType': data['activityType'],
           'description': data['description'],
-          'metadata': data['metadata'] ?? <String, dynamic>{},
-          'timestamp': (data['timestamp'] as Timestamp?)?.toDate(),
+          'metadata': FirestoreSafe.asStringKeyedMap(data['metadata']),
+          'timestamp': ts is Timestamp ? ts.toDate() : null,
         };
       }).toList();
     });
