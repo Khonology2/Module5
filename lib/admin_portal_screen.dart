@@ -123,7 +123,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
     setState(() {
       _currentRoute = route;
     });
-    _syncAdminPortalUrl(route);
+    _syncAdminPortalUrl();
   }
 
   bool _isAdminPortalRoute(String route) => _adminPortalRoutes.contains(route);
@@ -146,14 +146,20 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
     }
   }
 
-  void _syncAdminPortalUrl(String route) {
+  /// See [ManagerPortalScreen._syncPortalUrl]: defer so URL updates do not run
+  /// during layout / [setState] (web router re-entry and scaffold FAB freezes).
+  void _syncAdminPortalUrl() {
     if (!kIsWeb) return;
-    final location = '/admin_portal?screen=${Uri.encodeComponent(route)}';
-    SystemNavigator.routeInformationUpdated(
-      uri: Uri.parse(location),
-      replace: true,
-      state: <String, dynamic>{'screen': route},
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final screen = _currentRoute;
+      final location = '/admin_portal?screen=${Uri.encodeComponent(screen)}';
+      SystemNavigator.routeInformationUpdated(
+        uri: Uri.parse(location),
+        replace: true,
+        state: <String, dynamic>{'screen': screen},
+      );
+    });
   }
 
   Future<void> _onLogout() async {
@@ -203,7 +209,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
       if (initial != null && initial.isNotEmpty && _isAdminPortalRoute(initial)) {
         _currentRoute = initial;
       }
-      _syncAdminPortalUrl(_currentRoute);
+      _syncAdminPortalUrl();
       _didInitFromArgs = true;
     }
     return ValueListenableBuilder<bool>(
@@ -213,7 +219,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
           light: light,
           child: Scaffold(
             backgroundColor: Colors.transparent,
-            extendBodyBehindAppBar: true,
+            extendBodyBehindAppBar: false,
             body: AppComponents.backgroundWithImage(
               blurSigma: 0,
               imagePath: light

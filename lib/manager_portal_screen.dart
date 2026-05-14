@@ -261,7 +261,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       }
       _currentRoute = route;
     });
-    _syncPortalUrl(route);
+    _syncPortalUrl();
   }
 
   bool _isPortalRoute(String route) => _portalRoutes.contains(route);
@@ -284,14 +284,21 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     }
   }
 
-  void _syncPortalUrl(String route) {
+  /// Updates the browser URL without running during [setState] / layout, which
+  /// on web can re-enter the router and leave the scaffold FAB slot unlaid-out
+  /// (hit-test / pointer freezes). Employee shell does not use this path.
+  void _syncPortalUrl() {
     if (!kIsWeb) return;
-    final location = '/manager_portal?screen=${Uri.encodeComponent(route)}';
-    SystemNavigator.routeInformationUpdated(
-      uri: Uri.parse(location),
-      replace: true,
-      state: <String, dynamic>{'screen': route},
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final screen = _currentRoute;
+      final location = '/manager_portal?screen=${Uri.encodeComponent(screen)}';
+      SystemNavigator.routeInformationUpdated(
+        uri: Uri.parse(location),
+        replace: true,
+        state: <String, dynamic>{'screen': screen},
+      );
+    });
   }
 
   Future<void> _onLogout() async {
@@ -362,7 +369,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         _currentRoute = initial;
       }
       _syncWorkspaceContextForRoute(_currentRoute);
-      _syncPortalUrl(_currentRoute);
+      _syncPortalUrl();
       _didInitFromArgs = true;
     }
     // Set system UI overlay style here if needed to ensure consistency across the portal
@@ -374,7 +381,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     // ));
     return Scaffold(
       backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       body: DashboardThemedBackground(
         child: Row(
           children: [

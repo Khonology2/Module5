@@ -15,6 +15,9 @@ void agentDebugLog({
   Map<String, Object?> data = const {},
   String runId = 'pre-fix',
 }) {
+  if (kReleaseMode) {
+    return;
+  }
   final payload = <String, Object?>{
     'sessionId': _agentSessionId,
     'runId': runId,
