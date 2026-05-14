@@ -39,71 +39,6 @@ class _TeamChallengesSeasonsScreenState
   bool _showPausedOnly = false;
   final Set<String> _reviewingSubmissionKeys = <String>{};
 
-  BoxDecoration _buildThemedBlockDecoration(BuildContext context, {Color? borderColor}) {
-    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
-    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
-    
-    // Use employee dashboard theme if available, otherwise fall back to main app theme
-    final Color blockColor = isEmployeeDashboardLight 
-        ? DashboardChrome.cardFill
-        : isLightMode 
-            ? Colors.white.withValues(alpha: 0.9)
-            : const Color(0x993D3D40);
-    
-    final Color defaultBorderColor = isEmployeeDashboardLight
-        ? DashboardChrome.border
-        : isLightMode
-            ? Colors.black.withValues(alpha: 0.1)
-            : Colors.white.withValues(alpha: 0.2);
-    
-    final Color shadowColor = isEmployeeDashboardLight || isLightMode
-        ? Colors.black.withValues(alpha: 0.1)
-        : Colors.black.withValues(alpha: 0.25);
-    
-    return BoxDecoration(
-      color: blockColor,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(
-        color: borderColor ?? defaultBorderColor,
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: shadowColor,
-          blurRadius: 3.55,
-          offset: const Offset(0, 3.55),
-        ),
-      ],
-    );
-  }
-
-  Color _getThemedTextColor(BuildContext context) {
-    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
-    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
-    
-    // Use employee dashboard theme if available, otherwise fall back to main app theme
-    if (isEmployeeDashboardLight) {
-      return DashboardChrome.fg;
-    } else if (isLightMode) {
-      return Colors.black87;
-    } else {
-      return Colors.white;
-    }
-  }
-
-  Color _getThemedSecondaryTextColor(BuildContext context) {
-    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
-    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
-    
-    // Use employee dashboard theme if available, otherwise fall back to main app theme
-    if (isEmployeeDashboardLight) {
-      return Colors.black54;
-    } else if (isLightMode) {
-      return Colors.black54;
-    } else {
-      return Colors.white70;
-    }
-  }
-
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
       context: context,
@@ -542,30 +477,17 @@ class _TeamChallengesSeasonsScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              vertical: AppSpacing.sm,
-              horizontal: AppSpacing.md,
+          Text(
+            'Season Reviews',
+            style: AppTypography.heading3.copyWith(
+              color: AppColors.textPrimary,
             ),
-            decoration: _buildThemedBlockDecoration(context),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Season Reviews',
-                  style: AppTypography.heading3.copyWith(
-                    color: _getThemedTextColor(context),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Review participant evidence grouped by season so you can quickly approve or send back submissions.',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: _getThemedSecondaryTextColor(context),
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Review participant evidence grouped by season so you can quickly approve or send back submissions.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -588,20 +510,24 @@ class _TeamChallengesSeasonsScreenState
                   return Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppSpacing.lg),
-                    decoration: _buildThemedBlockDecoration(context),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBackground,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.borderColor),
+                    ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.fact_check_outlined,
                           size: 48,
-                          color: _getThemedSecondaryTextColor(context),
+                          color: AppColors.textSecondary,
                         ),
                         const SizedBox(height: AppSpacing.md),
                         Text(
                           'No Review Evidence Yet',
                           style: AppTypography.heading4.copyWith(
-                            color: _getThemedTextColor(context),
+                            color: AppColors.textPrimary,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -609,7 +535,7 @@ class _TeamChallengesSeasonsScreenState
                         Text(
                           'Participant proof submissions will appear here grouped under each season.',
                           style: AppTypography.bodyMedium.copyWith(
-                            color: _getThemedSecondaryTextColor(context),
+                            color: AppColors.textSecondary,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -1263,8 +1189,7 @@ class _TeamChallengesSeasonsScreenState
         if (entries.isEmpty) continue;
 
         entries.sort(
-          (a, b) =>
-              b.submission.submittedAt.compareTo(a.submission.submittedAt),
+          (a, b) => b.submission.submittedAt.compareTo(a.submission.submittedAt),
         );
         participantGroups.add(
           _ParticipantReviewGroup(
@@ -1284,7 +1209,10 @@ class _TeamChallengesSeasonsScreenState
       });
 
       groups.add(
-        _SeasonReviewGroup(season: season, participants: participantGroups),
+        _SeasonReviewGroup(
+          season: season,
+          participants: participantGroups,
+        ),
       );
     }
 
@@ -1310,7 +1238,11 @@ class _TeamChallengesSeasonsScreenState
     final season = group.season;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: _buildThemedBlockDecoration(context),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1336,7 +1268,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       season.title,
                       style: AppTypography.heading4.copyWith(
-                        color: _getThemedTextColor(context),
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1344,7 +1276,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       '${season.theme} • ${group.participants.length} participant review group(s)',
                       style: AppTypography.bodySmall.copyWith(
-                        color: _getThemedSecondaryTextColor(context),
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -1369,10 +1301,7 @@ class _TeamChallengesSeasonsScreenState
           ...group.participants.map(
             (participantGroup) => Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.md),
-              child: _buildParticipantReviewCard(
-                group.season,
-                participantGroup,
-              ),
+              child: _buildParticipantReviewCard(group.season, participantGroup),
             ),
           ),
         ],
@@ -1402,10 +1331,7 @@ class _TeamChallengesSeasonsScreenState
                 backgroundColor: AppColors.activeColor.withValues(alpha: 0.15),
                 child: Text(
                   participation.userName.isNotEmpty
-                      ? participation.userName
-                            .trim()
-                            .substring(0, 1)
-                            .toUpperCase()
+                      ? participation.userName.trim().substring(0, 1).toUpperCase()
                       : '?',
                   style: AppTypography.bodyMedium.copyWith(
                     color: AppColors.activeColor,
@@ -1421,7 +1347,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       participation.userName,
                       style: AppTypography.bodyLarge.copyWith(
-                        color: _getThemedTextColor(context),
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1429,7 +1355,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       'Joined ${_formatRelativeTime(participation.joinedAt)} • ${(participantGroup.progress * 100).round()}% season progress',
                       style: AppTypography.bodySmall.copyWith(
-                        color: _getThemedSecondaryTextColor(context),
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -1472,7 +1398,7 @@ class _TeamChallengesSeasonsScreenState
       ChallengeSubmissionStatus.submitted => AppColors.warningColor,
       ChallengeSubmissionStatus.approved => AppColors.successColor,
       ChallengeSubmissionStatus.rejected => AppColors.dangerColor,
-      ChallengeSubmissionStatus.notSubmitted => _getThemedSecondaryTextColor(context),
+      ChallengeSubmissionStatus.notSubmitted => AppColors.textSecondary,
     };
 
     return Container(
@@ -1496,7 +1422,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       challenge.title,
                       style: AppTypography.bodyLarge.copyWith(
-                        color: _getThemedTextColor(context),
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1504,7 +1430,7 @@ class _TeamChallengesSeasonsScreenState
                     Text(
                       '${challenge.proofType ?? 'Evidence'} • submitted ${_formatRelativeTime(submission.submittedAt)}',
                       style: AppTypography.bodySmall.copyWith(
-                        color: _getThemedSecondaryTextColor(context),
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -1533,7 +1459,7 @@ class _TeamChallengesSeasonsScreenState
           SelectableText(
             submission.evidence,
             style: AppTypography.bodyMedium.copyWith(
-              color: _getThemedTextColor(context),
+              color: AppColors.textPrimary,
             ),
           ),
           if ((submission.feedback ?? '').trim().isNotEmpty) ...[
@@ -1541,7 +1467,7 @@ class _TeamChallengesSeasonsScreenState
             Text(
               'Feedback: ${submission.feedback!.trim()}',
               style: AppTypography.bodySmall.copyWith(
-                color: _getThemedSecondaryTextColor(context),
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -1550,7 +1476,7 @@ class _TeamChallengesSeasonsScreenState
             Text(
               'Reviewed ${_formatRelativeTime(submission.reviewedAt!)}',
               style: AppTypography.bodySmall.copyWith(
-                color: _getThemedSecondaryTextColor(context),
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -1562,8 +1488,7 @@ class _TeamChallengesSeasonsScreenState
                   child: OutlinedButton.icon(
                     onPressed: isBusy
                         ? null
-                        : () =>
-                              _reviewSubmission(entry: entry, approved: false),
+                        : () => _reviewSubmission(entry: entry, approved: false),
                     icon: isBusy
                         ? const SizedBox(
                             width: 14,
@@ -1634,7 +1559,7 @@ class _TeamChallengesSeasonsScreenState
           title: Text(
             approved ? 'Approve submission' : 'Reject submission',
             style: AppTypography.heading4.copyWith(
-              color: _getThemedTextColor(context),
+              color: AppColors.textPrimary,
             ),
           ),
           content: Column(
@@ -1646,7 +1571,7 @@ class _TeamChallengesSeasonsScreenState
                     ? 'Add optional feedback before approving this evidence.'
                     : 'Add feedback so the participant knows what to update.',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: _getThemedSecondaryTextColor(context),
+                  color: AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -1655,7 +1580,7 @@ class _TeamChallengesSeasonsScreenState
                 minLines: 3,
                 maxLines: 5,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: _getThemedTextColor(context),
+                  color: AppColors.textPrimary,
                 ),
                 decoration: InputDecoration(
                   hintText: approved
@@ -1671,14 +1596,13 @@ class _TeamChallengesSeasonsScreenState
               child: Text(
                 'Cancel',
                 style: AppTypography.bodyMedium.copyWith(
-                  color: _getThemedSecondaryTextColor(context),
+                  color: AppColors.textSecondary,
                 ),
               ),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.of(
-                dialogContext,
-              ).pop(feedbackController.text.trim()),
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(feedbackController.text.trim()),
               style: ElevatedButton.styleFrom(
                 backgroundColor: approved
                     ? AppColors.successColor
@@ -1927,7 +1851,10 @@ class _TeamChallengesSeasonsScreenState
     return 'Just now';
   }
 
-  int _countProofsByStatus(Season season, ChallengeSubmissionStatus status) {
+  int _countProofsByStatus(
+    Season season,
+    ChallengeSubmissionStatus status,
+  ) {
     var count = 0;
     for (final participation in season.participations.values) {
       for (final submission in participation.challengeSubmissions.values) {
@@ -1944,7 +1871,10 @@ class _SeasonReviewGroup {
   final Season season;
   final List<_ParticipantReviewGroup> participants;
 
-  const _SeasonReviewGroup({required this.season, required this.participants});
+  const _SeasonReviewGroup({
+    required this.season,
+    required this.participants,
+  });
 
   int get pendingCount => participants.fold(
     0,
@@ -1975,10 +1905,7 @@ class _ParticipantReviewGroup {
   });
 
   int get pendingCount => entries
-      .where(
-        (entry) =>
-            entry.submission.status == ChallengeSubmissionStatus.submitted,
-      )
+      .where((entry) => entry.submission.status == ChallengeSubmissionStatus.submitted)
       .length;
 
   int get reviewedCount => entries.length - pendingCount;
@@ -2036,34 +1963,6 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
   bool _useLinkedResource = false;
   bool _proofRequired = false;
   String _courseLevel = 'Beginner';
-  static const Color _darkFieldColor = Color(0x993D3D40);
-
-  // Theme-aware helper methods
-  Color _getThemedTextColor(BuildContext context) {
-    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
-    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
-    
-    if (isEmployeeDashboardLight) {
-      return DashboardChrome.fg;
-    } else if (isLightMode) {
-      return Colors.black87;
-    } else {
-      return Colors.white;
-    }
-  }
-
-  Color _getThemedSecondaryTextColor(BuildContext context) {
-    final bool isEmployeeDashboardLight = EmployeeDashboardThemeScope.lightOf(context);
-    final bool isLightMode = Theme.of(context).brightness == Brightness.light;
-    
-    if (isEmployeeDashboardLight) {
-      return Colors.black54;
-    } else if (isLightMode) {
-      return Colors.black54;
-    } else {
-      return Colors.white70;
-    }
-  }
 
   final List<String> _themes = [
     'Learning',
@@ -2072,40 +1971,11 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     'Innovation',
     'Wellness',
   ];
-  final List<String> _courseLevels = ['Beginner', 'Intermediate', 'Advanced'];
-
-  InputDecoration _fieldDecoration({
-    required String labelText,
-    String? hintText,
-  }) {
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-    );
-    return InputDecoration(
-      labelText: labelText,
-      hintText: hintText,
-      labelStyle: AppTypography.bodySmall.copyWith(
-        color: Colors.white.withValues(alpha: 0.85),
-      ),
-      hintStyle: AppTypography.bodySmall.copyWith(
-        color: Colors.white.withValues(alpha: 0.55),
-      ),
-      filled: true,
-      fillColor: _darkFieldColor,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      border: border,
-      enabledBorder: border,
-      focusedBorder: border.copyWith(
-        borderSide: BorderSide(
-          color: AppColors.activeColor.withValues(alpha: 0.8),
-        ),
-      ),
-    );
-  }
+  final List<String> _courseLevels = [
+    'Beginner',
+    'Intermediate',
+    'Advanced',
+  ];
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
@@ -2215,13 +2085,13 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
             title: Text(
               'Attach linked resource',
               style: AppTypography.bodyMedium.copyWith(
-                color: _getThemedTextColor(context),
+                color: AppColors.textPrimary,
               ),
             ),
             subtitle: Text(
               'Use this for seasons that should include a course or external learning link, while still behaving like a normal season.',
               style: AppTypography.bodySmall.copyWith(
-                color: _getThemedSecondaryTextColor(context),
+                color: AppColors.textSecondary,
               ),
             ),
             value: _useLinkedResource,
@@ -2338,11 +2208,9 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     });
 
     try {
-      final hasLinkedCourse =
-          _useLinkedResource && _courseUrlController.text.trim().isNotEmpty;
-      final estimatedHours = int.tryParse(
-        _estimatedHoursController.text.trim(),
-      );
+      final hasLinkedCourse = _useLinkedResource &&
+          _courseUrlController.text.trim().isNotEmpty;
+      final estimatedHours = int.tryParse(_estimatedHoursController.text.trim());
       final learningResource = hasLinkedCourse
           ? SeasonCourseResource(
               title: _courseTitleController.text.trim().isNotEmpty
@@ -2400,7 +2268,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           Text(
             'Linked Resource Setup',
             style: AppTypography.heading4.copyWith(
-              color: _getThemedTextColor(context),
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -2408,22 +2276,23 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           Text(
             'Attach a course or external learning resource so employees can open it from the app while the season still uses the normal goals and milestone flow.',
             style: AppTypography.bodyMedium.copyWith(
-              color: _getThemedSecondaryTextColor(context),
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
           TextFormField(
             controller: _courseTitleController,
-            decoration: _fieldDecoration(
+            decoration: const InputDecoration(
               labelText: 'Resource Title (optional)',
               hintText: 'e.g., SQL for Beginners',
+              border: OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             'This is the title of the linked course or article. Leave it empty to reuse the season title.',
             style: AppTypography.bodySmall.copyWith(
-              color: _getThemedSecondaryTextColor(context),
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -2432,9 +2301,10 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
               Expanded(
                 child: TextFormField(
                   controller: _courseProviderController,
-                  decoration: _fieldDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Provider',
                     hintText: 'YouTube, freeCodeCamp, Coursera, article link',
+                    border: OutlineInputBorder(),
                   ),
                 ),
               ),
@@ -2442,12 +2312,16 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
               Expanded(
                 child: DropdownButtonFormField<String>(
                   initialValue: _courseLevel,
-                  decoration: _fieldDecoration(labelText: 'Level'),
-                  dropdownColor: const Color(0xFF3D3D40),
+                  decoration: const InputDecoration(
+                    labelText: 'Level',
+                    border: OutlineInputBorder(),
+                  ),
                   items: _courseLevels
                       .map(
-                        (level) =>
-                            DropdownMenuItem(value: level, child: Text(level)),
+                        (level) => DropdownMenuItem(
+                          value: level,
+                          child: Text(level),
+                        ),
                       )
                       .toList(),
                   onChanged: (value) {
@@ -2463,9 +2337,10 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
           const SizedBox(height: AppSpacing.md),
           TextFormField(
             controller: _courseUrlController,
-            decoration: _fieldDecoration(
+            decoration: const InputDecoration(
               labelText: 'Course URL',
               hintText: 'https://example.com/learning-resource',
+              border: OutlineInputBorder(),
             ),
             validator: (value) {
               if (!_useLinkedResource) return null;
@@ -2484,9 +2359,10 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
               Expanded(
                 child: TextFormField(
                   controller: _estimatedHoursController,
-                  decoration: _fieldDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Estimated Hours',
                     hintText: 'e.g., 8',
+                    border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
                 ),
@@ -2498,13 +2374,13 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
             title: Text(
               'Require proof of completion',
               style: AppTypography.bodyMedium.copyWith(
-                color: _getThemedTextColor(context),
+                color: AppColors.textPrimary,
               ),
             ),
             subtitle: Text(
               'Managers will review the final proof before the challenge is fully verified.',
               style: AppTypography.bodySmall.copyWith(
-                color: _getThemedSecondaryTextColor(context),
+                color: AppColors.textSecondary,
               ),
             ),
             value: _proofRequired,
@@ -2518,9 +2394,10 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
             const SizedBox(height: AppSpacing.sm),
             TextFormField(
               controller: _proofTypeController,
-              decoration: _fieldDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Proof Type',
                 hintText: 'Certificate, screenshot, quiz score, reflection',
+                border: OutlineInputBorder(),
               ),
             ),
           ],

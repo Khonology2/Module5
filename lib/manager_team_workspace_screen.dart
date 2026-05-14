@@ -63,25 +63,32 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: employeeDashboardLightModeNotifier,
-      builder: (context, light, _) {
-        return EmployeeDashboardThemeScope(
-          light: light,
-          child: AppScaffold(
-            title: '',
-            embedded: widget.embedded,
-            items: const [], // Manager-specific items - we'll handle this properly
-            currentRouteName: '/manager_team_workspace',
-            onNavigate: (route) {
-              // Handle navigation
-              Navigator.pushNamed(context, route);
-            },
-            onLogout: () {
-              // Handle logout
-              Navigator.pushReplacementNamed(context, '/sign_in');
-            },
-            content: Column(
+    return AppScaffold(
+      title: '',
+      embedded: widget.embedded,
+      items: const [], // Manager-specific items - we'll handle this properly
+      currentRouteName: '/manager_team_workspace',
+      onNavigate: (route) {
+        // Handle navigation
+        Navigator.pushNamed(context, route);
+      },
+      onLogout: () async {
+        await AuthService().signOut();
+        if (!context.mounted) return;
+        Navigator.pushNamedAndRemoveUntil(context, '/landing', (r) => false);
+      },
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header

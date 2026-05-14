@@ -10,6 +10,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
 import 'package:pdh/context_maps/khonopal_context.dart'; // Import the new KhonoPalContext
+import 'package:pdh/services/ai_fallback_service.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import for shared preferences
 import 'dart:convert'; // Import for JSON encoding/decoding
 import 'package:flutter_tts/flutter_tts.dart'; // Import for Text-to-Speech
@@ -254,20 +255,35 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
     final user = FirebaseAuth.instance.currentUser;
     String userName = 'User';
     if (user != null) {
-      // Try to get display name from Firebase Auth first
-      if (user.displayName != null && user.displayName!.isNotEmpty) {
-        userName = user.displayName!;
+      // Try to get name from onboarding collection first (same as dashboard)
+      final onboardingName = await DatabaseService.getUserNameFromOnboarding(
+        userId: user.uid,
+        email: user.email,
+      );
+
+      if (onboardingName != null && onboardingName.isNotEmpty) {
+        // Use full name from onboarding
+        userName = onboardingName;
       } else {
-        // Fallback to Firestore for full name if displayName is null or empty
+        // Fallback to other sources
         try {
           final userProfile = await DatabaseService.getUserProfile(user.uid);
-          userName = userProfile.displayName.isNotEmpty
-              ? userProfile.displayName
-              : 'User';
+          if (userProfile.displayName.isNotEmpty) {
+            userName = userProfile.displayName;
+          } else if (user.displayName != null && user.displayName!.isNotEmpty) {
+            userName = user.displayName!;
+          } else if (user.email != null && user.email!.isNotEmpty) {
+            userName = user.email!.split('@').first;
+          }
         } catch (e) {
           // ignore: avoid_print
           print('Error fetching user profile: $e');
-          userName = 'User'; // Default to 'User' on error
+          // Fallback to Firebase Auth displayName or email
+          if (user.displayName != null && user.displayName!.isNotEmpty) {
+            userName = user.displayName!;
+          } else if (user.email != null && user.email!.isNotEmpty) {
+            userName = user.email!.split('@').first;
+          }
         }
       }
     }
@@ -368,9 +384,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
 4) Close with concrete next micro-actions and invite the manager to iterate with you.
 Keep the tone strengths-based, specific, and action-oriented, and format responses with clear headings or bullet lists.''';
 
+    String? currentSystemInstruction;
     try {
       // Dynamically set system instruction based on _selectedMode, selectedModeOverride or if it's a PDP request
-      String? currentSystemInstruction;
       if (initialPrompt != null) {
         currentSystemInstruction = pdpSystemInstruction;
       } else {
@@ -460,13 +476,45 @@ Keep the tone strengths-based, specific, and action-oriented, and format respons
         Navigator.pop(context); // Pop the chatbot screen after generating PDP
       }
     } catch (e) {
-      setState(() {
-        _messages.add(ChatMessage(text: 'Error: $e', isUser: false));
-        _isThinking = false; // Set thinking state to false on error
-      });
-      // Stop avatar flashing animation on error
-      _avatarAnimationController.stop();
-      _avatarAnimationController.reset();
+      // Fallback to backend Gemini when Firebase AI fails
+      try {
+        final fallbackText = await AiFallbackService.generateViaBackend(
+          prompt: textToSendToGemini,
+          systemInstruction: currentSystemInstruction,
+        );
+        final cleanedResponseText =
+            fallbackText.replaceAll('*', '').trim().isEmpty
+                ? 'No response'
+                : fallbackText.replaceAll('*', '');
+        final aiMessage = ChatMessage(
+          text: cleanedResponseText,
+          isUser: false,
+          fullText: cleanedResponseText,
+        );
+        if (!mounted) return;
+        setState(() {
+          _messages.add(aiMessage);
+          _isThinking = false;
+          _lastAiResponse = cleanedResponseText;
+        });
+        _avatarAnimationController.stop();
+        _avatarAnimationController.reset();
+        _scrollToBottom();
+        _saveChatHistory();
+        if (widget.onResult != null &&
+            currentSystemInstruction == pdpSystemInstruction) {
+          widget.onResult!(cleanedResponseText);
+          Navigator.pop(context);
+        }
+      } catch (fallbackError) {
+        if (!mounted) return;
+        setState(() {
+          _messages.add(ChatMessage(text: 'Error: $e', isUser: false));
+          _isThinking = false;
+        });
+        _avatarAnimationController.stop();
+        _avatarAnimationController.reset();
+      }
     }
   }
 

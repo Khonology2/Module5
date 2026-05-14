@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:ui';
 import 'app_colors.dart';
 import 'app_typography.dart';
@@ -410,10 +411,12 @@ class AppComponents {
                   Directionality.maybeOf(context) ?? TextDirection.ltr;
               return Directionality(
                 textDirection: dir,
-                child: FocusTraversalGroup(
-                  policy: WidgetOrderTraversalPolicy(),
-                  child: child,
-                ),
+                child: kIsWeb
+                    ? child
+                    : FocusTraversalGroup(
+                        policy: WidgetOrderTraversalPolicy(),
+                        child: child,
+                      ),
               );
             },
           ),

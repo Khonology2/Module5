@@ -2,13 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:flutter/services.dart'; // Import for SystemChrome
+import 'package:flutter/services.dart'; // Import for SystemChrome and HapticFeedback
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore for blocklist
 import 'package:pdh/services/badge_service.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore - Removed as DatabaseService handles it
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:pdh/services/role_service.dart'; // Import RoleService
+import 'package:pdh/services/token_auth_service.dart';
 import 'dart:async'; // Import for Timer
 import 'package:pdh/widgets/custom_logo_loader.dart';
 
@@ -20,7 +21,7 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStateMixin {
   final _fullNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -34,14 +35,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Color _passwordStrengthColor = Colors.grey;
   String _passwordHint = '';
   bool _isRegistering = false;
-
   late Timer _hintTimer;
 
   @override
   void initState() {
     super.initState();
-    // Timer retained to keep structure minimal though hints are static now
     _hintTimer = Timer(const Duration(milliseconds: 1), () {});
+    _redirectToLandingIfTokenPresent();
+  }
+
+  Future<void> _redirectToLandingIfTokenPresent() async {
+    try {
+      final token = await TokenAuthService.extractTokenFromUrl();
+      if (!mounted) return;
+      if (token == null || token.isEmpty) return;
+
+      // A token-based login flow must always start on landing screen.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/landing', arguments: token);
+      });
+    } catch (_) {
+      // Ignore; if token extraction fails, keep normal registration.
+    }
   }
 
   @override
@@ -57,6 +73,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _confirmPasswordController.dispose();
     super.dispose();
   }
+
 
   void _updatePasswordStrength(String password) {
     setState(() {

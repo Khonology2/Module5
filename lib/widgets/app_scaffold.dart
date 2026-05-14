@@ -241,9 +241,7 @@ class AppScaffold extends StatelessWidget {
                         Positioned.fill(
                           child: maybeFocusTraversal(
                             Padding(
-                              padding: const EdgeInsets.only(
-                                top: AppContentHeader.kTotalHeaderHeight,
-                              ),
+                              padding: const EdgeInsets.only(top: AppContentHeader.kHeaderHeight),
                               child: content,
                             ),
                           ),
