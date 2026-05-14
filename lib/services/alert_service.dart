@@ -1559,66 +1559,74 @@ class AlertService {
     );
   }
 
-  // MIGRATION: Update existing finalized goal alerts so history appears in Archive.
-  static Future<void> migrateExistingFinalizedGoalAlerts() async {
+  /// Fixes alerts still typed as [goalApprovalRequested] when the linked goal is
+  /// already approved/rejected. Only scans this user's approval-request alerts
+  /// (bounded), never the entire `goals` collection — required for web on large DBs.
+  static Future<void> migrateStuckGoalApprovalAlertsForSignedInUser({
+    int maxAlerts = 200,
+  }) async {
     try {
-      final firestore = FirebaseFirestore.instance;
       final reviewer = FirebaseAuth.instance.currentUser;
       if (reviewer == null) return;
 
-      // Get all goals that are approved or rejected.
-      final approvedGoals = await firestore
-          .collection('goals')
-          .where('approvalStatus', isEqualTo: GoalApprovalStatus.approved.name)
+      final alertsSnap = await _firestore
+          .collection('alerts')
+          .where('userId', isEqualTo: reviewer.uid)
+          .where('type', isEqualTo: AlertType.goalApprovalRequested.name)
+          .limit(maxAlerts)
           .get();
-      final rejectedGoals = await firestore
-          .collection('goals')
-          .where('approvalStatus', isEqualTo: GoalApprovalStatus.rejected.name)
-          .get();
-      final finalizedGoals = [...approvedGoals.docs, ...rejectedGoals.docs];
 
-      developer.log(
-        'Found ${finalizedGoals.length} finalized goals to migrate',
-      );
+      if (alertsSnap.docs.isEmpty) return;
 
-      for (final goalDoc in finalizedGoals) {
-        final goalId = goalDoc.id;
-        final goalData = goalDoc.data();
-        final status = (goalData['approvalStatus'] ?? '').toString();
+      WriteBatch batch = _firestore.batch();
+      var pendingWrites = 0;
+
+      Future<void> flush() async {
+        if (pendingWrites == 0) return;
+        await batch.commit();
+        batch = _firestore.batch();
+        pendingWrites = 0;
+      }
+
+      for (final doc in alertsSnap.docs) {
+        final data = doc.data();
+        final goalId = (data['relatedGoalId'] ?? '').toString().trim();
+        if (goalId.isEmpty) continue;
+
+        final goalSnap =
+            await _firestore.collection('goals').doc(goalId).get();
+        if (!goalSnap.exists) continue;
+        final gd = goalSnap.data() ?? {};
+        final status = (gd['approvalStatus'] ?? '').toString();
+        if (status != GoalApprovalStatus.approved.name &&
+            status != GoalApprovalStatus.rejected.name) {
+          continue;
+        }
+
         final targetType = status == GoalApprovalStatus.rejected.name
             ? AlertType.goalApprovalRejected.name
             : AlertType.goalApprovalApproved.name;
 
-        // Find any existing approval request alerts for this goal
-        final existingAlerts = await firestore
-            .collection('alerts')
-            .where('userId', isEqualTo: reviewer.uid)
-            .where('relatedGoalId', isEqualTo: goalId)
-            .where(
-              'type',
-              isEqualTo: AlertType.goalApprovalRequested.name,
-            )
-            .get();
-
-        // Update them to the finalized decision type.
-        final batch = firestore.batch();
-        for (final alertDoc in existingAlerts.docs) {
-          batch.update(alertDoc.reference, {
-            'type': targetType,
-            'isRead': true,
-          });
-        }
-
-        if (existingAlerts.docs.isNotEmpty) {
-          await batch.commit();
-          developer.log(
-            'Migrated ${existingAlerts.docs.length} alerts for goal $goalId to $targetType',
-          );
+        batch.update(doc.reference, {
+          'type': targetType,
+          'isRead': true,
+        });
+        pendingWrites++;
+        if (pendingWrites >= 450) {
+          await flush();
         }
       }
+      await flush();
     } catch (e) {
-      developer.log('Error migrating finalized goal alerts: $e');
+      developer.log('migrateStuckGoalApprovalAlertsForSignedInUser: $e');
     }
+  }
+
+  // MIGRATION: Update existing finalized goal alerts so history appears in Archive.
+  /// Delegates to [migrateStuckGoalApprovalAlertsForSignedInUser]; the previous
+  /// implementation scanned every approved/rejected goal in the project and froze web.
+  static Future<void> migrateExistingFinalizedGoalAlerts() async {
+    await migrateStuckGoalApprovalAlertsForSignedInUser(maxAlerts: 250);
   }
 
   static Future<void> migrateExistingApprovedGoalAlerts() async {

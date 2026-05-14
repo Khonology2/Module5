@@ -122,8 +122,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   // parent widgets rebuild (filters, alert stream updates, etc.).
   Stream<List<Map<String, dynamic>>>? _nudgeFeedbackStream;
   String? _nudgeFeedbackStreamUserId;
-  List<Map<String, dynamic>> _lastNudgeFeedbackMaps =
-      const <Map<String, dynamic>>[];
 
   // SMART rubric local state per goalId for the review sheet
   final Map<String, int> _clarity = {};
@@ -1815,14 +1813,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       );
       return StreamBuilder<List<Map<String, dynamic>>>(
         stream: _nudgeFeedbackStream,
-        initialData: _lastNudgeFeedbackMaps,
+        initialData: const <Map<String, dynamic>>[],
         builder: (context, fbSnap) {
-          final feedbackMaps = fbSnap.data ?? const <Map<String, dynamic>>[];
-          if (fbSnap.hasData) {
-            // Cache last good value so we don't flash empty UI during
-            // transient reconnects / stream resubscriptions.
-            _lastNudgeFeedbackMaps = feedbackMaps;
-          }
+          final feedbackMaps =
+              fbSnap.data ?? const <Map<String, dynamic>>[];
           final rawFeedback = feedbackMaps.map(_NudgeFeedback.fromMap).toList();
 
           final managerNameLower = (user.displayName ?? '').toLowerCase().trim();
