@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:pdh/utils/browser_history_stub.dart'
+    if (dart.library.html) 'package:pdh/utils/browser_history_web.dart' as browser_history;
+import 'package:pdh/utils/uri_token_strip.dart';
 
 class TokenAuthExtractionResult {
   const TokenAuthExtractionResult({required this.token, required this.source});
@@ -121,40 +124,13 @@ class TokenAuthService {
   /// Call after a successful SSO token login so the secret does not stay in the address bar.
   static void stripTokenFromCurrentWebUrl({bool replace = true}) {
     if (!kIsWeb) return;
-    if (!hasTokenInCurrentUrl()) return;
-
     try {
-      final u = Uri.base;
-      final topQuery = Map<String, String>.from(u.queryParameters)..remove('token');
-
-      var newFragment = u.fragment;
-      final frag = u.fragment.trim();
-      if (frag.isNotEmpty) {
-        final normalized = frag.startsWith('/') ? frag : '/$frag';
-        try {
-          final inner = Uri.parse(normalized);
-          final innerQuery = Map<String, String>.from(inner.queryParameters)
-            ..remove('token');
-          final rebuilt = Uri(
-            path: inner.path.isEmpty ? '/' : inner.path,
-            queryParameters: innerQuery.isEmpty ? null : innerQuery,
-          );
-          newFragment =
-              '${rebuilt.path}${rebuilt.hasQuery ? '?${rebuilt.query}' : ''}';
-        } catch (_) {
-          // Leave fragment unchanged if parsing fails.
-        }
-      }
-
-      final clean = Uri(
-        scheme: u.scheme,
-        userInfo: u.userInfo,
-        host: u.host,
-        port: u.hasPort ? u.port : null,
-        path: u.path,
-        queryParameters: topQuery.isEmpty ? null : topQuery,
-        fragment: newFragment,
-      );
+      final fromBar = browser_history.stripTokenFromBrowserLocationAndReturnCleanUri();
+      final clean = fromBar ??
+          (hasTokenInCurrentUrl()
+              ? UriTokenStrip.stripTokenFromUri(Uri.base)
+              : null);
+      if (clean == null) return;
       SystemNavigator.routeInformationUpdated(uri: clean, replace: replace);
     } catch (e) {
       debugPrint('stripTokenFromCurrentWebUrl failed: $e');

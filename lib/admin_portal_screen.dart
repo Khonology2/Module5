@@ -22,6 +22,7 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_content_header.dart';
 import 'package:pdh/widgets/header_action_icons.dart';
 import 'package:pdh/services/token_auth_service.dart';
+import 'package:pdh/utils/route_arguments.dart';
 
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({super.key});
@@ -121,6 +122,9 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   }
 
   void _onNavigate(String route) {
+    if (kIsWeb) {
+      TokenAuthService.stripTokenFromCurrentWebUrl();
+    }
     setState(() {
       _currentRoute = route;
     });
@@ -161,7 +165,6 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
       SystemNavigator.routeInformationUpdated(
         uri: uri,
         replace: true,
-        state: <String, dynamic>{'screen': screen},
       );
     });
   }
@@ -177,29 +180,39 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        TokenAuthService.stripTokenFromCurrentWebUrl();
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!_didInitFromArgs) {
       var initial = _routeFromAdminPortalUrl();
-      final args = ModalRoute.of(context)?.settings.arguments;
-      if (args is Map<String, dynamic>) {
-        final argInitial = args['initialRoute'] as String?;
-        if (argInitial != null && argInitial.isNotEmpty) {
-          initial = argInitial;
-        }
-        final selectedManagerRaw =
-            args['selectedManagerId'] ?? args['employeeId'];
-        final selectedManager = selectedManagerRaw?.toString().trim();
-        if (selectedManager != null && selectedManager.isNotEmpty) {
-          _selectedManagerId = selectedManager;
-        }
-        final meetingId = args['meetingId']?.toString().trim();
-        if (meetingId != null && meetingId.isNotEmpty) {
-          _initialReviewMeetingId = meetingId;
-        }
-        final employeeId = args['employeeId']?.toString().trim();
-        if (employeeId != null && employeeId.isNotEmpty) {
-          _initialReviewEmployeeId = employeeId;
-        }
+      final args = routeArgumentsAsMap(
+        ModalRoute.of(context)?.settings.arguments,
+      );
+      final argInitial = args['initialRoute']?.toString();
+      if (argInitial != null && argInitial.isNotEmpty) {
+        initial = argInitial;
+      }
+      final selectedManagerRaw =
+          args['selectedManagerId'] ?? args['employeeId'];
+      final selectedManager = selectedManagerRaw?.toString().trim();
+      if (selectedManager != null && selectedManager.isNotEmpty) {
+        _selectedManagerId = selectedManager;
+      }
+      final meetingId = args['meetingId']?.toString().trim();
+      if (meetingId != null && meetingId.isNotEmpty) {
+        _initialReviewMeetingId = meetingId;
+      }
+      final employeeId = args['employeeId']?.toString().trim();
+      if (employeeId != null && employeeId.isNotEmpty) {
+        _initialReviewEmployeeId = employeeId;
       }
       if (_currentRoute == '/admin_dashboard') {
         final routeName = ModalRoute.of(context)?.settings.name;

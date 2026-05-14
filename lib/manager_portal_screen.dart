@@ -32,6 +32,7 @@ import 'dart:developer' as developer;
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/services/token_auth_service.dart';
+import 'package:pdh/utils/route_arguments.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/app_content_header.dart';
 import 'package:pdh/widgets/header_action_icons.dart';
@@ -255,6 +256,12 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   void _onNavigate(String route) {
+    try {
+      ShowCaseWidget.of(context).dismiss();
+    } catch (_) {}
+    if (kIsWeb) {
+      TokenAuthService.stripTokenFromCurrentWebUrl();
+    }
     _syncWorkspaceContextForRoute(route);
     setState(() {
       if (route == '/manager_alerts_nudges') {
@@ -303,7 +310,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       SystemNavigator.routeInformationUpdated(
         uri: uri,
         replace: true,
-        state: <String, dynamic>{'screen': screen},
       );
     });
   }
@@ -321,6 +327,11 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        TokenAuthService.stripTokenFromCurrentWebUrl();
+      });
+    }
 
     // Sync manager season points from season metrics into the manager's user doc.
     // This is required because employee milestone updates cannot write to the manager's user doc.
@@ -365,12 +376,12 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   Widget build(BuildContext context) {
     if (!_didInitFromArgs) {
       var initial = _routeFromPortalUrl();
-      final args = ModalRoute.of(context)?.settings.arguments;
-      if (args is Map<String, dynamic>) {
-        final argRoute = args['initialRoute'] as String?;
-        if (argRoute != null && argRoute.isNotEmpty) {
-          initial = argRoute;
-        }
+      final args = routeArgumentsAsMap(
+        ModalRoute.of(context)?.settings.arguments,
+      );
+      final argRoute = args['initialRoute']?.toString();
+      if (argRoute != null && argRoute.isNotEmpty) {
+        initial = argRoute;
       }
       if (initial != null && initial.isNotEmpty && _isPortalRoute(initial)) {
         _currentRoute = initial;

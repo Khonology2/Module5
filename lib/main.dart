@@ -62,6 +62,7 @@ import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/agent_debug_log.dart';
+import 'package:pdh/utils/route_arguments.dart';
 import 'dart:ui' as ui;
 
 final GlobalKey<NavigatorState> navigatorKey =
@@ -445,10 +446,9 @@ class _MyAppState extends State<MyApp> {
                       final decodedScreen = (screen == null || screen.isEmpty)
                           ? null
                           : Uri.decodeComponent(screen);
-                      final existingArgs =
-                          settings.arguments is Map<String, dynamic>
-                          ? (settings.arguments as Map<String, dynamic>)
-                          : <String, dynamic>{};
+                      final existingArgs = routeArgumentsAsMap(
+                        settings.arguments,
+                      );
                       final mergedArgs = <String, dynamic>{
                         ...existingArgs,
                         if (decodedScreen != null && decodedScreen.isNotEmpty)

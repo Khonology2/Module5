@@ -1012,7 +1012,10 @@ class _NavTileState extends State<_NavTile> {
           overlayOpacity: 0.0,
           container: customTooltip,
           onBarrierClick: widget.onTutorialNext!,
-          onTargetClick: widget.onTutorialNext!,
+          onTargetClick: () {
+            widget.onTap();
+            widget.onTutorialNext!();
+          },
           disposeOnTap: true,
           child: navTileContent,
         );

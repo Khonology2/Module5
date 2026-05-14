@@ -52,7 +52,7 @@ class _WorkspaceContextSwitcherState extends State<WorkspaceContextSwitcher> {
       Navigator.pushReplacementNamed(
         buildContext,
         '/manager_portal',
-        arguments: {'initialRoute': initialRoute},
+        arguments: <String, dynamic>{'initialRoute': initialRoute},
       );
     }
   }
