@@ -1,7 +1,22 @@
 {
-  "version": "2026.05.BB5.SIT",
-  "generated_at": "2026-05-14T13:24:29Z",
+  "version": "2026.05.BB8.SIT",
+  "generated_at": "2026-05-14T13:58:04Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "refactor: simplify URL synchronization in admin and manager portal screens",
+      "timestamp": "2026-05-14T15:57:37+02:00"
+    },
+    {
+      "author": "github-actions[bot]",
+      "message": "chore: update Flutter web build [skip ci]",
+      "timestamp": "2026-05-14T13:27:49Z"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "chore: update daily commits data [2026-05-14] [skip ci]",
+      "timestamp": "2026-05-14T13:24:29Z"
+    },
     {
       "author": "Nathi2266",
       "message": "chore: disable token login UI on landing screen",
@@ -28,6 +43,6 @@
       "timestamp": "2026-05-14T13:32:42+02:00"
     }
   ],
-  "total_commits": 5,
+  "total_commits": 8,
   "date_range": "2026-05-14"
 }
