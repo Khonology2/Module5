@@ -148,14 +148,17 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
 
   /// See [ManagerPortalScreen._syncPortalUrl]: defer so URL updates do not run
   /// during layout / [setState] (web router re-entry and scaffold FAB freezes).
+  /// Uses [Uri.base.replace] with a hash fragment so hosted web builds match [_routeFromAdminPortalUrl].
   void _syncAdminPortalUrl() {
     if (!kIsWeb) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final screen = _currentRoute;
-      final location = '/admin_portal?screen=${Uri.encodeComponent(screen)}';
+      final fragment = '/admin_portal?screen=${Uri.encodeComponent(screen)}';
+      if (Uri.base.fragment == fragment) return;
+      final uri = Uri.base.replace(fragment: fragment);
       SystemNavigator.routeInformationUpdated(
-        uri: Uri.parse(location),
+        uri: uri,
         replace: true,
         state: <String, dynamic>{'screen': screen},
       );

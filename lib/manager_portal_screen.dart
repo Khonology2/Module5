@@ -287,14 +287,20 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   /// Updates the browser URL without running during [setState] / layout, which
   /// on web can re-enter the router and leave the scaffold FAB slot unlaid-out
   /// (hit-test / pointer freezes). Employee shell does not use this path.
+  ///
+  /// Must use the same shape as [_routeFromPortalUrl] (hash fragment `/manager_portal?...`).
+  /// Passing only `/manager_portal?...` to [SystemNavigator.routeInformationUpdated] breaks
+  /// default Flutter web URLs (`/#/...`) on static hosts (e.g. Render) and jams navigation.
   void _syncPortalUrl() {
     if (!kIsWeb) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final screen = _currentRoute;
-      final location = '/manager_portal?screen=${Uri.encodeComponent(screen)}';
+      final fragment = '/manager_portal?screen=${Uri.encodeComponent(screen)}';
+      if (Uri.base.fragment == fragment) return;
+      final uri = Uri.base.replace(fragment: fragment);
       SystemNavigator.routeInformationUpdated(
-        uri: Uri.parse(location),
+        uri: uri,
         replace: true,
         state: <String, dynamic>{'screen': screen},
       );

@@ -14,6 +14,12 @@ import 'package:pdh/widgets/workspace_context_switcher.dart';
 import 'package:pdh/services/workspace_context_service.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 
+void _dismissShowcaseIfActive(BuildContext context) {
+  try {
+    ShowCaseWidget.of(context).dismiss();
+  } catch (_) {}
+}
+
 /// Full-width hairline for sidebar section separation (no extra vertical spacing).
 Widget _sidebarHairlineDivider({required bool light}) {
   final Color line = light
@@ -317,7 +323,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       route: it.route,
                       isActive: _isRouteActive(widget.currentRouteName, it.route),
                       collapsed: effectiveCollapsed,
-                      onTap: () => widget.onNavigate(it.route),
+                      onTap: () {
+                        _dismissShowcaseIfActive(context);
+                        widget.onNavigate(it.route);
+                      },
                       showProfileIndicator: showProfileIndicator,
                       navVerticalPadding: navVerticalPadding,
                       navFontSize: navFontSize,
@@ -1108,7 +1117,10 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
         route: parent.route,
         isActive: _isRouteActive(widget.currentRouteName, parent.route),
         collapsed: widget.collapsed,
-        onTap: () => widget.onNavigate(parent.route),
+        onTap: () {
+          _dismissShowcaseIfActive(context);
+          widget.onNavigate(parent.route);
+        },
         showProfileIndicator: widget.showProfileIndicator,
         tutorialKey: widget.tutorialKey,
         showTutorial: widget.showTutorial,
@@ -1173,7 +1185,10 @@ class _ExpandableNavGroupState extends State<_ExpandableNavGroup> {
               route: child.route,
               isActive: _isRouteActive(widget.currentRouteName, child.route),
               collapsed: widget.collapsed,
-              onTap: () => widget.onNavigate(child.route),
+              onTap: () {
+                _dismissShowcaseIfActive(context);
+                widget.onNavigate(child.route);
+              },
               isChild: true,
               showProfileIndicator: false,
               navVerticalPadding: widget.navVerticalPadding,
