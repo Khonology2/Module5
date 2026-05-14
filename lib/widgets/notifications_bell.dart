@@ -6,11 +6,35 @@ import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
 
-class NotificationsBell extends StatelessWidget {
+class NotificationsBell extends StatefulWidget {
   const NotificationsBell({super.key, this.onTap});
 
   /// When set, this callback is used instead of the default role-based navigation (e.g. admin portal can route to admin inbox).
   final VoidCallback? onTap;
+
+  @override
+  State<NotificationsBell> createState() => _NotificationsBellState();
+}
+
+class _NotificationsBellState extends State<NotificationsBell> {
+  String? _streamUid;
+  Stream<List<Alert>>? _alertsStream;
+
+  void _bindStream() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      _streamUid = null;
+      _alertsStream = null;
+      return;
+    }
+    if (_streamUid == uid && _alertsStream != null) return;
+    _streamUid = uid;
+    _alertsStream = AlertService.getUserAlertsStream(
+      uid,
+      maxItems: 80,
+      serverFetchLimit: 320,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,8 +43,10 @@ class NotificationsBell extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    _bindStream();
+
     return StreamBuilder<List<Alert>>(
-      stream: AlertService.getUserAlertsStream(user.uid),
+      stream: _alertsStream,
       builder: (context, snapshot) {
         final alerts = snapshot.data ?? const <Alert>[];
         final unreadCount = alerts.where((a) => !a.isRead).length;
@@ -38,7 +64,7 @@ class NotificationsBell extends StatelessWidget {
         }
 
         return InkWell(
-          onTap: onTap ?? openAlerts,
+          onTap: widget.onTap ?? openAlerts,
           borderRadius: BorderRadius.circular(16),
           child: Stack(
             clipBehavior: Clip.none,

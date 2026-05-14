@@ -95,6 +95,22 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   DateTime? _lastAlertsUpdate;
   static const Duration _alertsStabilityThreshold = Duration(seconds: 2);
 
+  Stream<List<Alert>>? _managerWorkspaceAlertsStream;
+  String? _managerWorkspaceAlertsStreamUid;
+
+  void _ensureManagerWorkspaceAlertsStream(String uid) {
+    if (_managerWorkspaceAlertsStreamUid == uid &&
+        _managerWorkspaceAlertsStream != null) {
+      return;
+    }
+    _managerWorkspaceAlertsStreamUid = uid;
+    _managerWorkspaceAlertsStream = AlertService.getUserAlertsStream(
+      uid,
+      maxItems: 200,
+      serverFetchLimit: 600,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -774,9 +790,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     }
 
     // Use the new alert system to get both personal and team alerts
+    _ensureManagerWorkspaceAlertsStream(manager.uid);
+
     return StreamBuilder<List<Alert>>(
       key: ValueKey('user_alerts_${manager.uid}'),
-      stream: AlertService.getUserAlertsStream(manager.uid),
+      stream: _managerWorkspaceAlertsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SliverFillRemaining(

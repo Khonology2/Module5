@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -96,6 +98,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   final Map<String, String> _employeeNameCache = {};
   final Set<String> _pendingEmployeeLookups = {};
   String? _nudgePrefetchSignature;
+
+  /// Stable Firestore streams so [StreamBuilder] does not cancel/resubscribe on every rebuild.
+  Stream<List<Alert>>? _managerInboxAlertsStream;
+  String? _managerInboxStreamUid;
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _adminPendingGoalsStreamCached;
+
+  late final TextEditingController _searchController;
+  Timer? _searchDebounce;
 
   // Context switcher state
   bool _showArchived =
@@ -443,19 +453,43 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _adminPendingGoalsStream() {
-    return FirestoreSafe.stream<QuerySnapshot<Map<String, dynamic>>>(
-      FirebaseFirestore.instance
-          .collection('goals')
-          .where('approvalStatus', isEqualTo: GoalApprovalStatus.pending.name)
-          .where('requiredApproverRole', whereIn: const [
-            'admin',
-            'administrator',
-            'super_admin',
-            'superadmin',
-          ])
-          .limit(300)
-          .snapshots(),
+    return _adminPendingGoalsStreamCached ??=
+        FirestoreSafe.stream<QuerySnapshot<Map<String, dynamic>>>(
+          FirebaseFirestore.instance
+              .collection('goals')
+              .where('approvalStatus', isEqualTo: GoalApprovalStatus.pending.name)
+              .where('requiredApproverRole', whereIn: const [
+                'admin',
+                'administrator',
+                'super_admin',
+                'superadmin',
+              ])
+              .limit(300)
+              .snapshots(),
+        );
+  }
+
+  void _ensureManagerInboxStreams(String uid) {
+    if (_managerInboxStreamUid == uid && _managerInboxAlertsStream != null) {
+      return;
+    }
+    _managerInboxStreamUid = uid;
+    _managerInboxAlertsStream = AlertService.getManagerInboxStream(
+      managerId: uid,
+      personal: false,
+      typeFilter: null,
+      limit: 150,
     );
+  }
+
+  void _onSearchTextChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      final next = _searchController.text;
+      if (next == _search) return;
+      setState(() => _search = next);
+    });
   }
 
   List<Alert> _mergeAdminPendingGoalFallbackAlerts({
@@ -742,11 +776,21 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
+    _searchController.addListener(_onSearchTextChanged);
     _redirectIfManager();
     // Run migration for existing finalized goals (approved/rejected)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AlertService.migrateExistingFinalizedGoalAlerts();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.removeListener(_onSearchTextChanged);
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _ensureNudgeFeedbackStream({
@@ -1459,6 +1503,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       );
     }
 
+    _ensureManagerInboxStreams(user.uid);
+
     return DashboardThemedBackground(
       embedded: widget.embedded,
       child: NestedScrollView(
@@ -1584,12 +1630,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             ),
           ),
           child: StreamBuilder<List<Alert>>(
-            stream: AlertService.getManagerInboxStream(
-              managerId: user.uid,
-              personal: false,
-              typeFilter: null,
-              limit: 100,
-            ),
+            stream: _managerInboxAlertsStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
@@ -1678,7 +1719,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           children: [
             Expanded(
               child: TextField(
-                onChanged: (v) => setState(() => _search = v),
+                controller: _searchController,
                 decoration: InputDecoration(
                   hintText: 'Search...',
                   prefixIcon: const Icon(

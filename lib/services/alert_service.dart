@@ -1264,15 +1264,24 @@ class AlertService {
     }
   }
 
+  /// Live alerts for a user. Uses a bounded Firestore query (newest first) so
+  /// large inboxes cannot download the entire collection on every snapshot.
   static Stream<List<Alert>> getUserAlertsStream(
     String userId, {
-    int? maxItems = 50,
+    int? maxItems = 100,
+    int? serverFetchLimit,
   }) {
+    final int effectiveMax = maxItems ?? 100;
+    final int fetchCap = serverFetchLimit ??
+        (effectiveMax <= 0 ? 500 : (effectiveMax * 5).clamp(150, 600));
+
     return FirestoreSafe.stream(
       _firestore
           .collection('alerts')
           .where('userId', isEqualTo: userId)
           .where('isDismissed', isEqualTo: false)
+          .orderBy('createdAt', descending: true)
+          .limit(fetchCap)
           .snapshots(),
     ).map((snapshot) {
       try {
@@ -1288,7 +1297,7 @@ class AlertService {
             })
             .toList();
 
-        // Sort in memory to avoid index requirements
+        // Query is already ordered; keep a stable sort after client filters.
         alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
         // Deduplicate by a stable composite key to avoid doubles in UI
@@ -1353,9 +1362,15 @@ class AlertService {
     // from the manager's department and merged them in, which caused managers to
     // see employee-facing cards like "Goal Overdue ⚠️" that they cannot action.
 
+    final inboxFetch = (limit * 4).clamp(200, 600);
+
     if (personal) {
       // Personal mode: Only manager's own alerts
-      final baseStream = getUserAlertsStream(managerId);
+      final baseStream = getUserAlertsStream(
+        managerId,
+        maxItems: limit,
+        serverFetchLimit: inboxFetch,
+      );
       return baseStream
           .handleError((error) {
             // Silently handle errors to prevent unmount errors
@@ -1403,7 +1418,11 @@ class AlertService {
     } else {
       // Team mode: show manager-facing alerts addressed to the manager.
       // (Employee-facing alerts should never appear in the manager inbox.)
-      final baseStream = getUserAlertsStream(managerId);
+      final baseStream = getUserAlertsStream(
+        managerId,
+        maxItems: limit,
+        serverFetchLimit: inboxFetch,
+      );
       return baseStream.map((alerts) {
         var items = alerts.where((a) => a.userId == managerId).toList();
 
@@ -1625,8 +1644,15 @@ class AlertService {
   // MIGRATION: Update existing finalized goal alerts so history appears in Archive.
   /// Delegates to [migrateStuckGoalApprovalAlertsForSignedInUser]; the previous
   /// implementation scanned every approved/rejected goal in the project and froze web.
+  static final Map<String, Future<void>> _finalizeGoalAlertsMigration = {};
+
   static Future<void> migrateExistingFinalizedGoalAlerts() async {
-    await migrateStuckGoalApprovalAlertsForSignedInUser(maxAlerts: 250);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    return _finalizeGoalAlertsMigration.putIfAbsent(
+      uid,
+      () => migrateStuckGoalApprovalAlertsForSignedInUser(maxAlerts: 250),
+    );
   }
 
   static Future<void> migrateExistingApprovedGoalAlerts() async {

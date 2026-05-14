@@ -76,6 +76,19 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   bool _isRiskAlertsExpanded = false;
   List<Alert>? _cachedAlerts;
 
+  Stream<List<Alert>>? _userAlertsStream;
+  String? _userAlertsStreamOwner;
+
+  void _bindUserAlertsStream(String uid) {
+    if (_userAlertsStreamOwner == uid && _userAlertsStream != null) return;
+    _userAlertsStreamOwner = uid;
+    _userAlertsStream = AlertService.getUserAlertsStream(
+      uid,
+      maxItems: 120,
+      serverFetchLimit: 480,
+    );
+  }
+
   bool _isManagerSideAlertForGw(Alert alert) {
     // In Manager Workspace (employee-style), hide supervisor/team-context alerts.
     if (alert.audience == AlertAudience.team) return true;
@@ -371,11 +384,13 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         );
                       }
 
+                      _bindUserAlertsStream(user.uid);
+
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           StreamBuilder<List<Alert>>(
-                            stream: AlertService.getUserAlertsStream(user.uid),
+                            stream: _userAlertsStream,
                             initialData: _cachedAlerts,
                             builder: (context, alertsSnapshot) {
                               final streamedAlerts = alertsSnapshot.data;
