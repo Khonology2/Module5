@@ -1,7 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
-import 'package:firebase_ai/firebase_ai.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart';
 // import 'package:pdh/models/user_profile.dart';
@@ -10,6 +9,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
 import 'package:pdh/context_maps/khonopal_context.dart'; // Import the new KhonoPalContext
+import 'package:pdh/services/app_ai_service.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import for shared preferences
 import 'dart:convert'; // Import for JSON encoding/decoding
 import 'package:flutter_tts/flutter_tts.dart'; // Import for Text-to-Speech
@@ -35,7 +35,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _messageController = TextEditingController();
   final List<ChatMessage> _messages = [];
-  late GenerativeModel _model;
   final ScrollController _scrollController = ScrollController();
   String _selectedMode = 'General Chat'; // New state variable for selected mode
   bool _isThinking = false; // Re-introduce thinking state
@@ -107,7 +106,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
   @override
   void initState() {
     super.initState();
-    _initializeGenerativeModel();
     // Avatar is now a GIF, no need for video controller
 
     // Initialize avatar flashing animation
@@ -297,14 +295,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
     super.dispose();
   }
 
-  void _initializeGenerativeModel() {
-    // Initialize GenerativeModel without system instructions by default
-    _model = FirebaseAI.googleAI().generativeModel(
-      model: 'gemini-2.5-flash',
-      // systemInstruction will be set dynamically in _sendMessage
-    );
-  }
-
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -422,18 +412,14 @@ Keep the tone strengths-based, specific, and action-oriented, and format respons
         }
       }
 
-      _model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: currentSystemInstruction != null
-            ? Content.text(currentSystemInstruction)
-            : null,
+      final responseTextRaw = await AppAiService.generate(
+        systemInstruction: currentSystemInstruction,
+        turns: [AiChatTurn.user(textToSendToGemini)],
       );
 
-      final prompt = [Content.text(textToSendToGemini)];
-      final response = await _model.generateContent(prompt);
-
       String cleanedResponseText =
-          response.text?.replaceAll('*', '') ?? 'No response';
+          responseTextRaw.replaceAll('*', '').trim();
+      if (cleanedResponseText.isEmpty) cleanedResponseText = 'No response';
       final aiMessage = ChatMessage(
         text:
             cleanedResponseText, // Set text directly instead of using typewriter

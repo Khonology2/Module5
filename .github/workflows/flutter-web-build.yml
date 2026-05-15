@@ -1,0 +1,69 @@
+# Builds Flutter web with OpenRouter keys baked in via --dart-define
+# (matches lib/main.dart _openRouterDefineOverrides + AppAiService).
+
+name: Flutter Web Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - nathi-v3
+  workflow_dispatch:
+
+concurrency:
+  group: flutter-web-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Build web (inject OpenRouter from GitHub secrets)
+        env:
+          OPENROUTER_API_KEY_PRIMARY: ${{ secrets.OPENROUTER_API_KEY_PRIMARY }}
+          OPENROUTER_API_KEY_SECONDARY: ${{ secrets.OPENROUTER_API_KEY_SECONDARY }}
+          OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENROUTER_API_KEY_PRIMARY:-}" ]; then
+            echo "::error::Repository secret OPENROUTER_API_KEY_PRIMARY is not set (required for AI in the web bundle)."
+            exit 1
+          fi
+
+          CMD=(
+            flutter build web --release --base-href /
+            --dart-define=OPENROUTER_API_KEY_PRIMARY="${OPENROUTER_API_KEY_PRIMARY}"
+          )
+          if [ -n "${OPENROUTER_API_KEY_SECONDARY:-}" ]; then
+            CMD+=(--dart-define=OPENROUTER_API_KEY_SECONDARY="${OPENROUTER_API_KEY_SECONDARY}")
+          fi
+          if [ -n "${OPENROUTER_MODEL:-}" ]; then
+            CMD+=(--dart-define=OPENROUTER_MODEL="${OPENROUTER_MODEL}")
+          fi
+          "${CMD[@]}"
+
+      - name: Upload web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web
+          if-no-files-found: error

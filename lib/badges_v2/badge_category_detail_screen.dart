@@ -221,9 +221,8 @@ class _BadgeCategoryDetailScreenState extends State<BadgeCategoryDetailScreen> {
           navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
-      content: FocusTraversalGroup(
-            policy: WidgetOrderTraversalPolicy(),
-            child: Builder(
+      content: AppComponents.focusTraversalScope(
+            Builder(
               builder: (context) {
                 final Widget body = ListView(
                   padding: AppSpacing.screenPadding,
