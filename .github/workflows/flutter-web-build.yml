@@ -106,6 +106,8 @@ jobs:
       - name: Create or reuse PR and enable auto-merge
         env:
           ACTIONS_CREATE_PR_PAT: ${{ secrets.ACTIONS_CREATE_PR_PAT }}
+          # Ensure bound for `set -u` (some runners do not expose GITHUB_TOKEN to the shell unless declared).
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [ -n "${ACTIONS_CREATE_PR_PAT:-}" ]; then
