@@ -1,15 +1,13 @@
 name: Generate Daily Commits
 
+# Do not run on push to nathi-v3 — deploy-check already runs tool/gen_daily_commits_json.sh
+# before flutter build. A second workflow on every push doubled runner usage and queued runs.
 on:
-  push:
-    branches:
-      - nathi-v3
   schedule:
     # Run daily at 4:30 PM UTC (2:30 PM SAST, 6:30 AM PST)
     - cron: '30 16 * * *'
   workflow_dispatch:
 
-# Avoid duplicate runs when this workflow pushes [skip ci] back to the repo
 concurrency:
   group: generate-commits-${{ github.ref }}
   cancel-in-progress: false
@@ -24,9 +22,6 @@ env:
 jobs:
   generate-commits:
     runs-on: ubuntu-latest
-    # Skip only when this push was our own bot commit (prevents infinite push loops)
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
