@@ -86,6 +86,39 @@ String _dashBellAssetPath(BuildContext context) {
   return _dashIsLight() ? 'assets/red_bell.png' : 'assets/white_bell.png';
 }
 
+/// Section header icon (Recent Activities, Season Progress, Top Performers).
+/// Manager My Workspace uses the same blue bell as the app header notifications.
+String _dashSectionHeaderIconPath({
+  required bool forManagerGwMenu,
+  required BuildContext context,
+}) {
+  if (forManagerGwMenu) return 'assets/blue_bell.png';
+  return _dashBellAssetPath(context);
+}
+
+const double _kDashSectionHeaderIconSize = 43;
+const double _kDashSectionHeaderIconSizeEmployee = 40;
+
+Widget _dashSectionHeaderIcon({
+  required BuildContext context,
+  required bool forManagerGwMenu,
+}) {
+  final size = forManagerGwMenu
+      ? _kDashSectionHeaderIconSize
+      : _kDashSectionHeaderIconSizeEmployee;
+  return SizedBox(
+    width: size,
+    height: size,
+    child: Image.asset(
+      _dashSectionHeaderIconPath(
+        forManagerGwMenu: forManagerGwMenu,
+        context: context,
+      ),
+      fit: BoxFit.contain,
+    ),
+  );
+}
+
 /// KPI / row badge images: show assets as-is (no tint) so red badge art stays visible in light mode.
 Widget _dashDashboardAsset(String assetPath, {double size = 48}) {
   return Image.asset(assetPath, width: size, height: size, fit: BoxFit.contain);
@@ -1356,13 +1389,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         children: [
           Row(
             children: [
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: Image.asset(
-                  _dashBellAssetPath(context),
-                  fit: BoxFit.contain,
-                ),
+              _dashSectionHeaderIcon(
+                context: context,
+                forManagerGwMenu: widget.forManagerGwMenu,
               ),
               const SizedBox(width: 8),
               Text(
@@ -1687,13 +1716,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         children: [
           Row(
             children: [
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: Image.asset(
-                  _dashBellAssetPath(context),
-                  fit: BoxFit.contain,
-                ),
+              _dashSectionHeaderIcon(
+                context: context,
+                forManagerGwMenu: widget.forManagerGwMenu,
               ),
               const SizedBox(width: 8),
               Text(
@@ -1796,13 +1821,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         children: [
           Row(
             children: [
-              SizedBox(
-                width: 26,
-                height: 26,
-                child: Image.asset(
-                  _dashBellAssetPath(context),
-                  fit: BoxFit.contain,
-                ),
+              _dashSectionHeaderIcon(
+                context: context,
+                forManagerGwMenu: widget.forManagerGwMenu,
               ),
               const SizedBox(width: 8),
               Text(

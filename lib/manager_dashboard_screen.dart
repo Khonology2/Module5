@@ -888,10 +888,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.notifications_none,
-                color: AppColors.dangerColor,
-              ),
+              _assetIcon('assets/blue_bell.png', size: 43),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

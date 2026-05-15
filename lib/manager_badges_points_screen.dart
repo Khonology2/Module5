@@ -116,6 +116,40 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
   static Color _categoryAccent(badge_model.BadgeCategory _) =>
       AppColors.activeColor;
 
+  BoxDecoration _badgesCardDecoration({double radius = 16}) {
+    return BoxDecoration(
+      color: DashboardChrome.cardFill,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: DashboardChrome.border),
+      boxShadow: DashboardChrome.light
+          ? [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ]
+          : null,
+    );
+  }
+
+  Widget _wrapPageBackground({required Widget child}) {
+    if (widget.embedded) return child;
+    return ValueListenableBuilder<bool>(
+      valueListenable: employeeDashboardLightModeNotifier,
+      builder: (context, light, _) {
+        return AppComponents.backgroundWithImage(
+          blurSigma: 0,
+          imagePath: light
+              ? 'assets/light_mode_bg.png'
+              : 'assets/khono_bg.png',
+          gradientColors: DashboardChrome.lightGradient,
+          child: child,
+        );
+      },
+    );
+  }
+
   Widget _iconForBadge(String iconName) {
     switch (iconName) {
       case 'verified':
@@ -312,17 +346,13 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           return Container(
             width: double.infinity,
             padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-            ),
+            decoration: _badgesCardDecoration(),
             child: Column(
               children: [
-                const Icon(
+                Icon(
                   Icons.emoji_events_outlined,
                   size: 56,
-                  color: AppColors.textSecondary,
+                  color: DashboardChrome.fg.withValues(alpha: 0.55),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -330,7 +360,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                       ? 'No admin badges yet'
                       : 'No manager badges yet',
                   style: AppTypography.heading4.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -340,7 +370,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                       ? 'Start reviewing, acknowledging, and supporting teams to earn badges.'
                       : 'Start acknowledging goals and supporting your team to earn badges.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
+                    color: DashboardChrome.fg,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -378,11 +408,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
+      decoration: _badgesCardDecoration(radius: 20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () {
@@ -420,14 +446,14 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                       Text(
                         meta.title,
                         style: AppTypography.heading4.copyWith(
-                          color: AppColors.textPrimary,
+                          color: DashboardChrome.fg,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         meta.subtitle,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
+                          color: DashboardChrome.fg,
                         ),
                       ),
                     ],
@@ -450,7 +476,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 6,
-                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                backgroundColor: DashboardChrome.light
+                    ? Colors.black.withValues(alpha: 0.08)
+                    : Colors.white.withValues(alpha: 0.15),
                 valueColor: AlwaysStoppedAnimation<Color>(accent),
               ),
             ),
@@ -487,7 +515,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                 Text(
                   'Managers – Badges & Points',
                   style: AppTypography.heading2.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -498,7 +526,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   child: Text(
                     'No managers found.',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
+                      color: DashboardChrome.fg,
                     ),
                   ),
                 )
@@ -507,13 +535,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
-                      ),
-                    ),
+                    decoration: _badgesCardDecoration(),
                     child: Row(
                       children: [
                         Expanded(
@@ -522,7 +544,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                                 ? e.profile.displayName
                                 : e.profile.email,
                             style: AppTypography.bodyLarge.copyWith(
-                              color: AppColors.textPrimary,
+                              color: DashboardChrome.fg,
                             ),
                           ),
                         ),
@@ -546,34 +568,30 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
 
   Widget _buildContent() {
     if (widget.forAdminOversight) {
-      return _buildManagersBadgesOverview();
+      return _wrapPageBackground(child: _buildManagersBadgesOverview());
     }
     final manager = _auth.currentUser;
     if (manager == null) {
-      return Center(
-        child: Padding(
-          padding: AppSpacing.screenPadding,
-          child: Text(
-            widget.forAdminSelf
-                ? 'Please sign in to view admin badges & points'
-                : 'Please sign in to view manager badges & points',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+      return _wrapPageBackground(
+        child: Center(
+          child: Padding(
+            padding: AppSpacing.screenPadding,
+            child: Text(
+              widget.forAdminSelf
+                  ? 'Please sign in to view admin badges & points'
+                  : 'Please sign in to view manager badges & points',
+              style: AppTypography.bodyMedium.copyWith(
+                color: DashboardChrome.fg,
+              ),
+            ),
           ),
         ),
       );
     }
 
-    return AppComponents.focusTraversalScope(
-      Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: StreamBuilder(
+    return _wrapPageBackground(
+      child: AppComponents.focusTraversalScope(
+        StreamBuilder(
               stream: _buildManagerMetricsStream(manager.uid),
               builder: (context, AsyncSnapshot<_ManagerMetrics> snapshot) {
                 // Run badge evaluation in background (non-blocking) after first build
@@ -594,7 +612,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                       child: Text(
                         'No data available yet',
                         style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textSecondary,
+                          color: DashboardChrome.fg,
                         ),
                       ),
                     ),
@@ -641,20 +659,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     final points = totalPoints;
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: DashboardChrome.cardFill,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: DashboardChrome.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(
-              alpha: DashboardChrome.light ? 0.08 : 0.2,
-            ),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: _badgesCardDecoration(),
       child: Row(
         children: [
           Expanded(

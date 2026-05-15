@@ -97,8 +97,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   String? _statusFilter;
   late final ValueDebouncer<String> _searchDebouncer;
 
-  /// “Your progress” stat tiles — badge icons (match sidebar / design system).
-  static const double _repoAuditStatIconSize = 26;
+  /// “Your progress” stat tiles — badge icons (+45% vs original 26px; all roles share this screen).
+  static const double _repoAuditStatIconSize = 26 * 1.45;
+  static const double _repoAuditStatIconFallbackSize = 18 * 1.45;
   static const String _repoAuditIconTotal =
       'assets/Goal_Target/Goal_Target_White_Badge_Red.png';
   static const String _repoAuditIconCreated =
@@ -1754,7 +1755,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.medium,
                 errorBuilder: (context, error, stackTrace) =>
-                    Icon(Icons.image_not_supported_outlined, size: 18, color: color),
+                    Icon(
+                      Icons.image_not_supported_outlined,
+                      size: _repoAuditStatIconFallbackSize,
+                      color: color,
+                    ),
               ),
             ),
             const SizedBox(width: 6),
