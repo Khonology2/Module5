@@ -10,6 +10,13 @@
 #   OPENROUTER_API_KEY_PRIMARY   (required)
 #   OPENROUTER_API_KEY_SECONDARY (optional)
 #   OPENROUTER_MODEL             (optional; app defaults if omitted)
+#   ACTIONS_CREATE_PR_PAT        (optional; see PR job below)
+#
+# PR creation: if `gh pr create` fails with "GitHub Actions is not permitted to create or approve pull requests":
+#   (A) Repo/org: Settings → Actions → General → Workflow permissions → enable
+#       **Allow GitHub Actions to create and approve pull requests** (then the default token works), OR
+#   (B) Create a **classic PAT** (`repo`) or **fine-grained PAT** (Contents + Pull requests write for this repo),
+#       store it as secret **ACTIONS_CREATE_PR_PAT** — this workflow uses it only for `gh pr` / auto-merge.
 #
 # Repo settings: enable "Allow auto-merge" and branch protection on `nathi-v3` for
 # auto-merge to take effect after PR checks pass.
@@ -92,12 +99,23 @@ jobs:
     needs: build-web
     if: success() && github.ref != 'refs/heads/nathi-v3' && !startsWith(github.ref, 'refs/heads/dependabot/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Create or reuse PR and enable auto-merge
         env:
-          GH_TOKEN: ${{ github.token }}
+          ACTIONS_CREATE_PR_PAT: ${{ secrets.ACTIONS_CREATE_PR_PAT }}
         run: |
           set -euo pipefail
+          if [ -n "${ACTIONS_CREATE_PR_PAT:-}" ]; then
+            export GH_TOKEN="${ACTIONS_CREATE_PR_PAT}"
+            echo "::notice::Using secret ACTIONS_CREATE_PR_PAT for GitHub CLI (required when the org blocks GITHUB_TOKEN from opening PRs)."
+          else
+            export GH_TOKEN="${GITHUB_TOKEN}"
+            echo "::notice::Using default GITHUB_TOKEN for gh. If PR creation fails, add ACTIONS_CREATE_PR_PAT or enable Actions PR permission in repo/org settings."
+          fi
+
           REPO="${{ github.repository }}"
           BRANCH="${GITHUB_REF_NAME}"
           BASE="nathi-v3"
