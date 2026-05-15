@@ -22,7 +22,6 @@ dependencies:
   percent_indicator: ^4.2.5
   firebase_ml_model_downloader: ^0.4.0+2 # For AI model downloading
   tflite_flutter: ^0.11.0 # For running TensorFlow Lite models
-  firebase_ai: ^3.3.0
   video_player: ^2.10.0
   shared_preferences: ^2.2.3 # Updated to latest version for state persistence
   image_picker: ^1.2.0
@@ -44,6 +43,7 @@ dependencies:
   open_file: ^3.3.1  # For opening files on the device
   google_fonts: ^6.2.1  # For PDF font support
   url_launcher: ^6.3.0
+  flutter_dotenv: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -56,6 +56,7 @@ flutter:
   uses-material-design: true
   generate: true
   assets:
+    - .env
     - assets/
     - assets/data/
     - assets/Account_User_Profile/
@@ -107,7 +108,7 @@ flutter:
     - assets/manager_sidebar/
     - assets/Email_Notification/Notification_Red_White.png
     - assets/khono_red_discs.png
-    # Branded loader (CustomLogoLoader — three arcs)
+    # Branded loader (CustomLogoLoader - three arcs -> one logo)
     - assets/disc_1.png
     - assets/disc_2.png
     - assets/disc_3.png

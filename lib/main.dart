@@ -1,7 +1,8 @@
 // ignore_for_file: duplicate_ignore, unnecessary_underscores, sort_child_properties_last
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 //import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
@@ -110,8 +111,33 @@ Future<void> _clearFirestoreCache() async {
   }
 }
 
+/// Build-time `--dart-define=OPENROUTER_*` values merged into [dotenv] when `.env` is absent.
+Map<String, String> _openRouterDefineOverrides() {
+  const primary = String.fromEnvironment('OPENROUTER_API_KEY_PRIMARY');
+  const secondary = String.fromEnvironment('OPENROUTER_API_KEY_SECONDARY');
+  const model = String.fromEnvironment('OPENROUTER_MODEL');
+  final m = <String, String>{};
+  if (primary.isNotEmpty) m['OPENROUTER_API_KEY_PRIMARY'] = primary;
+  if (secondary.isNotEmpty) m['OPENROUTER_API_KEY_SECONDARY'] = secondary;
+  if (model.isNotEmpty) m['OPENROUTER_MODEL'] = model;
+  return m;
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(
+      fileName: '.env',
+      isOptional: true,
+      mergeWith: _openRouterDefineOverrides(),
+    );
+  } catch (e) {
+    debugPrint('dotenv load: $e');
+    dotenv.testLoad(
+      fileInput: '',
+      mergeWith: _openRouterDefineOverrides(),
+    );
+  }
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   // CONFLICT TEST: This line will conflict with MAIN branch
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks

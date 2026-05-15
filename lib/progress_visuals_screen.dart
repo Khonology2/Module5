@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_ai/firebase_ai.dart';
+import 'package:pdh/services/app_ai_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -4952,29 +4952,25 @@ class _EmployeeProgressVisualsContentState
       if (!keepGeneratingState) {
         await updatePhase('Generating summary...');
       }
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
-          'You are an AI assistant specialized in analyzing personal development progress. '
-          'Generate a concise, natural language summary (3-4 sentences) of the user\'s progress that includes:\n'
-          '1. Overall progress status\n'
-          '2. Key achievements\n'
-          '3. Areas needing attention\n'
-          '4. Progress trends over time\n\n'
-          'Be motivational, specific, and actionable. Focus on what\'s working well and what needs improvement.',
-        ),
-      );
-
-      final prompt = [
-        Content.text(
-          'Analyze this progress data and generate a summary:\n\n$progressData',
-        ),
-      ];
-
       await updatePhase('Finalizing summary...');
 
-      final response = await model.generateContent(prompt);
-      final summary = response.text?.replaceAll('*', '').trim() ?? '';
+      final summary = (await AppAiService.generate(
+        systemInstruction:
+            'You are an AI assistant specialized in analyzing personal development progress. '
+            'Generate a concise, natural language summary (3-4 sentences) of the user\'s progress that includes:\n'
+            '1. Overall progress status\n'
+            '2. Key achievements\n'
+            '3. Areas needing attention\n'
+            '4. Progress trends over time\n\n'
+            'Be motivational, specific, and actionable. Focus on what\'s working well and what needs improvement.',
+        turns: [
+          AiChatTurn.user(
+            'Analyze this progress data and generate a summary:\n\n$progressData',
+          ),
+        ],
+      ))
+          .replaceAll('*', '')
+          .trim();
 
       if (!keepGeneratingState) {
         await updatePhase('Complete!');
@@ -5057,32 +5053,27 @@ class _EmployeeProgressVisualsContentState
                 final progressData = _collectProgressData(goals);
 
                 await updatePhase('Generating personalized insights...');
-                final model = FirebaseAI.googleAI().generativeModel(
-                  model: 'gemini-2.5-flash',
-                  systemInstruction: Content.text(
-                    'You are an AI assistant specialized in analyzing personal development progress and providing actionable insights. '
-                    'Based on the progress data provided, generate a comprehensive analysis that includes:\n\n'
-                    '1. PERSONALIZED INSIGHTS: Identify patterns in progress, strengths, and areas for improvement\n'
-                    '2. RECOMMENDATIONS: Provide specific, actionable recommendations for improvement\n'
-                    '3. TREND ANALYSIS: Analyze what\'s working well and what needs attention\n'
-                    '4. ACTIONABLE NEXT STEPS: Suggest concrete next steps the user should take\n'
-                    '5. MOTIVATIONAL FEEDBACK: Acknowledge achievements and provide encouragement\n\n'
-                    'Format your response in clear sections with headings. Be specific, motivational, and actionable.',
-                  ),
-                );
-
-                final prompt = [
-                  Content.text(
-                    'Analyze this progress data and provide comprehensive insights:\n\n$progressData\n\n'
-                    'Provide personalized insights, recommendations, trend analysis, actionable next steps, and motivational feedback.',
-                  ),
-                ];
+                final insights = (await AppAiService.generate(
+                  systemInstruction:
+                      'You are an AI assistant specialized in analyzing personal development progress and providing actionable insights. '
+                      'Based on the progress data provided, generate a comprehensive analysis that includes:\n\n'
+                      '1. PERSONALIZED INSIGHTS: Identify patterns in progress, strengths, and areas for improvement\n'
+                      '2. RECOMMENDATIONS: Provide specific, actionable recommendations for improvement\n'
+                      '3. TREND ANALYSIS: Analyze what\'s working well and what needs attention\n'
+                      '4. ACTIONABLE NEXT STEPS: Suggest concrete next steps the user should take\n'
+                      '5. MOTIVATIONAL FEEDBACK: Acknowledge achievements and provide encouragement\n\n'
+                      'Format your response in clear sections with headings. Be specific, motivational, and actionable.',
+                  turns: [
+                    AiChatTurn.user(
+                      'Analyze this progress data and provide comprehensive insights:\n\n$progressData\n\n'
+                      'Provide personalized insights, recommendations, trend analysis, actionable next steps, and motivational feedback.',
+                    ),
+                  ],
+                ))
+                    .replaceAll('*', '')
+                    .trim();
 
                 await updatePhase('Finalizing insights...');
-
-                final response = await model.generateContent(prompt);
-                final insights =
-                    response.text?.replaceAll('*', '').trim() ?? '';
 
                 await updatePhase('Complete!');
                 await Future.delayed(const Duration(milliseconds: 500));

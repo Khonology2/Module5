@@ -22,6 +22,7 @@ import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart'
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
 import 'package:pdh/widgets/branded_refresh_indicator.dart';
+import 'package:pdh/design_system/app_components.dart';
 
 class ManagerBadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -562,9 +563,8 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       );
     }
 
-    return FocusTraversalGroup(
-      policy: WidgetOrderTraversalPolicy(),
-      child: Container(
+    return AppComponents.focusTraversalScope(
+      Container(
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
