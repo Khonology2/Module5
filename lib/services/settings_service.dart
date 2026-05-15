@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/services/manager_realtime_service.dart';
 
 class UserSettings {
   final String userId;
@@ -598,20 +599,27 @@ class SettingsService {
         // Fetch recent activities (safely capped)
         // Avoid server-side ordering to reduce risk of Firestore watch/index issues on web SDK.
         activitiesQuery = await _firestore
-          .collection('activities')
-          .where('userId', isEqualTo: user.uid)
-          .limit(200)
-          .get();
+            .collection('activities')
+            .where('userId', isEqualTo: user.uid)
+            .limit(200)
+            .get();
       } on FirebaseException catch (e) {
         // If Firestore requires a composite index, the server returns a URL
         final msg = e.message ?? e.toString();
-        final urlMatch = RegExp(r'https?://[^\s]+create_composite[^\s]+').firstMatch(msg);
+        final urlMatch = RegExp(
+          r'https?://[^\s]+create_composite[^\s]+',
+        ).firstMatch(msg);
         if (urlMatch != null) {
-          throw Exception('Firestore index required for this export. Create it here: ${urlMatch.group(0)}');
+          throw Exception(
+            'Firestore index required for this export. Create it here: ${urlMatch.group(0)}',
+          );
         }
         // Surface internal assertion failures with clearer guidance
-        if (msg.contains('INTERNAL ASSERTION') || msg.contains('Unexpected state')) {
-          throw Exception('Firestore internal error occurred during export. Try again, and consider upgrading your Firebase SDKs. Technical details: $msg');
+        if (msg.contains('INTERNAL ASSERTION') ||
+            msg.contains('Unexpected state')) {
+          throw Exception(
+            'Firestore internal error occurred during export. Try again, and consider upgrading your Firebase SDKs. Technical details: $msg',
+          );
         }
         throw Exception('Firestore query failed during export: $msg');
       }
@@ -655,6 +663,59 @@ class SettingsService {
       // If it's a low-level FirebaseException, rethrow to UI for user guidance
       rethrow;
     }
+  }
+
+  /// Admin settings export: same personal payload as [exportUserData], plus a
+  /// one-shot snapshot of managers (same source as the admin portal dashboard).
+  static Future<Map<String, dynamic>> exportAdminPortalData() async {
+    final base = await exportUserData();
+    final portalManagers = await _loadManagersForAdminExport();
+    return {
+      ...base,
+      '_exportKind': 'adminPortal',
+      'portalManagers': portalManagers,
+    };
+  }
+
+  static Future<List<Map<String, dynamic>>>
+  _loadManagersForAdminExport() async {
+    try {
+      final managers =
+          await ManagerRealtimeService.getManagersDataStream(
+                timeFilter: TimeFilter.month,
+              )
+              .firstWhere(
+                (list) => list.isEmpty || list.every((e) => !e.isPlaceholder),
+              )
+              .timeout(const Duration(seconds: 90));
+      return managers.map(_managerExportRow).toList();
+    } on TimeoutException catch (e) {
+      developer.log('Admin export: managers fetch timed out: $e');
+      return [];
+    } catch (e) {
+      developer.log('Admin export: managers fetch failed: $e');
+      return [];
+    }
+  }
+
+  static Map<String, dynamic> _managerExportRow(EmployeeData e) {
+    return {
+      'displayName': e.profile.displayName,
+      'email': e.profile.email,
+      'department': e.profile.department,
+      'jobTitle': e.profile.jobTitle,
+      'userId': e.profile.uid,
+      'status': e.status.name,
+      'totalPoints': e.totalPoints,
+      'completedGoalsCount': e.completedGoalsCount,
+      'overdueGoalsCount': e.overdueGoalsCount,
+      'avgProgress': e.avgProgress,
+      'engagementScore': e.engagementScore,
+      'weeklyActivityCount': e.weeklyActivityCount,
+      'motivationLevel': e.motivationLevel,
+      'lastActivity': e.lastActivity.toIso8601String(),
+      'goalsInPeriod': e.goals.length,
+    };
   }
 
   // Critical settings that should be saved locally
