@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:pdh/utils/pdh_backend_url_reader.dart';
 
 class BackendAuthException implements Exception {
   BackendAuthException({
@@ -29,6 +30,7 @@ class ValidateTokenResponse {
     required this.roles,
     this.pdhRole,
     this.theme,
+    this.displayName,
   });
 
   final String firebaseToken;
@@ -37,6 +39,7 @@ class ValidateTokenResponse {
   final List<String> roles;
   final String? pdhRole;
   final String? theme;
+  final String? displayName;
 
   factory ValidateTokenResponse.fromJson(Map<String, dynamic> json) {
     final rolesRaw = json['roles'];
@@ -51,6 +54,7 @@ class ValidateTokenResponse {
       roles: roles,
       pdhRole: json['pdh_role']?.toString(),
       theme: json['theme']?.toString(),
+      displayName: json['display_name']?.toString(),
     );
   }
 }
@@ -119,6 +123,7 @@ class BackendAuthService {
 
   static final BackendAuthService instance = BackendAuthService._();
   static const Duration _timeout = Duration(seconds: 12);
+  static const Duration _validateTokenTimeout = Duration(seconds: 45);
   static const Duration _aiTimeout = Duration(seconds: 90);
   static const int _maxAttempts = 2;
 
@@ -129,28 +134,42 @@ class BackendAuthService {
     'BACKEND_BASE_URL',
   );
 
-  static String get _baseUrl {
-    final configured = _configuredBackendUrl.trim();
-    if (configured.isNotEmpty) {
-      return configured.endsWith('/')
-          ? configured.substring(0, configured.length - 1)
-          : configured;
-    }
+  static String _normalizeBaseUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return trimmed;
+    return trimmed.endsWith('/')
+        ? trimmed.substring(0, trimmed.length - 1)
+        : trimmed;
+  }
 
-    // Local dev (Flutter web on :6xxxx, API on :8000): always hit loopback API.
+  static String get _baseUrl {
+    final configured = _normalizeBaseUrl(_configuredBackendUrl);
+    if (configured.isNotEmpty) return configured;
+
     if (kIsWeb) {
+      final fromMeta = _normalizeBaseUrl(readBackendBaseUrlFromWebMeta() ?? '');
+      if (fromMeta.isNotEmpty) return fromMeta;
+
       final origin = Uri.base.origin;
       final isLocalWebOrigin = origin.contains('localhost') ||
           origin.contains('127.0.0.1') ||
           origin.isEmpty ||
           origin == 'null';
-      if (!isLocalWebOrigin) {
-        // Production web build without --dart-define: API may share the site origin.
-        return origin;
+      if (isLocalWebOrigin) {
+        return 'http://127.0.0.1:8000';
       }
     }
 
     return 'http://127.0.0.1:8000';
+  }
+
+  static bool get hasExplicitBackendUrl {
+    if (_configuredBackendUrl.trim().isNotEmpty) return true;
+    if (kIsWeb) {
+      final meta = (readBackendBaseUrlFromWebMeta() ?? '').trim();
+      if (meta.isNotEmpty) return true;
+    }
+    return false;
   }
 
   Uri _uri(String path) {
@@ -167,8 +186,27 @@ class BackendAuthService {
   }
 
   Future<ValidateTokenResponse> validateTokenWithBackend(String token) async {
+    if (kIsWeb && !hasExplicitBackendUrl) {
+      final origin = Uri.base.origin;
+      final isLocal = origin.contains('localhost') ||
+          origin.contains('127.0.0.1') ||
+          origin.isEmpty ||
+          origin == 'null';
+      if (!isLocal) {
+        throw BackendAuthException(
+          message:
+              'Backend API URL is not configured for this build. Set GitHub secret BACKEND_BASE_URL to your Render Python API URL and redeploy.',
+          code: 'backend_not_configured',
+        );
+      }
+    }
+
     final body = jsonEncode({'token': token});
-    final response = await _postWithRetry(_uri('/validate-token'), body);
+    final response = await _postWithRetry(
+      _uri('/validate-token'),
+      body,
+      timeout: _validateTokenTimeout,
+    );
     final decoded = _decodeBody(response.body);
     final model = ValidateTokenResponse.fromJson(decoded);
 
@@ -305,8 +343,12 @@ class BackendAuthService {
         }
         lastError = mapped;
       } on TimeoutException {
+        final apiHint = hasExplicitBackendUrl
+            ? ' ($_baseUrl)'
+            : ' — set BACKEND_BASE_URL to your Python API (not the static web URL).';
         final timeoutError = BackendAuthException(
-          message: 'Request timed out while contacting backend.',
+          message:
+              'Request timed out while contacting backend$apiHint',
           code: 'timeout',
           retryable: true,
         );

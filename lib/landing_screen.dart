@@ -5,6 +5,7 @@ import 'dart:async'; // For Timer
 import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/services/user_display_name_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/widgets/version_control_widget.dart';
@@ -139,6 +140,14 @@ class _PersonalDevelopmentHubScreenState
       );
       precacheImage(const AssetImage('assets/discs.png'), context);
       precacheImage(const AssetImage('assets/Red_Khono_Discs.png'), context);
+
+      final urlToken = TokenAuthService.extractTokenFromUri().token;
+      if (urlToken != null &&
+          urlToken.isNotEmpty &&
+          !_isCheckingToken &&
+          !_isProcessingButton) {
+        unawaited(_handleGetStarted());
+      }
     });
   }
 
@@ -262,6 +271,13 @@ class _PersonalDevelopmentHubScreenState
       final roles = validationResponse.roles;
       final pdhRoleFromBackend = validationResponse.pdhRole;
       final tokenTheme = validationResponse.theme;
+      final displayNameFromBackend =
+          (validationResponse.displayName ?? '').trim();
+      final resolvedDisplayName = displayNameFromBackend.isNotEmpty
+          ? displayNameFromBackend
+          : (email.isNotEmpty
+              ? UserDisplayNameService.formatNameFromEmail(email)
+              : '');
 
       if (firebaseTokenRaw.isEmpty) {
         if (mounted) {
@@ -339,6 +355,8 @@ class _PersonalDevelopmentHubScreenState
                 .doc(effectiveUserId.isNotEmpty ? effectiveUserId : userId)
                 .set({
                   if (email.isNotEmpty) 'email': email,
+                  if (resolvedDisplayName.isNotEmpty)
+                    'displayName': resolvedDisplayName,
                   'role': internalRole,
                   'pdhRole': pdhRole,
                   'tokenAuthenticated': true,
@@ -346,6 +364,14 @@ class _PersonalDevelopmentHubScreenState
                 }, SetOptions(merge: true));
           } catch (e) {
             _swallowError(e);
+          }
+
+          if (resolvedDisplayName.isNotEmpty) {
+            try {
+              await userCredential.user!.updateDisplayName(resolvedDisplayName);
+            } catch (e) {
+              _swallowError(e);
+            }
           }
 
           await RoleService.instance.setRoleForSession(internalRole);

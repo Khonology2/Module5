@@ -11,6 +11,7 @@ import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/user_display_name_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/user_profile.dart';
@@ -896,7 +897,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   // ignore: unused_element
   Widget _buildWelcomeCard() {
     final user = FirebaseAuth.instance.currentUser;
-    String userName = 'User';
+    var userName = (user?.email ?? '').trim().isNotEmpty
+        ? UserDisplayNameService.formatNameFromEmail(user!.email!)
+        : '';
 
     // Try to get name from onboarding collection first, then fallback to other sources
     if (user != null) {

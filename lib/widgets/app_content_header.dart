@@ -1,10 +1,10 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/services/user_display_name_service.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
-class AppContentHeader extends StatelessWidget {
+class AppContentHeader extends StatefulWidget {
   const AppContentHeader({
     super.key,
     required this.title,
@@ -30,28 +30,32 @@ class AppContentHeader extends StatelessWidget {
   final Color textColor;
   final Color? backgroundColor;
 
-  String _resolveUserName() {
-    final user = FirebaseAuth.instance.currentUser;
-    final display = (user?.displayName ?? '').trim();
-    if (display.isNotEmpty) return display;
-    final email = (user?.email ?? '').trim();
-    if (email.isNotEmpty) return email.split('@').first;
-    return 'User';
+  @override
+  State<AppContentHeader> createState() => _AppContentHeaderState();
+}
+
+class _AppContentHeaderState extends State<AppContentHeader> {
+  late Future<String> _displayNameFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayNameFuture = UserDisplayNameService.resolveForCurrentUser();
   }
 
   @override
   Widget build(BuildContext context) {
-    final Color headerBg = backgroundColor ?? DashboardChrome.cardFill;
+    final Color headerBg = widget.backgroundColor ?? DashboardChrome.cardFill;
 
     return SizedBox(
-      height: kTotalHeaderHeight,
+      height: AppContentHeader.kTotalHeaderHeight,
       child: ColoredBox(
         color: headerBg,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              height: kHeaderHeight,
+              height: AppContentHeader.kHeaderHeight,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Row(
@@ -61,25 +65,34 @@ class AppContentHeader extends StatelessWidget {
                         children: [
                           Flexible(
                             child: Text(
-                              title,
+                              widget.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTypography.heading3.copyWith(
-                                color: textColor,
+                                color: widget.textColor,
                               ),
                             ),
                           ),
-                          if (showGreeting) ...[
+                          if (widget.showGreeting) ...[
                             const SizedBox(width: 12),
                             Flexible(
-                              child: Text(
-                                'Hello, ${_resolveUserName()}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.bodyMedium.copyWith(
-                                  color: textColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              child: FutureBuilder<String>(
+                                future: _displayNameFuture,
+                                builder: (context, snapshot) {
+                                  final name = (snapshot.data ?? '').trim();
+                                  if (name.isEmpty) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Text(
+                                    'Hello, $name',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      color: widget.textColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ],
@@ -87,12 +100,15 @@ class AppContentHeader extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    actions,
+                    widget.actions,
                   ],
                 ),
               ),
             ),
-            SizedBox(height: kGapBelowHeader, child: const SizedBox.shrink()),
+            SizedBox(
+              height: AppContentHeader.kGapBelowHeader,
+              child: const SizedBox.shrink(),
+            ),
           ],
         ),
       ),

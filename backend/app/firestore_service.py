@@ -124,6 +124,23 @@ def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
         raise FirestoreServiceError(f"Failed to query users collection: {e}")
 
 
+def extract_display_name(onboarding_data: Dict[str, Any]) -> str:
+    """
+    Resolve a display name from onboarding (matches Flutter field priority).
+    """
+    for key in ("displayName", "fullName", "name"):
+        value = onboarding_data.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+
+    first = onboarding_data.get("firstName")
+    last = onboarding_data.get("lastName")
+    if first or last:
+        return f"{first or ''} {last or ''}".strip()
+
+    return ""
+
+
 def extract_module_access_role(onboarding_data: Dict[str, Any]) -> Optional[str]:
     """
     Extract moduleAccessRole from onboarding document
@@ -387,6 +404,8 @@ def validate_user_and_get_roles(
         logger.warning(f"Email not found in JWT, onboarding, or users collection for user_id: {user_id}")
         resolved_email = ""
     
+    display_name = extract_display_name(onboarding_data)
+
     result = {
         'user_id': user_id,
         'email': resolved_email,
@@ -394,6 +413,7 @@ def validate_user_and_get_roles(
         'pdh_role': pdh_role,
         'module_access_role': module_access_role,
         'status': onboarding_data.get('status', 'Active'),
+        'display_name': display_name,
     }
     if use_cache:
         _roles_cache[cache_key] = {"data": result, "ts": now}

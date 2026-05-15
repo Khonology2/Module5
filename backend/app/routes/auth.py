@@ -155,6 +155,8 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         logger.info(f"Firebase token validated - length: {len(firebase_token)}, parts: {len(token_parts)}")
         logger.info(f"Token validation completed in {int((time.perf_counter() - start_total) * 1000)} ms")
         
+        display_name = (user_data.get('display_name') or '').strip() or None
+
         return TokenValidationResponse(
             firebase_token=firebase_token,
             user_id=user_data['user_id'],
@@ -162,6 +164,7 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
             roles=user_data['roles'],
             pdh_role=user_data.get('pdh_role'),
             theme=theme,
+            display_name=display_name,
         )
         
     except JWTValidationError as e:

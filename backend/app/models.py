@@ -55,6 +55,11 @@ class TokenValidationResponse(BaseModel):
         description='Theme preference from token ("Light" or "dark")',
         example="Light"
     )
+    display_name: Optional[str] = Field(
+        None,
+        description="User display name from onboarding (full name)",
+        example="Nkosinathi Radebe",
+    )
 
 
 class AuthCallbackRequest(BaseModel):

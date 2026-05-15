@@ -117,6 +117,23 @@ jobs:
           fi
           "${ARGS[@]}"
 
+      - name: Inject backend API URL into web index (SSO validate-token)
+        if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
+        env:
+          BACKEND_BASE_URL: ${{ secrets.BACKEND_BASE_URL }}
+        run: |
+          set -euo pipefail
+          INDEX="build/web/index.html"
+          if [ ! -f "$INDEX" ]; then
+            echo "::error::Missing $INDEX after flutter build web"
+            exit 1
+          fi
+          if [ -n "${BACKEND_BASE_URL:-}" ]; then
+            python3 tool/inject_backend_url_meta.py
+          else
+            echo "::warning::BACKEND_BASE_URL not set; SSO may fail until secret is configured."
+          fi
+
       - name: Disable service worker in web bundle (avoid stale cached JS after deploy)
         if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH
         run: python3 tool/strip_web_service_worker.py
