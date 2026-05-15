@@ -1,10 +1,18 @@
 # Builds Flutter web with OpenRouter keys baked in via --dart-define
 # (matches lib/main.dart _openRouterDefineOverrides + AppAiService).
 #
+# After a successful build on any branch except `nathi-v3`, opens (or reuses) a PR
+# into `nathi-v3` and enables auto-merge when the repo allows it. Merging to `nathi-v3`
+# should trigger your deploy-check workflow if it is configured with:
+#   on: push: branches: [nathi-v3]
+#
 # Repository secrets (Settings → Secrets and variables → Actions):
 #   OPENROUTER_API_KEY_PRIMARY   (required)
 #   OPENROUTER_API_KEY_SECONDARY (optional)
 #   OPENROUTER_MODEL             (optional; app defaults if omitted)
+#
+# Repo settings: enable "Allow auto-merge" and branch protection on `nathi-v3` for
+# auto-merge to take effect after PR checks pass.
 
 name: Flutter Web Build
 
@@ -18,6 +26,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   build-web:
@@ -77,3 +86,58 @@ jobs:
           name: web-build
           path: build/web
           if-no-files-found: error
+
+  # Open PR into nathi-v3 so merges land on the deploy branch (triggers deploy-check, etc.).
+  open-pr-to-nathi-v3:
+    needs: build-web
+    if: success() && github.ref != 'refs/heads/nathi-v3' && !startsWith(github.ref, 'refs/heads/dependabot/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or reuse PR and enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          BRANCH="${GITHUB_REF_NAME}"
+          BASE="nathi-v3"
+
+          if ! gh api "repos/${REPO}/branches/${BASE}" >/dev/null 2>&1; then
+            echo "::warning::Base branch '${BASE}' does not exist on origin yet; skipping PR."
+            exit 0
+          fi
+
+          EXISTING="$(gh pr list --repo "${REPO}" --base "${BASE}" --head "${BRANCH}" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "${EXISTING}" ]; then
+            echo "::notice::Using existing open PR #${EXISTING} (${BRANCH} → ${BASE})."
+            PR_NUMBER="${EXISTING}"
+          else
+            BODY="$(mktemp)"
+            {
+              echo "Automated pull request: **Flutter Web Build** succeeded for \`${BRANCH}\`."
+              echo ""
+              echo "- Base: \`${BASE}\`"
+              echo "- Head: \`${BRANCH}\`"
+              echo "- Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              echo ""
+              echo "After merge, any workflow with \`on: push: branches: ['${BASE}']\` (for example **deploy-check**) runs on the new tip of \`${BASE}\`."
+              echo ""
+              echo "Auto-merge is requested when the repository allows it (Settings → General → **Allow auto-merge**; branch protection on \`${BASE}\`)."
+            } >"${BODY}"
+            gh pr create --repo "${REPO}" --base "${BASE}" --head "${BRANCH}" \
+              --title "chore(ci): web build passed — merge ${BRANCH} into ${BASE}" \
+              --body-file "${BODY}"
+            rm -f "${BODY}"
+            PR_NUMBER="$(gh pr list --repo "${REPO}" --base "${BASE}" --head "${BRANCH}" --state open --json number --jq '.[0].number')"
+          fi
+
+          if [ -z "${PR_NUMBER}" ]; then
+            echo "::error::Could not determine PR number after create/list."
+            exit 1
+          fi
+
+          if gh pr merge "${PR_NUMBER}" --repo "${REPO}" --auto --merge; then
+            echo "::notice::Auto-merge enabled for PR #${PR_NUMBER} (will merge when branch rules and checks pass)."
+          else
+            echo "::notice::Auto-merge could not be enabled for PR #${PR_NUMBER}. Merge manually or enable Allow auto-merge + branch protection."
+          fi
