@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
-import 'package:firebase_ai/firebase_ai.dart';
+import 'package:pdh/services/app_ai_service.dart';
 import 'dart:convert';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -21,6 +21,7 @@ import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/ai_generation_indicator.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 /// Theme-local colors for [MyGoalWorkspaceScreen] (light vs dark surfaces and text).
 class _GoalWorkspacePalette {
@@ -691,47 +692,43 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
               try {
                 await updatePhase('Generating description...');
-
-                // Initialize Firebase AI model
-                final model = FirebaseAI.googleAI().generativeModel(
-                  model: 'gemini-2.5-flash',
-                  systemInstruction: Content.text(
-                    'You are an AI assistant specialized in creating comprehensive personal development goal plans and evaluating SMART criteria. '
-                    'When given a goal title, you must generate four components:\n\n'
-                    '1. DESCRIPTION: A detailed and actionable description of the goal (no more than 5 sentences). '
-                    'Be concise but thorough, making it comprehensive, motivating, and including specific steps or considerations.\n\n'
-                    '2. DEPENDENCIES AND PREREQUISITES: Exactly 5 dependencies or prerequisites needed to achieve this goal. '
-                    'Format each as a bullet point starting with "-" or "•". Be specific and actionable.\n\n'
-                    '3. SUCCESS METRICS: Specific, measurable metrics or milestones that indicate successful completion of this goal. '
-                    'Provide a substantial amount of detail with clear, quantifiable indicators.\n\n'
-                    '4. SMART SCORES: Based on the goal title, description, dependencies, prerequisites, and success metrics, evaluate and assign a score from 1-5 for each SMART criterion:\n'
-                    '   - clarity (Specific): How clear and well-defined is the goal? (1=vague, 3=some detail, 5=precise deliverable & scope)\n'
-                    '   - measurability (Measurable): Can progress be tracked? (1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source)\n'
-                    '   - achievability (Achievable): Is the goal realistic? (1=unlikely, 3=stretch, 5=realistic with resources)\n'
-                    '   - relevance (Relevant): Does it align with values/role/OKR? (1=not aligned, 3=indirect, 5=direct OKR/competency fit)\n'
-                    '   - timeline (Time-bound): Is there a clear deadline? (1=no date, 3=date tight, 5=realistic + milestones)\n\n'
-                    'Respond in this EXACT JSON format (no other text):\n'
-                    '{"description": "the goal description here", "dependencies": "• First dependency\\n• Second dependency\\n• Third dependency\\n• Fourth dependency\\n• Fifth dependency", "successMetrics": "the success metrics here", "smartScores": {"clarity": 3, "measurability": 4, "achievability": 4, "relevance": 5, "timeline": 3}}',
-                  ),
-                );
-
-                final prompt = [
-                  Content.text(
-                    'Generate a comprehensive plan for this personal development goal: $goalTitle\n\n'
-                    'First, create the description, 5 dependencies/prerequisites, and success metrics. '
-                    'Then, based on the complete goal information (title, description, dependencies, prerequisites, and success metrics you generated), '
-                    'evaluate and assign SMART criteria scores (1-5 for each: clarity, measurability, achievability, relevance, timeline). '
-                    'The SMART scores should reflect how well the goal meets each criterion based on all the information provided.',
-                  ),
-                ];
-
                 await updatePhase(
                   'Generating dependencies and prerequisites...',
                 );
 
-                final response = await model.generateContent(prompt);
-                final responseText =
-                    response.text?.replaceAll('*', '').trim() ?? '';
+                // OpenRouter-backed AI (keys from .env)
+                final responseText = (await AppAiService.generate(
+                  systemInstruction:
+                      'You are an AI assistant specialized in creating comprehensive personal development goal plans and evaluating SMART criteria. '
+                      'When given a goal title, you must generate five component groups:\n\n'
+                      '1. DESCRIPTION: A detailed and actionable description of the goal (no more than 5 sentences). '
+                      'Be concise but thorough, making it comprehensive, motivating, and including specific steps or considerations.\n\n'
+                      '2. DEPENDENCIES AND PREREQUISITES: Exactly 5 dependencies or prerequisites needed to achieve this goal. '
+                      'Format each as a bullet point starting with "-" or "•". Be specific and actionable.\n\n'
+                      '3. SUCCESS METRICS: Specific, measurable metrics or milestones that indicate successful completion of this goal. '
+                      'Provide a substantial amount of detail with clear, quantifiable indicators.\n\n'
+                      '4. SMART SCORES: Based on the goal title, description, dependencies, prerequisites, and success metrics, evaluate and assign a score from 1-5 for each SMART criterion:\n'
+                      '   - clarity (Specific): How clear and well-defined is the goal? (1=vague, 3=some detail, 5=precise deliverable & scope)\n'
+                      '   - measurability (Measurable): Can progress be tracked? (1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source)\n'
+                      '   - achievability (Achievable): Is the goal realistic? (1=unlikely, 3=stretch, 5=realistic with resources)\n'
+                      '   - relevance (Relevant): Does it align with values/role/OKR? (1=not aligned, 3=indirect, 5=direct OKR/competency fit)\n'
+                      '   - timeline (Time-bound): Is there a clear deadline? (1=no date, 3=date tight, 5=realistic + milestones)\n\n'
+                      '5. GOAL METADATA (for the same goal): Pick exactly one value for each, aligned with the title and description:\n'
+                      '   - category: exactly one of Career, Skills, Wellness, Finance, Other\n'
+                      '   - priority: exactly one of High, Medium, Low\n'
+                      '   - kpa (Key Performance Area): exactly one of Operational Excellence, Customer Excellence, Financial Excellence, Organisational Excellence, People Excellence\n\n'
+                      'Respond in this EXACT JSON format (no other text):\n'
+                      '{"description": "the goal description here", "dependencies": "• First dependency\\n• Second dependency\\n• Third dependency\\n• Fourth dependency\\n• Fifth dependency", "successMetrics": "the success metrics here", "smartScores": {"clarity": 3, "measurability": 4, "achievability": 4, "relevance": 5, "timeline": 3}, "category": "Skills", "priority": "Medium", "kpa": "People Excellence"}',
+                  turns: [
+                    AiChatTurn.user(
+                      'Generate a comprehensive plan for this personal development goal: $goalTitle\n\n'
+                      'Create the description, 5 dependencies/prerequisites, success metrics, SMART scores (1-5 each), and goal metadata (category, priority, kpa) as specified. '
+                      'Metadata must match the goal content. SMART scores must reflect the full generated plan.',
+                    ),
+                  ],
+                ))
+                    .replaceAll('*', '')
+                    .trim();
 
                 await updatePhase('Selecting SMART verification scores...');
 
@@ -816,10 +813,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
                     await updatePhase('Generating success metrics...');
 
-                    // Extract and set SMART scores
+                    // Extract and set SMART scores + category / priority / KPA
                     final smartScores = generatedData['smartScores'];
-                    if (smartScores is Map<String, dynamic>) {
-                      setState(() {
+                    setState(() {
+                      if (smartScores is Map<String, dynamic>) {
                         _clarity = _parseSmartScore(smartScores['clarity'], 3);
                         _measurability = _parseSmartScore(
                           smartScores['measurability'],
@@ -837,15 +834,12 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                           smartScores['timeline'],
                           3,
                         );
-                        _smartScoresGenerated =
-                            true; // Mark that AI has generated scores
-                      });
-                    } else {
-                      // If no SMART scores in response, mark as not generated
-                      setState(() {
+                        _smartScoresGenerated = true;
+                      } else {
                         _smartScoresGenerated = false;
-                      });
-                    }
+                      }
+                      _applyAiCategoryPriorityKpa(generatedData);
+                    });
 
                     await updatePhase('Complete!');
                     await Future.delayed(const Duration(milliseconds: 500));
@@ -859,7 +853,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                       await _showCenteredSuccessDialog(
                         // ignore: use_build_context_synchronously
                         context,
-                        'Goal description, dependencies, success metrics, and SMART scores generated successfully!',
+                        'Goal description, dependencies, success metrics, SMART scores, category, priority, and key performance area generated successfully!',
                       );
                     }
                   } else {
@@ -1267,6 +1261,36 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
+  /// Applies `category`, `priority`, and `kpa` from an AI JSON payload to form state.
+  /// Used by generate-from-title and by the Suggest button on Goal Details.
+  void _applyAiCategoryPriorityKpa(Map<String, dynamic> suggestions) {
+    final category = suggestions['category']?.toString().trim();
+    if (category != null && category.isNotEmpty) {
+      if (category == 'Other') {
+        _isOtherCategorySelected = true;
+        _goalCategory = 'Other';
+        _customCategory = null;
+        _customCategoryController.clear();
+      } else if (_goalCategories.contains(category)) {
+        _goalCategory = category;
+        _isOtherCategorySelected = false;
+        _customCategory = null;
+        _customCategoryController.clear();
+      }
+    }
+
+    final priority = suggestions['priority']?.toString().trim();
+    if (priority != null && ['High', 'Medium', 'Low'].contains(priority)) {
+      _currentStatus = priority;
+    }
+
+    final kpaRaw = suggestions['kpa']?.toString().trim();
+    final normalizedKpa = Goal.normalizeKpaKey(kpaRaw);
+    if (normalizedKpa != null) {
+      _kpa = normalizedKpa;
+    }
+  }
+
   Future<void> _suggestGoalDetails(BuildContext context) async {
     final description = _goalDescriptionController.text.trim();
     if (description.isEmpty) {
@@ -1299,11 +1323,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             elevation: 4,
             child: const Padding(
               padding: EdgeInsets.all(28),
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
+              child: CustomLogoLoader(),
             ),
           ),
         );
@@ -1311,28 +1331,23 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
 
     try {
-      // Initialize Firebase AI model
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
-          'You are an AI assistant that analyzes personal development goal descriptions and suggests appropriate categories, priorities, and key performance areas. '
-          'Based on the goal description provided, you must suggest:\n'
-          '1. Category: Choose ONE from these exact options: Career, Skills, Wellness, Finance, or Other. If it does not fit any of the first four, suggest "Other".\n'
-          '2. Priority: Choose ONE from these exact options: High, Medium, or Low.\n'
-          '3. Key Performance Area (KPA): Choose ONE from these exact options: Operational Excellence, Customer Excellence, Financial Excellence, Organisational Excellence, or People Excellence.\n\n'
-          'Respond ONLY with a JSON object in this exact format (no other text):\n'
-          '{"category": "Career|Skills|Wellness|Finance|Other", "priority": "High|Medium|Low", "kpa": "Operational Excellence|Customer Excellence|Financial Excellence|Organisational Excellence|People Excellence"}',
-        ),
-      );
-
-      final prompt = [
-        Content.text(
-          'Analyze this goal description and suggest the category, priority, and key performance area:\n\n$description',
-        ),
-      ];
-
-      final response = await model.generateContent(prompt);
-      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
+      final responseText = (await AppAiService.generate(
+        systemInstruction:
+            'You are an AI assistant that analyzes personal development goal descriptions and suggests appropriate categories, priorities, and key performance areas. '
+            'Based on the goal description provided, you must suggest:\n'
+            '1. Category: Choose ONE from these exact options: Career, Skills, Wellness, Finance, or Other. If it does not fit any of the first four, suggest "Other".\n'
+            '2. Priority: Choose ONE from these exact options: High, Medium, or Low.\n'
+            '3. Key Performance Area (KPA): Choose ONE from these exact options: Operational Excellence, Customer Excellence, Financial Excellence, Organisational Excellence, or People Excellence.\n\n'
+            'Respond ONLY with a JSON object in this exact format (no other text):\n'
+            '{"category": "Career|Skills|Wellness|Finance|Other", "priority": "High|Medium|Low", "kpa": "Operational Excellence|Customer Excellence|Financial Excellence|Organisational Excellence|People Excellence"}',
+        turns: [
+          AiChatTurn.user(
+            'Analyze this goal description and suggest the category, priority, and key performance area:\n\n$description',
+          ),
+        ],
+      ))
+          .replaceAll('*', '')
+          .trim();
 
       // Parse JSON response
       String jsonText = responseText.trim();
@@ -1389,30 +1404,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       // Apply suggestions
       if (mounted) {
         setState(() {
-          final category = suggestions['category']?.toString().trim();
-          if (category != null) {
-            if (category == 'Other') {
-              _isOtherCategorySelected = true;
-              _goalCategory = 'Other';
-              _customCategory = null;
-              _customCategoryController.clear();
-            } else if (_goalCategories.contains(category)) {
-              _goalCategory = category;
-              _isOtherCategorySelected = false;
-              _customCategory = null;
-              _customCategoryController.clear();
-            }
-          }
-
-          final priority = suggestions['priority']?.toString().trim();
-          if (priority != null &&
-              ['High', 'Medium', 'Low'].contains(priority)) {
-            _currentStatus = priority;
-          }
-
-          final kpa = suggestions['kpa']?.toString().trim();
-          final normalizedKpa = Goal.normalizeKpaKey(kpa);
-          if (normalizedKpa != null) _kpa = normalizedKpa;
+          _applyAiCategoryPriorityKpa(suggestions);
         });
 
         // Show success message in centered dialog
@@ -1783,12 +1775,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
+                  child: const CustomLogoLoaderInline(),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

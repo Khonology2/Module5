@@ -99,12 +99,12 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_gw_menu_goal_workspace':
         return EdgeInsets.fromLTRB(
           AppSpacing.xxl,
-          AppContentHeader.kGapBelowHeader,
+          0,
           AppSpacing.xxl,
           AppSpacing.xxl,
         );
       default:
-        return const EdgeInsets.only(top: AppContentHeader.kGapBelowHeader);
+        return EdgeInsets.zero;
     }
   }
 

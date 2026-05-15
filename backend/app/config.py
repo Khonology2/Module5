@@ -40,7 +40,16 @@ class Settings(BaseSettings):
     firebase_web_app_id: Optional[str] = Field(None, alias='FIREBASE_WEB_APP_ID')
     firebase_web_messaging_sender_id: Optional[str] = Field(None, alias='FIREBASE_WEB_MESSAGING_SENDER_ID')
 
-    # Gemini API key for backend AI (fallback when Firebase AI fails). Create at https://aistudio.google.com/apikey
+    # OpenRouter (same env names as Flutter / Render)
+    openrouter_api_key_primary: Optional[str] = Field(
+        None, alias="OPENROUTER_API_KEY_PRIMARY"
+    )
+    openrouter_api_key_secondary: Optional[str] = Field(
+        None, alias="OPENROUTER_API_KEY_SECONDARY"
+    )
+    openrouter_model: Optional[str] = Field(None, alias="OPENROUTER_MODEL")
+
+    # Legacy: optional Gemini key (no longer used by /ai/generate; OpenRouter only)
     gemini_api_key: Optional[str] = Field(None, alias='GEMINI_API_KEY')
 
     @model_validator(mode='before')
@@ -58,6 +67,9 @@ class Settings(BaseSettings):
             'FIREBASE_WEB_API_KEY': 'firebase_web_api_key',
             'FIREBASE_WEB_APP_ID': 'firebase_web_app_id',
             'FIREBASE_WEB_MESSAGING_SENDER_ID': 'firebase_web_messaging_sender_id',
+            'OPENROUTER_API_KEY_PRIMARY': 'openrouter_api_key_primary',
+            'OPENROUTER_API_KEY_SECONDARY': 'openrouter_api_key_secondary',
+            'OPENROUTER_MODEL': 'openrouter_model',
             'GEMINI_API_KEY': 'gemini_api_key',
         }
 

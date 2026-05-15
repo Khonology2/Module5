@@ -12,6 +12,7 @@ import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/services/database_service.dart'; // For syncOnboardingData
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdh/services/token_auth_service.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -688,15 +689,17 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                           await _handleEmailPasswordSignIn();
                                         },
                                   child: _isSigningIn
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  Colors.white,
-                                                ),
+                                      ? SizedBox(
+                                          height: 34,
+                                          width: 76,
+                                          child: FittedBox(
+                                            fit: BoxFit.contain,
+                                            alignment: Alignment.center,
+                                            child: CustomLogoLoader(
+                                              size: 28,
+                                              discOverlap: 10,
+                                              centerInViewport: false,
+                                            ),
                                           ),
                                         )
                                       : const Text(

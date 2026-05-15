@@ -119,7 +119,11 @@ class BackendAuthService {
 
   static final BackendAuthService instance = BackendAuthService._();
   static const Duration _timeout = Duration(seconds: 12);
+  static const Duration _aiTimeout = Duration(seconds: 90);
   static const int _maxAttempts = 2;
+
+  /// Base URL for PDH API (auth, Firebase config, AI proxy).
+  static String get apiBaseUrl => _baseUrl;
 
   static String get _baseUrl {
     const configured = String.fromEnvironment(
@@ -225,10 +229,45 @@ class BackendAuthService {
     return FirebaseConfigResponse.fromJson(_decodeBody(response.body));
   }
 
+  /// Proxies OpenRouter through the backend so API keys stay in `backend/app/.env`.
+  Future<String> generateAiChat({
+    String? systemInstruction,
+    required List<Map<String, String>> messages,
+  }) async {
+    if (messages.isEmpty) {
+      throw BackendAuthException(
+        message: 'AI request has no messages.',
+        code: 'bad_request',
+      );
+    }
+
+    final body = jsonEncode({
+      'system_instruction': systemInstruction,
+      'messages': messages,
+    });
+
+    final response = await _postWithRetry(
+      _uri('/ai/chat'),
+      body,
+      timeout: _aiTimeout,
+    );
+
+    final decoded = _decodeBody(response.body);
+    final text = (decoded['text'] ?? '').toString().trim();
+    if (text.isEmpty) {
+      throw BackendAuthException(
+        message: 'Backend returned empty AI response.',
+        code: 'invalid_response',
+      );
+    }
+    return text;
+  }
+
   Future<http.Response> _postWithRetry(
     Uri uri,
     String body, {
     bool retryOnHttpFailure = true,
+    Duration timeout = _timeout,
   }) async {
     BackendAuthException? lastError;
 
@@ -240,7 +279,7 @@ class BackendAuthService {
               headers: {'Content-Type': 'application/json'},
               body: body,
             )
-            .timeout(_timeout);
+            .timeout(timeout);
 
         if (response.statusCode >= 200 && response.statusCode < 300) {
           return response;

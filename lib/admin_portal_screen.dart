@@ -266,12 +266,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
                           textColor: DashboardChrome.fg,
                         ),
                         Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(
-                              top: AppContentHeader.kGapBelowHeader,
-                            ),
-                            child: _getBodyWidget(),
-                          ),
+                          child: _getBodyWidget(),
                         ),
                       ],
                     ),

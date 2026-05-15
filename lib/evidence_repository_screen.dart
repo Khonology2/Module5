@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/repository_service.dart';
 import 'package:pdh/models/repository_goal.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class EvidenceRepositoryScreen extends StatefulWidget {
   const EvidenceRepositoryScreen({super.key});
@@ -59,7 +60,7 @@ class _EvidenceRepositoryScreenState extends State<EvidenceRepositoryScreen> {
             stream: RepositoryService.getRepositoryGoalsStream(userId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const CustomLogoLoader(centerInViewport: true);
               }
               final goals = snapshot.data ?? const <RepositoryGoal>[];
 

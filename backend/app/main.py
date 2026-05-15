@@ -76,18 +76,27 @@ app = FastAPI(
 )
 
 # Configure CORS
-# - Keep explicit production origin(s)
-# - Allow localhost/127.0.0.1 with any port for Flutter web debug (Edge/Chrome)
-#   so browser preflight (OPTIONS) succeeds instead of returning 400.
+# - Explicit production web origin(s)
+# - localhost for Flutter web debug
+# - *.onrender.com when static site and API are separate Render services
+_extra_cors = [
+    o.strip()
+    for o in os.getenv("CORS_EXTRA_ORIGINS", "").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://personal-development-hub.onrender.com",
+        *_extra_cors,
     ],
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origin_regex=(
+        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+        r"|^https://[a-z0-9-]+\.onrender\.com$"
+    ),
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

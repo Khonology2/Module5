@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -402,9 +403,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _statusSections() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-      );
+      return const CustomLogoLoader(centerInViewport: true);
     }
 
     Widget section(String title, List<Widget> children) => Column(

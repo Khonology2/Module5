@@ -1,8 +1,9 @@
 // ignore_for_file: duplicate_ignore, unnecessary_underscores, sort_child_properties_last
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 //import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
@@ -63,6 +64,7 @@ import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/agent_debug_log.dart';
 import 'package:pdh/utils/route_arguments.dart';
+import 'package:pdh/utils/openrouter_env_merge.dart';
 import 'dart:ui' as ui;
 
 final GlobalKey<NavigatorState> navigatorKey =
@@ -114,6 +116,18 @@ Future<void> _clearFirestoreCache() async {
   }
 }
 
+/// Build-time `--dart-define=OPENROUTER_*` values merged into [dotenv] when `.env` is absent.
+Map<String, String> _openRouterDefineOverrides() {
+  const primary = String.fromEnvironment('OPENROUTER_API_KEY_PRIMARY');
+  const secondary = String.fromEnvironment('OPENROUTER_API_KEY_SECONDARY');
+  const model = String.fromEnvironment('OPENROUTER_MODEL');
+  final m = <String, String>{};
+  if (primary.isNotEmpty) m['OPENROUTER_API_KEY_PRIMARY'] = primary;
+  if (secondary.isNotEmpty) m['OPENROUTER_API_KEY_SECONDARY'] = secondary;
+  if (model.isNotEmpty) m['OPENROUTER_MODEL'] = model;
+  return m;
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Force `/#/...` URLs on web so portal sidebar sync (fragment-based) matches the router
@@ -121,8 +135,27 @@ void main() async {
   if (kIsWeb) {
     setUrlStrategy(HashUrlStrategy());
   }
+  try {
+    await dotenv.load(
+      fileName: '.env',
+      isOptional: true,
+      mergeWith: _openRouterDefineOverrides(),
+    );
+    // Dev: OpenRouter keys often live in backend/app/.env (same as FastAPI).
+    await dotenv.load(
+      fileName: 'backend/app/.env',
+      isOptional: true,
+    );
+  } catch (e) {
+    debugPrint('dotenv load: $e');
+    dotenv.testLoad(
+      fileInput: '',
+      mergeWith: _openRouterDefineOverrides(),
+    );
+  }
+  mergeOpenRouterFromPlatformEnvironment();
+  mergeOpenRouterFromBackendRepoDotenv();
   await _initializeFirebase();
-  // CONFLICT TEST: This line will conflict with MAIN branch
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks
   if (kIsWeb) {
     try {

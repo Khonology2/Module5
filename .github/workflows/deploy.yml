@@ -105,13 +105,14 @@ jobs:
           BACKEND_BASE_URL: ${{ secrets.BACKEND_BASE_URL }}
         run: |
           set -euo pipefail
+          ARGS=(flutter build web --release --base-href /)
           if [ -n "${BACKEND_BASE_URL:-}" ]; then
-            echo "Building web with BACKEND_BASE_URL from secrets"
-            flutter build web --release --base-href / --dart-define=BACKEND_BASE_URL="${BACKEND_BASE_URL}"
+            echo "Building web with BACKEND_BASE_URL from secrets (AI via POST /ai/chat on that API)"
+            ARGS+=(--dart-define=BACKEND_BASE_URL="${BACKEND_BASE_URL}")
           else
-            echo "::warning::BACKEND_BASE_URL secret is not set. Falling back to runtime origin-based backend URL."
-            flutter build web --release --base-href /
+            echo "::warning::BACKEND_BASE_URL secret is not set. AI and SSO may fail in production until it points at your Render Python API URL."
           fi
+          "${ARGS[@]}"
 
       - name: Disable service worker in web bundle (avoid stale cached JS after deploy)
         if: env.DEPLOY_BRANCH == env.TARGET_DEPLOY_BRANCH

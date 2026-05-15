@@ -10,6 +10,7 @@ import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:pdh/services/role_service.dart'; // Import RoleService
 import 'dart:async'; // Import for Timer
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 // The registration screen widget.
 class RegisterScreen extends StatefulWidget {
@@ -587,15 +588,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               }
                             },
                                 child: _isRegistering
-                                    ? const SizedBox(
-                                        height: 22,
-                                        width: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Colors.white,
-                                              ),
+                                    ? SizedBox(
+                                        height: 34,
+                                        width: 76,
+                                        child: FittedBox(
+                                          fit: BoxFit.contain,
+                                          alignment: Alignment.center,
+                                          child: CustomLogoLoader(
+                                            size: 28,
+                                            discOverlap: 10,
+                                            centerInViewport: false,
+                                          ),
                                         ),
                                       )
                                     : const Text(
@@ -826,21 +829,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          content: Row(
-            children: const [
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
               SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
+                height: 76,
+                width: 140,
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  alignment: Alignment.center,
+                  child: CustomLogoLoader(
+                    size: 46,
+                    discOverlap: 14,
+                    centerInViewport: false,
+                  ),
                 ),
               ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Creating your account...',
-                  style: TextStyle(color: Colors.white, fontFamily: 'Poppins'),
+              const SizedBox(height: 20),
+              const Text(
+                'Creating your account...',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Poppins',
+                  fontSize: 15,
+                  height: 1.35,
                 ),
               ),
             ],

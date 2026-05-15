@@ -10,6 +10,8 @@ import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
+import 'package:pdh/design_system/app_components.dart';
 
 Color _categoryAccent(badge_model.BadgeCategory _) => AppColors.activeColor;
 
@@ -200,9 +202,8 @@ class _ManagerBadgeCategoryDetailScreenState
           navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
-      content: FocusTraversalGroup(
-        policy: WidgetOrderTraversalPolicy(),
-        child: Container(
+      content: AppComponents.focusTraversalScope(
+        Container(
           width: double.infinity,
           height: double.infinity,
           decoration: const BoxDecoration(
@@ -267,11 +268,7 @@ class _ManagerBadgeCategoryDetailScreenState
                           return const Center(
                             child: Padding(
                               padding: EdgeInsets.all(24),
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.activeColor,
-                                ),
-                              ),
+                              child: CustomLogoLoader(),
                             ),
                           );
                         }

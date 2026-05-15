@@ -6,6 +6,7 @@ import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/season_celebration_screen.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class SeasonManagementScreen extends StatefulWidget {
   final Season? season;
@@ -104,11 +105,7 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
           elevation: 0,
         ),
         body: _buildSeasonBackground(
-          child: const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          ),
+          child: const CustomLogoLoader(centerInViewport: true),
         ),
       );
     }
@@ -289,7 +286,7 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
       stream: SeasonService.getSeasonStream(_season!.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         if (snapshot.hasError || !snapshot.hasData) {
@@ -538,12 +535,7 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
+                              child: CustomLogoLoaderInline(),
                             )
                           : const Icon(Icons.flag),
                       label: Text(

@@ -5,12 +5,23 @@ import 'app_colors.dart';
 import 'app_typography.dart';
 import 'app_spacing.dart';
 import 'app_breakpoints.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 /// Comprehensive component library for the Personal Development Hub app
 /// Provides standardized UI components following the design system
 class AppComponents {
   // Private constructor to prevent instantiation
   AppComponents._();
+
+  /// On web, skip [FocusTraversalGroup] with [WidgetOrderTraversalPolicy] to avoid
+  /// focus traversal null asserts during view focus changes (DDC).
+  static Widget focusTraversalScope(Widget child) {
+    if (kIsWeb) return child;
+    return FocusTraversalGroup(
+      policy: WidgetOrderTraversalPolicy(),
+      child: child,
+    );
+  }
 
   // ===== CARD COMPONENTS =====
   /// Standard card container with consistent styling
@@ -134,10 +145,7 @@ class AppComponents {
             ? const SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
+                child: CustomLogoLoaderInline(),
               )
             : Icon(icon, color: Colors.white, size: 16),
         label: Text(label),
@@ -413,12 +421,7 @@ class AppComponents {
                   Directionality.maybeOf(context) ?? TextDirection.ltr;
               return Directionality(
                 textDirection: dir,
-                child: kIsWeb
-                    ? child
-                    : FocusTraversalGroup(
-                        policy: WidgetOrderTraversalPolicy(),
-                        child: child,
-                      ),
+                child: AppComponents.focusTraversalScope(child),
               );
             },
           ),

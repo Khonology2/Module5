@@ -163,8 +163,7 @@ class AppScaffold extends StatelessWidget {
                     descendantsAreFocusable: true,
                     child: Padding(
                       padding: const EdgeInsets.only(
-                        top: AppContentHeader.kHeaderHeight +
-                            AppContentHeader.kGapBelowHeader,
+                        top: AppContentHeader.kTotalHeaderHeight,
                       ),
                       child: content,
                     ),
@@ -243,8 +242,7 @@ class AppScaffold extends StatelessWidget {
                           child: maybeFocusTraversal(
                             Padding(
                               padding: const EdgeInsets.only(
-                                top: AppContentHeader.kHeaderHeight +
-                                    AppContentHeader.kGapBelowHeader,
+                                top: AppContentHeader.kTotalHeaderHeight,
                               ),
                               child: content,
                             ),

@@ -14,6 +14,7 @@ import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/widgets/manager_milestone_review_widget.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class ManagerEmployeeDetailScreen extends StatefulWidget {
   final EmployeeData employee;
@@ -110,11 +111,7 @@ class _ManagerEmployeeDetailScreenState
                   stream: _goalsStream(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.activeColor,
-                        ),
-                      );
+                      return const CustomLogoLoader(centerInViewport: true);
                     }
                     final goals = snapshot.data!
                         .where(
@@ -886,7 +883,7 @@ class _ManagerEmployeeDetailScreenState
                     }
 
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const CustomLogoLoader(centerInViewport: true);
                     }
 
                     final milestones = snapshot.data ?? [];

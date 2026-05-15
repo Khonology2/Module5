@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_ai/firebase_ai.dart';
+import 'package:pdh/services/app_ai_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -27,6 +27,7 @@ import 'package:pdh/badges_v2/badge_category_detail_screen.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 /// Shared light/dark chrome for this screen (usable from nested State classes).
 class _AlertsChrome {
@@ -142,22 +143,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return;
       }
 
-      // Analyze goals for potential risks
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
-          'You are an AI assistant specialized in analyzing personal development goals and predicting potential risks. '
-          'Analyze goal data and identify goals that are at risk of missing deadlines, have low progress rates, or show concerning patterns. '
-          'For each at-risk goal, provide:\n'
-          '1. Goal title\n'
-          '2. Risk level (high, medium, low)\n'
-          '3. Risk description (why it\'s at risk)\n'
-          '4. Recommended action\n\n'
-          'Respond ONLY with a JSON array in this exact format (no other text):\n'
-          '[{"goalTitle": "Goal name", "riskLevel": "high|medium|low", "riskDescription": "Why it\'s at risk", "recommendedAction": "What to do"}]',
-        ),
-      );
-
       final progressData = goals
           .map((g) {
             final daysUntilDeadline = g.targetDate
@@ -180,22 +165,34 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           })
           .join('\n---\n');
 
-      final prompt = [
-        Content.text(
-          'Analyze these goals and identify which ones are at risk:\n\n$progressData\n\n'
-          'Focus on goals with:\n'
-          '- Low progress relative to time elapsed\n'
-          '- Approaching deadlines with insufficient progress\n'
-          '- Stagnant or declining progress patterns\n'
-          '- High priority goals that are behind schedule',
-        ),
-      ];
+      // Analyze goals for potential risks
+      final responseText = await AppAiService.generate(
+        systemInstruction:
+            'You are an AI assistant specialized in analyzing personal development goals and predicting potential risks. '
+            'Analyze goal data and identify goals that are at risk of missing deadlines, have low progress rates, or show concerning patterns. '
+            'For each at-risk goal, provide:\n'
+            '1. Goal title\n'
+            '2. Risk level (high, medium, low)\n'
+            '3. Risk description (why it\'s at risk)\n'
+            '4. Recommended action\n\n'
+            'Respond ONLY with a JSON array in this exact format (no other text):\n'
+            '[{"goalTitle": "Goal name", "riskLevel": "high|medium|low", "riskDescription": "Why it\'s at risk", "recommendedAction": "What to do"}]',
+        turns: [
+          AiChatTurn.user(
+            'Analyze these goals and identify which ones are at risk:\n\n$progressData\n\n'
+            'Focus on goals with:\n'
+            '- Low progress relative to time elapsed\n'
+            '- Approaching deadlines with insufficient progress\n'
+            '- Stagnant or declining progress patterns\n'
+            '- High priority goals that are behind schedule',
+          ),
+        ],
+      );
 
-      final response = await model.generateContent(prompt);
-      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
+      final responseTextClean = responseText.replaceAll('*', '').trim();
 
       // Parse JSON response
-      String jsonText = responseText.trim();
+      String jsonText = responseTextClean.trim();
       if (jsonText.contains('```json')) {
         jsonText = jsonText.split('```json')[1].split('```')[0].trim();
       } else if (jsonText.contains('```')) {
@@ -453,13 +450,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                                   alertsSnapshot.connectionState ==
                                       ConnectionState.waiting &&
                                   _cachedAlerts == null) {
-                                return const Center(
-                                  child: CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      AppColors.activeColor,
-                                    ),
-                                  ),
-                                );
+                                return const CustomLogoLoader(centerInViewport: true);
                               }
 
                               // Filter: hide overdue goal alerts in this view
@@ -1063,12 +1054,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             SizedBox(
               width: 20,
               height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.activeColor,
-                ),
-              ),
+              child: const CustomLogoLoaderInline(),
             ),
             const SizedBox(width: 12),
             Text(
@@ -2182,12 +2168,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         ? SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                _AlertsChrome.fg,
-                              ),
-                            ),
+                            child: const CustomLogoLoaderInline(),
                           )
                         : const Icon(Icons.send, size: 18),
                     label: Text(
@@ -2437,31 +2418,23 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     })
                     .join('\n');
 
-                final model = FirebaseAI.googleAI().generativeModel(
-                  model: 'gemini-2.5-flash',
-                  systemInstruction: Content.text(
-                    'You are an AI assistant specialized in helping users understand, prioritize, and act on their alerts and goals. '
-                    'You have access to the user\'s alerts and goals data. '
-                    'Help users by:\n'
-                    '1. Explaining what their alerts mean\n'
-                    '2. Suggesting which alerts to prioritize\n'
-                    '3. Recommending actions based on alerts\n'
-                    '4. Answering questions about their goals and progress\n'
-                    '5. Providing context and insights about their alert patterns\n\n'
-                    'Be conversational, helpful, and actionable. Keep responses concise but informative.',
-                  ),
-                );
-
                 final conversationHistory = chatHistory
                     .where(
                       (msg) =>
                           msg['role'] == 'user' || msg['role'] == 'assistant',
                     )
-                    .map((msg) => Content.text(msg['content'] ?? ''))
+                    .map((msg) {
+                      final raw = msg['content'];
+                      final text = raw == null ? '' : raw.toString();
+                      if (msg['role'] == 'assistant') {
+                        return AiChatTurn.assistant(text);
+                      }
+                      return AiChatTurn.user(text);
+                    })
                     .toList();
 
-                final prompt = [
-                  Content.text(
+                final turns = <AiChatTurn>[
+                  AiChatTurn.user(
                     'User\'s Current Alerts:\n$alertsContext\n\n'
                     'User\'s Goals:\n$goalsContext\n\n'
                     'User Question: $message\n\n'
@@ -2470,10 +2443,23 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ...conversationHistory,
                 ];
 
-                final response = await model.generateContent(prompt);
+                final rawAssistant = await AppAiService.generate(
+                  systemInstruction:
+                      'You are an AI assistant specialized in helping users understand, prioritize, and act on their alerts and goals. '
+                      'You have access to the user\'s alerts and goals data. '
+                      'Help users by:\n'
+                      '1. Explaining what their alerts mean\n'
+                      '2. Suggesting which alerts to prioritize\n'
+                      '3. Recommending actions based on alerts\n'
+                      '4. Answering questions about their goals and progress\n'
+                      '5. Providing context and insights about their alert patterns\n\n'
+                      'Be conversational, helpful, and actionable. Keep responses concise but informative.',
+                  turns: turns,
+                );
                 final assistantMessage =
-                    response.text?.replaceAll('*', '').trim() ??
-                    'I apologize, but I couldn\'t generate a response. Please try again.';
+                    rawAssistant.replaceAll('*', '').trim().isEmpty
+                        ? 'I apologize, but I couldn\'t generate a response. Please try again.'
+                        : rawAssistant.replaceAll('*', '').trim();
 
                 setDialogState(() {
                   chatHistory.add({
@@ -2864,12 +2850,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.activeColor,
-                                ),
-                              ),
+                              child: const CustomLogoLoaderInline(),
                             ),
                             const SizedBox(width: 8),
                             Text(
