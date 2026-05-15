@@ -25,6 +25,8 @@ name: Flutter Web Build
 
 on:
   push:
+    branches-ignore:
+      - nathi-v3
   workflow_dispatch:
 
 concurrency:

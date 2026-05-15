@@ -1,7 +1,7 @@
 // ignore_for_file: duplicate_ignore, unnecessary_underscores, sort_child_properties_last
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -155,6 +155,9 @@ void main() async {
   }
   mergeOpenRouterFromPlatformEnvironment();
   mergeOpenRouterFromBackendRepoDotenv();
+  if (kDebugMode) {
+    debugPrint('PDH API base URL: ${BackendAuthService.apiBaseUrl}');
+  }
   await _initializeFirebase();
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks
   if (kIsWeb) {

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:http/http.dart' as http;
 
 class BackendAuthException implements Exception {
@@ -125,53 +125,45 @@ class BackendAuthService {
   /// Base URL for PDH API (auth, Firebase config, AI proxy).
   static String get apiBaseUrl => _baseUrl;
 
+  static const String _configuredBackendUrl = String.fromEnvironment(
+    'BACKEND_BASE_URL',
+  );
+
   static String get _baseUrl {
-    const configured = String.fromEnvironment(
-      'BACKEND_BASE_URL',
-      defaultValue: 'http://127.0.0.1:8000',
-    );
-    final normalizedConfigured = configured.endsWith('/')
-        ? configured.substring(0, configured.length - 1)
-        : configured;
+    final configured = _configuredBackendUrl.trim();
+    if (configured.isNotEmpty) {
+      return configured.endsWith('/')
+          ? configured.substring(0, configured.length - 1)
+          : configured;
+    }
 
-    final isLocalDefault =
-        normalizedConfigured == 'http://127.0.0.1:8000' ||
-        normalizedConfigured == 'http://localhost:8000';
-    if (!isLocalDefault) return normalizedConfigured;
-
+    // Local dev (Flutter web on :6xxxx, API on :8000): always hit loopback API.
     if (kIsWeb) {
-      // Deployment-safe fallback: if no explicit BACKEND_BASE_URL is injected,
-      // use the current web origin instead of localhost.
       final origin = Uri.base.origin;
-      if (origin.isNotEmpty &&
-          origin != 'null' &&
-          !origin.contains('localhost') &&
-          !origin.contains('127.0.0.1')) {
+      final isLocalWebOrigin = origin.contains('localhost') ||
+          origin.contains('127.0.0.1') ||
+          origin.isEmpty ||
+          origin == 'null';
+      if (!isLocalWebOrigin) {
+        // Production web build without --dart-define: API may share the site origin.
         return origin;
       }
     }
 
-    return normalizedConfigured;
+    return 'http://127.0.0.1:8000';
   }
 
   Uri _uri(String path) {
-    final uri = Uri.parse('$_baseUrl$path');
-    if (!kIsWeb) return uri;
+    final p = path.startsWith('/') ? path : '/$path';
+    return Uri.parse('$_baseUrl$p');
+  }
 
-    final isLoopbackHost =
-        uri.host == '127.0.0.1' || uri.host == 'localhost' || uri.host == '::1';
-    if (!isLoopbackHost) return uri;
-
-    final origin = Uri.base.origin;
-    if (origin.isEmpty ||
-        origin == 'null' ||
-        origin.contains('localhost') ||
-        origin.contains('127.0.0.1')) {
-      return uri;
-    }
-
-    final originUri = Uri.parse(origin);
-    return originUri.replace(path: path, query: '', fragment: '');
+  void _logBackendRequest(String method, Uri uri, {int? statusCode, String? note}) {
+    if (!kDebugMode) return;
+    final status = statusCode != null ? ' -> $statusCode' : '';
+    final extra = note != null ? ' ($note)' : '';
+    // ignore: avoid_print
+    print('[PDH API] $method $uri$status$extra');
   }
 
   Future<ValidateTokenResponse> validateTokenWithBackend(String token) async {
@@ -246,10 +238,20 @@ class BackendAuthService {
       'messages': messages,
     });
 
+    final uri = _uri('/ai/chat');
+    _logBackendRequest('POST', uri, note: '${messages.length} message(s)');
+
     final response = await _postWithRetry(
-      _uri('/ai/chat'),
+      uri,
       body,
       timeout: _aiTimeout,
+    );
+
+    _logBackendRequest(
+      'POST',
+      uri,
+      statusCode: response.statusCode,
+      note: 'AI response ${response.body.length} bytes',
     );
 
     final decoded = _decodeBody(response.body);
@@ -273,6 +275,9 @@ class BackendAuthService {
 
     for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
       try {
+        if (attempt > 1 && kDebugMode) {
+          _logBackendRequest('POST', uri, note: 'retry $attempt');
+        }
         final response = await http
             .post(
               uri,
@@ -283,6 +288,10 @@ class BackendAuthService {
 
         if (response.statusCode >= 200 && response.statusCode < 300) {
           return response;
+        }
+
+        if (kDebugMode) {
+          _logBackendRequest('POST', uri, statusCode: response.statusCode);
         }
 
         final mapped = _mapHttpError(

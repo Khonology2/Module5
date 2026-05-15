@@ -3,13 +3,18 @@
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-$backend = Join-Path $root "backend"
-$envFile = Join-Path $root "backend\app\.env"
+$appDir = Join-Path $root "backend\app"
+$envFile = Join-Path $appDir ".env"
 
 if (-not (Test-Path $envFile)) {
-  Write-Warning "Missing $envFile — copy from backend/OPENROUTER_ENV.template and add secrets."
+  Write-Warning "Missing $envFile — add OPENROUTER_* keys (see backend/OPENROUTER_ENV.template)."
 }
 
-Set-Location $backend
-Write-Host "Starting PDH API at http://127.0.0.1:8000 (AI: GET /ai/status, POST /ai/chat)"
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+# Match: cd backend\app && py main.py
+Set-Location $appDir
+$env:PYTHONPATH = (Join-Path $root "backend")
+Write-Host "PDH API: http://127.0.0.1:8000"
+Write-Host "  AI status: GET /ai/status"
+Write-Host "  AI chat:   POST /ai/chat (logged in this terminal)"
+Write-Host "  Docs:      http://127.0.0.1:8000/docs"
+python main.py

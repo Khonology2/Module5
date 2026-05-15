@@ -35,6 +35,12 @@ class AppAiService {
     }
 
     try {
+      if (kDebugMode) {
+        debugPrint(
+          'AppAiService: POST ${BackendAuthService.apiBaseUrl}/ai/chat '
+          '(${messages.length} message(s))',
+        );
+      }
       return await BackendAuthService.instance.generateAiChat(
         systemInstruction: systemInstruction,
         messages: messages,

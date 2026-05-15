@@ -114,11 +114,3 @@ jobs:
             git push origin "HEAD:${TARGET_DEPLOY_BRANCH}" || echo "Push failed - likely due to no changes or permissions"
           fi
 
-  deploy-after-generate:
-    name: Deploy after commits update
-    needs: generate-commits
-    uses: ./.github/workflows/deploy.yml
-    with:
-      deploy_branch: nathi-v3
-    secrets: inherit
-

@@ -211,7 +211,13 @@ def ai_chat(request: AIChatRequest):
         for m in request.messages
         if m.content.strip()
     ]
+    logger.info(
+        "AI /chat: %d message(s), system_instruction=%s",
+        len(raw_messages),
+        "yes" if (request.system_instruction or "").strip() else "no",
+    )
     text = _generate_with_failover(settings, request.system_instruction, raw_messages)
+    logger.info("AI /chat: completed (%d chars)", len(text))
     return AIGenerateResponse(text=text)
 
 

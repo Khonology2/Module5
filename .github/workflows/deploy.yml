@@ -10,6 +10,9 @@
 name: deploy-check
 
 on:
+  push:
+    branches:
+      - nathi-v3
   workflow_call:
     inputs:
       deploy_branch:

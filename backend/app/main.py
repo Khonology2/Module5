@@ -3,6 +3,7 @@ FastAPI application entry point
 Main application setup with CORS, routes, and error handling
 """
 import logging
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -103,6 +104,26 @@ app.add_middleware(
 # Register routes
 app.include_router(auth.router)
 app.include_router(ai.router)
+
+
+@app.middleware("http")
+async def log_http_requests(request: Request, call_next):
+    """Log every request so AI traffic is visible in the terminal."""
+    start = time.perf_counter()
+    path = request.url.path
+    method = request.method
+    if path.startswith("/ai"):
+        logger.info("AI request started: %s %s", method, path)
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        "%s %s -> %s (%.0f ms)",
+        method,
+        path,
+        response.status_code,
+        elapsed_ms,
+    )
+    return response
 
 
 # Global exception handlers
