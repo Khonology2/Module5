@@ -7,13 +7,13 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/user_display_name_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/data/pdh_firestore.dart';
 import 'package:pdh/widgets/version_control_widget.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 /// Set to true to show the token field, Login, and Proceed (to sign-in) on the landing screen.
 /// Set to false to hide them (e.g. when using only URL-based token flow).
-const bool kShowTokenLoginUI = false;
+const bool kShowTokenLoginUI = true;
 
 // The main entry point for the Flutter application.
 // void main() {
