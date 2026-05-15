@@ -1,7 +1,12 @@
 {
-  "version": "2026.05.CE9.SIT",
+  "version": "2026.05.CE11.SIT",
   "generated_at": "2026-05-15T10:13:17Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "feat: bring settings screen from 4f8535c (admin export enhancements)",
+      "timestamp": "2026-05-15T12:12:40+02:00"
+    },
     {
       "author": "BhutSipho",
       "message": " local flutter pub get / plugin registration drift",
@@ -11,11 +16,6 @@
       "author": "BhutSipho",
       "message": "Loaders To Local",
       "timestamp": "2026-05-15T11:00:19+02:00"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: bring settings screen from 4f8535c (admin export enhancements)",
-      "timestamp": "2026-05-15T12:12:40+02:00"
     },
     {
       "author": "Nathi2266",
