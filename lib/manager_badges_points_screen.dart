@@ -133,8 +133,13 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     );
   }
 
+  /// Fills portal [Expanded] / scaffold body so nested Scaffolds can lay out FAB slots on web.
+  Widget _fillAvailable(Widget child) {
+    return SizedBox.expand(child: child);
+  }
+
   Widget _wrapPageBackground({required Widget child}) {
-    if (widget.embedded) return child;
+    if (widget.embedded) return _fillAvailable(child);
     return ValueListenableBuilder<bool>(
       valueListenable: employeeDashboardLightModeNotifier,
       builder: (context, light, _) {
@@ -144,7 +149,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
               ? 'assets/light_mode_bg.png'
               : 'assets/khono_bg.png',
           gradientColors: DashboardChrome.lightGradient,
-          child: child,
+          child: _fillAvailable(child),
         );
       },
     );
@@ -506,7 +511,8 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           );
         }
         final managers = snapshot.data ?? [];
-        return SingleChildScrollView(
+        return SizedBox.expand(
+          child: SingleChildScrollView(
           padding: AppSpacing.screenPadding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -561,6 +567,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                 }),
             ],
           ),
+        ),
         );
       },
     );
@@ -573,15 +580,17 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     final manager = _auth.currentUser;
     if (manager == null) {
       return _wrapPageBackground(
-        child: Center(
-          child: Padding(
-            padding: AppSpacing.screenPadding,
-            child: Text(
-              widget.forAdminSelf
-                  ? 'Please sign in to view admin badges & points'
-                  : 'Please sign in to view manager badges & points',
-              style: AppTypography.bodyMedium.copyWith(
-                color: DashboardChrome.fg,
+        child: SizedBox.expand(
+          child: Center(
+            child: Padding(
+              padding: AppSpacing.screenPadding,
+              child: Text(
+                widget.forAdminSelf
+                    ? 'Please sign in to view admin badges & points'
+                    : 'Please sign in to view manager badges & points',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: DashboardChrome.fg,
+                ),
               ),
             ),
           ),
@@ -603,16 +612,20 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   });
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CustomLogoLoader(centerInViewport: true);
+                  return const SizedBox.expand(
+                    child: CustomLogoLoader(centerInViewport: true),
+                  );
                 }
                 if (!snapshot.hasData) {
-                  return Center(
-                    child: Padding(
-                      padding: AppSpacing.screenPadding,
-                      child: Text(
-                        'No data available yet',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: DashboardChrome.fg,
+                  return SizedBox.expand(
+                    child: Center(
+                      child: Padding(
+                        padding: AppSpacing.screenPadding,
+                        child: Text(
+                          'No data available yet',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: DashboardChrome.fg,
+                          ),
                         ),
                       ),
                     ),
