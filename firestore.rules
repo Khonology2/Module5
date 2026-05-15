@@ -132,6 +132,18 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/users/$(userId())) &&
              get(/databases/$(database)/documents/users/$(userId())).data.role == 'manager';
     }
+    // Personal goals: owner creates for themselves (employee, manager, or admin).
+    // Managers/admins may also create goals assigned to employees (season, stretch).
+    function canCreateGoal() {
+      let owner = goalOwnerUidFromData(request.resource.data);
+      return owner != null && (
+        owner == userId() ||
+        (
+          (isManager() || isAdmin()) &&
+          userRole(owner) == 'employee'
+        )
+      );
+    }
     function isValidMilestoneStatus(status) {
       return status in ['notStarted', 'inProgress', 'completed', 'blocked'];
     }
@@ -255,12 +267,7 @@ service cloud.firestore {
         isAdmin()
       );
 
-      // Only allow employees to create goals for themselves.
-      // Managers are NOT allowed to create goals.
-      allow create: if isSignedIn() && (
-        isAdmin() ||
-        (!isManager() && goalOwnerUidFromData(request.resource.data) == userId())
-      );
+      allow create: if isSignedIn() && canCreateGoal();
 
       // Tighten list/query access:
       // - managers/admins can list any goals
@@ -524,7 +531,12 @@ service cloud.firestore {
         isManager() ||
         isAdmin()
       );
-      allow create: if isEmployee() && request.resource.data.userId == userId();
+      // Goal lifecycle audit rows (employees, managers, admins).
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == userId() ||
+        isManager() ||
+        isAdmin()
+      );
       allow update, delete: if isManager() || isAdmin();
 
       match /timeline/{timelineId} {
