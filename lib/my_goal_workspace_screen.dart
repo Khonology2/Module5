@@ -1769,21 +1769,30 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           final gw = _GoalWorkspacePalette.of(ctx);
           return AlertDialog(
             backgroundColor: gw.widgetBg,
-            content: Row(
+            content: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: const CustomLogoLoaderInline(),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Creating your goal... Please wait',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: gw.textPrimary,
+                  height: 76,
+                  width: 140,
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    alignment: Alignment.center,
+                    child: CustomLogoLoader(
+                      size: 46,
+                      discOverlap: 14,
+                      centerInViewport: false,
                     ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Creating your goal... Please wait',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: gw.textPrimary,
+                    height: 1.35,
                   ),
                 ),
               ],
