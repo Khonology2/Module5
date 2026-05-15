@@ -313,9 +313,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4),
+              color: DashboardChrome.cardFill,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              border: Border.all(color: DashboardChrome.border),
             ),
             child: Column(
               children: [
@@ -330,7 +330,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                       ? 'No admin badges yet'
                       : 'No manager badges yet',
                   style: AppTypography.heading4.copyWith(
-                    color: AppColors.textPrimary,
+                    color: DashboardChrome.fg,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -340,7 +340,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                       ? 'Start reviewing, acknowledging, and supporting teams to earn badges.'
                       : 'Start acknowledging goals and supporting your team to earn badges.',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
+                    color: DashboardChrome.fg.withValues(alpha: 0.7),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -379,9 +379,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: DashboardChrome.cardFill,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: DashboardChrome.border),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -420,14 +420,14 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                       Text(
                         meta.title,
                         style: AppTypography.heading4.copyWith(
-                          color: AppColors.textPrimary,
+                          color: DashboardChrome.fg,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         meta.subtitle,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
+                          color: DashboardChrome.fg.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -450,7 +450,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 6,
-                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                backgroundColor: DashboardChrome.light
+                    ? Colors.black.withValues(alpha: 0.1)
+                    : Colors.white.withValues(alpha: 0.15),
                 valueColor: AlwaysStoppedAnimation<Color>(accent),
               ),
             ),
@@ -508,10 +510,10 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.4),
+                      color: DashboardChrome.cardFill,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: DashboardChrome.border,
                       ),
                     ),
                     child: Row(

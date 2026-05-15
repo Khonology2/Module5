@@ -43,8 +43,9 @@ class AppSpacing {
 
   /// Insets for scrollable page bodies inside [AppScaffold] / portal shells.
   ///
-  /// Top is **zero** so content aligns under the fixed [AppContentHeader]; the shell
-  /// already reserves vertical space.
+  /// Top is **zero** — shells reserve transparent space via
+  /// [AppContentHeader.kShellContentTopOffset] (employee) or
+  /// [AppContentHeader.kContentInsetBelowHeader] (admin/manager portals).
   static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(xxl, 0, xxl, xxl);
 
   /// Same horizontal rhythm as [screenPadding] with tighter sides for narrow viewports.

@@ -9,6 +9,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/badges_v2/badge_category_detail_screen.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/widgets/app_content_header.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/badge_service.dart';
@@ -481,7 +482,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 BrandedRefreshIndicator(
                   onRefresh: _loadData,
                   child: ListView(
-                    padding: AppSpacing.screenPadding,
+                    padding: AppContentHeader.shellScrollPadding(),
                     children: [
                       FadeTransition(
                         opacity: _fadeAnimation,

@@ -11,6 +11,7 @@ import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/kpa_excellence_surface.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/widgets/app_content_header.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/services/alert_service.dart';
@@ -364,7 +365,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                       ),
                     ),
                     child: SingleChildScrollView(
-                      padding: AppSpacing.screenPadding,
+                      padding: AppContentHeader.shellScrollPadding(),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

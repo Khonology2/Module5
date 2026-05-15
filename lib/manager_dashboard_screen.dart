@@ -7,6 +7,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 // import 'package:pdh/design_system/app_components.dart'; // unused after redesign
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/widgets/app_content_header.dart';
 // (removed unused Firestore/user_profile imports after redesign)
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
@@ -415,12 +416,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         final width = (layoutW - horizontalPad).clamp(0.0, double.infinity);
 
         return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            AppSpacing.xxl,
-            0,
-            AppSpacing.xxl,
-            AppSpacing.xxl,
-          ),
+          padding: AppContentHeader.shellScrollPadding(),
           child: StreamBuilder<List<EmployeeData>>(
             stream: _employeesStream,
             builder: (context, employeesSnap) {

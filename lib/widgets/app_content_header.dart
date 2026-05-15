@@ -14,15 +14,36 @@ class AppContentHeader extends StatelessWidget {
     this.backgroundColor,
   });
 
-  /// Height of the title / actions row inside the header strip.
+  /// Height of the opaque title / actions strip (background image shows below).
   static const double kHeaderHeight = 64;
 
-  /// Breathing room below the title row, **painted with the same color** as the header
-  /// so shells do not show a transparent band (often reads as white over the canvas).
-  static const double kGapBelowHeader = AppSpacing.lg;
+  /// Transparent breathing room between the header strip and page content.
+  static const double kContentInsetBelowHeader = AppSpacing.xl;
 
-  /// Total height of the fixed header widget (row + gap). Shell top padding should match.
-  static const double kTotalHeaderHeight = kHeaderHeight + kGapBelowHeader;
+  /// Opaque header strip height (for fixed/positioned header sizing).
+  static const double kTotalHeaderHeight = kHeaderHeight;
+
+  /// Top padding for shell content so it clears the header + transparent gap.
+  static const double kShellContentTopOffset =
+      kHeaderHeight + kContentInsetBelowHeader;
+
+  /// Page insets when the body sits inside a full-bleed background (e.g. [MainLayout]).
+  static EdgeInsets shellBodyPadding({
+    double horizontal = AppSpacing.xxl,
+    double bottom = AppSpacing.xxl,
+  }) =>
+      EdgeInsets.fromLTRB(
+        horizontal,
+        kShellContentTopOffset,
+        horizontal,
+        bottom,
+      );
+
+  /// [AppSpacing.screenPadding] with shell top inset (background must be full-bleed).
+  static EdgeInsets shellScrollPadding([
+    EdgeInsets base = AppSpacing.screenPadding,
+  ]) =>
+      base.copyWith(top: kShellContentTopOffset);
 
   final String title;
   final Widget actions;
@@ -44,56 +65,47 @@ class AppContentHeader extends StatelessWidget {
     final Color headerBg = backgroundColor ?? DashboardChrome.cardFill;
 
     return SizedBox(
-      height: kTotalHeaderHeight,
+      height: kHeaderHeight,
       child: ColoredBox(
         color: headerBg,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              height: kHeaderHeight,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
+            children: [
+              Expanded(
                 child: Row(
                   children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.heading3.copyWith(
-                                color: textColor,
-                              ),
-                            ),
-                          ),
-                          if (showGreeting) ...[
-                            const SizedBox(width: 12),
-                            Flexible(
-                              child: Text(
-                                'Hello, ${_resolveUserName()}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.bodyMedium.copyWith(
-                                  color: textColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.heading3.copyWith(
+                          color: textColor,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    actions,
+                    if (showGreeting) ...[
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          'Hello, ${_resolveUserName()}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-            ),
-            SizedBox(height: kGapBelowHeader, child: const SizedBox.shrink()),
-          ],
+              const SizedBox(width: 12),
+              actions,
+            ],
+          ),
         ),
       ),
     );

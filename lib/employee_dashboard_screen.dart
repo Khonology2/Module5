@@ -9,6 +9,7 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/header_action_icons.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/widgets/app_content_header.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/streak_service.dart';
@@ -843,12 +844,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                           children: [
                             Expanded(
                               child: SingleChildScrollView(
-                                padding: EdgeInsets.fromLTRB(
-                                  AppSpacing.xxl,
-                                  0,
-                                  AppSpacing.xxl,
-                                  AppSpacing.xxl,
-                                ),
+                                padding: AppContentHeader.shellScrollPadding(),
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,

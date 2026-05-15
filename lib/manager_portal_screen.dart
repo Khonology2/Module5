@@ -89,20 +89,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     (index) => GlobalKey(),
   );
 
-  /// Matches [MainLayout]’s `AppSpacing.screenPadding` for bodies that do not
-  /// apply their own full-bleed inset (e.g. [MyPdpScreen] uses zero scroll padding).
+  /// Matches [MainLayout] / [AppScaffold] rhythm: inset below [AppContentHeader],
+  /// plus horizontal padding for routes that do not use [AppSpacing.screenPadding].
   static EdgeInsets _portalMainContentPadding(String route) {
+    const top = AppContentHeader.kContentInsetBelowHeader;
+    const horizontal = AppSpacing.xxl;
+    const bottom = AppSpacing.xxl;
     switch (route) {
       case '/my_pdp':
       case '/manager_gw_menu_goal_workspace':
-        return EdgeInsets.fromLTRB(
-          AppSpacing.xxl,
-          0,
-          AppSpacing.xxl,
-          AppSpacing.xxl,
-        );
+        return const EdgeInsets.fromLTRB(horizontal, top, horizontal, bottom);
       default:
-        return EdgeInsets.zero;
+        return const EdgeInsets.only(top: top);
     }
   }
 

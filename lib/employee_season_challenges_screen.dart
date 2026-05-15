@@ -10,6 +10,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/widgets/app_content_header.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/season_details_screen.dart';
@@ -182,7 +183,11 @@ class _EmployeeSeasonChallengesScreenState
                   ? 'assets/light_mode_bg.png'
                   : 'assets/khono_bg.png',
               gradientColors: _SeasonChrome.lightGradient,
-              child: Column(
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  top: AppContentHeader.kShellContentTopOffset,
+                ),
+                child: Column(
                 children: [
                   Container(
                     color: light
@@ -228,6 +233,7 @@ class _EmployeeSeasonChallengesScreenState
                     ),
                   ),
                 ],
+                ),
               ),
             ),
           ),

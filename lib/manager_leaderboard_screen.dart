@@ -13,10 +13,10 @@ class ManagerLeaderboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const LeaderboardScreen(
-      forAdminOversight: false,
-      compareManagers: false,
-      embedded: false,
+    return LeaderboardScreen(
+      forAdminOversight: compareManagers,
+      compareManagers: compareManagers,
+      embedded: embedded,
       suppressShellTitleBanner: true,
     );
   }
