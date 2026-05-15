@@ -26,6 +26,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # pubspec.yaml lists `.env` as an asset; it is gitignored so CI has no file
+      # unless we create a placeholder. Keys still come from --dart-define at build.
+      - name: Placeholder .env for analyzer (asset must exist)
+        run: |
+          if [ ! -f .env ]; then
+            printf '%s\n' '# Placeholder for CI — OpenRouter keys are injected via --dart-define when building web.' > .env
+          fi
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
