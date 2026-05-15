@@ -477,9 +477,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           content: ValueListenableBuilder<bool>(
             valueListenable: employeeDashboardLightModeNotifier,
             builder: (context, light, _) {
-              final Widget body = FocusTraversalGroup(
-                policy: WidgetOrderTraversalPolicy(),
-                child: BrandedRefreshIndicator(
+              final Widget body = AppComponents.focusTraversalScope(
+                BrandedRefreshIndicator(
                   onRefresh: _loadData,
                   child: ListView(
                     padding: AppSpacing.screenPadding,

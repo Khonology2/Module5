@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:ui';
 import 'app_colors.dart';
 import 'app_typography.dart';
@@ -11,6 +12,16 @@ import 'package:pdh/widgets/custom_logo_loader.dart';
 class AppComponents {
   // Private constructor to prevent instantiation
   AppComponents._();
+
+  /// On web, skip [FocusTraversalGroup] with [WidgetOrderTraversalPolicy] to avoid
+  /// focus traversal null asserts during view focus changes (DDC).
+  static Widget focusTraversalScope(Widget child) {
+    if (kIsWeb) return child;
+    return FocusTraversalGroup(
+      policy: WidgetOrderTraversalPolicy(),
+      child: child,
+    );
+  }
 
   // ===== CARD COMPONENTS =====
   /// Standard card container with consistent styling
@@ -410,10 +421,7 @@ class AppComponents {
                   Directionality.maybeOf(context) ?? TextDirection.ltr;
               return Directionality(
                 textDirection: dir,
-                child: FocusTraversalGroup(
-                  policy: WidgetOrderTraversalPolicy(),
-                  child: child,
-                ),
+                child: focusTraversalScope(child),
               );
             },
           ),
