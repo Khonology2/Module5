@@ -10,6 +10,7 @@ import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class ManagerTeamWorkspaceScreen extends StatefulWidget {
   final bool embedded;
@@ -165,7 +166,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
                             }
 
                             if (snapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(child: CircularProgressIndicator());
+                              return const CustomLogoLoader(centerInViewport: true);
                             }
 
                             final teamGoals = snapshot.data?.docs ?? [];
@@ -490,7 +491,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CustomLogoLoaderInline(),
                   )
                 : const Text('Create'),
           ),

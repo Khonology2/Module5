@@ -24,6 +24,8 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/widgets/badge_celebration_dialog.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
+import 'package:pdh/widgets/branded_refresh_indicator.dart';
 
 class BadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -475,9 +477,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           content: ValueListenableBuilder<bool>(
             valueListenable: employeeDashboardLightModeNotifier,
             builder: (context, light, _) {
-              final Widget body = FocusTraversalGroup(
-                policy: WidgetOrderTraversalPolicy(),
-                child: RefreshIndicator(
+              final Widget body = AppComponents.focusTraversalScope(
+                BrandedRefreshIndicator(
                   onRefresh: _loadData,
                   child: ListView(
                     padding: AppSpacing.screenPadding,
@@ -639,11 +640,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       initialData: const [],
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         if (snapshot.hasError) {

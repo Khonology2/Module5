@@ -4,6 +4,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/sample_data_seeder.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class DatabaseTestScreen extends StatefulWidget {
   const DatabaseTestScreen({super.key});
@@ -252,11 +253,7 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
             ],
             
             if (isLoading) ...[
-              const Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFFC10D00),
-                ),
-              ),
+              const CustomLogoLoader(centerInViewport: true),
             ],
           ],
         ),

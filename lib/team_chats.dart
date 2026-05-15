@@ -9,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/utils/attachment_opener.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 // --- 1. Custom Color Definitions (Based on HTML/Tailwind) ---
 const Color chatPrimary = Color(0xFF4F46E5); // Indigo-600
@@ -1393,11 +1394,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                         if (snapshot.connectionState ==
                                 ConnectionState.waiting &&
                             !_initializedStream) {
-                          return const Center(
-                            child: CircularProgressIndicator(
-                              color: chatPrimary,
-                            ),
-                          );
+                          return const CustomLogoLoader(centerInViewport: true);
                         }
                         final incoming = snapshot.data ?? const <ChatMessage>[];
                         if (!_initializedStream) {

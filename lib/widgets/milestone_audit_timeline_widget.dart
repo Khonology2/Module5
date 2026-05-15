@@ -3,6 +3,7 @@ import 'package:pdh/models/audit_entry.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class MilestoneAuditTimelineWidget extends StatelessWidget {
   final List<AuditEntry> auditEntries;
@@ -17,11 +18,7 @@ class MilestoneAuditTimelineWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-        ),
-      );
+      return const CustomLogoLoader(centerInViewport: true);
     }
 
     if (auditEntries.isEmpty) {

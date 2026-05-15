@@ -6,6 +6,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class TeamGoalsScreen extends StatefulWidget {
   const TeamGoalsScreen({super.key});
@@ -112,13 +113,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
                 ),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.activeColor,
-                        ),
-                      ),
-                    );
+                    return const CustomLogoLoader(centerInViewport: true);
                   }
 
                   if (snapshot.hasError) {

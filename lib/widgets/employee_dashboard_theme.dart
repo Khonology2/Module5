@@ -44,6 +44,11 @@ class DashboardChrome {
 
   static Color get fg => light ? const Color(0xFF000000) : Colors.white;
 
+  /// Top app header strip (same as [cardFill] / [fg]).
+  static Color get headerFill => cardFill;
+
+  static Color get headerFg => fg;
+
   static List<Color>? get lightGradient => light
       ? [
           Colors.white.withValues(alpha: 0.2),

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_ai/firebase_ai.dart';
+import 'package:pdh/services/app_ai_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -27,6 +27,8 @@ import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
+import 'package:pdh/widgets/branded_refresh_indicator.dart';
 
 /// Shared light/dark chrome for progress visuals (matches My Goal Workspace).
 class _ProgressChrome {
@@ -248,19 +250,11 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
         // Only show loading if we truly don't have any data
         if (profileSnapshot.connectionState == ConnectionState.waiting &&
             effectiveProfile == null) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         if (effectiveProfile == null) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         userProfile = effectiveProfile;
@@ -278,7 +272,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
               gradientColors: _ProgressChrome.lightGradient,
               child: EmployeeDashboardThemeScope(
                 light: light,
-                child: RefreshIndicator(
+                child: BrandedRefreshIndicator(
                   onRefresh: () async {
                     setState(() {});
                   },
@@ -1214,11 +1208,7 @@ class _ManagerProgressVisualsContentState
       stream: BadgeService.getUserBadgesStream(user.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
 
         final badges = snapshot.data ?? <badge_model.Badge>[];
@@ -4819,13 +4809,7 @@ class _EmployeeProgressVisualsContentState
             stream: _getUserGoalsStream(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
-                );
+                return const CustomLogoLoader(centerInViewport: true);
               }
 
               if (snapshot.hasError) {
@@ -4968,29 +4952,25 @@ class _EmployeeProgressVisualsContentState
       if (!keepGeneratingState) {
         await updatePhase('Generating summary...');
       }
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
-          'You are an AI assistant specialized in analyzing personal development progress. '
-          'Generate a concise, natural language summary (3-4 sentences) of the user\'s progress that includes:\n'
-          '1. Overall progress status\n'
-          '2. Key achievements\n'
-          '3. Areas needing attention\n'
-          '4. Progress trends over time\n\n'
-          'Be motivational, specific, and actionable. Focus on what\'s working well and what needs improvement.',
-        ),
-      );
-
-      final prompt = [
-        Content.text(
-          'Analyze this progress data and generate a summary:\n\n$progressData',
-        ),
-      ];
-
       await updatePhase('Finalizing summary...');
 
-      final response = await model.generateContent(prompt);
-      final summary = response.text?.replaceAll('*', '').trim() ?? '';
+      final summary = (await AppAiService.generate(
+        systemInstruction:
+            'You are an AI assistant specialized in analyzing personal development progress. '
+            'Generate a concise, natural language summary (3-4 sentences) of the user\'s progress that includes:\n'
+            '1. Overall progress status\n'
+            '2. Key achievements\n'
+            '3. Areas needing attention\n'
+            '4. Progress trends over time\n\n'
+            'Be motivational, specific, and actionable. Focus on what\'s working well and what needs improvement.',
+        turns: [
+          AiChatTurn.user(
+            'Analyze this progress data and generate a summary:\n\n$progressData',
+          ),
+        ],
+      ))
+          .replaceAll('*', '')
+          .trim();
 
       if (!keepGeneratingState) {
         await updatePhase('Complete!');
@@ -5073,32 +5053,27 @@ class _EmployeeProgressVisualsContentState
                 final progressData = _collectProgressData(goals);
 
                 await updatePhase('Generating personalized insights...');
-                final model = FirebaseAI.googleAI().generativeModel(
-                  model: 'gemini-2.5-flash',
-                  systemInstruction: Content.text(
-                    'You are an AI assistant specialized in analyzing personal development progress and providing actionable insights. '
-                    'Based on the progress data provided, generate a comprehensive analysis that includes:\n\n'
-                    '1. PERSONALIZED INSIGHTS: Identify patterns in progress, strengths, and areas for improvement\n'
-                    '2. RECOMMENDATIONS: Provide specific, actionable recommendations for improvement\n'
-                    '3. TREND ANALYSIS: Analyze what\'s working well and what needs attention\n'
-                    '4. ACTIONABLE NEXT STEPS: Suggest concrete next steps the user should take\n'
-                    '5. MOTIVATIONAL FEEDBACK: Acknowledge achievements and provide encouragement\n\n'
-                    'Format your response in clear sections with headings. Be specific, motivational, and actionable.',
-                  ),
-                );
-
-                final prompt = [
-                  Content.text(
-                    'Analyze this progress data and provide comprehensive insights:\n\n$progressData\n\n'
-                    'Provide personalized insights, recommendations, trend analysis, actionable next steps, and motivational feedback.',
-                  ),
-                ];
+                final insights = (await AppAiService.generate(
+                  systemInstruction:
+                      'You are an AI assistant specialized in analyzing personal development progress and providing actionable insights. '
+                      'Based on the progress data provided, generate a comprehensive analysis that includes:\n\n'
+                      '1. PERSONALIZED INSIGHTS: Identify patterns in progress, strengths, and areas for improvement\n'
+                      '2. RECOMMENDATIONS: Provide specific, actionable recommendations for improvement\n'
+                      '3. TREND ANALYSIS: Analyze what\'s working well and what needs attention\n'
+                      '4. ACTIONABLE NEXT STEPS: Suggest concrete next steps the user should take\n'
+                      '5. MOTIVATIONAL FEEDBACK: Acknowledge achievements and provide encouragement\n\n'
+                      'Format your response in clear sections with headings. Be specific, motivational, and actionable.',
+                  turns: [
+                    AiChatTurn.user(
+                      'Analyze this progress data and provide comprehensive insights:\n\n$progressData\n\n'
+                      'Provide personalized insights, recommendations, trend analysis, actionable next steps, and motivational feedback.',
+                    ),
+                  ],
+                ))
+                    .replaceAll('*', '')
+                    .trim();
 
                 await updatePhase('Finalizing insights...');
-
-                final response = await model.generateContent(prompt);
-                final insights =
-                    response.text?.replaceAll('*', '').trim() ?? '';
 
                 await updatePhase('Complete!');
                 await Future.delayed(const Duration(milliseconds: 500));
@@ -5694,12 +5669,7 @@ $progressDetails
                 SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
+                  child: const CustomLogoLoaderInline(),
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -6410,12 +6380,7 @@ $progressDetails
               SizedBox(
                 width: 14,
                 height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    AppColors.activeColor,
-                  ),
-                ),
+                child: const CustomLogoLoaderInline(),
               ),
               const SizedBox(width: 8),
               Text(
@@ -6681,7 +6646,7 @@ class GoalTrendDialog extends StatelessWidget {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const SizedBox(
                 height: 260,
-                child: Center(child: CircularProgressIndicator()),
+                child: CustomLogoLoader(centerInViewport: true),
               );
             }
             if (snapshot.hasError) {
@@ -6915,12 +6880,7 @@ class GoalMilestoneAnalyticsCard extends StatelessWidget {
                 SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
+                  child: const CustomLogoLoaderInline(),
                 ),
                 const SizedBox(width: 12),
                 Text(

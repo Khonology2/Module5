@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/firestore_stream_broker.dart';
 import 'dart:developer' as developer;
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class StreamBrokerTestScreen extends StatefulWidget {
   const StreamBrokerTestScreen({super.key});
@@ -102,7 +103,7 @@ class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
                 foregroundColor: Colors.white,
               ),
               child: _isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
+                  ? const CustomLogoLoader(centerInViewport: false)
                   : const Text('Test Stream Broker'),
             ),
           ),

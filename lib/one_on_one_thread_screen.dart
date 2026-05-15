@@ -9,6 +9,7 @@ import 'package:pdh/models/one_on_one_meeting.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/one_on_one_meeting_service.dart';
+import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class OneOnOneThreadModal extends StatelessWidget {
   const OneOnOneThreadModal({
@@ -363,9 +364,7 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
 
   Widget _buildContent() {
     if (_isInitializing) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.activeColor),
-      );
+      return const CustomLogoLoader(centerInViewport: true);
     }
 
     if (_loadError != null) {
@@ -390,9 +389,7 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
       builder: (context, snapshot) {
         final meeting = snapshot.data;
         if (snapshot.connectionState == ConnectionState.waiting && meeting == null) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.activeColor),
-          );
+          return const CustomLogoLoader(centerInViewport: true);
         }
         if (!snapshot.hasData || meeting == null) {
           return _buildMissingMeetingState();
@@ -883,7 +880,7 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
-                  child: CircularProgressIndicator(color: AppColors.activeColor),
+                  child: CustomLogoLoader(),
                 ),
               ),
             if (primary != null)
