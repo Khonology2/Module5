@@ -370,6 +370,7 @@ class DatabaseService {
     required String goalId,
     required String managerId,
     required String managerName,
+    Map<String, dynamic>? reviewData,
   }) async {
     final firestore = FirebaseFirestore.instance;
     final goalRef = firestore.collection('goals').doc(goalId);
@@ -421,14 +422,22 @@ class DatabaseService {
       goalData = data;
       isSeasonFinalReview =
           data?['isSeasonGoal'] == true && data?['approvalRequestedAt'] != null;
-      transaction.update(goalRef, {
+      
+      final updateData = <String, dynamic>{
         'approvalStatus': GoalApprovalStatus.approved.name,
         'approvedByUserId': managerId,
         'approvedByName': managerName,
         'approvedAt': FieldValue.serverTimestamp(),
         'rejectionReason': null,
         if (isSeasonFinalReview) 'status': GoalStatus.acknowledged.name,
-      });
+      };
+      
+      // Include review data if provided
+      if (reviewData != null) {
+        updateData['review'] = reviewData;
+      }
+      
+      transaction.update(goalRef, updateData);
     });
     if (goalData == null) return;
 
@@ -533,6 +542,7 @@ class DatabaseService {
     required String managerId,
     required String managerName,
     String? reason,
+    Map<String, dynamic>? reviewData,
   }) async {
     final firestore = FirebaseFirestore.instance;
     final goalRef = firestore.collection('goals').doc(goalId);
@@ -584,14 +594,22 @@ class DatabaseService {
       goalData = data;
       isSeasonFinalReview =
           data?['isSeasonGoal'] == true && data?['approvalRequestedAt'] != null;
-      transaction.update(goalRef, {
+      
+      final updateData = <String, dynamic>{
         'approvalStatus': GoalApprovalStatus.rejected.name,
         'approvedByUserId': managerId,
         'approvedByName': managerName,
         'approvedAt': FieldValue.serverTimestamp(),
         'rejectionReason': reason,
         if (isSeasonFinalReview) 'status': GoalStatus.inProgress.name,
-      });
+      };
+      
+      // Include review data if provided
+      if (reviewData != null) {
+        updateData['review'] = reviewData;
+      }
+      
+      transaction.update(goalRef, updateData);
     });
     if (goalData == null) return;
 
@@ -1979,7 +1997,11 @@ class DatabaseService {
       developer.log('updateGoalProgress lastActivity update failed: $e');
     }
 
-    await _syncSeasonGoalFromGoalState(goalId);
+    try {
+      await _syncSeasonGoalFromGoalState(goalId);
+    } catch (e) {
+      developer.log('updateGoalProgress season sync failed: $e');
+    }
 
     // Create alerts after transaction if 50% milestone reached
     try {

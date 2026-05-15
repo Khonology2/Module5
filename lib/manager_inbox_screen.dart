@@ -938,12 +938,22 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                       ),
                                     );
                                     try {
-                                      await _persistReview(
-                                        goalId,
-                                        decision: 'approved',
-                                      );
+                                      final reviewData = {
+                                        'smart': {
+                                          'clarity': _clarity[goalId] ?? 3,
+                                          'measurability': _measurability[goalId] ?? 3,
+                                          'achievability': _achievability[goalId] ?? 3,
+                                          'relevance': _relevance[goalId] ?? 3,
+                                          'timeline': _timeline[goalId] ?? 3,
+                                          'total': _smartTotal(goalId),
+                                        },
+                                        'decision': 'approved',
+                                        'note': _reviewNotes[goalId]?.text.trim(),
+                                        'reviewerId': fb.FirebaseAuth.instance.currentUser?.uid,
+                                        'reviewedAt': FieldValue.serverTimestamp(),
+                                      };
                                       final ok =
-                                          await _approveGoal(goalId);
+                                          await _approveGoal(goalId, reviewData: reviewData);
                                       messenger?.hideCurrentSnackBar();
                                       if (!modalContext.mounted || !ok) {
                                         return;
@@ -952,14 +962,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     } catch (e, st) {
                                       messenger?.hideCurrentSnackBar();
                                       developer.log(
-                                        'persistReview failed',
+                                        'approveGoal failed',
                                         error: e,
                                         stackTrace: st,
                                       );
                                       if (!modalContext.mounted) return;
                                       await _showCenterNotice(
                                         modalContext,
-                                        'Could not save review: $e',
+                                        'Could not approve goal: $e',
                                       );
                                     }
                                   },
@@ -992,13 +1002,24 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                       ),
                                     );
                                     try {
-                                      await _persistReview(
-                                        goalId,
-                                        decision: 'changes_requested',
-                                      );
+                                      final reviewData = {
+                                        'smart': {
+                                          'clarity': _clarity[goalId] ?? 3,
+                                          'measurability': _measurability[goalId] ?? 3,
+                                          'achievability': _achievability[goalId] ?? 3,
+                                          'relevance': _relevance[goalId] ?? 3,
+                                          'timeline': _timeline[goalId] ?? 3,
+                                          'total': _smartTotal(goalId),
+                                        },
+                                        'decision': 'changes_requested',
+                                        'note': note,
+                                        'reviewerId': fb.FirebaseAuth.instance.currentUser?.uid,
+                                        'reviewedAt': FieldValue.serverTimestamp(),
+                                      };
                                       final ok = await _rejectGoal(
                                         goalId,
                                         reason: note,
+                                        reviewData: reviewData,
                                       );
                                       messenger?.hideCurrentSnackBar();
                                       if (!modalContext.mounted || !ok) {
@@ -1048,13 +1069,24 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                       ),
                                     );
                                     try {
-                                      await _persistReview(
-                                        goalId,
-                                        decision: 'rejected',
-                                      );
+                                      final reviewData = {
+                                        'smart': {
+                                          'clarity': _clarity[goalId] ?? 3,
+                                          'measurability': _measurability[goalId] ?? 3,
+                                          'achievability': _achievability[goalId] ?? 3,
+                                          'relevance': _relevance[goalId] ?? 3,
+                                          'timeline': _timeline[goalId] ?? 3,
+                                          'total': _smartTotal(goalId),
+                                        },
+                                        'decision': 'rejected',
+                                        'note': note,
+                                        'reviewerId': fb.FirebaseAuth.instance.currentUser?.uid,
+                                        'reviewedAt': FieldValue.serverTimestamp(),
+                                      };
                                       final ok = await _rejectGoal(
                                         goalId,
                                         reason: note,
+                                        reviewData: reviewData,
                                       );
                                       messenger?.hideCurrentSnackBar();
                                       if (!modalContext.mounted || !ok) {
@@ -1097,25 +1129,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     );
   }
 
-  Future<void> _persistReview(String goalId, {required String decision}) async {
-    final reviewer = fb.FirebaseAuth.instance.currentUser;
-    await FirebaseFirestore.instance.collection('goals').doc(goalId).set({
-      'review': {
-        'smart': {
-          'clarity': _clarity[goalId] ?? 3,
-          'measurability': _measurability[goalId] ?? 3,
-          'achievability': _achievability[goalId] ?? 3,
-          'relevance': _relevance[goalId] ?? 3,
-          'timeline': _timeline[goalId] ?? 3,
-          'total': _smartTotal(goalId),
-        },
-        'decision': decision,
-        'note': _reviewNotes[goalId]?.text.trim(),
-        'reviewerId': reviewer?.uid,
-        'reviewedAt': FieldValue.serverTimestamp(),
-      },
-    }, SetOptions(merge: true));
-  }
 
   int _smartTotal(String goalId) {
     return (_clarity[goalId] ?? 3) +
@@ -1246,7 +1259,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   /// Returns true only when Firestore approval succeeded (sheet may close).
-  Future<bool> _approveGoal(String goalId) async {
+  Future<bool> _approveGoal(String goalId, {Map<String, dynamic>? reviewData}) async {
     try {
       final manager = fb.FirebaseAuth.instance.currentUser;
       final managerName = manager?.displayName ?? 'Manager';
@@ -1254,6 +1267,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         goalId: goalId,
         managerId: manager?.uid ?? '',
         managerName: managerName,
+        reviewData: reviewData,
       );
       if (mounted) {
         await _showCenterNotice(context, 'Goal approved');
@@ -1271,7 +1285,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   /// Returns true only when Firestore rejection succeeded (sheet may close).
-  Future<bool> _rejectGoal(String goalId, {required String reason}) async {
+  Future<bool> _rejectGoal(String goalId, {required String reason, Map<String, dynamic>? reviewData}) async {
     try {
       final manager = fb.FirebaseAuth.instance.currentUser;
       final managerName = manager?.displayName ?? 'Manager';
@@ -1280,6 +1294,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         managerId: manager?.uid ?? '',
         managerName: managerName,
         reason: reason,
+        reviewData: reviewData,
       );
       if (mounted) {
         await _showCenterNotice(context, 'Goal rejected');
