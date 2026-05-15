@@ -1,14 +1,15 @@
 # Builds Flutter web with OpenRouter keys baked in via --dart-define
 # (matches lib/main.dart _openRouterDefineOverrides + AppAiService).
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   OPENROUTER_API_KEY_PRIMARY   (required)
+#   OPENROUTER_API_KEY_SECONDARY (optional)
+#   OPENROUTER_MODEL             (optional; app defaults if omitted)
 
 name: Flutter Web Build
 
 on:
   push:
-    branches:
-      - main
-      - master
-      - nathi-v3
   workflow_dispatch:
 
 concurrency:
@@ -48,6 +49,7 @@ jobs:
             echo "::error::Repository secret OPENROUTER_API_KEY_PRIMARY is not set (required for AI in the web bundle)."
             exit 1
           fi
+          echo "::notice::OpenRouter dart-defines: primary OK; secondary $([ -n "${OPENROUTER_API_KEY_SECONDARY:-}" ] && echo set || echo empty); model $([ -n "${OPENROUTER_MODEL:-}" ] && echo set || echo empty)."
 
           CMD=(
             flutter build web --release --base-href /
