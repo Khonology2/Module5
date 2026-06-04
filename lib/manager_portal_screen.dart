@@ -447,6 +447,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                       actions: _buildHeaderActions(),
                       showGreeting: _isDashboardRoute(_currentRoute),
                       textColor: DashboardChrome.fg,
+                      backgroundColor: DashboardChrome.cardFill,
                     ),
                     Expanded(
                       child: Padding(

@@ -63,8 +63,22 @@ def _camel_tutorial_payload(body: Dict[str, Any], manager_id: str) -> Dict[str, 
     }
 
 
+@router.get("/learning-manager-dashboard")
+def get_learning_manager_dashboard(
+    manager_id: str = Query(..., min_length=1),
+    limit: int = 500,
+):
+    """Single round-trip for manager learning screen (tutorials + assignments)."""
+    tutorials = fetch_learning_tutorials_by_manager(manager_id, limit=limit)
+    assignments = fetch_learning_assignments(manager_id=manager_id, limit=limit)
+    return {
+        "tutorials": [_learning_tutorial_to_api(row) for row in tutorials],
+        "assignments": [_learning_assignment_to_api(row) for row in assignments],
+    }
+
+
 @router.get("/learning-tutorials")
-async def list_learning_tutorials(
+def list_learning_tutorials(
     manager_id: str = Query(..., min_length=1),
     status: str | None = None,
     limit: int = 500,
@@ -75,7 +89,7 @@ async def list_learning_tutorials(
 
 
 @router.post("/learning-tutorials", status_code=status.HTTP_201_CREATED)
-async def create_learning_tutorial(payload: Dict[str, Any]):
+def create_learning_tutorial(payload: Dict[str, Any]):
     manager_id = str(
         payload.get("managerId") or payload.get("manager_id") or ""
     ).strip()
@@ -94,8 +108,16 @@ async def create_learning_tutorial(payload: Dict[str, Any]):
     return _learning_tutorial_to_api(row)
 
 
+@router.get("/learning-tutorials/{tutorial_id}")
+def get_learning_tutorial(tutorial_id: str):
+    row = fetch_learning_tutorial_by_id(tutorial_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Tutorial not found")
+    return _learning_tutorial_to_api(row)
+
+
 @router.patch("/learning-tutorials/{tutorial_id}")
-async def patch_learning_tutorial(tutorial_id: str, payload: Dict[str, Any]):
+def patch_learning_tutorial(tutorial_id: str, payload: Dict[str, Any]):
     existing = fetch_learning_tutorial_by_id(tutorial_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Tutorial not found")
@@ -137,13 +159,36 @@ async def patch_learning_tutorial(tutorial_id: str, payload: Dict[str, Any]):
     return _learning_tutorial_to_api(row)
 
 
+def _enrich_assignment_with_tutorial(item: Dict[str, Any]) -> Dict[str, Any]:
+    tutorial_id = item.get("tutorialId")
+    if not tutorial_id:
+        return item
+    tutorial = fetch_learning_tutorial_by_id(str(tutorial_id))
+    if not tutorial:
+        return item
+    api_tutorial = _learning_tutorial_to_api(tutorial)
+    return {
+        **item,
+        "videoUrl": api_tutorial.get("videoUrl"),
+        "tutorialTitle": api_tutorial.get("title"),
+        "tutorialDescription": api_tutorial.get("description"),
+        "durationMinutes": api_tutorial.get("durationMinutes"),
+    }
+
+
 @router.get("/learning-assignments")
-async def list_learning_assignments(
-    manager_id: str = Query(..., min_length=1),
+def list_learning_assignments(
+    manager_id: str | None = None,
     employee_user_id: str | None = None,
     status: str | None = None,
     limit: int = 500,
+    enrich_tutorial: bool = False,
 ):
+    if not manager_id and not employee_user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="manager_id or employee_user_id is required",
+        )
     rows = fetch_learning_assignments(
         manager_id=manager_id,
         employee_user_id=employee_user_id,
@@ -151,6 +196,8 @@ async def list_learning_assignments(
         limit=limit,
     )
     items = [_learning_assignment_to_api(row) for row in rows]
+    if enrich_tutorial:
+        items = [_enrich_assignment_with_tutorial(item) for item in items]
     return {"items": items}
 
 
@@ -233,7 +280,7 @@ def _create_linked_goal_and_alert(
 
 
 @router.post("/learning-assignments", status_code=status.HTTP_201_CREATED)
-async def create_learning_assignment(payload: Dict[str, Any]):
+def create_learning_assignment(payload: Dict[str, Any]):
     manager_id = str(
         payload.get("managerId") or payload.get("manager_id") or ""
     ).strip()
@@ -310,10 +357,18 @@ async def create_learning_assignment(payload: Dict[str, Any]):
 
 
 @router.patch("/learning-assignments/{assignment_id}")
-async def patch_learning_assignment(assignment_id: str, payload: Dict[str, Any]):
+def patch_learning_assignment(assignment_id: str, payload: Dict[str, Any]):
     existing = fetch_learning_assignment_by_id(assignment_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Assignment not found")
+
+    actor_id = str(
+        payload.get("employeeUserId")
+        or payload.get("employee_user_id")
+        or ""
+    ).strip()
+    if actor_id and existing.get("employee_user_id") != actor_id:
+        raise HTTPException(status_code=403, detail="Not allowed to update this assignment")
 
     updates: Dict[str, Any] = {}
     if "status" in payload:

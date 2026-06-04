@@ -24,6 +24,8 @@ import 'package:pdh/badges_points_screen.dart';
 import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/manager_leaderboard_screen.dart';
 import 'package:pdh/employee_dashboard_screen.dart';
+import 'package:pdh/employee_my_learning_screen.dart';
+import 'package:pdh/employee_learning_watch_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/admin_portal_screen.dart';
 import 'package:pdh/admin_profile_screen.dart';
@@ -448,6 +450,18 @@ class _MyAppState extends State<MyApp> {
                 '/my_goal_workspace': (context) => RoleGate(
                   requiredRole: RequiredRole.employee,
                   child: const MyGoalWorkspaceScreen(),
+                ),
+                '/my_learning': (context) => RoleGate(
+                  requiredRole: RequiredRole.employee,
+                  child: MainLayout(
+                    title: 'My Learning',
+                    currentRouteName: '/my_learning',
+                    body: const EmployeeMyLearningScreen(),
+                  ),
+                ),
+                '/my_learning_watch': (context) => RoleGate(
+                  requiredRole: RequiredRole.employee,
+                  child: const EmployeeLearningWatchScreen(),
                 ),
                 '/gamification': (context) => const GamificationScreen(),
                 '/repository_audit': (context) => MainLayout(

@@ -123,9 +123,11 @@ class BackendAuthService {
 
   static final BackendAuthService instance = BackendAuthService._();
   static const Duration _timeout = Duration(seconds: 12);
+  static const Duration _mutationTimeout = Duration(seconds: 45);
   static const Duration _validateTokenTimeout = Duration(seconds: 45);
   static const Duration _aiTimeout = Duration(seconds: 90);
   static const int _maxAttempts = 2;
+  static const int _mutationMaxAttempts = 3;
 
   /// Base URL for PDH API (auth, Firebase config, AI proxy).
   static String get apiBaseUrl => _baseUrl;
@@ -304,10 +306,14 @@ class BackendAuthService {
     return text;
   }
 
-  Future<Map<String, dynamic>> getJson(String path) async {
+  Future<Map<String, dynamic>> getJson(
+    String path, {
+    Duration? timeout,
+  }) async {
     final uri = _uri(path);
+    final effectiveTimeout = timeout ?? _timeout;
     try {
-      final response = await http.get(uri).timeout(_timeout);
+      final response = await http.get(uri).timeout(effectiveTimeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw _mapHttpError(statusCode: response.statusCode, body: response.body);
       }
@@ -363,34 +369,16 @@ class BackendAuthService {
 
   Future<Map<String, dynamic>> postJson(
     String path,
-    Map<String, dynamic> payload,
-  ) async {
-    final uri = _uri(path);
-    http.Response response;
-    try {
-      response = await http
-          .post(
-            uri,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(payload),
-          )
-          .timeout(_timeout);
-    } on TimeoutException {
-      throw BackendAuthException(
-        message: 'Request timed out while contacting backend.',
-        code: 'timeout',
-        retryable: true,
-      );
-    } catch (_) {
-      throw BackendAuthException(
-        message: 'Network error while contacting backend.',
-        code: 'network_error',
-        retryable: true,
-      );
-    }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
-    }
+    Map<String, dynamic> payload, {
+    Duration? timeout,
+    int? maxAttempts,
+  }) async {
+    final response = await _postWithRetry(
+      _uri(path),
+      jsonEncode(payload),
+      timeout: timeout ?? _mutationTimeout,
+      maxAttempts: maxAttempts ?? _mutationMaxAttempts,
+    );
     return _decodeBody(response.body);
   }
 
@@ -398,32 +386,12 @@ class BackendAuthService {
     String path,
     Map<String, dynamic> payload,
   ) async {
-    final uri = _uri(path);
-    http.Response response;
-    try {
-      response = await http
-          .patch(
-            uri,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(payload),
-          )
-          .timeout(_timeout);
-    } on TimeoutException {
-      throw BackendAuthException(
-        message: 'Request timed out while contacting backend.',
-        code: 'timeout',
-        retryable: true,
-      );
-    } catch (_) {
-      throw BackendAuthException(
-        message: 'Network error while contacting backend.',
-        code: 'network_error',
-        retryable: true,
-      );
-    }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
-    }
+    final response = await _patchWithRetry(
+      _uri(path),
+      jsonEncode(payload),
+      timeout: _mutationTimeout,
+      maxAttempts: _mutationMaxAttempts,
+    );
     return _decodeBody(response.body);
   }
 
@@ -965,6 +933,22 @@ class BackendAuthService {
     return postJson('/manager-actions/$managerId', payload);
   }
 
+  static const Duration _learningDashboardTimeout = Duration(seconds: 90);
+
+  Future<Map<String, dynamic>> getLearningManagerDashboard(
+    String managerId, {
+    int limit = 500,
+  }) {
+    final query = Uri(queryParameters: {
+      'manager_id': managerId,
+      'limit': limit.toString(),
+    }).query;
+    return getJson(
+      '/learning-manager-dashboard?$query',
+      timeout: _learningDashboardTimeout,
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getLearningTutorials(
     String managerId, {
     String? status,
@@ -984,7 +968,12 @@ class BackendAuthService {
   Future<Map<String, dynamic>> createLearningTutorial(
     Map<String, dynamic> payload,
   ) {
-    return postJson('/learning-tutorials', payload);
+    return postJson(
+      '/learning-tutorials',
+      payload,
+      timeout: const Duration(seconds: 120),
+      maxAttempts: 2,
+    );
   }
 
   Future<Map<String, dynamic>> patchLearningTutorial(
@@ -994,23 +983,43 @@ class BackendAuthService {
     return patchJson('/learning-tutorials/$tutorialId', payload);
   }
 
-  Future<List<Map<String, dynamic>>> getLearningAssignments(
-    String managerId, {
+  Future<Map<String, dynamic>> getLearningTutorial(String tutorialId) {
+    return getJson('/learning-tutorials/$tutorialId');
+  }
+
+  Future<List<Map<String, dynamic>>> getLearningAssignments({
+    String? managerId,
     String? employeeUserId,
     String? status,
     int limit = 500,
+    bool enrichTutorial = false,
   }) async {
     final query = <String, String>{
-      'manager_id': managerId,
       'limit': limit.toString(),
+      if (managerId != null && managerId.isNotEmpty) 'manager_id': managerId,
       if (employeeUserId != null && employeeUserId.isNotEmpty)
         'employee_user_id': employeeUserId,
       if (status != null && status.isNotEmpty) 'status': status,
+      if (enrichTutorial) 'enrich_tutorial': 'true',
     };
     final decoded = await getJson(
       '/learning-assignments?${Uri(queryParameters: query).query}',
     );
     return _itemsFromResponse(decoded);
+  }
+
+  Future<List<Map<String, dynamic>>> getLearningAssignmentsForEmployee(
+    String employeeUserId, {
+    String? status,
+    int limit = 500,
+    bool enrichTutorial = true,
+  }) {
+    return getLearningAssignments(
+      employeeUserId: employeeUserId,
+      status: status,
+      limit: limit,
+      enrichTutorial: enrichTutorial,
+    );
   }
 
   Future<Map<String, dynamic>> createLearningAssignment(
@@ -1188,15 +1197,83 @@ class BackendAuthService {
     }
   }
 
+  Future<http.Response> _patchWithRetry(
+    Uri uri,
+    String body, {
+    bool retryOnHttpFailure = true,
+    Duration timeout = _mutationTimeout,
+    int maxAttempts = _mutationMaxAttempts,
+  }) async {
+    BackendAuthException? lastError;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (attempt > 1 && kDebugMode) {
+          _logBackendRequest('PATCH', uri, note: 'retry $attempt');
+        }
+        final response = await http
+            .patch(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: body,
+            )
+            .timeout(timeout);
+
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return response;
+        }
+
+        if (kDebugMode) {
+          _logBackendRequest('PATCH', uri, statusCode: response.statusCode);
+        }
+
+        final mapped = _mapHttpError(
+          statusCode: response.statusCode,
+          body: response.body,
+        );
+        if (!retryOnHttpFailure ||
+            !mapped.retryable ||
+            attempt == maxAttempts) {
+          throw mapped;
+        }
+        lastError = mapped;
+      } on TimeoutException {
+        final timeoutError = BackendAuthException(
+          message: 'Request timed out while contacting backend.',
+          code: 'timeout',
+          retryable: true,
+        );
+        if (attempt == maxAttempts) throw timeoutError;
+        lastError = timeoutError;
+      } on BackendAuthException {
+        rethrow;
+      } catch (_) {
+        final networkError = BackendAuthException(
+          message: 'Network error while contacting backend.',
+          code: 'network_error',
+          retryable: true,
+        );
+        if (attempt == maxAttempts) throw networkError;
+        lastError = networkError;
+      }
+
+      await Future.delayed(Duration(milliseconds: 400 * attempt));
+    }
+
+    throw lastError ??
+        BackendAuthException(message: 'Backend request failed unexpectedly.');
+  }
+
   Future<http.Response> _postWithRetry(
     Uri uri,
     String body, {
     bool retryOnHttpFailure = true,
     Duration timeout = _timeout,
+    int maxAttempts = _maxAttempts,
   }) async {
     BackendAuthException? lastError;
 
-    for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         if (attempt > 1 && kDebugMode) {
           _logBackendRequest('POST', uri, note: 'retry $attempt');

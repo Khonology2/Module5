@@ -99,6 +99,12 @@ class SidebarConfig {
       label: 'Season Challenges',
       route: '/season_challenges',
     ),
+    itemWithAssets(
+      white: 'assets/Business_Growth_Development/growth.png',
+      red: 'assets/Business_Growth_Development/growth.png',
+      label: 'My Learning',
+      route: '/my_learning',
+    ),
     itemWithManagerSidebarIcon(
       number: '9',
       label: 'Repository & Audit',
@@ -271,6 +277,12 @@ class SidebarConfig {
       number: '4',
       label: 'Season Challenges',
       route: '/season_challenges',
+    ),
+    itemWithAssets(
+      white: 'assets/Business_Growth_Development/growth.png',
+      red: 'assets/Business_Growth_Development/growth.png',
+      label: 'My Learning',
+      route: '/my_learning',
     ),
     itemWithManagerSidebarIcon(
       number: '9',
@@ -486,6 +498,9 @@ class SidebarConfig {
     }
     if (route == '/manager_learning_assignments') {
       return [...managerWorkspaceItems, ...globalItems];
+    }
+    if (route == '/my_learning' || route == '/my_learning_watch') {
+      return [...myWorkspaceItems, ...globalItems];
     }
     if (route.startsWith('/manager') || route.startsWith('/dashboard')) {
       return managerItems;

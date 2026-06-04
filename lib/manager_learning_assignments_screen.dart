@@ -9,9 +9,9 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/models/learning_assignment.dart';
 import 'package:pdh/models/learning_tutorial.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/learning_assignment_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
-import 'package:pdh/utils/backend_polling_stream.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
@@ -46,13 +46,20 @@ class _ManagerLearningAssignmentsScreenState
   String _assignmentStatusFilter = 'all';
   bool _isSavingTutorial = false;
   bool _isAssigning = false;
-  int _reloadToken = 0;
+  bool _dashboardLoading = true;
+  String? _dashboardError;
+  List<LearningTutorial> _tutorials = [];
+  List<LearningAssignment> _assignments = [];
+  List<EmployeeData> _teamEmployees = [];
+  bool _teamLoading = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _managerId = AuthService().currentUser?.uid;
+    _loadDashboard();
+    _loadTeamEmployees();
   }
 
   @override
@@ -67,7 +74,85 @@ class _ManagerLearningAssignmentsScreenState
     super.dispose();
   }
 
-  void _bumpReload() => setState(() => _reloadToken++);
+  Future<void> _loadDashboard() async {
+    final managerId = _managerId;
+    if (managerId == null) return;
+    if (mounted) {
+      setState(() {
+        _dashboardLoading = true;
+        _dashboardError = null;
+      });
+    }
+    try {
+      final data = await _learningService.loadManagerDashboard(managerId);
+      if (!mounted) return;
+      setState(() {
+        _tutorials = data.tutorials;
+        _assignments = data.assignments;
+        _dashboardLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _dashboardError = e.toString();
+        _dashboardLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadTeamEmployees() async {
+    if (mounted) setState(() => _teamLoading = true);
+    try {
+      final employees = await ManagerRealtimeService.getTeamDataOnce();
+      if (!mounted) return;
+      setState(() {
+        _teamEmployees = employees;
+        _teamLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _teamLoading = false);
+    }
+  }
+
+  int? _parseDurationMinutes(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return null;
+    final direct = int.tryParse(t);
+    if (direct != null) return direct;
+    final parts = t.split(':');
+    if (parts.length == 2) {
+      final h = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      if (h != null && m != null) return h * 60 + m;
+    }
+    if (parts.length == 3) {
+      final h = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      final s = int.tryParse(parts[2]);
+      if (h != null && m != null) {
+        final totalSeconds = h * 3600 + m * 60 + (s ?? 0);
+        return (totalSeconds / 60).ceil();
+      }
+    }
+    return null;
+  }
+
+  String? _normalizeVideoUrl(String raw) {
+    var url = raw.trim();
+    if (url.isEmpty) return null;
+    if (url.startsWith('//')) {
+      url = 'https:$url';
+    } else if (!url.contains('://')) {
+      if (url.startsWith('/')) {
+        url = 'https://www.udemy.com$url';
+      } else {
+        url = 'https://$url';
+      }
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme) return null;
+    return uri.toString();
+  }
 
   Future<void> _showNotice(String message) async {
     if (!mounted) return;
@@ -98,15 +183,17 @@ class _ManagerLearningAssignmentsScreenState
     final managerId = _managerId;
     if (managerId == null) return;
     final title = _titleController.text.trim();
-    final url = _urlController.text.trim();
-    if (title.isEmpty || url.isEmpty) {
-      await _showNotice('Title and Udemy URL are required.');
+    final url = _normalizeVideoUrl(_urlController.text);
+    if (title.isEmpty || url == null) {
+      await _showNotice(
+        'Title and a full Udemy URL are required (include https://...).',
+      );
       return;
     }
     setState(() => _isSavingTutorial = true);
     try {
-      final duration = int.tryParse(_durationController.text.trim());
-      await _learningService.createTutorial(
+      final duration = _parseDurationMinutes(_durationController.text);
+      final created = await _learningService.createTutorial(
         LearningTutorial(
           id: '',
           managerId: managerId,
@@ -122,8 +209,17 @@ class _ManagerLearningAssignmentsScreenState
       _descriptionController.clear();
       _urlController.clear();
       _durationController.clear();
-      _bumpReload();
+      if (mounted) {
+        setState(() {
+          _tutorials = [created, ..._tutorials];
+        });
+      }
       await _showNotice('Tutorial saved to your library.');
+    } on BackendAuthException catch (e) {
+      final msg = e.code == 'timeout'
+          ? 'The server took too long to respond. Please wait a moment and try again.'
+          : e.message;
+      await _showNotice('Could not create tutorial: $msg');
     } catch (e) {
       await _showNotice('Could not create tutorial: $e');
     } finally {
@@ -142,7 +238,7 @@ class _ManagerLearningAssignmentsScreenState
     final points = int.tryParse(_pointsController.text.trim()) ?? 10;
     setState(() => _isAssigning = true);
     try {
-      await _learningService.assignTutorialToEmployee(
+      final created = await _learningService.assignTutorialToEmployee(
         managerId: managerId,
         tutorialId: _selectedTutorialId!,
         employeeUserId: _selectedEmployeeId!,
@@ -153,7 +249,11 @@ class _ManagerLearningAssignmentsScreenState
             : _notesController.text.trim(),
       );
       _notesController.clear();
-      _bumpReload();
+      if (mounted) {
+        setState(() {
+          _assignments = [created, ..._assignments];
+        });
+      }
       await _showNotice('Tutorial assigned. A learning goal and alert were created.');
     } catch (e) {
       await _showNotice('Assignment failed: $e');
@@ -172,44 +272,155 @@ class _ManagerLearningAssignmentsScreenState
     if (picked != null) setState(() => _assignDueDate = picked);
   }
 
-  int _columnsForWidth(double width) {
+  int _topStatsColumnsForWidth(double width) {
     if (width >= 920) return 4;
     if (width >= 640) return 2;
     return 1;
   }
 
-  Widget _card({required Widget child}) {
+  Color _dashboardCardFill() {
+    return DashboardChrome.light
+        ? const Color(0x99FFFFFF)
+        : const Color(0x993D3F40);
+  }
+
+  Color _dashboardCardBorder() {
+    return DashboardChrome.light
+        ? const Color(0x1E000000)
+        : Colors.white.withValues(alpha: 0.12);
+  }
+
+  Widget _card({required Widget child, double? minHeight}) {
     return Container(
       width: double.infinity,
+      constraints: minHeight == null
+          ? null
+          : BoxConstraints(minHeight: minHeight),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: DashboardChrome.cardFill,
+        color: _dashboardCardFill(),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: DashboardChrome.border),
+        border: Border.all(color: _dashboardCardBorder()),
       ),
       child: child,
     );
   }
 
-  Widget _statTile(String title, String value, IconData icon) {
+  Widget _assetIcon(String assetPath, {required double size}) {
+    return Image.asset(
+      assetPath,
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return SizedBox(width: size, height: size);
+      },
+    );
+  }
+
+  Widget _topStatTile({
+    required String title,
+    required String subtitle,
+    required String value,
+    required IconData icon,
+    required String assetPath,
+    required Color accent,
+  }) {
     return _card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Icon(icon, color: AppColors.activeColor, size: 22),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: AppTypography.heading2.copyWith(color: DashboardChrome.fg),
-          ),
-          Text(
-            title,
-            style: AppTypography.bodySmall.copyWith(
-              color: DashboardChrome.fg.withValues(alpha: 0.75),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: DashboardChrome.fg,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: DashboardChrome.fg,
+                    fontSize: 11,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  value,
+                  style: AppTypography.heading2.copyWith(
+                    color: DashboardChrome.fg,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(width: 12),
+          Padding(
+            padding: const EdgeInsets.only(right: 2),
+            child: _assetIcon(assetPath, size: 74),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTopStatsGrid({
+    required int columns,
+    required int totalTutorials,
+    required int activeAssignments,
+    required int completedPct,
+    required int dueThisWeek,
+  }) {
+    final tiles = <Widget>[
+      _topStatTile(
+        title: 'Total Tutorials',
+        subtitle: 'Active tutorials in your library.',
+        value: '$totalTutorials',
+        icon: Icons.menu_book_outlined,
+        assetPath: 'assets/manager_dashboard/1.png',
+        accent: AppColors.activeColor,
+      ),
+      _topStatTile(
+        title: 'Active Assignments',
+        subtitle: 'Assignments in progress across the team.',
+        value: '$activeAssignments',
+        icon: Icons.pending_actions,
+        assetPath: 'assets/manager_dashboard/2.png',
+        accent: AppColors.successColor,
+      ),
+      _topStatTile(
+        title: 'Completed',
+        subtitle: 'Share of assignments marked complete.',
+        value: '$completedPct%',
+        icon: Icons.check_circle_outline,
+        assetPath: 'assets/manager_dashboard/6.png',
+        accent: AppColors.successColor,
+      ),
+      _topStatTile(
+        title: 'Due This Week',
+        subtitle: 'Open assignments due in the next 7 days.',
+        value: '$dueThisWeek',
+        icon: Icons.event,
+        assetPath: 'assets/manager_dashboard/4.png',
+        accent: AppColors.dangerColor,
+      ),
+    ];
+
+    return GridView.count(
+      crossAxisCount: columns,
+      crossAxisSpacing: AppSpacing.md,
+      mainAxisSpacing: AppSpacing.md,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: columns == 1 ? 3.4 : 2.9,
+      children: tiles,
     );
   }
 
@@ -245,14 +456,25 @@ class _ManagerLearningAssignmentsScreenState
     );
   }
 
+  Color _fieldFillColor() {
+    return DashboardChrome.light
+        ? const Color(0xFFF5F5F5)
+        : DashboardChrome.darkSurface;
+  }
+
   InputDecoration _fieldDecoration(String label) {
     return InputDecoration(
       labelText: label,
+      filled: true,
+      fillColor: _fieldFillColor(),
       labelStyle: AppTypography.bodySmall.copyWith(
         color: DashboardChrome.fg.withValues(alpha: 0.7),
       ),
+      hintStyle: AppTypography.bodySmall.copyWith(
+        color: DashboardChrome.fg.withValues(alpha: 0.5),
+      ),
       enabledBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: DashboardChrome.border),
+        borderSide: BorderSide(color: _dashboardCardBorder()),
       ),
       focusedBorder: OutlineInputBorder(
         borderSide: BorderSide(color: AppColors.activeColor),
@@ -286,179 +508,162 @@ class _ManagerLearningAssignmentsScreenState
             },
             content: LayoutBuilder(
               builder: (context, constraints) {
-                final cols = _columnsForWidth(constraints.maxWidth);
-                final twoCol = constraints.maxWidth >= 920;
+                final rawW = constraints.maxWidth;
+                final layoutW = rawW.isFinite
+                    ? rawW
+                    : MediaQuery.sizeOf(context).width;
+                final horizontalPad = AppSpacing.xxl * 2;
+                final width =
+                    (layoutW - horizontalPad).clamp(0.0, double.infinity);
+                final statsColumns = _topStatsColumnsForWidth(width);
+                final twoCol = width >= 920;
 
-                return StreamBuilder<List<LearningTutorial>>(
-                  key: ValueKey('tutorials_$_reloadToken'),
-                  stream: backendPollingStream<List<LearningTutorial>>(
-                    fetch: () => _learningService.listTutorials(managerId),
-                    initialValue: const [],
-                  ),
-                  builder: (context, tutorialSnap) {
-                    final tutorials = tutorialSnap.data ?? const [];
-                    return StreamBuilder<List<LearningAssignment>>(
-                      key: ValueKey('assignments_$_reloadToken'),
-                      stream: backendPollingStream<List<LearningAssignment>>(
-                        fetch: () =>
-                            _learningService.listAssignments(managerId),
-                        initialValue: const [],
+                if (_dashboardLoading && _tutorials.isEmpty) {
+                  return const Center(child: CustomLogoLoader());
+                }
+                if (_dashboardError != null && _tutorials.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Could not load learning data.',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: DashboardChrome.fg,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: _loadDashboard,
+                            child: const Text('Retry'),
+                          ),
+                        ],
                       ),
-                      builder: (context, assignSnap) {
-                        final assignments = assignSnap.data ?? const [];
-                        final activeAssignments = assignments
-                            .where((a) =>
-                                a.effectiveStatus != 'completed' &&
-                                a.effectiveStatus != 'cancelled')
-                            .length;
-                        final completedCount = assignments
-                            .where((a) => a.effectiveStatus == 'completed')
-                            .length;
-                        final completedPct = assignments.isEmpty
-                            ? 0
-                            : ((completedCount / assignments.length) * 100)
-                                .round();
-                        final weekEnd = DateTime.now().add(const Duration(days: 7));
-                        final dueThisWeek = assignments.where((a) {
-                          final due = a.dueDate;
-                          return due != null &&
-                              due.isBefore(weekEnd) &&
-                              a.effectiveStatus != 'completed';
-                        }).length;
+                    ),
+                  );
+                }
 
-                        return SingleChildScrollView(
-                          padding: const EdgeInsets.all(AppSpacing.lg),
-                          child: Column(
+                final tutorials = _tutorials;
+                final assignments = _assignments;
+                final activeAssignments = assignments
+                    .where((a) =>
+                        a.effectiveStatus != 'completed' &&
+                        a.effectiveStatus != 'cancelled')
+                    .length;
+                final completedCount = assignments
+                    .where((a) => a.effectiveStatus == 'completed')
+                    .length;
+                final completedPct = assignments.isEmpty
+                    ? 0
+                    : ((completedCount / assignments.length) * 100).round();
+                final weekEnd = DateTime.now().add(const Duration(days: 7));
+                final dueThisWeek = assignments.where((a) {
+                  final due = a.dueDate;
+                  return due != null &&
+                      due.isBefore(weekEnd) &&
+                      a.effectiveStatus != 'completed';
+                }).length;
+
+                return RefreshIndicator(
+                  color: AppColors.activeColor,
+                  onRefresh: () async {
+                    await Future.wait([
+                      _loadDashboard(),
+                      _loadTeamEmployees(),
+                    ]);
+                  },
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpacing.xxl,
+                      0,
+                      AppSpacing.xxl,
+                      AppSpacing.xxl,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildTopStatsGrid(
+                          columns: statsColumns,
+                          totalTutorials:
+                              tutorials.where((t) => t.isActive).length,
+                          activeAssignments: activeAssignments,
+                          completedPct: completedPct,
+                          dueThisWeek: dueThisWeek,
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              _tabController.animateTo(1);
+                              setState(() {});
+                            },
+                            icon: const Icon(Icons.assignment_ind),
+                            label: const Text('Assign tutorial'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.activeColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        if (twoCol)
+                          Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _card(
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Learning Assignments',
-                                            style: AppTypography.heading2
-                                                .copyWith(
-                                              color: DashboardChrome.fg,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'Create Udemy-style tutorials and assign them to your team. Each assignment creates a linked learning goal.',
-                                            style: AppTypography.bodyMedium
-                                                .copyWith(
-                                              color: DashboardChrome.fg
-                                                  .withValues(alpha: 0.85),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    ElevatedButton.icon(
-                                      onPressed: () {
-                                        _tabController.animateTo(1);
-                                        setState(() {});
-                                      },
-                                      icon: const Icon(Icons.assignment_ind),
-                                      label: const Text('Assign tutorial'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.activeColor,
-                                        foregroundColor: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              Expanded(child: _buildCreateTutorialCard()),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: _buildQuickAssignCard(tutorials),
                               ),
-                              const SizedBox(height: AppSpacing.lg),
-                              GridView.count(
-                                crossAxisCount: cols,
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                mainAxisSpacing: 12,
-                                crossAxisSpacing: 12,
-                                childAspectRatio: 2.2,
-                                children: [
-                                  _statTile(
-                                    'Total tutorials',
-                                    '${tutorials.where((t) => t.isActive).length}',
-                                    Icons.menu_book,
-                                  ),
-                                  _statTile(
-                                    'Active assignments',
-                                    '$activeAssignments',
-                                    Icons.pending_actions,
-                                  ),
-                                  _statTile(
-                                    'Completed',
-                                    '$completedPct%',
-                                    Icons.check_circle_outline,
-                                  ),
-                                  _statTile(
-                                    'Due this week',
-                                    '$dueThisWeek',
-                                    Icons.event,
-                                  ),
+                            ],
+                          )
+                        else ...[
+                          _buildCreateTutorialCard(),
+                          const SizedBox(height: 16),
+                          _buildQuickAssignCard(tutorials),
+                        ],
+                        const SizedBox(height: AppSpacing.lg),
+                        _card(
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                labelColor: AppColors.activeColor,
+                                unselectedLabelColor: DashboardChrome.fg
+                                    .withValues(alpha: 0.6),
+                                indicatorColor: AppColors.activeColor,
+                                tabs: const [
+                                  Tab(text: 'Tutorial library'),
+                                  Tab(text: 'Assignments'),
                                 ],
                               ),
-                              const SizedBox(height: AppSpacing.lg),
-                              if (twoCol)
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              SizedBox(
+                                height: 420,
+                                child: TabBarView(
+                                  controller: _tabController,
                                   children: [
-                                    Expanded(child: _buildCreateTutorialCard()),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: _buildQuickAssignCard(tutorials),
-                                    ),
-                                  ],
-                                )
-                              else ...[
-                                _buildCreateTutorialCard(),
-                                const SizedBox(height: 16),
-                                _buildQuickAssignCard(tutorials),
-                              ],
-                              const SizedBox(height: AppSpacing.lg),
-                              _card(
-                                child: Column(
-                                  children: [
-                                    TabBar(
-                                      controller: _tabController,
-                                      labelColor: AppColors.activeColor,
-                                      unselectedLabelColor: DashboardChrome.fg
-                                          .withValues(alpha: 0.6),
-                                      indicatorColor: AppColors.activeColor,
-                                      tabs: const [
-                                        Tab(text: 'Tutorial library'),
-                                        Tab(text: 'Assignments'),
-                                      ],
-                                    ),
-                                    SizedBox(
-                                      height: 420,
-                                      child: TabBarView(
-                                        controller: _tabController,
-                                        children: [
-                                          _buildTutorialLibrary(tutorials),
-                                          _buildAssignmentsList(
-                                            assignments,
-                                            tutorials,
-                                          ),
-                                        ],
-                                      ),
+                                    _buildTutorialLibrary(tutorials),
+                                    _buildAssignmentsList(
+                                      assignments,
+                                      tutorials,
                                     ),
                                   ],
                                 ),
                               ),
                             ],
                           ),
-                        );
-                      },
-                    );
-                  },
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               },
             ),
@@ -499,8 +704,9 @@ class _ManagerLearningAssignmentsScreenState
           const SizedBox(height: 8),
           TextField(
             controller: _durationController,
-            keyboardType: TextInputType.number,
-            decoration: _fieldDecoration('Duration (minutes, optional)'),
+            decoration: _fieldDecoration(
+              'Duration (minutes or H:MM:SS, optional)',
+            ),
             style: TextStyle(color: DashboardChrome.fg),
           ),
           const SizedBox(height: 12),
@@ -539,37 +745,42 @@ class _ManagerLearningAssignmentsScreenState
             style: AppTypography.heading3.copyWith(color: DashboardChrome.fg),
           ),
           const SizedBox(height: 12),
-          StreamBuilder<List<EmployeeData>>(
-            stream: ManagerRealtimeService.getTeamDataStream(),
-            builder: (context, snap) {
-              final employees = snap.data ?? const <EmployeeData>[];
-              return DropdownButtonFormField<String>(
-                value: _selectedEmployeeId,
-                decoration: _fieldDecoration('Employee'),
-                dropdownColor: DashboardChrome.cardFill,
-                style: TextStyle(color: DashboardChrome.fg),
-                items: employees
-                    .map(
-                      (e) => DropdownMenuItem(
-                        value: e.profile.uid,
-                        child: Text(
-                          e.profile.displayName.isNotEmpty
-                              ? e.profile.displayName
-                              : e.profile.email,
-                          overflow: TextOverflow.ellipsis,
+          _teamLoading && _teamEmployees.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : DropdownButtonFormField<String>(
+                  value: _selectedEmployeeId,
+                  decoration: _fieldDecoration('Employee'),
+                  dropdownColor: DashboardChrome.cardFill,
+                  iconEnabledColor: DashboardChrome.fg,
+                  style: TextStyle(color: DashboardChrome.fg),
+                  items: _teamEmployees
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e.profile.uid,
+                          child: Text(
+                            e.profile.displayName.isNotEmpty
+                                ? e.profile.displayName
+                                : e.profile.email,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedEmployeeId = v),
-              );
-            },
-          ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => _selectedEmployeeId = v),
+                ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _selectedTutorialId,
             decoration: _fieldDecoration('Tutorial'),
             dropdownColor: DashboardChrome.cardFill,
+            iconEnabledColor: DashboardChrome.fg,
             style: TextStyle(color: DashboardChrome.fg),
             items: activeTutorials
                 .map(
@@ -702,7 +913,29 @@ class _ManagerLearningAssignmentsScreenState
   Future<void> _archiveTutorial(LearningTutorial tutorial) async {
     try {
       await _learningService.updateTutorial(tutorial.id, {'status': 'archived'});
-      _bumpReload();
+      if (mounted) {
+        setState(() {
+          _tutorials = _tutorials
+              .map(
+                (t) => t.id == tutorial.id
+                    ? LearningTutorial(
+                        id: t.id,
+                        managerId: t.managerId,
+                        title: t.title,
+                        description: t.description,
+                        videoUrl: t.videoUrl,
+                        provider: t.provider,
+                        durationMinutes: t.durationMinutes,
+                        thumbnailUrl: t.thumbnailUrl,
+                        status: 'archived',
+                        createdAt: t.createdAt,
+                        updatedAt: t.updatedAt,
+                      )
+                    : t,
+              )
+              .toList(growable: false);
+        });
+      }
     } catch (e) {
       await _showNotice('Could not archive: $e');
     }

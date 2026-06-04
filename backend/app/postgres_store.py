@@ -216,7 +216,13 @@ def _build_database_url() -> str:
 @lru_cache(maxsize=1)
 def get_engine() -> Engine:
     url = _build_database_url()
-    return create_engine(url, pool_pre_ping=True, future=True)
+    return create_engine(
+        url,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        future=True,
+    )
 
 
 @lru_cache(maxsize=1)

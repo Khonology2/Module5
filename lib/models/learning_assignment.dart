@@ -16,6 +16,10 @@ class LearningAssignment {
   final String? notes;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? videoUrl;
+  final String? tutorialTitle;
+  final String? tutorialDescription;
+  final int? durationMinutes;
 
   const LearningAssignment({
     required this.id,
@@ -33,6 +37,10 @@ class LearningAssignment {
     this.notes,
     this.createdAt,
     this.updatedAt,
+    this.videoUrl,
+    this.tutorialTitle,
+    this.tutorialDescription,
+    this.durationMinutes,
   });
 
   /// Client-side overdue when not completed and past due.
@@ -56,12 +64,27 @@ class LearningAssignment {
       dueDate: parseNullableDate(map['dueDate'] ?? map['due_date']),
       assignedAt: parseNullableDate(map['assignedAt'] ?? map['assigned_at']),
       completedAt: parseNullableDate(map['completedAt'] ?? map['completed_at']),
-      points: _parseInt(map['points'], fallback: 10),
-      watchProgress: _parseInt(map['watchProgress'] ?? map['watch_progress'], fallback: 0),
+      points: _parseIntWithFallback(map['points'], fallback: 10),
+      watchProgress: _parseIntWithFallback(
+        map['watchProgress'] ?? map['watch_progress'],
+        fallback: 0,
+      ),
       notes: map['notes']?.toString(),
       createdAt: parseNullableDate(map['createdAt'] ?? map['created_at']),
       updatedAt: parseNullableDate(map['updatedAt'] ?? map['updated_at']),
+      videoUrl: map['videoUrl']?.toString() ?? map['video_url']?.toString(),
+      tutorialTitle: map['tutorialTitle']?.toString(),
+      tutorialDescription: map['tutorialDescription']?.toString(),
+      durationMinutes: _parseOptionalInt(
+        map['durationMinutes'] ?? map['duration_minutes'],
+      ),
     );
+  }
+
+  static int? _parseOptionalInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse(value.toString());
   }
 
   Map<String, dynamic> toAssignPayload({
@@ -82,7 +105,7 @@ class LearningAssignment {
     };
   }
 
-  static int _parseInt(dynamic value, {required int fallback}) {
+  static int _parseIntWithFallback(dynamic value, {required int fallback}) {
     if (value is int) return value;
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
