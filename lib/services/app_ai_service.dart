@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:pdh/services/backend_auth_service.dart';
 
-/// One chat message for [AppAiService.generate] (OpenRouter roles: user | assistant).
+/// One chat message for [AppAiService.generate] (chat roles: user | assistant).
 class AiChatTurn {
   const AiChatTurn.user(this.content) : role = 'user';
 
@@ -12,12 +12,12 @@ class AiChatTurn {
 }
 
 /// All in-app LLM calls are proxied through the PDH backend (`POST /ai/chat`).
-/// OpenRouter keys live only in `backend/app/.env` — the Flutter app never needs them.
+/// The backend reads its provider keys from `backend/app/.env`.
 class AppAiService {
   AppAiService._();
 
   /// [systemInstruction] is sent as the system prompt. [turns] are user/assistant
-  /// messages in order. Primary OpenRouter key is used on the server first, then secondary.
+  /// messages in order. The backend prefers Azure OpenAI when configured.
   static Future<String> generate({
     String? systemInstruction,
     required List<AiChatTurn> turns,
@@ -55,8 +55,9 @@ class AppAiService {
       }
       if (e.statusCode == 503 || e.code == 'backend_unavailable') {
         throw Exception(
-          'AI is not configured on the server. Add OPENROUTER_API_KEY_PRIMARY to '
-          'backend/app/.env and restart the API. ${e.message}',
+          'AI is not configured on the server. Add AZURE_OPENAI_API_KEY, '
+          'AZURE_OPENAI_API_ENDPOINT, and AZURE_OPENAI_MODEL to backend/app/.env '
+          'and restart the API. ${e.message}',
         );
       }
       throw Exception(e.message);

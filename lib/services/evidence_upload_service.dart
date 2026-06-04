@@ -1,10 +1,11 @@
 import 'dart:developer' as developer;
 import 'dart:typed_data';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/cloudinary_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
 
 class EvidenceFile {
   final String id;
@@ -31,29 +32,35 @@ class EvidenceFile {
     required this.fileSize,
   });
 
-  factory EvidenceFile.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory EvidenceFile.fromMap(Map<String, dynamic> data, {String? id}) {
+    DateTime parseDate(dynamic value) {
+      if (value is DateTime) return value;
+      return DateTime.tryParse(value?.toString() ?? '') ?? DateTime.now();
+    }
+
     return EvidenceFile(
-      id: doc.id,
-      goalId: data['goalId'] ?? '',
-      userId: data['userId'] ?? '',
-      fileName: data['fileName'] ?? '',
-      url: data['url'] ?? '',
-      uploadedAt: (data['uploadedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      acknowledged: data['acknowledged'] ?? false,
-      auditEntryId: data['auditEntryId'],
-      fileType: data['fileType'] ?? '',
-      fileSize: data['fileSize'] ?? 0,
+      id: id ?? data['id']?.toString() ?? '',
+      goalId: data['goalId']?.toString() ?? '',
+      userId: data['userId']?.toString() ?? '',
+      fileName: data['fileName']?.toString() ?? '',
+      url: data['url']?.toString() ?? '',
+      uploadedAt: parseDate(data['uploadedAt']),
+      acknowledged: data['acknowledged'] == true,
+      auditEntryId: data['auditEntryId']?.toString(),
+      fileType: data['fileType']?.toString() ?? '',
+      fileSize: data['fileSize'] is int
+          ? data['fileSize'] as int
+          : int.tryParse(data['fileSize']?.toString() ?? '0') ?? 0,
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap() {
     return {
       'goalId': goalId,
       'userId': userId,
       'fileName': fileName,
       'url': url,
-      'uploadedAt': Timestamp.fromDate(uploadedAt),
+      'uploadedAt': uploadedAt.toIso8601String(),
       'acknowledged': acknowledged,
       'auditEntryId': auditEntryId,
       'fileType': fileType,
@@ -63,8 +70,15 @@ class EvidenceFile {
 }
 
 class EvidenceUploadService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final BackendAuthService _backend = BackendAuthService.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  static List<EvidenceFile> _mapEvidenceFiles(List<Map<String, dynamic>> items) {
+    return items
+        .map((item) => EvidenceFile.fromMap(item, id: item['id']?.toString()))
+        .toList()
+      ..sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+  }
 
   // Pick and upload files
   static Future<List<EvidenceFile>> pickAndUploadFiles({
@@ -75,12 +89,11 @@ class EvidenceUploadService {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      // Pick files
       final result = await FilePicker.platform.pickFiles(
         allowMultiple: true,
         type: FileType.any,
-        allowedExtensions: null, // Allow all file types
-        withData: true, // Ensure bytes are available on Web/Desktop
+        allowedExtensions: null,
+        withData: true,
       );
 
       if (result == null || result.files.isEmpty) {
@@ -109,7 +122,6 @@ class EvidenceUploadService {
     }
   }
 
-  // Upload file to Cloudinary
   static Future<EvidenceFile> _uploadFile({
     required List<int> bytes,
     required String fileName,
@@ -118,17 +130,15 @@ class EvidenceUploadService {
     String? auditEntryId,
   }) async {
     try {
-      // Upload to Cloudinary
       final cloudinaryUrl = await CloudinaryService.uploadFileUnsigned(
         bytes: Uint8List.fromList(bytes),
         fileName: fileName,
         goalId: goalId,
       );
 
-      // Create evidence file record
       final fileExtension = path.extension(fileName);
       final evidenceFile = EvidenceFile(
-        id: '', // Will be set by Firestore
+        id: '',
         goalId: goalId,
         userId: userId,
         fileName: fileName,
@@ -140,23 +150,10 @@ class EvidenceUploadService {
         fileSize: bytes.length,
       );
 
-      // Save metadata to Firestore
-      final docRef = await _firestore
-          .collection('evidence_files')
-          .add(evidenceFile.toFirestore());
-
-      // Update the ID
-      final updatedFile = EvidenceFile(
-        id: docRef.id,
-        goalId: evidenceFile.goalId,
-        userId: evidenceFile.userId,
-        fileName: evidenceFile.fileName,
-        url: evidenceFile.url,
-        uploadedAt: evidenceFile.uploadedAt,
-        acknowledged: evidenceFile.acknowledged,
-        auditEntryId: evidenceFile.auditEntryId,
-        fileType: evidenceFile.fileType,
-        fileSize: evidenceFile.fileSize,
+      final created = await _backend.createEvidenceFile(evidenceFile.toMap());
+      final updatedFile = EvidenceFile.fromMap(
+        created,
+        id: created['id']?.toString(),
       );
 
       developer.log('File uploaded successfully: $fileName');
@@ -167,75 +164,34 @@ class EvidenceUploadService {
     }
   }
 
-  // Get content type based on file extension
-  // ignore: unused_element
-  static String _getContentType(String extension) {
-    switch (extension.toLowerCase()) {
-      case '.pdf':
-        return 'application/pdf';
-      case '.doc':
-      case '.docx':
-        return 'application/msword';
-      case '.xls':
-      case '.xlsx':
-        return 'application/vnd.ms-excel';
-      case '.ppt':
-      case '.pptx':
-        return 'application/vnd.ms-powerpoint';
-      case '.jpg':
-      case '.jpeg':
-        return 'image/jpeg';
-      case '.png':
-        return 'image/png';
-      case '.gif':
-        return 'image/gif';
-      case '.txt':
-        return 'text/plain';
-      case '.zip':
-        return 'application/zip';
-      default:
-        return 'application/octet-stream';
-    }
-  }
-
-  // Get evidence files for a goal
   static Stream<List<EvidenceFile>> getEvidenceFilesStream(String goalId) {
-    return _firestore
-        .collection('evidence_files')
-        .where('goalId', isEqualTo: goalId)
-        .orderBy('uploadedAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => EvidenceFile.fromFirestore(doc))
-            .toList());
+    return backendPollingStream<List<EvidenceFile>>(
+      initialValue: const [],
+      fetch: () async {
+        final items = await _backend.getEvidenceFiles(goalId: goalId);
+        return _mapEvidenceFiles(items);
+      },
+    );
   }
 
-  // Get evidence files for an audit entry
-  static Stream<List<EvidenceFile>> getEvidenceFilesForAuditStream(String auditEntryId) {
-    return _firestore
-        .collection('evidence_files')
-        .where('auditEntryId', isEqualTo: auditEntryId)
-        .orderBy('uploadedAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => EvidenceFile.fromFirestore(doc))
-            .toList());
+  static Stream<List<EvidenceFile>> getEvidenceFilesForAuditStream(
+    String auditEntryId,
+  ) {
+    return backendPollingStream<List<EvidenceFile>>(
+      initialValue: const [],
+      fetch: () async {
+        final items = await _backend.getEvidenceFiles(
+          auditEntryId: auditEntryId,
+        );
+        return _mapEvidenceFiles(items);
+      },
+    );
   }
 
-  // Delete evidence file
   static Future<void> deleteEvidenceFile(String fileId) async {
     try {
-      // Get file document
-      final doc = await _firestore.collection('evidence_files').doc(fileId).get();
-      if (!doc.exists) return;
-
-      // Note: Cloudinary files are not deleted automatically
-      // They will be cleaned up by Cloudinary's lifecycle policies
       developer.log('Note: Cloudinary files are not deleted automatically');
-
-      // Delete from Firestore
-      await _firestore.collection('evidence_files').doc(fileId).delete();
-
+      await _backend.deleteEvidenceFile(fileId);
       developer.log('Evidence file deleted: $fileId');
     } catch (e) {
       developer.log('Error deleting evidence file: $e');
@@ -243,12 +199,11 @@ class EvidenceUploadService {
     }
   }
 
-  // Acknowledge evidence file (for managers)
   static Future<void> acknowledgeEvidenceFile(String fileId) async {
     try {
-      await _firestore.collection('evidence_files').doc(fileId).update({
+      await _backend.patchEvidenceFile(fileId, {
         'acknowledged': true,
-        'acknowledgedAt': Timestamp.now(),
+        'acknowledgedAt': DateTime.now().toIso8601String(),
       });
       developer.log('Evidence file acknowledged: $fileId');
     } catch (e) {

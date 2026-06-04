@@ -1,15 +1,30 @@
 import 'dart:developer' as developer;
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
-import 'package:pdh/services/milestone_evidence_service.dart';
-import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/email_notification_service.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/milestone_evidence_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
 
 class AlertService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final BackendAuthService _backend = BackendAuthService.instance;
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  static String _userIdFromMap(Map<String, dynamic> data) {
+    return (data['id'] ?? data['uid'] ?? data['userId'] ?? '').toString();
+  }
+
+  static Alert _alertFromMap(Map<String, dynamic> map) {
+    final id = (map['id'] ?? '').toString();
+    return Alert.fromMap(map, id: id.isNotEmpty ? id : null);
+  }
+
+  static List<Alert> _mapsToAlerts(List<Map<String, dynamic>> items) {
+    return items.map(_alertFromMap).toList();
+  }
 
   /// Determine alert audience based on type and context
   static AlertAudience _determineAudience(
@@ -76,25 +91,17 @@ class AlertService {
     String userId, {
     AlertAudience? audience,
   }) {
-    final collection = _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('alerts')
-        .orderBy('createdAt', descending: true);
-
-    if (audience != null) {
-      return collection
-          .where('audience', isEqualTo: audience.name)
-          .snapshots()
-          .map(
-            (snapshot) =>
-                snapshot.docs.map((doc) => Alert.fromFirestore(doc)).toList(),
-          );
-    }
-
-    return collection.snapshots().map(
-      (snapshot) =>
-          snapshot.docs.map((doc) => Alert.fromFirestore(doc)).toList(),
+    return backendPollingStream<List<Alert>>(
+      initialValue: const [],
+      fetch: () async {
+        final items = await _backend.getAlerts(userId, limit: 500);
+        var alerts = _mapsToAlerts(items);
+        if (audience != null) {
+          alerts = alerts.where((a) => a.audience == audience).toList();
+        }
+        alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return alerts;
+      },
     );
   }
 
@@ -110,13 +117,8 @@ class AlertService {
 
   static Future<String> _displayNameForUser(String uid) async {
     try {
-      final snap = await FirestoreSafe.getDoc(
-        _firestore.collection('users').doc(uid),
-      );
-      final data = snap.data();
-      final name = (data?['displayName'] ?? data?['name'] ?? '')
-          .toString()
-          .trim();
+      final data = await BackendAuthService.instance.getUser(uid);
+      final name = (data['displayName'] ?? data['name'] ?? '').toString().trim();
       return name.isNotEmpty ? name : 'Someone';
     } catch (_) {
       return 'Someone';
@@ -127,10 +129,8 @@ class AlertService {
 
   static Future<String> _alertsRouteForRecipient(String userId) async {
     try {
-      final snap = await FirestoreSafe.getDoc(
-        _firestore.collection('users').doc(userId),
-      );
-      final role = (snap.data()?['role'] ?? '').toString().trim().toLowerCase();
+      final data = await BackendAuthService.instance.getUser(userId);
+      final role = (data['role'] ?? '').toString().trim().toLowerCase();
       if (role == 'manager') return _managerWorkspaceAlertsRoute;
     } catch (_) {
       // Fall back to default route if role cannot be determined.
@@ -198,10 +198,10 @@ class AlertService {
       actionData: {
         'meetingId': meetingId,
         'employeeId': employeeId,
-        'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
-        'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
+        'proposedStartDateTime': proposedStartDateTime.toIso8601String(),
+        'proposedEndDateTime': proposedEndDateTime.toIso8601String(),
         // Backwards compatibility for older routes/clients
-        'proposedDateTime': Timestamp.fromDate(proposedStartDateTime),
+        'proposedDateTime': proposedStartDateTime.toIso8601String(),
         if (agenda != null && agenda.trim().isNotEmpty) 'agenda': agenda.trim(),
       },
       createdAt: DateTime.now(),
@@ -246,9 +246,9 @@ class AlertService {
         'meetingId': meetingId,
         'employeeId': employeeId,
         if (acceptedStartDateTime != null)
-          'meetingStartDateTime': Timestamp.fromDate(acceptedStartDateTime),
+          'meetingStartDateTime': acceptedStartDateTime.toIso8601String(),
         if (acceptedEndDateTime != null)
-          'meetingEndDateTime': Timestamp.fromDate(acceptedEndDateTime),
+          'meetingEndDateTime': acceptedEndDateTime.toIso8601String(),
       },
       createdAt: DateTime.now(),
       fromUserId: employeeId,
@@ -288,8 +288,8 @@ class AlertService {
       actionData: {
         'meetingId': meetingId,
         'employeeId': employeeId,
-        'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
-        'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
+        'proposedStartDateTime': proposedStartDateTime.toIso8601String(),
+        'proposedEndDateTime': proposedEndDateTime.toIso8601String(),
       },
       createdAt: DateTime.now(),
       fromUserId: employeeId,
@@ -452,99 +452,91 @@ class AlertService {
         return normalized == approverRoleNormalized;
       }
 
-      final userDoc = await _firestore
-          .collection('users')
-          .doc(employeeId)
-          .get();
-      final employeeData = userDoc.data() ?? const <String, dynamic>{};
+      final employeeData = await _backend.getUser(employeeId);
       final employeeName = employeeData['displayName'] ?? 'An employee';
       final managerId = (employeeData['managerId'] as String?)?.trim();
 
       final normalizedApproverRole = approverRole.trim().toLowerCase();
-      final usersCol = _firestore.collection('users');
       final recipientsById = <String>{};
       final recipientEmailsById = <String, String>{};
 
-      if (normalizedApproverRole == 'admin') {
-        // Force rule for manager-as-employee flow:
-        // every admin-like account oversees manager goals, so approvals are
-        // never blocked by a single mapping/department assignment.
-        final allUsers = await usersCol.get();
-        for (final doc in allUsers.docs) {
-          final data = doc.data();
-          final role = (data['role'] ?? '').toString();
-          final email = (data['email'] ?? '').toString().trim();
-          final isAdminFlag = data['isAdmin'] == true;
-          final canApproveManagerGoals = data['canApproveManagerGoals'] == true;
-          final permissions = (data['permissions'] is List)
-              ? (data['permissions'] as List)
-                    .map((e) => e.toString().toLowerCase())
-                    .toList()
-              : const <String>[];
-          final hasApprovalPermission =
-              permissions.contains('approve_manager_goals') ||
-              permissions.contains('approve_goals');
+      void considerUser(Map<String, dynamic> data) {
+        final uid = _userIdFromMap(data);
+        if (uid.isEmpty) return;
+        final role = (data['role'] ?? '').toString();
+        final email = (data['email'] ?? '').toString().trim();
+        final isAdminFlag = data['isAdmin'] == true;
+        final canApproveManagerGoals = data['canApproveManagerGoals'] == true;
+        final permissions = (data['permissions'] is List)
+            ? (data['permissions'] as List)
+                  .map((e) => e.toString().toLowerCase())
+                  .toList()
+            : const <String>[];
+        final hasApprovalPermission =
+            permissions.contains('approve_manager_goals') ||
+            permissions.contains('approve_goals');
 
-          if (roleMatchesApprover(role, normalizedApproverRole) ||
-              isAdminFlag ||
-              canApproveManagerGoals ||
-              hasApprovalPermission) {
-            recipientsById.add(doc.id);
-            if (email.isNotEmpty) {
-              recipientEmailsById[doc.id] = email;
-            }
+        if (roleMatchesApprover(role, normalizedApproverRole) ||
+            isAdminFlag ||
+            canApproveManagerGoals ||
+            hasApprovalPermission) {
+          recipientsById.add(uid);
+          if (email.isNotEmpty) {
+            recipientEmailsById[uid] = email;
           }
+        }
+      }
+
+      if (normalizedApproverRole == 'admin') {
+        final allUsers = await _backend.listUsers(limit: 500);
+        for (final data in allUsers) {
+          considerUser(data);
         }
       } else {
-        // Employee -> manager: keep assigned manager as first target.
         if (managerId != null && managerId.isNotEmpty) {
-          final mgrDoc = await usersCol.doc(managerId).get();
-          if (mgrDoc.exists) {
-            final data = mgrDoc.data() ?? const <String, dynamic>{};
-            final role = (data['role'] as String? ?? '').trim().toLowerCase();
+          try {
+            final mgrData = await _backend.getUser(managerId);
+            final role = (mgrData['role'] as String? ?? '').trim().toLowerCase();
             if (roleMatchesApprover(role, normalizedApproverRole)) {
-              recipientsById.add(mgrDoc.id);
-              final email = (data['email'] ?? '').toString().trim();
+              recipientsById.add(managerId);
+              final email = (mgrData['email'] ?? '').toString().trim();
               if (email.isNotEmpty) {
-                recipientEmailsById[mgrDoc.id] = email;
+                recipientEmailsById[managerId] = email;
               }
             }
+          } catch (_) {
+            // Manager profile missing; fall through to role-based lookup.
           }
         }
 
-        // Fallback: all users with expected approver role.
         if (recipientsById.isEmpty) {
-          final allUsers = await usersCol.get();
-          for (final doc in allUsers.docs) {
-            final data = doc.data();
+          final allUsers = await _backend.listUsers(limit: 500);
+          for (final data in allUsers) {
             final role = (data['role'] ?? '').toString();
             if (roleMatchesApprover(role, normalizedApproverRole)) {
-              recipientsById.add(doc.id);
+              final uid = _userIdFromMap(data);
+              if (uid.isEmpty) continue;
+              recipientsById.add(uid);
               final email = (data['email'] ?? '').toString().trim();
               if (email.isNotEmpty) {
-                recipientEmailsById[doc.id] = email;
+                recipientEmailsById[uid] = email;
               }
             }
           }
         }
       }
 
-      // Fallback for legacy/inconsistent role casing in Firestore data
-      // (e.g. "Admin", "ADMIN ", " Manager").
       if (recipientsById.isEmpty) {
-        final allUsers = await usersCol.get();
-        final normalized = allUsers.docs.where((doc) {
-          final role = (doc.data()['role'] ?? '')
-              .toString()
-              .trim()
-              .toLowerCase();
-          return roleMatchesApprover(role, normalizedApproverRole);
-        }).toList();
-        for (final doc in normalized) {
-          recipientsById.add(doc.id);
-          final email = (doc.data()['email'] ?? '').toString().trim();
+        final allUsers = await _backend.listUsers(limit: 500);
+        for (final data in allUsers) {
+          final role = (data['role'] ?? '').toString().trim().toLowerCase();
+          if (!roleMatchesApprover(role, normalizedApproverRole)) continue;
+          final uid = _userIdFromMap(data);
+          if (uid.isEmpty) continue;
+          recipientsById.add(uid);
+          final email = (data['email'] ?? '').toString().trim();
           if (email.isNotEmpty) {
-            recipientEmailsById[doc.id] = email;
+            recipientEmailsById[uid] = email;
           }
         }
       }
@@ -694,14 +686,10 @@ class AlertService {
     String? milestoneId, // NEW: Optional milestone ID for evidence checking
   }) async {
     try {
-      final userDoc = await _firestore
-          .collection('users')
-          .doc(goal.userId)
-          .get();
-      final employeeName = userDoc.data()?['displayName'] ?? 'An employee';
-      final dept = userDoc.data()?['department'] as String?;
+      final userData = await _backend.getUser(goal.userId);
+      final employeeName = userData['displayName'] ?? 'An employee';
+      final dept = userData['department']?.toString();
 
-      // NEW: Check for evidence if milestone ID provided (additive extension)
       String evidenceInfo = '';
       if (milestoneId != null) {
         try {
@@ -718,39 +706,37 @@ class AlertService {
         }
       }
 
-      Query mgrQuery = _firestore
-          .collection('users')
-          .where('role', isEqualTo: 'manager');
-      if (dept != null && dept.isNotEmpty) {
-        mgrQuery = mgrQuery.where('department', isEqualTo: dept);
-      }
-      final mgrs = await mgrQuery.get();
-      if (mgrs.docs.isEmpty) return;
+      final managers = await _backend.listUsers(
+        role: 'manager',
+        department: (dept != null && dept.isNotEmpty) ? dept : null,
+        limit: 500,
+      );
+      if (managers.isEmpty) return;
 
-      for (final mgr in mgrs.docs) {
-        await _firestore.collection('alerts').add({
-          'userId': mgr.id,
-          'type': AlertType.goalMilestoneCompleted.name,
-          'priority': AlertPriority.medium.name,
-          'title': 'Milestone Completed',
-          'message':
+      for (final mgr in managers) {
+        final managerId = _userIdFromMap(mgr);
+        if (managerId.isEmpty) continue;
+        final alert = Alert(
+          id: '',
+          userId: managerId,
+          type: AlertType.goalMilestoneCompleted,
+          audience: AlertAudience.team,
+          priority: AlertPriority.medium,
+          title: 'Milestone Completed',
+          message:
               '$employeeName finished "$milestoneTitle"$evidenceInfo for goal "${goal.title}".',
-          'actionText': 'Review Goal',
-          'actionRoute': '/manager_portal',
-          'actionData': {
+          actionText: 'Review Goal',
+          actionRoute: '/manager_portal',
+          actionData: {
             'initialRoute': '/manager_review_team_dashboard',
             'goalId': goal.id,
-            'milestoneId':
-                milestoneId, // NEW: Include milestone ID for direct access
+            'milestoneId': ?milestoneId,
           },
-          'relatedGoalId': goal.id,
-          'createdAt': FieldValue.serverTimestamp(),
-          'isRead': false,
-          'isDismissed': false,
-          'expiresAt': Timestamp.fromDate(
-            DateTime.now().add(const Duration(days: 7)),
-          ),
-        });
+          createdAt: DateTime.now(),
+          relatedGoalId: goal.id,
+          expiresAt: DateTime.now().add(const Duration(days: 7)),
+        );
+        await _createAlert(alert);
       }
     } catch (e) {
       developer.log('Error creating manager milestone alert: $e');
@@ -923,28 +909,19 @@ class AlertService {
     await _createAlert(alert);
   }
 
-  // NEW: Helper method to get managers for an employee
-  static Future<List<DocumentSnapshot>> _getManagersForEmployee(
+  static Future<List<Map<String, dynamic>>> _getManagersForEmployee(
     String employeeId,
   ) async {
     try {
-      // Get employee's department
-      final employeeDoc = await _firestore
-          .collection('users')
-          .doc(employeeId)
-          .get();
-      final department = employeeDoc.data()?['department'] as String?;
-
-      // Find managers in the same department (or all managers if no department)
-      Query managerQuery = _firestore
-          .collection('users')
-          .where('role', isEqualTo: 'manager');
-      if (department != null && department.isNotEmpty) {
-        managerQuery = managerQuery.where('department', isEqualTo: department);
-      }
-
-      final managerSnapshot = await managerQuery.get();
-      return managerSnapshot.docs;
+      final employeeData = await _backend.getUser(employeeId);
+      final department = employeeData['department']?.toString();
+      return _backend.listUsers(
+        role: 'manager',
+        department: (department != null && department.isNotEmpty)
+            ? department
+            : null,
+        limit: 500,
+      );
     } catch (e) {
       developer.log('Error getting managers for employee: $e');
       return [];
@@ -960,54 +937,43 @@ class AlertService {
     required int evidenceCount,
   }) async {
     try {
-      // Get employee details
-      final employeeDoc = await _firestore
-          .collection('users')
-          .doc(employeeId)
-          .get();
+      final employeeData = await _backend.getUser(employeeId);
       final employeeName =
-          employeeDoc.data()?['displayName'] ??
-          employeeDoc.data()?['name'] ??
+          employeeData['displayName'] ??
+          employeeData['name'] ??
           'Employee';
 
-      // Get goal details
-      final goalDoc = await _firestore.collection('goals').doc(goalId).get();
-      final goalTitle = goalDoc.data()?['title'] ?? 'Goal';
+      final goals = await _backend.getGoals(goalId: goalId, limit: 1);
+      final goalTitle = goals.isNotEmpty
+          ? (goals.first['title'] ?? 'Goal').toString()
+          : 'Goal';
 
-      // Find managers based on employee's department
       final managers = await _getManagersForEmployee(employeeId);
-
-      // Create alerts for all managers
-      final alerts = managers
-          .map(
-            (manager) => {
-              'userId': manager.id,
-              'type':
-                  AlertType.goalMilestoneCompleted.name, // Reuse existing type
-              'priority': AlertPriority.high.name,
-              'title': 'Milestone Evidence Submitted',
-              'message':
-                  '$employeeName submitted evidence for milestone "$milestoneTitle" in goal "$goalTitle". ($evidenceCount evidence file(s))',
-              'createdAt': Timestamp.now(),
-              'isRead': false,
-              'actionRoute': '/my_pdp',
-              'actionData': {
-                'goalId': goalId,
-                'milestoneId': milestoneId,
-                'employeeId': employeeId,
-                'evidenceCount': evidenceCount,
-              },
-            },
-          )
-          .toList();
-
-      // Batch write alerts
-      final batch = _firestore.batch();
-      for (final alertData in alerts) {
-        final alertRef = _firestore.collection('alerts').doc();
-        batch.set(alertRef, alertData);
+      for (final manager in managers) {
+        final managerId = _userIdFromMap(manager);
+        if (managerId.isEmpty) continue;
+        final alert = Alert(
+          id: '',
+          userId: managerId,
+          type: AlertType.goalMilestoneCompleted,
+          audience: AlertAudience.team,
+          priority: AlertPriority.high,
+          title: 'Milestone Evidence Submitted',
+          message:
+              '$employeeName submitted evidence for milestone "$milestoneTitle" in goal "$goalTitle". ($evidenceCount evidence file(s))',
+          actionRoute: '/my_pdp',
+          actionData: {
+            'goalId': goalId,
+            'milestoneId': milestoneId,
+            'employeeId': employeeId,
+            'evidenceCount': evidenceCount,
+          },
+          createdAt: DateTime.now(),
+          relatedGoalId: goalId,
+          expiresAt: DateTime.now().add(const Duration(days: 7)),
+        );
+        await _createAlert(alert);
       }
-      await batch.commit();
     } catch (e) {
       developer.log('Error creating milestone evidence submitted alert: $e');
       rethrow;
@@ -1153,38 +1119,7 @@ class AlertService {
         expiresAt: DateTime.now().add(const Duration(days: 7)),
       );
 
-      // Try top-level alerts collection first
-      try {
-        await _createAlert(alert);
-      } on FirebaseException catch (fe) {
-        // If permission denied, try user subcollection (but email still sent)
-        if (fe.code == 'permission-denied') {
-          try {
-            await _firestore
-                .collection('users')
-                .doc(userId)
-                .collection('alerts')
-                .add(alert.toFirestore());
-            // Still send email even if using subcollection
-            await EmailNotificationService.sendAlertEmail(
-              userId: userId,
-              alertType: alert.type.name,
-              title: alert.title,
-              message: alert.message,
-              relatedGoalId: alert.relatedGoalId,
-              metadata: {
-                if (alert.fromUserName != null)
-                  'managerName': alert.fromUserName,
-              },
-            );
-          } catch (e) {
-            developer.log('Error creating alert in subcollection: $e');
-            rethrow;
-          }
-        } else {
-          rethrow;
-        }
-      }
+      await _createAlert(alert);
 
       // Best-effort activity record; ignore permission issues per stricter rulesets
       try {
@@ -1231,12 +1166,8 @@ class AlertService {
     await _createAlert(alert);
   }
 
-  // Core alert management
   static Future<void> _createAlertStrict(Alert alert) async {
-    await FirestoreSafe.addDoc<Map<String, dynamic>>(
-      _firestore.collection('alerts'),
-      alert.toFirestore(),
-    );
+    await _backend.createAlert(alert.userId, alert.toMap(includeId: false));
   }
 
   static Future<void> _createAlert(Alert alert) async {
@@ -1264,86 +1195,93 @@ class AlertService {
     }
   }
 
-  /// Live alerts for a user. Uses a bounded Firestore query (newest first) so
-  /// large inboxes cannot download the entire collection on every snapshot.
+  static String _dedupeKeyFor(Alert a) {
+    switch (a.type) {
+      case AlertType.oneOnOneRequested:
+      case AlertType.oneOnOneProposed:
+      case AlertType.oneOnOneAccepted:
+      case AlertType.oneOnOneRescheduled:
+      case AlertType.oneOnOneCancelled:
+        final mid = (a.actionData?['meetingId'] ?? '').toString();
+        return '${a.type.name}|$mid';
+      case AlertType.goalDueSoon:
+      case AlertType.goalOverdue:
+      case AlertType.inactivity:
+      case AlertType.goalApprovalRequested:
+      case AlertType.goalApprovalApproved:
+      case AlertType.goalApprovalRejected:
+      case AlertType.teamGoalAvailable:
+      case AlertType.employeeJoinedTeamGoal:
+        return '${a.type.name}|${a.relatedGoalId ?? ''}';
+      case AlertType.managerNudge:
+        return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.fromUserId ?? ''}|${a.message}';
+      default:
+        return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.title}|${a.message}';
+    }
+  }
+
+  static List<Alert> _processUserAlerts(
+    List<Alert> alerts, {
+    int? maxItems,
+  }) {
+    try {
+      final active = alerts.where((alert) {
+        if (alert.isDismissed) return false;
+        if (alert.expiresAt != null &&
+            alert.expiresAt!.isBefore(DateTime.now())) {
+          return false;
+        }
+        return true;
+      }).toList();
+
+      active.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      final seen = <String>{};
+      final deduped = <Alert>[];
+      for (final a in active) {
+        final key = _dedupeKeyFor(a);
+        if (seen.add(key)) {
+          deduped.add(a);
+        }
+      }
+
+      if (maxItems != null && maxItems > 0) {
+        return deduped.take(maxItems).toList();
+      }
+      return deduped;
+    } catch (e) {
+      developer.log('Error processing alerts: $e');
+      return <Alert>[];
+    }
+  }
+
+  static Future<List<Alert>> _fetchUserAlerts(
+    String userId, {
+    int? maxItems,
+    int? serverFetchLimit,
+  }) async {
+    final int effectiveMax = maxItems ?? 100;
+    final int fetchCap = serverFetchLimit ??
+        (effectiveMax <= 0 ? 500 : (effectiveMax * 5).clamp(150, 600));
+    final items = await _backend.getAlerts(userId, limit: fetchCap);
+    return _processUserAlerts(_mapsToAlerts(items), maxItems: maxItems);
+  }
+
+  /// Live alerts for a user. Polls the backend on an interval so large inboxes
+  /// stay bounded without downloading the entire collection each tick.
   static Stream<List<Alert>> getUserAlertsStream(
     String userId, {
     int? maxItems = 100,
     int? serverFetchLimit,
   }) {
-    final int effectiveMax = maxItems ?? 100;
-    final int fetchCap = serverFetchLimit ??
-        (effectiveMax <= 0 ? 500 : (effectiveMax * 5).clamp(150, 600));
-
-    return FirestoreSafe.stream(
-      _firestore
-          .collection('alerts')
-          .where('userId', isEqualTo: userId)
-          .where('isDismissed', isEqualTo: false)
-          .orderBy('createdAt', descending: true)
-          .limit(fetchCap)
-          .snapshots(),
-    ).map((snapshot) {
-      try {
-        final alerts = snapshot.docs
-            .map((doc) => Alert.fromFirestore(doc))
-            .where((alert) {
-              // Filter out expired alerts
-              if (alert.expiresAt != null &&
-                  alert.expiresAt!.isBefore(DateTime.now())) {
-                return false;
-              }
-              return true;
-            })
-            .toList();
-
-        // Query is already ordered; keep a stable sort after client filters.
-        alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-        // Deduplicate by a stable composite key to avoid doubles in UI
-        final seen = <String>{};
-        final deduped = <Alert>[];
-        String keyFor(Alert a) {
-          switch (a.type) {
-            case AlertType.oneOnOneRequested:
-            case AlertType.oneOnOneProposed:
-            case AlertType.oneOnOneAccepted:
-            case AlertType.oneOnOneRescheduled:
-            case AlertType.oneOnOneCancelled:
-              final mid = (a.actionData?['meetingId'] ?? '').toString();
-              return '${a.type.name}|$mid';
-            case AlertType.goalDueSoon:
-            case AlertType.goalOverdue:
-            case AlertType.inactivity:
-            case AlertType.goalApprovalRequested:
-            case AlertType.goalApprovalApproved:
-            case AlertType.goalApprovalRejected:
-            case AlertType.teamGoalAvailable:
-            case AlertType.employeeJoinedTeamGoal:
-              return '${a.type.name}|${a.relatedGoalId ?? ''}';
-            case AlertType.managerNudge:
-              return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.fromUserId ?? ''}|${a.message}';
-            default:
-              return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.title}|${a.message}';
-          }
-        }
-
-        for (final a in alerts) {
-          final key = keyFor(a);
-          if (seen.add(key)) {
-            deduped.add(a);
-          }
-        }
-
-        if (maxItems != null && maxItems > 0) {
-          return deduped.take(maxItems).toList();
-        }
-        return deduped;
-      } catch (e) {
-        developer.log('Error processing alerts: $e');
-        return <Alert>[];
-      }
-    });
+    return createManagedPollingStream<List<Alert>>(
+      initialValue: const [],
+      fetch: () => _fetchUserAlerts(
+        userId,
+        maxItems: maxItems,
+        serverFetchLimit: serverFetchLimit,
+      ),
+    );
   }
 
   /// Stream alerts for the manager inbox with optional filters.
@@ -1460,9 +1398,9 @@ class AlertService {
 
   static Future<void> markAsRead(String alertId) async {
     try {
-      await _firestore.collection('alerts').doc(alertId).update({
-        'isRead': true,
-      });
+      final uid = _auth.currentUser?.uid;
+      if (uid == null || alertId.isEmpty) return;
+      await _backend.patchAlert(uid, alertId, {'isRead': true});
     } catch (e) {
       developer.log('Error marking alert as read: $e');
     }
@@ -1470,9 +1408,9 @@ class AlertService {
 
   static Future<void> dismissAlert(String alertId) async {
     try {
-      await _firestore.collection('alerts').doc(alertId).update({
-        'isDismissed': true,
-      });
+      final uid = _auth.currentUser?.uid;
+      if (uid == null || alertId.isEmpty) return;
+      await _backend.patchAlert(uid, alertId, {'isDismissed': true});
     } catch (e) {
       developer.log('Error dismissing alert: $e');
     }
@@ -1480,21 +1418,24 @@ class AlertService {
 
   static Future<void> markAllAsRead(String userId) async {
     try {
-      final batch = _firestore.batch();
-      final alerts = await _firestore
-          .collection('alerts')
-          .where('userId', isEqualTo: userId)
-          .where('isRead', isEqualTo: false)
-          .get();
-
-      for (final doc in alerts.docs) {
-        batch.update(doc.reference, {'isRead': true});
-      }
-
-      await batch.commit();
+      await _backend.patchAlertsBatch(userId, {'markAllRead': true});
     } catch (e) {
       developer.log('Error marking all alerts as read: $e');
     }
+  }
+
+  static Future<void> _patchAlertsByIds(
+    String userId,
+    List<String> alertIds,
+    Map<String, dynamic> patch,
+  ) async {
+    if (alertIds.isEmpty) return;
+    await _backend.patchAlertsBatch(userId, {
+      'updates': {
+        'alertIds': alertIds,
+        ...patch,
+      },
+    });
   }
 
   static Future<void> markGoalRelatedAlertsAsRead(
@@ -1502,21 +1443,20 @@ class AlertService {
     String goalId,
   ) async {
     try {
-      final batch = _firestore.batch();
-      final alerts = await _firestore
-          .collection('alerts')
-          .where('userId', isEqualTo: userId)
-          .where('relatedGoalId', isEqualTo: goalId)
-          .where('isRead', isEqualTo: false)
-          .get();
+      final items = await _backend.getAlerts(userId, limit: 500);
+      final alertIds = items
+          .where((m) {
+            final related = (m['relatedGoalId'] ?? '').toString();
+            final isRead = (m['isRead'] ?? false) == true;
+            return related == goalId && !isRead;
+          })
+          .map((m) => (m['id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toList();
 
-      for (final doc in alerts.docs) {
-        batch.update(doc.reference, {'isRead': true});
-      }
-
-      await batch.commit();
+      await _patchAlertsByIds(userId, alertIds, {'isRead': true});
       developer.log(
-        'Marked ${alerts.docs.length} alerts as read for goal $goalId',
+        'Marked ${alertIds.length} alerts as read for goal $goalId',
       );
     } catch (e) {
       developer.log('Error marking goal-related alerts as read: $e');
@@ -1529,39 +1469,34 @@ class AlertService {
     required bool approved,
   }) async {
     try {
-      final batch = _firestore.batch();
       final nextType = approved
           ? AlertType.goalApprovalApproved.name
           : AlertType.goalApprovalRejected.name;
-      final alerts = await _firestore
-          .collection('alerts')
-          .where('userId', isEqualTo: userId)
-          .where('relatedGoalId', isEqualTo: goalId)
-          .where('type', isEqualTo: AlertType.goalApprovalRequested.name)
-          .where('isRead', isEqualTo: false)
-          .get();
+      final items = await _backend.getAlerts(userId, limit: 500);
+      final matching = items.where((m) {
+        final related = (m['relatedGoalId'] ?? '').toString();
+        final type = (m['type'] ?? '').toString();
+        final isRead = (m['isRead'] ?? false) == true;
+        return related == goalId &&
+            type == AlertType.goalApprovalRequested.name &&
+            !isRead;
+      }).toList();
 
-      for (final doc in alerts.docs) {
-        batch.update(doc.reference, {
+      for (final m in matching) {
+        final alertId = (m['id'] ?? '').toString();
+        if (alertId.isEmpty) continue;
+        await _backend.patchAlert(userId, alertId, {
           'isRead': true,
           'type': nextType,
         });
-      }
-
-      await batch.commit();
-      developer.log(
-        'Marked ${alerts.docs.length} goal approval alert(s) as read and changed to $nextType for userId: $userId, goalId: $goalId',
-      );
-
-      // Debug: Log the alert types being updated
-      for (final doc in alerts.docs) {
-        final alertData = doc.data();
-        final currentType = alertData['type'];
-        final newType = nextType;
         developer.log(
-          'Updating alert ${doc.id}: type $currentType -> $newType',
+          'Updating alert $alertId: type ${m['type']} -> $nextType',
         );
       }
+
+      developer.log(
+        'Marked ${matching.length} goal approval alert(s) as read and changed to $nextType for userId: $userId, goalId: $goalId',
+      );
     } catch (e) {
       developer.log('Error marking goal approval alerts as read: $e');
     }
@@ -1585,38 +1520,27 @@ class AlertService {
     int maxAlerts = 200,
   }) async {
     try {
-      final reviewer = FirebaseAuth.instance.currentUser;
+      final reviewer = _auth.currentUser;
       if (reviewer == null) return;
 
-      final alertsSnap = await _firestore
-          .collection('alerts')
-          .where('userId', isEqualTo: reviewer.uid)
-          .where('type', isEqualTo: AlertType.goalApprovalRequested.name)
-          .limit(maxAlerts)
-          .get();
+      final items = await _backend.getAlerts(reviewer.uid, limit: maxAlerts);
+      final pending = items
+          .where(
+            (m) =>
+                (m['type'] ?? '').toString() ==
+                AlertType.goalApprovalRequested.name,
+          )
+          .toList();
+      if (pending.isEmpty) return;
 
-      if (alertsSnap.docs.isEmpty) return;
-
-      WriteBatch batch = _firestore.batch();
-      var pendingWrites = 0;
-
-      Future<void> flush() async {
-        if (pendingWrites == 0) return;
-        await batch.commit();
-        batch = _firestore.batch();
-        pendingWrites = 0;
-      }
-
-      for (final doc in alertsSnap.docs) {
-        final data = doc.data();
+      for (final data in pending) {
         final goalId = (data['relatedGoalId'] ?? '').toString().trim();
-        if (goalId.isEmpty) continue;
+        final alertId = (data['id'] ?? '').toString();
+        if (goalId.isEmpty || alertId.isEmpty) continue;
 
-        final goalSnap =
-            await _firestore.collection('goals').doc(goalId).get();
-        if (!goalSnap.exists) continue;
-        final gd = goalSnap.data() ?? {};
-        final status = (gd['approvalStatus'] ?? '').toString();
+        final goals = await _backend.getGoals(goalId: goalId, limit: 1);
+        if (goals.isEmpty) continue;
+        final status = (goals.first['approvalStatus'] ?? '').toString();
         if (status != GoalApprovalStatus.approved.name &&
             status != GoalApprovalStatus.rejected.name) {
           continue;
@@ -1626,16 +1550,11 @@ class AlertService {
             ? AlertType.goalApprovalRejected.name
             : AlertType.goalApprovalApproved.name;
 
-        batch.update(doc.reference, {
+        await _backend.patchAlert(reviewer.uid, alertId, {
           'type': targetType,
           'isRead': true,
         });
-        pendingWrites++;
-        if (pendingWrites >= 450) {
-          await flush();
-        }
       }
-      await flush();
     } catch (e) {
       developer.log('migrateStuckGoalApprovalAlertsForSignedInUser: $e');
     }
@@ -1647,7 +1566,7 @@ class AlertService {
   static final Map<String, Future<void>> _finalizeGoalAlertsMigration = {};
 
   static Future<void> migrateExistingFinalizedGoalAlerts() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _auth.currentUser?.uid;
     if (uid == null) return;
     return _finalizeGoalAlertsMigration.putIfAbsent(
       uid,
@@ -1659,82 +1578,67 @@ class AlertService {
     await migrateExistingFinalizedGoalAlerts();
   }
 
+  static Future<bool> _hasActiveAlert({
+    required String userId,
+    required AlertType type,
+    required String goalId,
+  }) async {
+    final items = await _backend.getAlerts(userId, limit: 200);
+    return items.any((m) {
+      final alert = _alertFromMap(m);
+      return alert.type == type &&
+          alert.relatedGoalId == goalId &&
+          !alert.isDismissed &&
+          (alert.expiresAt == null ||
+              !alert.expiresAt!.isBefore(DateTime.now()));
+    });
+  }
+
+  static DateTime? _parseActivityDate(dynamic value) {
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value?.toString() ?? '');
+  }
+
   // Auto-generate alerts based on goal events
   static Future<void> checkAndCreateGoalAlerts() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
     if (user == null) return;
 
     try {
-      // Get user's goals
-      final goalsSnapshot = await _firestore
-          .collection('goals')
-          .where('userId', isEqualTo: user.uid)
-          .get();
+      final goalMaps = await _backend.getGoals(userId: user.uid, limit: 200);
 
-      for (final doc in goalsSnapshot.docs) {
-        final data = doc.data();
-        final goal = Goal(
-          id: doc.id,
-          userId: data['userId'] ?? user.uid,
-          title: data['title'] ?? '',
-          description: data['description'] ?? '',
-          category: GoalCategory.values.firstWhere(
-            (e) => e.name == (data['category'] ?? 'personal'),
-            orElse: () => GoalCategory.personal,
-          ),
-          priority: GoalPriority.values.firstWhere(
-            (e) => e.name == (data['priority'] ?? 'medium'),
-            orElse: () => GoalPriority.medium,
-          ),
-          status: GoalStatus.values.firstWhere(
-            (e) => e.name == (data['status'] ?? 'notStarted'),
-            orElse: () => GoalStatus.notStarted,
-          ),
-          progress: (data['progress'] ?? 0) as int,
-          createdAt:
-              (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          targetDate:
-              (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          points: (data['points'] ?? 0) as int,
-        );
+      for (final data in goalMaps) {
+        final goalId = (data['id'] ?? '').toString();
+        if (goalId.isEmpty) continue;
+        final goal = Goal.fromMap(data, id: goalId);
 
-        // Upsert today's daily progress snapshot for burndown/burnup
         try {
           final today = DateTime.now();
           final dayKey =
               '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-          final progressDocId = '${doc.id}__$dayKey';
-          await _firestore
-              .collection('goal_daily_progress')
-              .doc(progressDocId)
-              .set({
-                'id': progressDocId,
-                'goalId': doc.id,
-                'userId': user.uid,
-                'date': dayKey,
-                'progress': goal.progress,
-                'remaining': (100 - goal.progress).clamp(0, 100),
-                'createdAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
-        } catch (e) {
+          final progressDocId = '${goal.id}__$dayKey';
+          await _backend.createGoalDailyProgress({
+            'id': progressDocId,
+            'goalId': goal.id,
+            'userId': user.uid,
+            'date': dayKey,
+            'progress': goal.progress,
+            'remaining': (100 - goal.progress).clamp(0, 100),
+            'createdAt': DateTime.now().toIso8601String(),
+          });
+        } catch (_) {
           // Non-critical, ignore failures
         }
 
-        // Due Soon: within typical effort window; using 7 days as illustrative
         final daysUntilDue = goal.targetDate.difference(DateTime.now()).inDays;
         if (daysUntilDue <= 7 &&
             daysUntilDue > 0 &&
             goal.isEligibleForOverdueTeamAlert) {
-          // Check if alert already exists
-          final existingAlert = await _firestore
-              .collection('alerts')
-              .where('userId', isEqualTo: user.uid)
-              .where('type', isEqualTo: AlertType.goalDueSoon.name)
-              .where('relatedGoalId', isEqualTo: goal.id)
-              .where('isDismissed', isEqualTo: false)
-              .get();
-
-          if (existingAlert.docs.isEmpty) {
+          if (!await _hasActiveAlert(
+            userId: user.uid,
+            type: AlertType.goalDueSoon,
+            goalId: goal.id,
+          )) {
             await createGoalAlert(
               userId: user.uid,
               goal: goal,
@@ -1743,17 +1647,12 @@ class AlertService {
           }
         }
 
-        // Overdue alerts (employee) and notify manager when 1 day overdue
         if (daysUntilDue < 0 && goal.isEligibleForOverdueTeamAlert) {
-          final existingAlert = await _firestore
-              .collection('alerts')
-              .where('userId', isEqualTo: user.uid)
-              .where('type', isEqualTo: AlertType.goalOverdue.name)
-              .where('relatedGoalId', isEqualTo: goal.id)
-              .where('isDismissed', isEqualTo: false)
-              .get();
-
-          if (existingAlert.docs.isEmpty) {
+          if (!await _hasActiveAlert(
+            userId: user.uid,
+            type: AlertType.goalOverdue,
+            goalId: goal.id,
+          )) {
             await createGoalAlert(
               userId: user.uid,
               goal: goal,
@@ -1761,39 +1660,35 @@ class AlertService {
             );
           }
 
-          // If exactly 1 day overdue, notify manager(s)
           if (daysUntilDue == -1) {
             try {
-              final userDoc = await _firestore
-                  .collection('users')
-                  .doc(user.uid)
-                  .get();
-              final dept = userDoc.data()?['department'] as String?;
-              Query mgrQuery = _firestore
-                  .collection('users')
-                  .where('role', isEqualTo: 'manager');
-              if (dept != null && dept.isNotEmpty) {
-                mgrQuery = mgrQuery.where('department', isEqualTo: dept);
-              }
-              final mgrs = await mgrQuery.get();
-              for (final mgr in mgrs.docs) {
-                await _firestore.collection('alerts').add({
-                  'userId': mgr.id,
-                  'type': AlertType.goalOverdue.name,
-                  'priority': AlertPriority.high.name,
-                  'title': 'Employee Goal Overdue',
-                  'message':
-                      "${userDoc.data()?['displayName'] ?? 'An employee'}'s goal \"${goal.title}\" is 1 day overdue. Review and decide next step.",
-                  'actionText': 'Review Goal',
-                  'actionRoute': '/manager_alerts_nudges',
-                  'createdAt': FieldValue.serverTimestamp(),
-                  'relatedGoalId': goal.id,
-                  'isRead': false,
-                  'isDismissed': false,
-                  'expiresAt': Timestamp.fromDate(
-                    DateTime.now().add(const Duration(days: 7)),
-                  ),
-                });
+              final userData = await _backend.getUser(user.uid);
+              final dept = userData['department']?.toString();
+              final employeeName = userData['displayName'] ?? 'An employee';
+              final managers = await _backend.listUsers(
+                role: 'manager',
+                department: (dept != null && dept.isNotEmpty) ? dept : null,
+                limit: 500,
+              );
+              for (final mgr in managers) {
+                final managerId = _userIdFromMap(mgr);
+                if (managerId.isEmpty) continue;
+                final alert = Alert(
+                  id: '',
+                  userId: managerId,
+                  type: AlertType.goalOverdue,
+                  audience: AlertAudience.team,
+                  priority: AlertPriority.high,
+                  title: 'Employee Goal Overdue',
+                  message:
+                      "$employeeName's goal \"${goal.title}\" is 1 day overdue. Review and decide next step.",
+                  actionText: 'Review Goal',
+                  actionRoute: '/manager_alerts_nudges',
+                  createdAt: DateTime.now(),
+                  relatedGoalId: goal.id,
+                  expiresAt: DateTime.now().add(const Duration(days: 7)),
+                );
+                await _createAlert(alert);
               }
             } catch (_) {
               // Soft-fail on manager notification
@@ -1801,33 +1696,30 @@ class AlertService {
           }
         }
 
-        // Inactivity: no progress for N days while in active period
         if (goal.status == GoalStatus.inProgress) {
-          final lastActivityDoc = await _firestore
-              .collection('users')
-              .doc(user.uid)
-              .collection('daily_activities')
-              .orderBy('date', descending: true)
-              .limit(1)
-              .get();
-          final lastActivityDate = lastActivityDoc.docs.isNotEmpty
-              ? (lastActivityDoc.docs.first.data()['date'] as Timestamp)
-                    .toDate()
-              : null;
+          final activities =
+              await _backend.getDailyActivities(user.uid, limit: 1);
+          DateTime? lastActivityDate;
+          if (activities.isNotEmpty) {
+            activities.sort((a, b) {
+              final ad = _parseActivityDate(a['date']);
+              final bd = _parseActivityDate(b['date']);
+              if (ad == null && bd == null) return 0;
+              if (ad == null) return 1;
+              if (bd == null) return -1;
+              return bd.compareTo(ad);
+            });
+            lastActivityDate = _parseActivityDate(activities.first['date']);
+          }
           final daysSinceActivity = lastActivityDate != null
               ? DateTime.now().difference(lastActivityDate).inDays
               : 999;
           if (daysSinceActivity >= 5) {
-            // Avoid creating duplicate inactivity alerts for the same goal
-            final existingInactivity = await _firestore
-                .collection('alerts')
-                .where('userId', isEqualTo: user.uid)
-                .where('type', isEqualTo: AlertType.inactivity.name)
-                .where('relatedGoalId', isEqualTo: goal.id)
-                .where('isDismissed', isEqualTo: false)
-                .get();
-
-            if (existingInactivity.docs.isEmpty) {
+            if (!await _hasActiveAlert(
+              userId: user.uid,
+              type: AlertType.inactivity,
+              goalId: goal.id,
+            )) {
               await createGoalAlert(
                 userId: user.uid,
                 goal: goal,
@@ -1844,20 +1736,15 @@ class AlertService {
 
   // Get alert statistics
   static Future<Map<String, int>> getAlertStats(String userId) async {
-    final alerts = await _firestore
-        .collection('alerts')
-        .where('userId', isEqualTo: userId)
-        .where('isDismissed', isEqualTo: false)
-        .get();
+    final items = await _backend.getAlerts(userId, limit: 500);
+    final alerts = _processUserAlerts(_mapsToAlerts(items));
 
     int unread = 0;
     int urgent = 0;
     int dueSoon = 0;
     int overdue = 0;
 
-    for (final doc in alerts.docs) {
-      final alert = Alert.fromFirestore(doc);
-
+    for (final alert in alerts) {
       if (!alert.isRead) unread++;
       if (alert.priority == AlertPriority.urgent) urgent++;
       if (alert.type == AlertType.goalDueSoon) dueSoon++;

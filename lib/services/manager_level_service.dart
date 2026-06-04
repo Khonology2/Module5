@@ -1,3 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+
 class ManagerLevelInfo {
   final int level;
   final String title;
@@ -51,5 +54,37 @@ class ManagerLevelService {
       theme: '🎯',
       description: 'New Manager — has begun supporting team development through initial acknowledgements and feedback.',
     );
+  }
+
+  static Future<ManagerLevelInfo> getInfoForCurrentUser() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return getInfoForPoints(0);
+    }
+
+    try {
+      final profile = await BackendAuthService.instance.getUser(user.uid);
+      final points = _readPoints(profile);
+      return getInfoForPoints(points);
+    } catch (_) {
+      return getInfoForPoints(0);
+    }
+  }
+
+  static Future<ManagerLevelInfo> getInfoForUser(String userId) async {
+    try {
+      final profile = await BackendAuthService.instance.getUser(userId);
+      final points = _readPoints(profile);
+      return getInfoForPoints(points);
+    } catch (_) {
+      return getInfoForPoints(0);
+    }
+  }
+
+  static int _readPoints(Map<String, dynamic> profile) {
+    final raw = profile['totalPoints'] ?? profile['total_points'] ?? 0;
+    if (raw is int) return raw;
+    if (raw is num) return raw.round();
+    return int.tryParse(raw.toString()) ?? 0;
   }
 }

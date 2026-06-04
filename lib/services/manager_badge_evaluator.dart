@@ -1,29 +1,60 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/alert.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/badge_service.dart';
 
 class ManagerBadgeEvaluator {
-  static final _db = FirebaseFirestore.instance;
+  static final BackendAuthService _backend = BackendAuthService.instance;
   static const int _capApprovalPointsPerWeek = 100; // 10 approvals * 10 pts
   static const int _capNudgePointsPerWeek = 40; // 20 detailed nudges * 2 pts
   static const Duration _window = Duration(days: 7);
   static const Duration _nudgeCooldown = Duration(minutes: 60);
-  // Lifetime-based counting for Nudge Network badges (no window)
   static const int _timelyApprovalTier1 = 10;
   static const int _timelyApprovalTier2 = 25;
   static const int _meetingTier1 = 5;
   static const int _meetingTier2 = 10;
   static const int _replanTier2 = 15;
 
-  static Query<Map<String, dynamic>> _managerNudgeQuery(String managerId) {
-    return _db
-        .collectionGroup('alerts')
-        .where('type', isEqualTo: AlertType.managerNudge.name)
-        .where('fromUserId', isEqualTo: managerId);
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value.toString());
+  }
+
+  static Future<List<Map<String, dynamic>>> _goalsApprovedBy(
+    String managerId,
+  ) async {
+    final goals = await _backend.getGoals(limit: 2000);
+    return goals
+        .where(
+          (g) => (g['approvedByUserId'] ?? '').toString() == managerId,
+        )
+        .toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> _managerNudgeAlerts(
+    String managerId,
+  ) async {
+    final users = await _backend.listUsers(limit: 2000);
+    final chunks = <List<Map<String, dynamic>>>[];
+    for (final user in users) {
+      final uid = (user['id'] ?? user['uid'] ?? '').toString();
+      if (uid.isEmpty) continue;
+      try {
+        final alerts = await _backend.getAlerts(uid, limit: 200);
+        chunks.add(
+          alerts.where((alert) {
+            final type = (alert['type'] ?? '').toString();
+            final fromUserId = (alert['fromUserId'] ?? '').toString();
+            return type == AlertType.managerNudge.name &&
+                fromUserId == managerId;
+          }).toList(),
+        );
+      } catch (_) {}
+    }
+    return chunks.expand((e) => e).toList();
   }
 
   static Future<void> evaluate(String managerId) async {
-    // Compute metrics
     await ensureBaselineManagerBadges(managerId);
     final approvalsCount = await _countApprovals(managerId);
     final monthlyAcknowledgements = await _countMonthlyAcknowledgements(
@@ -39,9 +70,10 @@ class ManagerBadgeEvaluator {
       detailedNudges,
     );
     final timelyApprovals30d = await _countTimelyApprovals30d(managerId);
-    final meetingsUnique30d = await _countMeetingsUniqueEmployees30d(managerId);
+    final meetingsUnique30d = await _countMeetingsUniqueEmployees30d(
+      managerId,
+    );
 
-    // Award badges (write to users/{uid}/badges)
     await _upsertBadge(
       userId: managerId,
       badgeId: 'mgr_active_coach',
@@ -226,7 +258,6 @@ class ManagerBadgeEvaluator {
       managerLevel: 4,
     );
 
-    // === Nudge Network per Level (lifetime distinct employees nudged) ===
     final distinctNudged = await _countDistinctEmployeesNudgedAllTime(
       managerId,
     );
@@ -265,7 +296,6 @@ class ManagerBadgeEvaluator {
     await BadgeService.updateUserBadgeSummary(managerId);
   }
 
-  // Ensure manager badge docs exist (locked) so UI can display them grouped by level
   static Future<void> ensureBaselineManagerBadges(String managerId) async {
     Future<void> seed(
       String id,
@@ -277,26 +307,23 @@ class ManagerBadgeEvaluator {
       int maxProgress,
       int managerLevel,
     ) async {
-      final ref = _db
-          .collection('users')
-          .doc(managerId)
-          .collection('badges')
-          .doc(id);
-      final snap = await ref.get();
-      if (!snap.exists) {
-        await ref.set({
-          'name': name,
-          'description': description,
-          'iconName': iconName,
-          'category': category,
-          'rarity': rarity,
-          'pointsRequired': 0,
-          'criteria': {'badgeId': id, 'managerLevel': managerLevel},
-          'isEarned': false,
-          'progress': 0,
-          'maxProgress': maxProgress,
-        }, SetOptions(merge: true));
-      }
+      final existing = await _backend.getBadges(managerId, limit: 500);
+      final hasBadge = existing.any(
+        (b) => (b['id'] ?? b['badgeId'] ?? '').toString() == id,
+      );
+      if (hasBadge) return;
+      await _backend.upsertBadge(managerId, id, {
+        'name': name,
+        'description': description,
+        'iconName': iconName,
+        'category': category,
+        'rarity': rarity,
+        'pointsRequired': 0,
+        'criteria': {'badgeId': id, 'managerLevel': managerLevel},
+        'isEarned': false,
+        'progress': 0,
+        'maxProgress': maxProgress,
+      });
     }
 
     await Future.wait([
@@ -430,7 +457,6 @@ class ManagerBadgeEvaluator {
         3500,
         5,
       ),
-      // Seed Nudge Network badges (lifetime distinct employees nudged)
       seed(
         'mgr_nudge_network_l1',
         'Nudge Network L1',
@@ -485,49 +511,26 @@ class ManagerBadgeEvaluator {
   }
 
   static Future<int> _countApprovals(String managerId) async {
-    final goalsSnap = await _db
-        .collection('goals')
-        .where('approvedByUserId', isEqualTo: managerId)
-        .get();
-    return goalsSnap.docs.length;
+    final goals = await _goalsApprovedBy(managerId);
+    return goals.length;
   }
 
   static Future<int> _countMonthlyAcknowledgements(String managerId) async {
     final now = DateTime.now();
     final startOfMonth = DateTime(now.year, now.month, 1);
-    final goalsSnap = await _db
-        .collection('goals')
-        .where('approvedByUserId', isEqualTo: managerId)
-        .get();
-    int count = 0;
-    for (final d in goalsSnap.docs) {
-      final data = d.data();
-      final ts = data['lastUpdated'];
-      if (ts is Timestamp) {
-        final dt = ts.toDate();
-        if (!dt.isBefore(startOfMonth)) count++;
-      } else {
-        // If timestamp missing, skip to avoid false positives
-      }
+    final goals = await _goalsApprovedBy(managerId);
+    var count = 0;
+    for (final data in goals) {
+      final dt = _parseDate(data['lastUpdated']);
+      if (dt != null && !dt.isBefore(startOfMonth)) count++;
     }
     return count;
   }
 
   static Future<int> _countDetailedNudges(String managerId) async {
-    QuerySnapshot<Map<String, dynamic>> nudgesSnap;
-    try {
-      nudgesSnap = await _managerNudgeQuery(managerId).get();
-    } catch (_) {
-      // Fallback: top-level alerts only
-      nudgesSnap = await _db
-          .collection('alerts')
-          .where('type', isEqualTo: AlertType.managerNudge.name)
-          .where('fromUserId', isEqualTo: managerId)
-          .get();
-    }
-    int detailed = 0;
-    for (final d in nudgesSnap.docs) {
-      final data = d.data();
+    final nudges = await _managerNudgeAlerts(managerId);
+    var detailed = 0;
+    for (final data in nudges) {
       final msg = (data['message'] ?? '').toString();
       if (msg.trim().length >= 50) detailed++;
     }
@@ -535,24 +538,21 @@ class ManagerBadgeEvaluator {
   }
 
   static Future<int> _countSeasonsCompleted(String managerId) async {
-    final seasonsSnap = await _db
-        .collection('seasons')
-        .where('createdBy', isEqualTo: managerId)
-        .where('status', isEqualTo: 'completed')
-        .get();
-    return seasonsSnap.docs.length;
+    final seasons = await _backend.getSeasons(limit: 500);
+    return seasons
+        .where(
+          (s) =>
+              (s['createdBy'] ?? '').toString() == managerId &&
+              (s['status'] ?? '').toString() == 'completed',
+        )
+        .length;
   }
 
   static Future<int> _countReactivatedEmployees(String managerId) async {
-    final actionsSnap = await _db
-        .collection('manager_actions')
-        .where('managerId', isEqualTo: managerId)
-        .where('type', isEqualTo: 'reactivated_employee')
-        .get();
-    // Distinct employees for progress
+    final actions = await _backend.getManagerActions(managerId, limit: 500);
     final ids = <String>{};
-    for (final d in actionsSnap.docs) {
-      final data = d.data();
+    for (final data in actions) {
+      if ((data['type'] ?? '').toString() != 'reactivated_employee') continue;
       final employeeId = (data['employeeId'] ?? '').toString();
       if (employeeId.isNotEmpty) ids.add(employeeId);
     }
@@ -560,15 +560,10 @@ class ManagerBadgeEvaluator {
   }
 
   static Future<int> _countReplansHelped(String managerId) async {
-    final actionsSnap = await _db
-        .collection('manager_actions')
-        .where('managerId', isEqualTo: managerId)
-        .where('type', isEqualTo: 'replan_helped')
-        .get();
-    // Distinct goals replanned
+    final actions = await _backend.getManagerActions(managerId, limit: 500);
     final goalIds = <String>{};
-    for (final d in actionsSnap.docs) {
-      final data = d.data();
+    for (final data in actions) {
+      if ((data['type'] ?? '').toString() != 'replan_helped') continue;
       final goalId = (data['goalId'] ?? '').toString();
       if (goalId.isNotEmpty) goalIds.add(goalId);
     }
@@ -580,26 +575,27 @@ class ManagerBadgeEvaluator {
     int approvals,
     int detailedNudges,
   ) async {
-    // Mirror the screen calculation
-    // Get team metrics baseline
     double teamEngagement = 0;
     int goalsCompleted = 0;
     int totalEmployees = 0;
     try {
-      // Optional: read a cached metrics doc if present to avoid heavy aggregation
-      final doc = await _db.collection('manager_metrics').doc(managerId).get();
-      final data = doc.data();
-      if (data != null) {
-        teamEngagement = (data['teamEngagement'] is num)
-            ? (data['teamEngagement'] as num).toDouble()
-            : 0.0;
-        goalsCompleted = (data['goalsCompleted'] is int)
-            ? data['goalsCompleted'] as int
-            : 0;
-        totalEmployees = (data['totalEmployees'] is int)
-            ? data['totalEmployees'] as int
-            : 0;
-      }
+      final data = await _backend.getCollectionItem(
+        'manager_metrics',
+        managerId,
+      );
+      teamEngagement = (data['teamEngagement'] is num)
+          ? (data['teamEngagement'] as num).toDouble()
+          : 0.0;
+      goalsCompleted = (data['goalsCompleted'] is int)
+          ? data['goalsCompleted'] as int
+          : (data['goalsCompleted'] is num)
+          ? (data['goalsCompleted'] as num).toInt()
+          : 0;
+      totalEmployees = (data['totalEmployees'] is int)
+          ? data['totalEmployees'] as int
+          : (data['totalEmployees'] is num)
+          ? (data['totalEmployees'] as num).toInt()
+          : 0;
     } catch (_) {}
 
     final teamCompletionRate = totalEmployees > 0
@@ -625,10 +621,10 @@ class ManagerBadgeEvaluator {
       _capNudgePointsPerWeek,
     );
 
-    int points = 0;
+    var points = 0;
     points += approvalsPoints;
     points += nudgePoints;
-    int bonus = 0;
+    var bonus = 0;
     if (teamCompletionRate >= 0.6) bonus += weightHighCompletionBonus;
     if (teamEngagement >= 70) bonus += weightEngagementBonus;
     points += bonus;
@@ -649,18 +645,13 @@ class ManagerBadgeEvaluator {
     String managerId,
     DateTime windowStart,
   ) async {
-    final goalsSnap = await _db
-        .collection('goals')
-        .where('approvedByUserId', isEqualTo: managerId)
-        .get();
-    int count = 0;
-    for (final d in goalsSnap.docs) {
-      final data = d.data();
-      final ts = data['lastUpdated'] ?? data['approvedAt'] ?? data['createdAt'];
-      if (ts is Timestamp) {
-        final dt = ts.toDate();
-        if (!dt.isBefore(windowStart)) count++;
-      }
+    final goals = await _goalsApprovedBy(managerId);
+    var count = 0;
+    for (final data in goals) {
+      final dt = _parseDate(
+        data['lastUpdated'] ?? data['approvedAt'] ?? data['createdAt'],
+      );
+      if (dt != null && !dt.isBefore(windowStart)) count++;
     }
     return count;
   }
@@ -668,50 +659,28 @@ class ManagerBadgeEvaluator {
   static Future<int> _countTimelyApprovals30d(String managerId) async {
     final now = DateTime.now();
     final windowStart = now.subtract(const Duration(days: 30));
-    int count = 0;
-
-    final goalsSnap = await _db
-        .collection('goals')
-        .where('approvedByUserId', isEqualTo: managerId)
-        .get();
-
-    for (final d in goalsSnap.docs) {
-      final data = d.data();
-      final createdTs = data['createdAt'];
-      final approvedTs = data['approvedAt'] ?? data['lastUpdated'];
-      if (createdTs is! Timestamp || approvedTs is! Timestamp) continue;
-      final createdAt = createdTs.toDate();
-      final approvedAt = approvedTs.toDate();
+    var count = 0;
+    final goals = await _goalsApprovedBy(managerId);
+    for (final data in goals) {
+      final createdAt = _parseDate(data['createdAt']);
+      final approvedAt = _parseDate(data['approvedAt'] ?? data['lastUpdated']);
+      if (createdAt == null || approvedAt == null) continue;
       if (approvedAt.isBefore(windowStart)) continue;
-      final diff = approvedAt.difference(createdAt);
-      if (diff.inHours <= 24) {
-        count++;
-      }
+      if (approvedAt.difference(createdAt).inHours <= 24) count++;
     }
-
     return count;
   }
 
   static Future<int> _countMeetingsUniqueEmployees30d(String managerId) async {
-    final now = DateTime.now();
-    final windowStart = now.subtract(const Duration(days: 30));
-    final actionsSnap = await _db
-        .collection('manager_actions')
-        .where('managerId', isEqualTo: managerId)
-        .where('actionType', isEqualTo: 'scheduleMeeting')
-        .get();
-
+    final windowStart = DateTime.now().subtract(const Duration(days: 30));
+    final actions = await _backend.getManagerActions(managerId, limit: 500);
     final ids = <String>{};
-    for (final d in actionsSnap.docs) {
-      final data = d.data();
-      final ts = data['createdAt'];
-      if (ts is! Timestamp) continue;
-      final dt = ts.toDate();
-      if (dt.isBefore(windowStart)) continue;
+    for (final data in actions) {
+      if ((data['actionType'] ?? '').toString() != 'scheduleMeeting') continue;
+      final dt = _parseDate(data['createdAt']);
+      if (dt == null || dt.isBefore(windowStart)) continue;
       final employeeId = (data['employeeId'] ?? '').toString();
-      if (employeeId.isNotEmpty) {
-        ids.add(employeeId);
-      }
+      if (employeeId.isNotEmpty) ids.add(employeeId);
     }
     return ids.length;
   }
@@ -720,27 +689,16 @@ class ManagerBadgeEvaluator {
     String managerId,
     DateTime windowStart,
   ) async {
-    QuerySnapshot<Map<String, dynamic>> nudgesSnap;
-    try {
-      nudgesSnap = await _managerNudgeQuery(managerId).get();
-    } catch (_) {
-      // Fallback: top-level alerts only
-      nudgesSnap = await _db
-          .collection('alerts')
-          .where('type', isEqualTo: AlertType.managerNudge.name)
-          .where('fromUserId', isEqualTo: managerId)
-          .get();
-    }
+    final nudges = await _managerNudgeAlerts(managerId);
     final lastByRecipient = <String, DateTime>{};
-    int counted = 0;
-    for (final d in nudgesSnap.docs) {
-      final data = d.data();
+    var counted = 0;
+    for (final data in nudges) {
       final msg = (data['message'] ?? '').toString();
       if (msg.trim().length < 50) continue;
-      final ts = data['createdAt'] ?? data['lastUpdated'] ?? data['timestamp'];
-      if (ts is! Timestamp) continue;
-      final dt = ts.toDate();
-      if (dt.isBefore(windowStart)) continue;
+      final dt = _parseDate(
+        data['createdAt'] ?? data['lastUpdated'] ?? data['timestamp'],
+      );
+      if (dt == null || dt.isBefore(windowStart)) continue;
       final toUserId = (data['toUserId'] ?? data['userId'] ?? '').toString();
       if (toUserId.isEmpty) {
         counted++;
@@ -755,8 +713,6 @@ class ManagerBadgeEvaluator {
     return counted;
   }
 
-  // Removed unused helper: _countDistinctEmployeesNudgedInWindow
-
   static Future<void> _logPointSnapshot({
     required String userId,
     required int approvals7d,
@@ -766,7 +722,7 @@ class ManagerBadgeEvaluator {
     required int bonusPoints,
     required int totalPoints,
   }) async {
-    await _db.collection('point_events').add({
+    await _backend.createPointEvent({
       'userId': userId,
       'role': 'manager',
       'type': 'snapshot',
@@ -776,28 +732,16 @@ class ManagerBadgeEvaluator {
       'nudgePoints': nudgePoints,
       'bonusPoints': bonusPoints,
       'totalPoints': totalPoints,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': DateTime.now().toIso8601String(),
     });
   }
 
-  // Lifetime distinct employees nudged (no time window)
   static Future<int> _countDistinctEmployeesNudgedAllTime(
     String managerId,
   ) async {
-    QuerySnapshot<Map<String, dynamic>> nudgesSnap;
-    try {
-      nudgesSnap = await _managerNudgeQuery(managerId).get();
-    } catch (_) {
-      // Fallback: top-level alerts only
-      nudgesSnap = await _db
-          .collection('alerts')
-          .where('type', isEqualTo: AlertType.managerNudge.name)
-          .where('fromUserId', isEqualTo: managerId)
-          .get();
-    }
+    final nudges = await _managerNudgeAlerts(managerId);
     final distinct = <String>{};
-    for (final d in nudgesSnap.docs) {
-      final data = d.data();
+    for (final data in nudges) {
       final toUserId = (data['toUserId'] ?? data['userId'] ?? '').toString();
       if (toUserId.isNotEmpty) distinct.add(toUserId);
     }
@@ -817,22 +761,25 @@ class ManagerBadgeEvaluator {
     required int maxProgress,
     int? managerLevel,
   }) async {
-    final ref = _db
-        .collection('users')
-        .doc(userId)
-        .collection('badges')
-        .doc(badgeId);
-    // Preserve earnedAt once a badge is earned so we don't "re-earn" it every evaluation.
-    Timestamp? preservedEarnedAt;
-    bool wasEarned = false;
-    try {
-      final existing = await ref.get();
-      final data = existing.data();
-      wasEarned = (data?['isEarned'] == true);
-      preservedEarnedAt = data?['earnedAt'] as Timestamp?;
-    } catch (_) {}
+    final existing = await _backend.getBadges(userId, limit: 500);
+    Map<String, dynamic>? prior;
+    for (final item in existing) {
+      final id = (item['id'] ?? item['badgeId'] ?? '').toString();
+      if (id == badgeId) {
+        prior = item;
+        break;
+      }
+    }
 
-    final update = <String, dynamic>{
+    final wasEarned = prior?['isEarned'] == true;
+    final preservedEarnedAt = _parseDate(prior?['earnedAt']);
+    final earnedAt = isEarned
+        ? (wasEarned && preservedEarnedAt != null
+              ? preservedEarnedAt.toIso8601String()
+              : DateTime.now().toIso8601String())
+        : null;
+
+    await _backend.upsertBadge(userId, badgeId, {
       'name': name,
       'description': description,
       'iconName': iconName,
@@ -841,48 +788,40 @@ class ManagerBadgeEvaluator {
       'pointsRequired': 0,
       'criteria': {
         'badgeId': badgeId,
-        if (managerLevel != null) ...{'managerLevel': managerLevel},
+        'managerLevel': ?managerLevel,
       },
-      'earnedAt': isEarned
-          ? ((wasEarned && preservedEarnedAt != null)
-                ? preservedEarnedAt
-                : FieldValue.serverTimestamp())
-          : null,
+      'earnedAt': earnedAt,
       'isEarned': isEarned,
       'progress': progress,
       'maxProgress': maxProgress,
-    };
-
-    await ref.set(update, SetOptions(merge: true));
+    });
   }
 
-  // Utility to log engagement reactivation events (Option A schema)
   static Future<void> logEmployeeReactivated({
     required String managerId,
     required String employeeId,
     String? reason,
   }) async {
-    await _db.collection('manager_actions').add({
+    await _backend.createManagerAction(managerId, {
       'managerId': managerId,
       'employeeId': employeeId,
       'type': 'reactivated_employee',
       'reason': reason,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': DateTime.now().toIso8601String(),
     });
   }
 
-  // Utility to log replan helped events (per goal)
   static Future<void> logReplanHelped({
     required String managerId,
     required String goalId,
     String? note,
   }) async {
-    await _db.collection('manager_actions').add({
+    await _backend.createManagerAction(managerId, {
       'managerId': managerId,
       'goalId': goalId,
       'type': 'replan_helped',
       'note': note,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': DateTime.now().toIso8601String(),
     });
   }
 }

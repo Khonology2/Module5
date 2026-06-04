@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 
 class RepositoryGoal {
-  final String id; // Firestore doc ID
+  final String id; // Backend record id
   final String goalId;
   final String goalTitle;
   final String? goalDescription;
@@ -31,45 +31,31 @@ class RepositoryGoal {
     required this.userDepartment,
   });
 
-  factory RepositoryGoal.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory RepositoryGoal.fromMap(Map<String, dynamic> data) {
+    List<String> parseEvidence(dynamic value) {
+      if (value is List) {
+        return value.map((e) => e.toString()).toList();
+      }
+      return const [];
+    }
+
     return RepositoryGoal(
-      id: doc.id,
-      goalId: data['goalId'] ?? '',
-      goalTitle: data['goalTitle'] ?? '',
-      goalDescription: data['goalDescription'],
-      completedDate: (data['completedDate'] as Timestamp?)?.toDate(),
-      verifiedDate: (data['verifiedDate'] as Timestamp?)?.toDate(),
-      managerAcknowledgedBy: data['managerAcknowledgedBy'],
-      score: (data['score'] is int)
-          ? (data['score'] as int).toDouble()
-          : (data['score'] as num?)?.toDouble(),
-      comments: data['comments'],
-      evidence: List<String>.from(data['evidence'] ?? const []),
-      userId: data['userId'] ?? '',
-      userDisplayName: data['userDisplayName'] ?? '',
-      userDepartment: data['userDepartment'] ?? '',
+      id: (data['id'] ?? data['goalId'] ?? '').toString(),
+      goalId: (data['goalId'] ?? data['id'] ?? '').toString(),
+      goalTitle: (data['goalTitle'] ?? data['title'] ?? '').toString(),
+      goalDescription: data['goalDescription']?.toString(),
+      completedDate: parseNullableDate(data['completedDate']),
+      verifiedDate: parseNullableDate(data['verifiedDate']),
+      managerAcknowledgedBy: data['managerAcknowledgedBy']?.toString(),
+      score: (data['score'] is num)
+          ? (data['score'] as num).toDouble()
+          : double.tryParse(data['score']?.toString() ?? ''),
+      comments: data['comments']?.toString(),
+      evidence: parseEvidence(data['evidence']),
+      userId: (data['userId'] ?? '').toString(),
+      userDisplayName: (data['userDisplayName'] ?? '').toString(),
+      userDepartment: (data['userDepartment'] ?? '').toString(),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
-    return {
-      'goalId': goalId,
-      'goalTitle': goalTitle,
-      'goalDescription': goalDescription,
-      'completedDate': completedDate != null
-          ? Timestamp.fromDate(completedDate!)
-          : null,
-      'verifiedDate': verifiedDate != null
-          ? Timestamp.fromDate(verifiedDate!)
-          : null,
-      'managerAcknowledgedBy': managerAcknowledgedBy,
-      'score': score,
-      'comments': comments,
-      'evidence': evidence,
-      'userId': userId,
-      'userDisplayName': userDisplayName,
-      'userDepartment': userDepartment,
-    };
-  }
 }

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
-import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/alert_service.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/services/database_service.dart';
+import 'package:pdh/models/goal.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
+import 'package:pdh/utils/date_parse.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class TeamGoalsScreen extends StatefulWidget {
@@ -16,8 +19,6 @@ class TeamGoalsScreen extends StatefulWidget {
 }
 
 class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
       context: context,
@@ -103,13 +104,24 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
             const SizedBox(height: AppSpacing.md),
 
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirestoreSafe.stream(
-                  _firestore
-                      .collection('team_goals')
-                      .where('status', isEqualTo: 'active')
-                      .orderBy('createdAt', descending: true)
-                      .snapshots(),
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: backendPollingStream<List<Map<String, dynamic>>>(
+                  initialValue: const [],
+                  fetch: () async {
+                    final items = await BackendAuthService.instance
+                        .getCollectionItems(
+                          'team_goals',
+                          status: 'active',
+                          limit: 200,
+                        );
+                    final sorted = List<Map<String, dynamic>>.from(items)
+                      ..sort(
+                        (a, b) => parseDate(b['createdAt']).compareTo(
+                          parseDate(a['createdAt']),
+                        ),
+                      );
+                    return sorted;
+                  },
                 ),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -144,7 +156,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
                     );
                   }
 
-                  final teamGoals = snapshot.data?.docs ?? [];
+                  final teamGoals = snapshot.data ?? const [];
                   if (teamGoals.isEmpty) {
                     return Center(
                       child: Column(
@@ -192,19 +204,16 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
     );
   }
 
-  Widget _buildTeamGoalCard(QueryDocumentSnapshot teamGoalDoc) {
-    final data = teamGoalDoc.data() as Map<String, dynamic>;
+  Widget _buildTeamGoalCard(Map<String, dynamic> data) {
+    final teamGoalId = (data['id'] ?? '').toString();
     final title = data['title'] as String? ?? 'Untitled Goal';
     final description =
         data['description'] as String? ?? 'No description available';
     final points = data['points'] as int? ?? 0;
-    final deadline =
-        (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now();
+    final deadline = parseDate(data['targetDate']);
     final managerName = data['managerName'] as String? ?? 'Manager';
     final participantCount = data['participantCount'] as int? ?? 0;
-    // final status = data['status'] as String? ?? 'active'; // Unused variable removed
-    final createdAt =
-        (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+    final createdAt = parseDate(data['createdAt']);
 
     final now = DateTime.now();
     final daysLeft = deadline.difference(now).inDays;
@@ -346,7 +355,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: isExpired ? null : () => _joinTeamGoal(teamGoalDoc.id),
+              onPressed: isExpired ? null : () => _joinTeamGoal(teamGoalId),
               icon: const Icon(Icons.group_add, size: 16),
               label: Text(isExpired ? 'Goal Expired' : 'Join Team Goal'),
               style: ElevatedButton.styleFrom(
@@ -436,44 +445,53 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
     if (confirmed == true) {
       try {
         // Get team goal details first
-        final teamGoalDoc = await _firestore
-            .collection('team_goals')
-            .doc(teamGoalId)
-            .get();
-        final teamGoalData = teamGoalDoc.data();
-        final teamGoalTitle = teamGoalData?['title'] as String? ?? 'Team Goal';
-        final managerId = teamGoalData?['managerId'] as String? ?? '';
+        final teamGoalData = await BackendAuthService.instance
+            .getCollectionItem('team_goals', teamGoalId);
+        final teamGoalTitle = teamGoalData['title'] as String? ?? 'Team Goal';
+        final managerId = teamGoalData['managerId'] as String? ?? '';
+        final currentCount = teamGoalData['participantCount'];
+        final nextCount = currentCount is num
+            ? currentCount.toInt() + 1
+            : int.tryParse(currentCount?.toString() ?? '0')! + 1;
 
-        // Increment participant count
-        await _firestore.collection('team_goals').doc(teamGoalId).update({
-          'participantCount': FieldValue.increment(1),
-        });
+        await BackendAuthService.instance.patchCollectionItem(
+          'team_goals',
+          teamGoalId,
+          {'participantCount': nextCount},
+        );
 
-        // Create a personal goal for the employee based on the team goal
-        final currentUser = AuthService().currentUser;
+        final currentUser = FirebaseAuth.instance.currentUser;
         if (currentUser != null) {
-          await _firestore.collection('goals').add({
-            'userId': currentUser.uid,
-            'title': 'Team Goal Contribution',
-            'description': 'Participation in team goal collaboration',
-            'category': 'work',
-            'priority': 'medium',
-            'status': 'inProgress',
-            'progress': 0,
-            'points': 10, // Base participation points
-            'createdAt': FieldValue.serverTimestamp(),
-            'targetDate': FieldValue.serverTimestamp(),
-            'teamGoalId': teamGoalId, // Link to the team goal
+          final now = DateTime.now();
+          final goalId = await DatabaseService.createGoal(
+            Goal(
+              id: '',
+              userId: currentUser.uid,
+              title: 'Team Goal Contribution',
+              description: 'Participation in team goal collaboration',
+              category: GoalCategory.work,
+              priority: GoalPriority.medium,
+              status: GoalStatus.inProgress,
+              progress: 0,
+              createdAt: now,
+              targetDate: now.add(const Duration(days: 30)),
+              points: 10,
+            ),
+          );
+          await DatabaseService.patchGoalFields(goalId, {
+            'teamGoalId': teamGoalId,
           });
 
-          // Create activity record
-          await _firestore.collection('activities').add({
-            'userId': currentUser.uid,
-            'activityType': 'team_goal_joined',
-            'description': 'Joined a team goal in the collaboration hub',
-            'metadata': {'teamGoalId': teamGoalId},
-            'timestamp': FieldValue.serverTimestamp(),
-          });
+          await BackendAuthService.instance.createCollectionItem(
+            'activities',
+            {
+              'userId': currentUser.uid,
+              'activityType': 'team_goal_joined',
+              'description': 'Joined a team goal in the collaboration hub',
+              'metadata': {'teamGoalId': teamGoalId},
+              'timestamp': now.toIso8601String(),
+            },
+          );
 
           // Notify the manager that someone joined their team goal
           await AlertService.createEmployeeJoinedTeamGoalAlert(

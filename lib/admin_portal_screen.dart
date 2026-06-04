@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_typography.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/auth_service.dart';
 import 'package:pdh/sign_in_screen.dart';
 import 'package:pdh/admin_profile_screen.dart';
 import 'package:pdh/admin_dashboard_screen.dart';
@@ -170,7 +170,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   }
 
   Future<void> _onLogout() async {
-    await FirebaseAuth.instance.signOut();
+    await AuthService().signOut();
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/services/firestore_stream_broker.dart';
+import 'package:pdh/services/audit_service.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/custom_logo_loader.dart';
 
@@ -18,12 +18,12 @@ class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
   void _addLog(String message) {
     setState(() {
       _logs.add('${DateTime.now().millisecondsSinceEpoch}: $message');
-      if (_logs.length > 50) _logs.removeAt(0); // Keep last 50 logs
+      if (_logs.length > 50) _logs.removeAt(0);
     });
     developer.log(message);
   }
 
-  Future<void> _testStreamBroker() async {
+  Future<void> _testAuditPolling() async {
     setState(() {
       _isLoading = true;
       _logs.clear();
@@ -32,105 +32,58 @@ class _StreamBrokerTestScreenState extends State<StreamBrokerTestScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        _addLog('❌ No user logged in');
+        _addLog('No user logged in');
         return;
       }
 
-      _addLog('✅ User logged in: ${user.uid}');
-      _addLog('🔄 Testing stream broker...');
+      _addLog('User logged in: ${user.uid}');
+      _addLog('Polling audit entries via backend...');
 
-      final broker = FirestoreStreamBroker();
-
-      // Test audit entries stream
-      _addLog('📡 Getting audit entries stream...');
-      final stream = broker.getAuditEntriesStream(
-        userId: user.uid,
-        isManager: false, // Test as employee first
-        limit: 10,
-      );
-
-      _addLog('👂 Listening to stream...');
+      final stream = AuditService.getEmployeeAuditEntriesStream();
 
       final subscription = stream.listen(
-        (snapshot) {
-          _addLog('📦 Stream received ${snapshot.docs.length} documents');
-
-          for (int i = 0; i < snapshot.docs.length && i < 3; i++) {
-            final doc = snapshot.docs[i];
-            final data = doc.data() as Map<String, dynamic>? ?? {};
-            _addLog('📄 Doc $i: ${data['goalTitle']} - ${data['status']}');
+        (entries) {
+          _addLog('Received ${entries.length} audit entries');
+          for (var i = 0; i < entries.length && i < 3; i++) {
+            final entry = entries[i];
+            _addLog('Entry $i: ${entry.goalTitle} - ${entry.status}');
           }
         },
-        onError: (error) {
-          _addLog('❌ Stream error: $error');
-        },
-        onDone: () {
-          _addLog('✅ Stream completed');
-        },
+        onError: (error) => _addLog('Stream error: $error'),
       );
 
-      // Cancel after 30 seconds
       await Future.delayed(const Duration(seconds: 30));
       await subscription.cancel();
-      _addLog('⏹️ Test completed');
+      _addLog('Test completed');
     } catch (e, stackTrace) {
-      _addLog('❌ Test failed: $e');
-      _addLog('📋 Stack trace: $stackTrace');
+      _addLog('Test failed: $e');
+      _addLog('Stack trace: $stackTrace');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Stream Broker Test'),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-      ),
-      backgroundColor: Colors.black,
+      appBar: AppBar(title: const Text('Backend Stream Test')),
       body: Column(
         children: [
-          Container(
+          Padding(
             padding: const EdgeInsets.all(16),
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _testStreamBroker,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
-              child: _isLoading
-                  ? const CustomLogoLoader(centerInViewport: false)
-                  : const Text('Test Stream Broker'),
+              onPressed: _isLoading ? null : _testAuditPolling,
+              child: Text(_isLoading ? 'Running...' : 'Run audit polling test'),
             ),
           ),
+          if (_isLoading) const CustomLogoLoader(),
           Expanded(
-            child: Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[900],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[700]!),
-              ),
-              child: ListView.builder(
-                itemCount: _logs.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text(
-                      _logs[index],
-                      style: TextStyle(
-                        color: Colors.grey[300],
-                        fontSize: 12,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  );
-                },
+            child: ListView.builder(
+              itemCount: _logs.length,
+              itemBuilder: (context, index) => ListTile(
+                title: Text(_logs[index], style: const TextStyle(fontSize: 12)),
               ),
             ),
           ),

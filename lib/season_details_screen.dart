@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/date_parse.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -2338,38 +2339,37 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
         // Best-effort only; continue with any existing goals.
       }
 
-      final goalDocs = await FirebaseFirestore.instance
-          .collection('goals')
-          .where('userId', isEqualTo: participantId)
-          .get();
-      final matchingDocs =
-          goalDocs.docs.where((doc) {
-            final data = doc.data();
-            return data['isSeasonGoal'] == true &&
-                (data['seasonId'] ?? '').toString() == season.id &&
-                (data['challengeId'] ?? '').toString() == challenge.id;
-          }).toList()..sort((a, b) {
-            final aCreated = a.data()['createdAt'];
-            final bCreated = b.data()['createdAt'];
-            final aDate = aCreated is Timestamp
-                ? aCreated.toDate()
-                : DateTime(1970);
-            final bDate = bCreated is Timestamp
-                ? bCreated.toDate()
-                : DateTime(1970);
-            return bDate.compareTo(aDate);
-          });
+      final goalItems = await BackendAuthService.instance.getGoals(
+        userId: participantId,
+        limit: 200,
+      );
+      final matching =
+          goalItems
+              .where((data) {
+                return data['isSeasonGoal'] == true &&
+                    (data['seasonId'] ?? '').toString() == season.id &&
+                    (data['challengeId'] ?? '').toString() == challenge.id;
+              })
+              .toList()
+            ..sort(
+              (a, b) => parseDate(b['createdAt']).compareTo(
+                parseDate(a['createdAt']),
+              ),
+            );
 
       Goal? selectedGoal;
-      for (final doc in matchingDocs) {
-        final goal = Goal.fromFirestore(doc);
+      for (final data in matching) {
+        final goal = Goal.fromMap(
+          data,
+          id: (data['id'] ?? '').toString(),
+        );
         if (goal.status != GoalStatus.completed) {
           selectedGoal = goal;
           break;
         }
       }
-      selectedGoal ??= matchingDocs.isNotEmpty
-          ? Goal.fromFirestore(matchingDocs.first)
+      selectedGoal ??= matching.isNotEmpty
+          ? Goal.fromMap(matching.first, id: (matching.first['id'] ?? '').toString())
           : null;
       if (selectedGoal == null) {
         if (!mounted) return;

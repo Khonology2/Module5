@@ -3,12 +3,10 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/streak_service.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart'; // No longer used for authentication
 // import 'package:logger/logger.dart'; // Commented out to reduce logging overhead
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  // final FirebaseFirestore _firestore = FirebaseFirestore.instance; // Removed as it's not used
   // final Logger _logger = Logger(); // Commented out to reduce logging overhead
 
   User? get currentUser => _auth.currentUser; // Public getter for currentUser

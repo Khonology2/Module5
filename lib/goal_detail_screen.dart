@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:web/web.dart' as web;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -35,7 +34,7 @@ class GoalDetailScreen extends StatefulWidget {
 class _GoalDetailScreenState extends State<GoalDetailScreen> {
   late Goal currentGoal;
   bool isLoading = false;
-  StreamSubscription<DocumentSnapshot>? _goalSub;
+  StreamSubscription<Map<String, dynamic>?>? _goalSub;
   bool _submittingApproval = false;
   bool _isSeasonGoal = false;
   String _requiredApproverRole = 'manager';
@@ -59,55 +58,44 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     currentGoal = widget.goal;
     _isSeasonGoal = widget.goal.isSeasonGoal;
     // Listen for live updates so approval status changes reflect immediately
-    _goalSub = FirebaseFirestore.instance
-        .collection('goals')
-        .doc(widget.goal.id)
-        .snapshots()
-        .handleError((error) {
-          // Silently handle errors to prevent unmount errors
-          developer.log('Error in goal detail stream: $error');
-        })
-        .listen(
-          (doc) {
-            if (!mounted) return;
-            try {
-              final updated = Goal.fromFirestore(doc);
-              setState(() {
-                currentGoal = updated;
-                final data = doc.data();
-                _isSeasonGoal = (data?['isSeasonGoal'] == true);
-                final seasonId = (data?['seasonId'] ?? '').toString().trim();
-                if (!_isSeasonGoal || seasonId.isEmpty) {
-                  _loadedSeasonId = null;
-                  _seasonTitle = null;
-                }
-                final requiredApprover = (data?['requiredApproverRole'] ?? '')
-                    .toString()
-                    .trim()
-                    .toLowerCase();
-                if (requiredApprover == 'admin' || requiredApprover == 'manager') {
-                  _requiredApproverRole = requiredApprover;
-                } else {
-                  final viewerRole =
-                      (RoleService.instance.cachedRole ?? 'employee')
-                          .trim()
-                          .toLowerCase();
-                  _requiredApproverRole = viewerRole == 'manager'
-                      ? 'admin'
-                      : 'manager';
-                }
-              });
-              final seasonId = (doc.data()?['seasonId'] ?? '').toString().trim();
-              if (_isSeasonGoal && seasonId.isNotEmpty) {
-                unawaited(_loadSeasonContext(seasonId));
-              }
-            } catch (_) {}
-          },
-          onError: (error) {
-            // Additional error handling for listen
-            developer.log('Error in goal detail listener: $error');
-          },
-        );
+    _goalSub = DatabaseService.getGoalDataStream(widget.goal.id).listen(
+      (data) {
+        if (!mounted || data == null) return;
+        try {
+          final updated = Goal.fromMap(data, id: widget.goal.id);
+          setState(() {
+            currentGoal = updated;
+            _isSeasonGoal = (data['isSeasonGoal'] == true);
+            final seasonId = (data['seasonId'] ?? '').toString().trim();
+            if (!_isSeasonGoal || seasonId.isEmpty) {
+              _loadedSeasonId = null;
+              _seasonTitle = null;
+            }
+            final requiredApprover = (data['requiredApproverRole'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            if (requiredApprover == 'admin' || requiredApprover == 'manager') {
+              _requiredApproverRole = requiredApprover;
+            } else {
+              final viewerRole =
+                  (RoleService.instance.cachedRole ?? 'employee')
+                      .trim()
+                      .toLowerCase();
+              _requiredApproverRole =
+                  viewerRole == 'manager' ? 'admin' : 'manager';
+            }
+          });
+          final seasonId = (data['seasonId'] ?? '').toString().trim();
+          if (_isSeasonGoal && seasonId.isNotEmpty) {
+            unawaited(_loadSeasonContext(seasonId));
+          }
+        } catch (_) {}
+      },
+      onError: (error) {
+        developer.log('Error in goal detail listener: $error');
+      },
+    );
   }
 
   Future<void> _loadSeasonContext(String seasonId) async {
@@ -2332,10 +2320,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                               : file.name;
 
                           final evidence = MilestoneEvidence(
-                            id: FirebaseFirestore.instance
-                                .collection('milestone_evidence')
-                                .doc()
-                                .id,
+                            id: '${DateTime.now().microsecondsSinceEpoch}_${evidenceList.length}',
                             fileUrl: cloudinaryUrl,
                             fileName: displayName,
                             fileType: file.extension ?? 'unknown',
@@ -2357,10 +2342,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                         if (attachedFiles.isEmpty &&
                             descriptionController.text.trim().isNotEmpty) {
                           final textEvidence = MilestoneEvidence(
-                            id: FirebaseFirestore.instance
-                                .collection('milestone_evidence')
-                                .doc()
-                                .id,
+                            id: '${DateTime.now().microsecondsSinceEpoch}_${evidenceList.length}',
                             fileUrl: '',
                             fileName: descriptionController.text.trim(),
                             fileType: 'text',

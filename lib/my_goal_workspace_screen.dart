@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/services/app_ai_service.dart';
 import 'dart:convert';
 import 'package:pdh/design_system/app_colors.dart';
@@ -1747,7 +1746,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       }
 
       final goal = Goal(
-        id: '', // Will be set by Firestore
+        id: '', // Assigned by PostgreSQL backend on create
         userId: user.uid,
         title: _goalTitleController.text.trim(),
         description: _goalDescriptionController.text.trim(),
@@ -1828,16 +1827,18 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       if (mounted) {
         final msg = e.toString();
         String userMsg = 'Couldn\'t create goal. Please try again.';
-        final isFirestoreInternalState =
-            msg.contains('INTERNAL ASSERTION') || msg.contains('Unexpected state');
+        final isTransientBackendError =
+            msg.contains('INTERNAL ASSERTION') ||
+            msg.contains('Unexpected state') ||
+            msg.contains('backend_unavailable') ||
+            msg.contains('BackendAuthException');
         if (msg.contains('permission-denied') || msg.contains('PERMISSION_DENIED')) {
           userMsg = 'Permission denied. Make sure you\'re signed in and try again.';
-        } else if (msg.contains('unavailable') || msg.contains('network')) {
+        } else if (msg.contains('unavailable') || msg.contains('network') || msg.contains('timeout')) {
           userMsg = 'Network issue. Check your connection and try again.';
-        } else if (isFirestoreInternalState) {
+        } else if (isTransientBackendError) {
           if (kIsWeb) {
-            userMsg = 'Temporary Firestore issue on web. Reload the page and try creating the goal again.';
-            FirestoreWebCircuitBreaker.maybeReload(e);
+            userMsg = 'Temporary issue on web. Reload the page and try creating the goal again.';
           } else {
             userMsg = 'Temporary issue. Wait a moment and try again.';
           }

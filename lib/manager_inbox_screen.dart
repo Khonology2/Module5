@@ -12,12 +12,14 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/map_helpers.dart';
+import 'package:pdh/utils/date_parse.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
 import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
@@ -48,7 +50,7 @@ class _NudgeFeedback {
   });
 
   factory _NudgeFeedback.fromMap(Map<String, dynamic> map) {
-    final metadata = FirestoreSafe.asStringKeyedMap(map['metadata']);
+    final metadata = asStringKeyedMap(map['metadata']);
     final employeeName =
         (metadata['employeeName'] ??
                 metadata['employeeDisplayName'] ??
@@ -100,10 +102,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   final Set<String> _pendingEmployeeLookups = {};
   String? _nudgePrefetchSignature;
 
-  /// Stable Firestore streams so [StreamBuilder] does not cancel/resubscribe on every rebuild.
+  /// Stable streams so [StreamBuilder] does not cancel/resubscribe on every rebuild.
   Stream<List<Alert>>? _managerInboxAlertsStream;
   String? _managerInboxStreamUid;
-  Stream<QuerySnapshot<Map<String, dynamic>>>? _adminPendingGoalsStreamCached;
+  Stream<List<Map<String, dynamic>>>? _adminPendingGoalsStreamCached;
 
   late final TextEditingController _searchController;
   Timer? _searchDebounce;
@@ -175,9 +177,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   DateTime? _parseAlertActionDate(dynamic v) {
     if (v == null) return null;
-    if (v is Timestamp) return v.toDate();
     if (v is DateTime) return v;
-    return DateTime.tryParse(v.toString());
+    return parseNullableDate(v);
   }
 
   /// Latest moment of the scheduled 1:1 window, when present on the alert.
@@ -431,7 +432,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     if (s == null || s.isEmpty) return null;
 
     // Sometimes older alerts store a full path like "goals/<id>" or
-    // ".../goals/<id>". Firestore doc ids cannot contain "/" so we extract last.
+    // ".../goals/<id>". Goal ids cannot contain "/" so we extract last.
     if (s.contains('/')) {
       final parts = s.split('/').where((p) => p.trim().isNotEmpty).toList();
       if (parts.isEmpty) return null;
@@ -453,21 +454,28 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     return gid != null && gid.isNotEmpty;
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _adminPendingGoalsStream() {
-    return _adminPendingGoalsStreamCached ??=
-        FirestoreSafe.stream<QuerySnapshot<Map<String, dynamic>>>(
-          FirebaseFirestore.instance
-              .collection('goals')
-              .where('approvalStatus', isEqualTo: GoalApprovalStatus.pending.name)
-              .where('requiredApproverRole', whereIn: const [
-                'admin',
-                'administrator',
-                'super_admin',
-                'superadmin',
-              ])
-              .limit(300)
-              .snapshots(),
-        );
+  Stream<List<Map<String, dynamic>>> _adminPendingGoalsStream() {
+    return _adminPendingGoalsStreamCached ??= backendPollingStream(
+      fetch: () async {
+        const adminRoles = {
+          'admin',
+          'administrator',
+          'super_admin',
+          'superadmin',
+        };
+        final goals = await BackendAuthService.instance.getGoals(limit: 500);
+        return goals.where((g) {
+          if ((g['approvalStatus'] ?? '').toString() !=
+              GoalApprovalStatus.pending.name) {
+            return false;
+          }
+          final role = (g['requiredApproverRole'] ?? '')
+              .toString()
+              .toLowerCase();
+          return adminRoles.contains(role);
+        }).toList();
+      },
+    );
   }
 
   void _ensureManagerInboxStreams(String uid) {
@@ -495,7 +503,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   List<Alert> _mergeAdminPendingGoalFallbackAlerts({
     required List<Alert> baseItems,
-    required List<QueryDocumentSnapshot<Map<String, dynamic>>> goalDocs,
+    required List<Map<String, dynamic>> goalMaps,
     required String adminUserId,
   }) {
     final merged = List<Alert>.from(baseItems);
@@ -506,17 +514,17 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           _goalIdFromAlert(a)!,
     };
 
-    for (final doc in goalDocs) {
-      if (seenGoalIds.contains(doc.id)) continue;
-      final data = doc.data();
+    for (final data in goalMaps) {
+      final goalId = (data['id'] ?? '').toString();
+      if (goalId.isEmpty || seenGoalIds.contains(goalId)) continue;
       final goalTitle = (data['title'] ?? 'Untitled Goal').toString();
       final requesterId = (data['userId'] ?? '').toString();
-      final requestedAt =
-          (data['approvalRequestedAt'] ?? data['createdAt']) as Timestamp?;
+      final requestedAt = parseNullableDate(data['approvalRequestedAt']) ??
+          parseNullableDate(data['createdAt']);
 
       merged.add(
         Alert(
-          id: 'fallback_goal_approval_${doc.id}',
+          id: 'fallback_goal_approval_$goalId',
           userId: adminUserId,
           type: AlertType.goalApprovalRequested,
           audience: AlertAudience.team,
@@ -526,16 +534,16 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           actionText: 'Review Goal',
           actionRoute: '/admin_inbox',
           actionData: {
-            'goalId': doc.id,
+            'goalId': goalId,
             'requestedByUserId': requesterId,
             'requiredApproverRole': 'admin',
             'approvalChain': 'manager_to_admin',
             'fallbackGenerated': true,
           },
-          createdAt: requestedAt?.toDate() ?? DateTime.now(),
+          createdAt: requestedAt ?? DateTime.now(),
           isRead: false,
           isDismissed: false,
-          relatedGoalId: doc.id,
+          relatedGoalId: goalId,
           fromUserId: requesterId.isNotEmpty ? requesterId : null,
           fromUserName:
               (data['userDisplayName'] ?? '').toString().trim().isNotEmpty
@@ -543,10 +551,28 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               : null,
         ),
       );
-      seenGoalIds.add(doc.id);
+      seenGoalIds.add(goalId);
     }
 
     return merged;
+  }
+
+  Future<String?> _badgeCategoryForUser(String uid, String badgeId) async {
+    try {
+      final badges = await BackendAuthService.instance.getBadges(uid, limit: 500);
+      for (final b in badges) {
+        final id = (b['id'] ?? b['badgeId'] ?? '').toString();
+        if (id == badgeId) {
+          return (b['category'] ?? '').toString().trim();
+        }
+        final criteria = b['criteria'];
+        if (criteria is Map &&
+            (criteria['badgeId'] ?? '').toString() == badgeId) {
+          return (b['category'] ?? '').toString().trim();
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   bool _isGenericPlaceholderName(String s) {
@@ -557,7 +583,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         l == 'unknown';
   }
 
-  /// Prefer real display name/email from Firestore when the alert used a generic label.
+  /// Prefer real display name/email from PostgreSQL when the alert used a generic label.
   Future<String> _resolvedRequesterDisplay(Alert alert) async {
     final uid = (alert.actionData?['requestedByUserId'] ?? alert.fromUserId ?? '')
         .toString()
@@ -685,31 +711,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
     String? categoryName = data['badgeCategory']?.toString().trim();
     if (categoryName == null || categoryName.isEmpty) {
-      try {
-        final doc = await FirestoreSafe.getDoc(
-          FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .collection('badges')
-              .doc(badgeId),
-        );
-        categoryName = doc.data()?['category']?.toString().trim();
-      } catch (_) {}
-    }
-    if (categoryName == null || categoryName.isEmpty) {
-      // Fallback for alerts that store a base badge id where the actual doc id differs.
-      try {
-        final q = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('badges')
-            .where('criteria.badgeId', isEqualTo: badgeId)
-            .limit(1)
-            .get();
-        if (q.docs.isNotEmpty) {
-          categoryName = q.docs.first.data()['category']?.toString().trim();
-        }
-      } catch (_) {}
+      categoryName = await _badgeCategoryForUser(uid, badgeId);
     }
     final category =
         _managerCategoryFromName(categoryName) ??
@@ -849,21 +851,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               builder: (modalContext, setModalState) {
                 return Padding(
                   padding: const EdgeInsets.all(16),
-                  child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                    stream:
-                        FirestoreSafe.stream<
-                          DocumentSnapshot<Map<String, dynamic>>
-                        >(
-                          FirebaseFirestore.instance
-                              .collection('goals')
-                              .doc(goalId)
-                              .snapshots(),
-                        ),
+                  child: StreamBuilder<Map<String, dynamic>?>(
+                    stream: DatabaseService.getGoalDataStream(goalId),
                     builder: (streamCtx, snap) {
                   Goal? goal;
-                  if (snap.hasData && (snap.data?.exists ?? false)) {
+                  final goalMap = snap.data;
+                  if (goalMap != null) {
                     try {
-                      goal = Goal.fromFirestore(snap.data!);
+                      goal = Goal.fromMap(goalMap, id: goalId);
                     } catch (_) {}
                   }
                   final bool finalDecision =
@@ -1214,7 +1209,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   Future<void> _persistReview(String goalId, {required String decision}) async {
     final reviewer = fb.FirebaseAuth.instance.currentUser;
-    await FirebaseFirestore.instance.collection('goals').doc(goalId).set({
+    await DatabaseService.patchGoalFields(goalId, {
       'review': {
         'smart': {
           'clarity': _clarity[goalId] ?? 3,
@@ -1227,9 +1222,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         'decision': decision,
         'note': _reviewNotes[goalId]?.text.trim(),
         'reviewerId': reviewer?.uid,
-        'reviewedAt': FieldValue.serverTimestamp(),
+        'reviewedAt': DateTime.now().toIso8601String(),
       },
-    }, SetOptions(merge: true));
+    });
   }
 
   int _smartTotal(String goalId) {
@@ -1360,7 +1355,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     );
   }
 
-  /// Returns true only when Firestore approval succeeded (sheet may close).
+  /// Returns true only when backend approval succeeded (sheet may close).
   Future<bool> _approveGoal(String goalId) async {
     try {
       final manager = fb.FirebaseAuth.instance.currentUser;
@@ -1385,7 +1380,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     }
   }
 
-  /// Returns true only when Firestore rejection succeeded (sheet may close).
+  /// Returns true only when backend rejection succeeded (sheet may close).
   Future<bool> _rejectGoal(String goalId, {required String reason}) async {
     try {
       final manager = fb.FirebaseAuth.instance.currentUser;
@@ -1640,13 +1635,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   .toList();
 
               if (widget.forAdminOversight && !_showArchived) {
-                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                return StreamBuilder<List<Map<String, dynamic>>>(
                   stream: _adminPendingGoalsStream(),
                   builder: (context, pendingSnapshot) {
-                    final pendingDocs = pendingSnapshot.data?.docs ?? const [];
+                    final pendingMaps = pendingSnapshot.data ?? const [];
                     final mergedItems = _mergeAdminPendingGoalFallbackAlerts(
                       baseItems: items,
-                      goalDocs: pendingDocs,
+                      goalMaps: pendingMaps,
                       adminUserId: user.uid,
                     );
                     return _buildInboxListContent(
@@ -2219,17 +2214,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       return _buildApprovalFallbackCard(alert);
     }
 
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirestoreSafe.stream<DocumentSnapshot<Map<String, dynamic>>>(
-        FirebaseFirestore.instance.collection('goals').doc(goalId).snapshots(),
-      ),
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: DatabaseService.getGoalDataStream(goalId),
       builder: (context, snapshot) {
         Goal? goal;
-        Map<String, dynamic>? goalMap;
-        if (snapshot.hasData && (snapshot.data?.exists ?? false)) {
-          goalMap = snapshot.data?.data();
+        Map<String, dynamic>? goalMap = snapshot.data;
+        if (goalMap != null) {
           try {
-            goal = Goal.fromFirestore(snapshot.data!);
+            goal = Goal.fromMap(goalMap, id: goalId);
           } catch (_) {}
         }
 

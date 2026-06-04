@@ -259,7 +259,8 @@ class BackendAuthService {
     return FirebaseConfigResponse.fromJson(_decodeBody(response.body));
   }
 
-  /// Proxies OpenRouter through the backend so API keys stay in `backend/app/.env`.
+  /// Proxies the backend AI provider through the server so API keys stay in
+  /// `backend/app/.env`.
   Future<String> generateAiChat({
     String? systemInstruction,
     required List<Map<String, String>> messages,
@@ -301,6 +302,890 @@ class BackendAuthService {
       );
     }
     return text;
+  }
+
+  Future<Map<String, dynamic>> getJson(String path) async {
+    final uri = _uri(path);
+    try {
+      final response = await http.get(uri).timeout(_timeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw _mapHttpError(statusCode: response.statusCode, body: response.body);
+      }
+      return _decodeBody(response.body);
+    } on TimeoutException {
+      throw BackendAuthException(
+        message: 'Request timed out while contacting backend.',
+        code: 'timeout',
+        retryable: true,
+      );
+    } catch (e) {
+      if (e is BackendAuthException) rethrow;
+      throw BackendAuthException(
+        message: 'Network error while contacting backend.',
+        code: 'network_error',
+        retryable: true,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> putJson(
+    String path,
+    Map<String, dynamic> payload,
+  ) async {
+    final uri = _uri(path);
+    http.Response response;
+    try {
+      response = await http
+          .put(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          )
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw BackendAuthException(
+        message: 'Request timed out while contacting backend.',
+        code: 'timeout',
+        retryable: true,
+      );
+    } catch (_) {
+      throw BackendAuthException(
+        message: 'Network error while contacting backend.',
+        code: 'network_error',
+        retryable: true,
+      );
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
+    }
+    return _decodeBody(response.body);
+  }
+
+  Future<Map<String, dynamic>> postJson(
+    String path,
+    Map<String, dynamic> payload,
+  ) async {
+    final uri = _uri(path);
+    http.Response response;
+    try {
+      response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          )
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw BackendAuthException(
+        message: 'Request timed out while contacting backend.',
+        code: 'timeout',
+        retryable: true,
+      );
+    } catch (_) {
+      throw BackendAuthException(
+        message: 'Network error while contacting backend.',
+        code: 'network_error',
+        retryable: true,
+      );
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
+    }
+    return _decodeBody(response.body);
+  }
+
+  Future<Map<String, dynamic>> patchJson(
+    String path,
+    Map<String, dynamic> payload,
+  ) async {
+    final uri = _uri(path);
+    http.Response response;
+    try {
+      response = await http
+          .patch(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          )
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw BackendAuthException(
+        message: 'Request timed out while contacting backend.',
+        code: 'timeout',
+        retryable: true,
+      );
+    } catch (_) {
+      throw BackendAuthException(
+        message: 'Network error while contacting backend.',
+        code: 'network_error',
+        retryable: true,
+      );
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
+    }
+    return _decodeBody(response.body);
+  }
+
+  Future<Map<String, dynamic>> getUser(String userId) {
+    return getJson('/users/$userId');
+  }
+
+  Future<Map<String, dynamic>> getUserSettings(String userId) {
+    return getJson('/users/$userId/settings');
+  }
+
+  Future<Map<String, dynamic>> updateUserSettings(
+    String userId,
+    Map<String, dynamic> payload,
+  ) {
+    return putJson('/users/$userId/settings', payload);
+  }
+
+  Future<Map<String, dynamic>> updateUserProfile(
+    String userId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/users/$userId', payload);
+  }
+
+  Future<Map<String, dynamic>> getOnboarding(String userId) {
+    return getJson('/onboarding/$userId');
+  }
+
+  /// Returns onboarding record or empty map when not found (PostgreSQL).
+  Future<Map<String, dynamic>> tryGetOnboarding(String userId) async {
+    try {
+      return await getOnboarding(userId);
+    } on BackendAuthException catch (e) {
+      if (e.statusCode == 404) return {};
+      rethrow;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> listOnboarding({
+    String? email,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      'limit': limit.toString(),
+      if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+    };
+    final decoded = await getJson('/onboarding?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> updateOnboarding(
+    String userId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/onboarding/$userId', payload);
+  }
+
+  Future<Map<String, dynamic>> patchGoal(
+    String goalId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/goals/$goalId', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getGoals({
+    String? userId,
+    String? goalId,
+    String? status,
+    int limit = 200,
+  }) async {
+    final query = <String, String>{
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      if (goalId != null && goalId.isNotEmpty) 'goal_id': goalId,
+      if (status != null && status.isNotEmpty) 'status': status,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/goals?${Uri(queryParameters: query).query}');
+    final list = decoded['items'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> patchAuditEntry(
+    String entryId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/audit-entries/$entryId', payload);
+  }
+
+  Future<Map<String, dynamic>> createAuditEntry(
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/audit-entries', payload);
+  }
+
+  Future<Map<String, dynamic>> getAuditEntry(String entryId) {
+    return getJson('/audit-entries/$entryId');
+  }
+
+  Future<List<Map<String, dynamic>>> getAuditEntries({
+    String? userId,
+    String? department,
+    String? status,
+    String? goalId,
+    String? entryId,
+    int limit = 200,
+  }) async {
+    final query = <String, String>{
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      if (department != null && department.isNotEmpty) 'department': department,
+      if (status != null && status.isNotEmpty) 'status': status,
+      if (goalId != null && goalId.isNotEmpty) 'goal_id': goalId,
+      if (entryId != null && entryId.isNotEmpty) 'entry_id': entryId,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/audit-entries?${Uri(queryParameters: query).query}');
+    final list = decoded['items'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> createActivity(
+    String userId,
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/activities/$userId', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getActivities(
+    String userId, {
+    int limit = 50,
+  }) async {
+    final decoded = await getJson('/activities/$userId?limit=$limit');
+    final list = decoded['items'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> createApprovedGoalAudit(
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/approved-goals-audit', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getApprovedGoalAudits({
+    String? userId,
+    String? employeeId,
+    String? goalId,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      if (employeeId != null && employeeId.isNotEmpty) 'employee_id': employeeId,
+      if (goalId != null && goalId.isNotEmpty) 'goal_id': goalId,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/approved-goals-audit?${Uri(queryParameters: query).query}');
+    final list = decoded['items'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> getApprovedGoalAudit(String goalId) {
+    return getJson('/approved-goals-audit/$goalId');
+  }
+
+  Future<List<Map<String, dynamic>>> getAuditTimeline(
+    String entryId, {
+    int limit = 100,
+  }) async {
+    final decoded = await getJson('/audit-entries/$entryId/timeline?limit=$limit');
+    final list = decoded['items'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> addAuditTimelineEvent(
+    String entryId,
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/audit-entries/$entryId/timeline', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getBadges(
+    String userId, {
+    int limit = 500,
+  }) async {
+    final decoded = await getJson('/badges/$userId?limit=$limit');
+    final list = decoded['items'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> upsertBadge(
+    String userId,
+    String badgeId,
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/badges/$userId/$badgeId', payload);
+  }
+
+  Future<Map<String, dynamic>> patchBadge(
+    String userId,
+    String badgeId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/badges/$userId/$badgeId', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getAlerts(
+    String userId, {
+    int limit = 100,
+  }) async {
+    final decoded = await getJson('/alerts/$userId?limit=$limit');
+    final list = decoded['items'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> createAlert(
+    String userId,
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/alerts/$userId', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getRepositories(String userId) async {
+    final decoded = await getJson('/repositories/$userId');
+    final list = decoded['items'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<List<Map<String, dynamic>>> getAllRepositories() async {
+    final decoded = await getJson('/repositories');
+    final list = decoded['items'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> upsertRepository(
+    String userId,
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/repositories/$userId', payload);
+  }
+
+  List<Map<String, dynamic>> _itemsFromResponse(
+    Map<String, dynamic> decoded,
+  ) {
+    final list = decoded['items'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<List<Map<String, dynamic>>> listUsers({
+    String? role,
+    String? department,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      if (role != null && role.isNotEmpty) 'role': role,
+      if (department != null && department.isNotEmpty) 'department': department,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/users?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<List<String>> getDeletedAccountIds({int limit = 2000}) async {
+    final decoded = await getJson('/deleted-accounts?limit=$limit');
+    final list = decoded['items'];
+    if (list is List) {
+      return list.map((e) => e.toString()).toList();
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> createGoal(Map<String, dynamic> payload) {
+    return postJson('/goals', payload);
+  }
+
+  Future<void> deleteGoal(String goalId) async {
+    final uri = _uri('/goals/$goalId');
+    final response = await http.delete(uri).timeout(_timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMilestones({
+    String? goalId,
+    String? userId,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      if (goalId != null && goalId.isNotEmpty) 'goal_id': goalId,
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/milestones?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> createMilestone(Map<String, dynamic> payload) {
+    return postJson('/milestones', payload);
+  }
+
+  Future<Map<String, dynamic>> patchMilestone(
+    String milestoneId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/milestones/$milestoneId', payload);
+  }
+
+  Future<void> deleteMilestone(String milestoneId) async {
+    final uri = _uri('/milestones/$milestoneId');
+    final response = await http.delete(uri).timeout(_timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getMilestoneEvidence({
+    String? goalId,
+    String? milestoneId,
+    String? userId,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      if (goalId != null && goalId.isNotEmpty) 'goal_id': goalId,
+      if (milestoneId != null && milestoneId.isNotEmpty) 'milestone_id': milestoneId,
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/milestone-evidence?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> createMilestoneEvidence(
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/milestone-evidence', payload);
+  }
+
+  Future<Map<String, dynamic>> patchMilestoneEvidence(
+    String itemId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/milestone-evidence/$itemId', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getEvidenceFiles({
+    String? goalId,
+    String? auditEntryId,
+    String? userId,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      if (goalId != null && goalId.isNotEmpty) 'goal_id': goalId,
+      if (auditEntryId != null && auditEntryId.isNotEmpty) 'audit_entry_id': auditEntryId,
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/evidence-files?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> createEvidenceFile(
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/evidence-files', payload);
+  }
+
+  Future<Map<String, dynamic>> patchEvidenceFile(
+    String itemId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/evidence-files/$itemId', payload);
+  }
+
+  Future<void> deleteEvidenceFile(String itemId) async {
+    final uri = _uri('/evidence-files/$itemId');
+    final response = await http.delete(uri).timeout(_timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
+    }
+  }
+
+  Future<Map<String, dynamic>> patchAlert(
+    String userId,
+    String alertId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/alerts/$userId/$alertId', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> patchAlertsBatch(
+    String userId,
+    Map<String, dynamic> payload,
+  ) async {
+    final decoded = await patchJson('/alerts/$userId/batch', payload);
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<List<Map<String, dynamic>>> getSeasons({
+    String? userId,
+    String? status,
+    String? seasonId,
+    int limit = 200,
+  }) async {
+    final query = <String, String>{
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      if (status != null && status.isNotEmpty) 'status': status,
+      if (seasonId != null && seasonId.isNotEmpty) 'season_id': seasonId,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/seasons?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> getSeason(String seasonId) {
+    return getJson('/seasons/$seasonId');
+  }
+
+  Future<Map<String, dynamic>> createSeason(Map<String, dynamic> payload) {
+    return postJson('/seasons', payload);
+  }
+
+  Future<Map<String, dynamic>> patchSeason(
+    String seasonId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/seasons/$seasonId', payload);
+  }
+
+  Future<void> deleteSeason(String seasonId) async {
+    final uri = _uri('/seasons/$seasonId');
+    final response = await http.delete(uri).timeout(_timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getOneOnOneMeetings({
+    String? employeeId,
+    String? managerId,
+    String? meetingId,
+    int limit = 200,
+  }) async {
+    final query = <String, String>{
+      if (employeeId != null && employeeId.isNotEmpty) 'employee_id': employeeId,
+      if (managerId != null && managerId.isNotEmpty) 'manager_id': managerId,
+      if (meetingId != null && meetingId.isNotEmpty) 'meeting_id': meetingId,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/one-on-one-meetings?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> createOneOnOneMeeting(
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/one-on-one-meetings', payload);
+  }
+
+  Future<Map<String, dynamic>> patchOneOnOneMeeting(
+    String meetingId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/one-on-one-meetings/$meetingId', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getManagerActions(
+    String managerId, {
+    int limit = 500,
+  }) async {
+    final decoded = await getJson('/manager-actions/$managerId?limit=$limit');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> createManagerAction(
+    String managerId,
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/manager-actions/$managerId', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getLearningTutorials(
+    String managerId, {
+    String? status,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      'manager_id': managerId,
+      'limit': limit.toString(),
+      if (status != null && status.isNotEmpty) 'status': status,
+    };
+    final decoded = await getJson(
+      '/learning-tutorials?${Uri(queryParameters: query).query}',
+    );
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> createLearningTutorial(
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/learning-tutorials', payload);
+  }
+
+  Future<Map<String, dynamic>> patchLearningTutorial(
+    String tutorialId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/learning-tutorials/$tutorialId', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getLearningAssignments(
+    String managerId, {
+    String? employeeUserId,
+    String? status,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      'manager_id': managerId,
+      'limit': limit.toString(),
+      if (employeeUserId != null && employeeUserId.isNotEmpty)
+        'employee_user_id': employeeUserId,
+      if (status != null && status.isNotEmpty) 'status': status,
+    };
+    final decoded = await getJson(
+      '/learning-assignments?${Uri(queryParameters: query).query}',
+    );
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> createLearningAssignment(
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/learning-assignments', payload);
+  }
+
+  Future<Map<String, dynamic>> patchLearningAssignment(
+    String assignmentId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/learning-assignments/$assignmentId', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getDailyActivities(
+    String userId, {
+    int limit = 400,
+  }) async {
+    final decoded = await getJson('/daily-activities/$userId?limit=$limit');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> createDailyActivity(
+    String userId,
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/daily-activities/$userId', payload);
+  }
+
+  Future<Map<String, dynamic>> patchDailyActivity(
+    String userId,
+    String activityId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/daily-activities/$userId/$activityId', payload);
+  }
+
+  Future<Map<String, dynamic>> patchUserStreak(
+    String userId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/users/$userId/streak', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getGoalDailyProgress({
+    String? goalId,
+    String? userId,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      if (goalId != null && goalId.isNotEmpty) 'goal_id': goalId,
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/goal-daily-progress?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> createGoalDailyProgress(
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/goal-daily-progress', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getPointEvents({
+    String? userId,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/point-events?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> createPointEvent(Map<String, dynamic> payload) {
+    return postJson('/point-events', payload);
+  }
+
+  Future<List<Map<String, dynamic>>> getCollectionItems(
+    String collection, {
+    String? userId,
+    String? goalId,
+    String? status,
+    String? action,
+    bool includeActions = false,
+    int limit = 500,
+  }) async {
+    final query = <String, String>{
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      if (goalId != null && goalId.isNotEmpty) 'goal_id': goalId,
+      if (status != null && status.isNotEmpty) 'status': status,
+      if (action != null && action.isNotEmpty) 'action': action,
+      if (includeActions) 'include_actions': 'true',
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/collections/$collection?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<Map<String, dynamic>> getCollectionItem(
+    String collection,
+    String itemId,
+  ) {
+    return getJson('/collections/$collection/$itemId');
+  }
+
+  Future<Map<String, dynamic>> createCollectionItem(
+    String collection,
+    Map<String, dynamic> payload,
+  ) {
+    return postJson('/collections/$collection', payload);
+  }
+
+  Future<Map<String, dynamic>> patchCollectionItem(
+    String collection,
+    String itemId,
+    Map<String, dynamic> payload,
+  ) {
+    return patchJson('/collections/$collection/$itemId', payload);
+  }
+
+  Future<void> deleteCollectionItem(String collection, String itemId) async {
+    final uri = _uri('/collections/$collection/$itemId');
+    final response = await http.delete(uri).timeout(_timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAuditEntriesWithActions({
+    String? userId,
+    String? department,
+    String? status,
+    String? goalId,
+    String? action,
+    bool includeActions = true,
+    int limit = 200,
+  }) async {
+    final query = <String, String>{
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+      if (department != null && department.isNotEmpty) 'department': department,
+      if (status != null && status.isNotEmpty) 'status': status,
+      if (goalId != null && goalId.isNotEmpty) 'goal_id': goalId,
+      if (action != null && action.isNotEmpty) 'action': action,
+      if (includeActions) 'include_actions': 'true',
+      'limit': limit.toString(),
+    };
+    final decoded = await getJson('/audit-entries?${Uri(queryParameters: query).query}');
+    return _itemsFromResponse(decoded);
+  }
+
+  Future<void> deleteRepository(String userId, String repoId) async {
+    final uri = _uri('/repositories/$userId/$repoId');
+    http.Response response;
+    try {
+      response = await http.delete(uri).timeout(_timeout);
+    } on TimeoutException {
+      throw BackendAuthException(
+        message: 'Request timed out while contacting backend.',
+        code: 'timeout',
+        retryable: true,
+      );
+    } catch (_) {
+      throw BackendAuthException(
+        message: 'Network error while contacting backend.',
+        code: 'network_error',
+        retryable: true,
+      );
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _mapHttpError(statusCode: response.statusCode, body: response.body);
+    }
   }
 
   Future<http.Response> _postWithRetry(

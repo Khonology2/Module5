@@ -1,55 +1,65 @@
 import 'dart:developer' as developer;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/season.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 
 class SeasonMetricsJob {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final BackendAuthService _backend = BackendAuthService.instance;
 
   /// Recompute season metrics for a single season document.
   static Future<void> recomputeSeasonMetrics(String seasonId) async {
     try {
-      final doc = await _firestore.collection('seasons').doc(seasonId).get();
-      if (!doc.exists) {
+      final data = await _backend.getSeason(seasonId);
+      if (data.isEmpty) {
         developer.log('Season $seasonId not found. Skipping metrics job.');
         return;
       }
-      final season = Season.fromFirestore(doc);
+      final season = Season.fromMap(data, id: seasonId);
       final metrics = _recalculateMetrics(season);
 
       final Map<String, dynamic> updates = {
-        'metrics.totalParticipants': metrics.totalParticipants,
-        'metrics.activeParticipants': metrics.activeParticipants,
-        'metrics.completedChallenges': metrics.completedChallenges,
-        'metrics.totalChallenges': metrics.totalChallenges,
-        'metrics.totalPointsEarned': metrics.totalPointsEarned,
-        'metrics.averageProgress': metrics.averageProgress,
-        'metrics.challengeCompletions':
-            metrics.challengeCompletions.map((key, value) => MapEntry(key.name, value)),
-        'metrics.totalTeamPoints': metrics.totalTeamPoints,
-        'metrics.completedTeamChallenges': metrics.completedTeamChallenges,
-        'metrics.managerPointsEarned': metrics.managerPointsEarned,
-        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+        'metrics': {
+          'totalParticipants': metrics.totalParticipants,
+          'activeParticipants': metrics.activeParticipants,
+          'completedChallenges': metrics.completedChallenges,
+          'totalChallenges': metrics.totalChallenges,
+          'totalPointsEarned': metrics.totalPointsEarned,
+          'averageProgress': metrics.averageProgress,
+          'challengeCompletions': metrics.challengeCompletions.map(
+            (key, value) => MapEntry(key.name, value),
+          ),
+          'totalTeamPoints': metrics.totalTeamPoints,
+          'completedTeamChallenges': metrics.completedTeamChallenges,
+          'managerPointsEarned': metrics.managerPointsEarned,
+          'lastUpdated': DateTime.now().toIso8601String(),
+        },
       };
 
-      metrics.completedChallengesPerParticipant.forEach((userId, challengeCount) {
-        updates['participations.$userId.completedChallenges'] = challengeCount;
-      });
+      if (metrics.completedChallengesPerParticipant.isNotEmpty) {
+        updates['participations'] = {
+          for (final entry in metrics.completedChallengesPerParticipant.entries)
+            entry.key: {'completedChallenges': entry.value},
+        };
+      }
 
-      await doc.reference.update(updates);
+      await _backend.patchSeason(seasonId, updates);
       developer.log('Recomputed metrics for season $seasonId');
     } catch (e, st) {
-      developer.log('Failed to recompute metrics for season $seasonId: $e',
-          stackTrace: st);
+      developer.log(
+        'Failed to recompute metrics for season $seasonId: $e',
+        stackTrace: st,
+      );
       rethrow;
     }
   }
 
   /// Optional helper to recompute every season (useful for manual maintenance).
   static Future<void> recomputeAllSeasons() async {
-    final snapshot = await _firestore.collection('seasons').get();
-    for (final doc in snapshot.docs) {
-      await recomputeSeasonMetrics(doc.id);
+    final seasons = await _backend.getSeasons(limit: 500);
+    for (final season in seasons) {
+      final seasonId = (season['id'] ?? '').toString();
+      if (seasonId.isEmpty) continue;
+      await recomputeSeasonMetrics(seasonId);
     }
   }
 
@@ -108,15 +118,19 @@ class SeasonMetricsJob {
     return _RecomputedMetrics(
       totalParticipants: totalParticipants,
       activeParticipants: activeParticipants,
-      completedChallenges:
-          completedChallengesPerParticipant.values.fold(0, (total, value) => total + value),
+      completedChallenges: completedChallengesPerParticipant.values.fold(
+        0,
+        (total, value) => total + value,
+      ),
       totalChallenges: totalChallenges,
       totalPointsEarned: totalPointsEarned,
       averageProgress: averageProgress,
       challengeCompletions: challengeCompletionsByType,
       totalTeamPoints: totalPointsEarned,
-      completedTeamChallenges:
-          challengeCompletionsByType.values.fold(0, (total, value) => total + value),
+      completedTeamChallenges: challengeCompletionsByType.values.fold(
+        0,
+        (total, value) => total + value,
+      ),
       managerPointsEarned: season.metrics.managerPointsEarned,
       completedChallengesPerParticipant: completedChallengesPerParticipant,
     );
@@ -188,4 +202,3 @@ class _RecomputedMetrics {
     required this.completedChallengesPerParticipant,
   });
 }
-

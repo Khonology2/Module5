@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/leaderboard_screen.dart';
 
-/// Admin-only Leaderboard screen. Uses the same UI as the shared leaderboard.
-/// Not shared with manager/employee as a route target.
+/// Admin-only leaderboard. Delegates to [LeaderboardScreen];
+/// rankings are loaded from PostgreSQL via [BackendAuthService].
 class AdminLeaderboardScreen extends StatelessWidget {
   const AdminLeaderboardScreen({super.key});
 

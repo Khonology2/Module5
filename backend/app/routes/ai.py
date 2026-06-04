@@ -1,6 +1,8 @@
 """
-AI routes: OpenRouter chat completions for the Flutter app.
-Keys live only in backend/app/.env (OPENROUTER_API_KEY_PRIMARY / SECONDARY).
+AI routes for the Flutter app.
+
+Azure OpenAI is preferred when AZURE_OPENAI_* values are present in
+backend/app/.env, with OpenRouter kept as a fallback for older deployments.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "google/gemini-2.0-flash-001"
 OPENROUTER_TIMEOUT_SEC = 90
+AZURE_OPENAI_API_VERSION = "2024-06-01"
 
 
 class ChatMessageIn(BaseModel):
@@ -65,6 +68,14 @@ def _openrouter_keys_primary_first(settings: Any) -> list[str]:
 def _openrouter_model(settings: Any) -> str:
     m = (getattr(settings, "openrouter_model", None) or "").strip()
     return m if m else DEFAULT_MODEL
+
+
+def _azure_configured(settings: Any) -> bool:
+    return bool(
+        (getattr(settings, "azure_openai_api_key", None) or "").strip()
+        and (getattr(settings, "azure_openai_api_endpoint", None) or "").strip()
+        and (getattr(settings, "azure_openai_model", None) or "").strip()
+    )
 
 
 def _message_body_text(content: Any) -> str:
@@ -139,19 +150,67 @@ def _call_openrouter_messages(api_key: str, model: str, messages: list[dict[str,
     return text
 
 
+def _call_azure_openai_messages(
+    api_key: str,
+    endpoint: str,
+    deployment: str,
+    messages: list[dict[str, str]],
+) -> str:
+    base = endpoint.rstrip("/")
+    url = (
+        f"{base}/openai/deployments/{deployment}/chat/completions"
+        f"?api-version={AZURE_OPENAI_API_VERSION}"
+    )
+    resp = requests.post(
+        url,
+        headers={
+            "api-key": api_key,
+            "Content-Type": "application/json",
+        },
+        json={
+            "messages": messages,
+            "temperature": 0.7,
+        },
+        timeout=OPENROUTER_TIMEOUT_SEC,
+    )
+    if resp.status_code < 200 or resp.status_code >= 300:
+        body = (resp.text or "")[:800]
+        raise ValueError(f"HTTP {resp.status_code}: {body}")
+
+    data = resp.json()
+    if not isinstance(data, dict):
+        raise ValueError("Unexpected JSON root")
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ValueError(f"No choices in response: {str(data)[:500]}")
+    first = choices[0]
+    if not isinstance(first, dict):
+        raise ValueError("Invalid choice entry")
+    msg = first.get("message")
+    if not isinstance(msg, dict):
+        raise ValueError("No message in choice")
+    text = _message_body_text(msg.get("content")).strip()
+    if not text:
+        raise ValueError("Empty model content")
+    return text
+
+
 def _generate_with_failover(
     settings: Any,
     system_instruction: str | None,
     messages: list[dict[str, str]],
 ) -> str:
+    azure_api_key = (getattr(settings, "azure_openai_api_key", None) or "").strip()
+    azure_endpoint = (getattr(settings, "azure_openai_api_endpoint", None) or "").strip()
+    azure_model = (getattr(settings, "azure_openai_model", None) or "").strip()
     keys = _openrouter_keys_primary_first(settings)
-    if not keys:
+    if not keys and not _azure_configured(settings):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                "OpenRouter is not configured on the server. Set OPENROUTER_API_KEY_PRIMARY "
-                "(and optionally OPENROUTER_API_KEY_SECONDARY, OPENROUTER_MODEL) in "
-                "backend/app/.env or Render environment variables."
+                "AI is not configured on the server. Set AZURE_OPENAI_API_KEY, "
+                "AZURE_OPENAI_API_ENDPOINT, and AZURE_OPENAI_MODEL in backend/app/.env "
+                "or Render environment variables."
             ),
         )
 
@@ -163,6 +222,22 @@ def _generate_with_failover(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
+
+    if _azure_configured(settings):
+        try:
+            return _call_azure_openai_messages(
+                azure_api_key,
+                azure_endpoint,
+                azure_model,
+                payload_messages,
+            )
+        except Exception as e:
+            logger.warning("Azure OpenAI failed: %s", e)
+            if not keys:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Azure OpenAI request failed: {e}",
+                ) from e
 
     last_err: Exception | None = None
     for i, api_key in enumerate(keys):
@@ -177,7 +252,7 @@ def _generate_with_failover(
 
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail=f"OpenRouter: all API keys failed. Last error: {last_err}",
+        detail=f"AI provider unavailable. Last error: {last_err}",
     )
 
 
@@ -185,8 +260,13 @@ def _generate_with_failover(
 def ai_status():
     settings = get_settings()
     keys = _openrouter_keys_primary_first(settings)
+    azure = _azure_configured(settings)
     return {
-        "configured": len(keys) > 0,
+        "configured": len(keys) > 0 or azure,
+        "provider": "azure-openai" if azure else ("openrouter" if len(keys) > 0 else "none"),
+        "azure_key_set": bool((getattr(settings, "azure_openai_api_key", None) or "").strip()),
+        "azure_endpoint_set": bool((getattr(settings, "azure_openai_api_endpoint", None) or "").strip()),
+        "azure_model": (getattr(settings, "azure_openai_model", None) or "").strip() or None,
         "primary_key_set": bool(
             (getattr(settings, "openrouter_api_key_primary", None) or "").strip()
         ),

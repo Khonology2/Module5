@@ -1,7 +1,9 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
+import 'package:pdh/utils/date_parse.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -144,15 +146,24 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
                       ),
                       const SizedBox(height: AppSpacing.md),
                       Expanded(
-                        child: StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('team_goals')
-                              .where('createdByManager', isEqualTo: true)
-                              .where(
-                                'managerId',
-                                isEqualTo: AuthService().currentUser?.uid,
-                              )
-                              .snapshots(),
+                        child: StreamBuilder<List<Map<String, dynamic>>>(
+                          stream: backendPollingStream<List<Map<String, dynamic>>>(
+                            initialValue: const [],
+                            fetch: () async {
+                              final managerId =
+                                  AuthService().currentUser?.uid ?? '';
+                              final items = await BackendAuthService.instance
+                                  .getCollectionItems('team_goals', limit: 200);
+                              return items
+                                  .where(
+                                    (g) =>
+                                        g['createdByManager'] == true &&
+                                        (g['managerId'] ?? '').toString() ==
+                                            managerId,
+                                  )
+                                  .toList();
+                            },
+                          ),
                           builder: (context, snapshot) {
                             if (snapshot.hasError) {
                               return Center(
@@ -169,7 +180,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
                               return const CustomLogoLoader(centerInViewport: true);
                             }
 
-                            final teamGoals = snapshot.data?.docs ?? [];
+                            final teamGoals = snapshot.data ?? const [];
 
                             if (teamGoals.isEmpty) {
                               return _buildEmptyState();
@@ -178,9 +189,9 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
                             return ListView.builder(
                               itemCount: teamGoals.length,
                               itemBuilder: (context, index) {
-                                final teamGoal =
-                                    teamGoals[index].data() as Map<String, dynamic>;
-                                final goalId = teamGoals[index].id;
+                                final teamGoal = teamGoals[index];
+                                final goalId =
+                                    (teamGoal['id'] ?? '').toString();
                                 return _buildTeamGoalCard(goalId, teamGoal);
                               },
                             );
@@ -237,7 +248,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
     final title = teamGoal['title'] ?? 'Untitled Goal';
     final description = teamGoal['description'] ?? '';
     final status = teamGoal['status'] ?? 'active';
-    final deadline = (teamGoal['targetDate'] as Timestamp?)?.toDate();
+    final deadline = parseNullableDate(teamGoal['targetDate']);
     final points = teamGoal['points'] ?? 0;
     final participantCount = teamGoal['participantCount'] ?? 0;
 
@@ -527,23 +538,25 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
     });
 
     try {
+      final now = DateTime.now();
       final teamGoalData = {
         'title': _titleController.text,
         'description': _descriptionController.text,
         'points': int.parse(_pointsController.text),
-        'targetDate': Timestamp.fromDate(_selectedDeadline!),
+        'targetDate': _selectedDeadline!.toIso8601String(),
         'status': 'active',
         'createdByManager': true,
         'managerId': AuthService().currentUser?.uid,
         'managerName': AuthService().currentUser?.displayName ?? 'Manager',
         'participantCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'department': '', // Will be set from user profile
+        'createdAt': now.toIso8601String(),
+        'department': '',
       };
 
-      await FirebaseFirestore.instance
-          .collection('team_goals')
-          .add(teamGoalData);
+      await BackendAuthService.instance.createCollectionItem(
+        'team_goals',
+        teamGoalData,
+      );
 
       // Reset form
       _titleController.clear();
@@ -573,18 +586,20 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
     try {
       final deletedUids = await ManagerRealtimeService.getDeletedAccountUids();
       // Get ALL employees regardless of department (exclude deleted accounts)
-      final employees = await FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'employee')
-          .get();
+      final employees = await BackendAuthService.instance.listUsers(
+        role: 'employee',
+        limit: 500,
+      );
 
       int notificationCount = 0;
 
-      for (final employee in employees.docs) {
-        if (deletedUids.contains(employee.id)) continue;
+      for (final employee in employees) {
+        final employeeId =
+            (employee['id'] ?? employee['userId'] ?? '').toString();
+        if (employeeId.isEmpty || deletedUids.contains(employeeId)) continue;
         try {
           await AlertService.createTeamGoalAlert(
-            userId: employee.id,
+            userId: employeeId,
             teamGoalTitle: _titleController.text,
             managerName: AuthService().currentUser?.displayName ?? 'Manager',
             points: int.parse(_pointsController.text),
@@ -593,7 +608,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
           notificationCount++;
         } catch (alertError) {
           debugPrint(
-            'Failed to create alert for employee ${employee.id}: $alertError',
+            'Failed to create alert for employee $employeeId: $alertError',
           );
           // Continue with other employees even if one fails
         }

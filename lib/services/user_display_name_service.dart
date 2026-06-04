@@ -1,9 +1,12 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/services/database_service.dart';
+import 'package:pdh/auth_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/services/onboarding_service.dart';
 
-/// Resolves a human-readable name for the signed-in user (profile, onboarding, auth, email).
+/// Resolves a human-readable name for the signed-in user (PostgreSQL profile, onboarding, auth, email).
 class UserDisplayNameService {
   UserDisplayNameService._();
+
+  static final BackendAuthService _backend = BackendAuthService.instance;
 
   static String formatNameFromEmail(String email) {
     final local = email.split('@').first.trim();
@@ -20,25 +23,37 @@ class UserDisplayNameService {
   }
 
   static Future<String> resolveForCurrentUser() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = AuthService().currentUser;
     if (user == null) return '';
 
     final uid = user.uid;
     final email = (user.email ?? '').trim();
 
     try {
-      final profile = await DatabaseService.getUserProfile(uid);
-      final fromProfile = profile.displayName.trim();
+      final profile = await _backend.getUser(uid);
+      final fromProfile =
+          (profile['displayName'] ?? profile['fullName'] ?? '').toString().trim();
       if (fromProfile.isNotEmpty) return fromProfile;
     } catch (_) {}
 
     try {
-      final fromOnboarding = await DatabaseService.getUserNameFromOnboarding(
-        userId: uid,
-        email: email.isNotEmpty ? email : null,
+      final onboarding = await OnboardingService.fetchOnboardingRecord(uid);
+      final fromOnboarding = OnboardingService.displayNameFromOnboarding(
+        onboarding,
       );
-      if (fromOnboarding != null && fromOnboarding.trim().isNotEmpty) {
-        return fromOnboarding.trim();
+      if (fromOnboarding != null && fromOnboarding.isNotEmpty) {
+        return fromOnboarding;
+      }
+
+      if (email.isNotEmpty) {
+        final byEmail = await OnboardingService.listOnboardingRecords(
+          email: email,
+          limit: 1,
+        );
+        if (byEmail.isNotEmpty) {
+          final name = OnboardingService.displayNameFromOnboarding(byEmail.first);
+          if (name != null && name.isNotEmpty) return name;
+        }
       }
     } catch (_) {}
 

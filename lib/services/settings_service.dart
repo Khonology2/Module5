@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 
 class UserSettings {
   final String userId;
@@ -13,22 +12,16 @@ class UserSettings {
   final String? photoURL;
   final String? department;
   final String? jobTitle;
-
-  // Privacy Settings
   final bool privateGoals;
   final bool managerOnly;
   final bool teamShare;
   final bool leaderboardParticipation;
   final bool profileVisible;
-
-  // Notification Settings
   final bool pushNotifications;
   final bool emailNotifications;
   final bool soundAlerts;
   final bool goalReminders;
   final bool weeklyReports;
-
-  // App Settings
   final bool darkMode;
   final bool speechRecognitionEnabled;
   final bool celebrationFeed;
@@ -36,8 +29,6 @@ class UserSettings {
   final String language;
   final String timeZone;
   final bool tutorialEnabled;
-
-  // Security Settings
   final bool twoFactorAuth;
   final bool sessionTimeout;
   final int sessionTimeoutMinutes;
@@ -53,7 +44,7 @@ class UserSettings {
     this.privateGoals = false,
     this.managerOnly = false,
     this.teamShare = true,
-    this.leaderboardParticipation = false, // Default to false, require opt-in
+    this.leaderboardParticipation = false,
     this.profileVisible = true,
     this.pushNotifications = true,
     this.emailNotifications = true,
@@ -73,41 +64,42 @@ class UserSettings {
     this.biometricAuth = false,
   });
 
-  factory UserSettings.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+  factory UserSettings.fromJson(Map<String, dynamic> data) {
     return UserSettings(
-      userId: doc.id,
-      displayName: data['displayName']?.toString() ?? '',
-      email: data['email']?.toString() ?? '',
+      userId: (data['userId'] ?? data['user_id'] ?? '').toString(),
+      displayName: (data['displayName'] ?? '').toString(),
+      email: (data['email'] ?? '').toString(),
       photoURL: data['photoURL']?.toString(),
       department: data['department']?.toString(),
       jobTitle: data['jobTitle']?.toString(),
-      privateGoals: data['privateGoals'] ?? false,
-      managerOnly: data['managerOnly'] ?? false,
-      teamShare: data['teamShare'] ?? true,
-      leaderboardParticipation: data['leaderboardParticipation'] ?? false,
-      profileVisible: data['profileVisible'] ?? true,
-      pushNotifications: data['pushNotifications'] ?? true,
-      emailNotifications: data['emailNotifications'] ?? true,
-      soundAlerts: data['soundAlerts'] ?? true,
-      goalReminders: data['goalReminders'] ?? true,
-      weeklyReports: data['weeklyReports'] ?? false,
-      darkMode: data['darkMode'] ?? true,
-      speechRecognitionEnabled: data['speechRecognitionEnabled'] ?? false,
-      celebrationFeed: data['celebrationFeed'] ?? true,
-      autoSync: data['autoSync'] ?? true,
-      language: data['language'] ?? 'en',
-      timeZone: data['timeZone'] ?? 'UTC',
-      tutorialEnabled: data['tutorialEnabled'] ?? false,
-      twoFactorAuth: data['twoFactorAuth'] ?? false,
-      sessionTimeout: data['sessionTimeout'] ?? false,
-      sessionTimeoutMinutes: data['sessionTimeoutMinutes'] ?? 30,
-      biometricAuth: data['biometricAuth'] ?? false,
+      privateGoals: data['privateGoals'] == true,
+      managerOnly: data['managerOnly'] == true,
+      teamShare: data['teamShare'] != false,
+      leaderboardParticipation: data['leaderboardParticipation'] == true,
+      profileVisible: data['profileVisible'] != false,
+      pushNotifications: data['pushNotifications'] != false,
+      emailNotifications: data['emailNotifications'] != false,
+      soundAlerts: data['soundAlerts'] != false,
+      goalReminders: data['goalReminders'] != false,
+      weeklyReports: data['weeklyReports'] == true,
+      darkMode: data['darkMode'] != false,
+      speechRecognitionEnabled: data['speechRecognitionEnabled'] == true,
+      celebrationFeed: data['celebrationFeed'] != false,
+      autoSync: data['autoSync'] != false,
+      language: (data['language'] ?? 'en').toString(),
+      timeZone: (data['timeZone'] ?? 'UTC').toString(),
+      tutorialEnabled: data['tutorialEnabled'] == true,
+      twoFactorAuth: data['twoFactorAuth'] == true,
+      sessionTimeout: data['sessionTimeout'] == true,
+      sessionTimeoutMinutes:
+          int.tryParse((data['sessionTimeoutMinutes'] ?? 30).toString()) ?? 30,
+      biometricAuth: data['biometricAuth'] == true,
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toJson() {
     return {
+      'userId': userId,
       'displayName': displayName,
       'email': email,
       'photoURL': photoURL,
@@ -117,8 +109,6 @@ class UserSettings {
       'managerOnly': managerOnly,
       'teamShare': teamShare,
       'leaderboardParticipation': leaderboardParticipation,
-      'leaderboardOptin':
-          leaderboardParticipation, // Sync both fields for compatibility
       'profileVisible': profileVisible,
       'pushNotifications': pushNotifications,
       'emailNotifications': emailNotifications,
@@ -136,7 +126,6 @@ class UserSettings {
       'sessionTimeout': sessionTimeout,
       'sessionTimeoutMinutes': sessionTimeoutMinutes,
       'biometricAuth': biometricAuth,
-      'lastUpdated': FieldValue.serverTimestamp(),
     };
   }
 
@@ -204,14 +193,13 @@ class UserSettings {
 }
 
 class SettingsService {
-  // Lazily access Firebase instances to ensure main() config (e.g., web persistence) is applied first
-  static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
-  static FirebaseAuth get _auth => FirebaseAuth.instance;
-
-  // Cached stream to prevent recreation on every build
-  static Stream<UserSettings?>? _cachedSettingsStream;
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
   static String? _cachedUserId;
   static final Map<String, Future<void>> _initInFlightByUserId = {};
+
+  static void clearCache() {
+    _cachedUserId = null;
+  }
 
   static Future<void> _ensureUserSettingsDocInitialized(
     String uid,
@@ -220,132 +208,79 @@ class SettingsService {
     final existing = _initInFlightByUserId[uid];
     if (existing != null) return existing;
 
-    final fut =
-        FirestoreSafe.setDoc<Map<String, dynamic>>(
-              _firestore.collection('users').doc(uid),
-              defaultSettings.toFirestore(),
-              options: SetOptions(merge: true),
-            )
-            .catchError((e) {
-              developer.log('Error initializing user settings: $e');
-              throw e;
-            })
-            .whenComplete(() {
-              _initInFlightByUserId.remove(uid);
-            });
-
+    final fut = BackendAuthService.instance
+        .updateUserSettings(uid, defaultSettings.toJson())
+        .catchError((e) {
+          developer.log('Error initializing user settings: $e');
+          throw e;
+        })
+        .whenComplete(() {
+          _initInFlightByUserId.remove(uid);
+        });
     _initInFlightByUserId[uid] = fut;
     return fut;
   }
 
-  // Clear cached stream (call on sign out or user change)
-  // This prevents multiple Firestore listeners on the same document
-  static void clearCache() {
-    _cachedSettingsStream = null;
-    _cachedUserId = null;
+  static UserSettings getDefaultSettings(User user) {
+    return UserSettings(
+      userId: user.uid,
+      displayName: user.displayName ?? '',
+      email: user.email ?? '',
+      photoURL: user.photoURL,
+    );
   }
 
-  // Get user settings stream
-  static Stream<UserSettings?> getUserSettingsStream() {
+  static Stream<UserSettings?> getUserSettingsStream() async* {
     final user = _auth.currentUser;
     if (user == null) {
       clearCache();
-      return Stream.value(null);
+      yield null;
+      return;
     }
 
-    // If user changed, clear old stream first to prevent multiple listeners
-    if (_cachedSettingsStream != null && _cachedUserId != user.uid) {
+    if (_cachedUserId != user.uid) {
       clearCache();
+      _cachedUserId = user.uid;
     }
 
-    // Return cached stream if user hasn't changed
-    if (_cachedSettingsStream != null && _cachedUserId == user.uid) {
-      return _cachedSettingsStream!;
+    while (true) {
+      yield await getUserSettings();
+      await Future.delayed(const Duration(seconds: 5));
     }
-
-    // Create new broadcast stream for this user
-    _cachedUserId = user.uid;
-    try {
-      _cachedSettingsStream =
-          FirestoreSafe.stream(
-                _firestore.collection('users').doc(user.uid).snapshots(),
-              )
-              .asyncMap((snapshot) async {
-                if (!snapshot.exists) {
-                  // Initialize default settings for new users
-                  final defaultSettings = getDefaultSettings(user);
-                  // Ensure only one initialization write happens at a time.
-                  // This avoids overlapping writes during active listeners (notably on web).
-                  try {
-                    await _ensureUserSettingsDocInitialized(
-                      user.uid,
-                      defaultSettings,
-                    );
-                  } catch (_) {
-                    // Non-fatal: still return defaults so UI can render.
-                  }
-                  return defaultSettings;
-                }
-                try {
-                  return UserSettings.fromFirestore(snapshot);
-                } catch (e) {
-                  developer.log('Error parsing user settings: $e');
-                  return getDefaultSettings(user);
-                }
-              })
-              .handleError((error) {
-                developer.log('Error in user settings stream: $error');
-                FirestoreWebCircuitBreaker.maybeReload(error);
-                // Return default settings if there's an error
-                return getDefaultSettings(user);
-              })
-              .asBroadcastStream();
-    } catch (e) {
-      developer.log('Error creating settings stream: $e');
-      clearCache();
-      return Stream.value(getDefaultSettings(user));
-    }
-
-    return _cachedSettingsStream!;
   }
 
-  // Get user settings once
   static Future<UserSettings?> getUserSettings() async {
     final user = _auth.currentUser;
     if (user == null) return null;
 
     try {
-      final snapshot = await FirestoreSafe.getDoc(
-        _firestore.collection('users').doc(user.uid),
-      );
-      if (!snapshot.exists) {
-        // Ensure defaults exist for new users.
+      final json = await BackendAuthService.instance.getUserSettings(user.uid);
+      if (json.isEmpty) {
         final defaults = getDefaultSettings(user);
         try {
           await _ensureUserSettingsDocInitialized(user.uid, defaults);
         } catch (_) {}
         return defaults;
       }
-      return UserSettings.fromFirestore(snapshot);
+      return UserSettings.fromJson(json);
     } catch (e) {
       developer.log('Error getting user settings: $e');
-      FirestoreWebCircuitBreaker.maybeReload(e);
-      return null;
+      final defaults = getDefaultSettings(user);
+      try {
+        await _ensureUserSettingsDocInitialized(user.uid, defaults);
+      } catch (_) {}
+      return defaults;
     }
   }
 
-  // Update user settings
   static Future<void> updateUserSettings(UserSettings settings) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
-
     try {
-      await FirestoreSafe.updateDoc<Map<String, dynamic>>(
-        _firestore.collection('users').doc(user.uid),
-        settings.toFirestore(),
+      await BackendAuthService.instance.updateUserSettings(
+        user.uid,
+        settings.toJson(),
       );
-
-      // Also save certain settings locally
       await _saveLocalSettings(settings);
     } catch (e) {
       developer.log('Error updating user settings: $e');
@@ -353,31 +288,15 @@ class SettingsService {
     }
   }
 
-  // Update specific setting
   static Future<void> updateSetting(String key, dynamic value) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
-
     try {
-      Map<String, dynamic> updateData = {
-        key: value,
-        'lastUpdated': FieldValue.serverTimestamp(),
-      };
-
-      // Sync leaderboardParticipation with leaderboardOptin for compatibility
+      final payload = <String, dynamic>{key: value};
       if (key == 'leaderboardParticipation') {
-        updateData['leaderboardOptin'] = value;
+        payload['leaderboardOptin'] = value;
       }
-
-      // Use set with merge to handle both create and update cases
-      // This ensures the document exists even if it wasn't created yet
-      await FirestoreSafe.setDoc<Map<String, dynamic>>(
-        _firestore.collection('users').doc(user.uid),
-        updateData,
-        options: SetOptions(merge: true),
-      );
-
-      // Save locally if it's a critical setting
+      await BackendAuthService.instance.updateUserSettings(user.uid, payload);
       if (_criticalSettings.contains(key)) {
         final prefs = await SharedPreferences.getInstance();
         if (value is bool) {
@@ -390,25 +309,19 @@ class SettingsService {
       }
     } catch (e) {
       developer.log('Error updating setting $key: $e');
-      FirestoreWebCircuitBreaker.maybeReload(e);
       rethrow;
     }
   }
 
-  // Save critical settings locally
   static Future<void> _saveLocalSettings(UserSettings settings) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('darkMode', settings.darkMode);
-    await prefs.setBool(
-      'speechRecognitionEnabled',
-      settings.speechRecognitionEnabled,
-    );
+    await prefs.setBool('speechRecognitionEnabled', settings.speechRecognitionEnabled);
     await prefs.setBool('pushNotifications', settings.pushNotifications);
     await prefs.setBool('autoSync', settings.autoSync);
     await prefs.setString('language', settings.language);
   }
 
-  // Load local settings
   static Future<Map<String, dynamic>> getLocalSettings() async {
     final prefs = await SharedPreferences.getInstance();
     return {
@@ -421,7 +334,6 @@ class SettingsService {
     };
   }
 
-  // Update profile information
   static Future<void> updateProfile({
     required String displayName,
     String? photoURL,
@@ -430,29 +342,22 @@ class SettingsService {
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
-
     try {
-      // Update Firebase Auth profile
       await user.updateDisplayName(displayName);
       if (photoURL != null && photoURL.isNotEmpty) {
         await user.updatePhotoURL(photoURL);
       }
-
-      // Update Firestore document
-      await _firestore.collection('users').doc(user.uid).update({
-        'displayName': displayName,
-        if (photoURL != null) ...{'photoURL': photoURL},
-        if (department != null) ...{'department': department},
-        if (jobTitle != null) ...{'jobTitle': jobTitle},
-        'lastUpdated': FieldValue.serverTimestamp(),
-      });
+      final payload = <String, dynamic>{'displayName': displayName};
+      if (photoURL != null) payload['photoURL'] = photoURL;
+      if (department != null) payload['department'] = department;
+      if (jobTitle != null) payload['jobTitle'] = jobTitle;
+      await BackendAuthService.instance.updateUserProfile(user.uid, payload);
     } catch (e) {
       developer.log('Error updating profile: $e');
       rethrow;
     }
   }
 
-  // Reset password
   static Future<void> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
@@ -462,109 +367,12 @@ class SettingsService {
     }
   }
 
-  // Delete account
   static Future<void> deleteAccount() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
-
     try {
-      final uid = user.uid;
-      final emailLower = (user.email ?? '').toLowerCase();
-
-      // Record blocklist entry first (prevents future login/registration by email)
-      if (emailLower.isNotEmpty) {
-        try {
-          await _firestore.collection('deleted_accounts').doc(uid).set({
-            'uid': uid,
-            'emailLower': emailLower,
-            'deletedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-        } catch (e) {
-          developer.log(
-            'Warning: could not write deleted_accounts for $uid: $e',
-          );
-        }
-      }
-
-      // Delete top-level documents referencing this user
-      Future<void> deleteWhere(String collection, String field) async {
-        final snap = await _firestore
-            .collection(collection)
-            .where(field, isEqualTo: uid)
-            .get();
-        final batch = _firestore.batch();
-        for (final d in snap.docs) {
-          batch.delete(d.reference);
-        }
-        await batch.commit();
-      }
-
-      try {
-        await deleteWhere('goals', 'userId');
-      } catch (e) {
-        developer.log('delete goals failed: $e');
-      }
-      try {
-        await deleteWhere('alerts', 'userId');
-      } catch (e) {
-        developer.log('delete alerts failed: $e');
-      }
-      try {
-        await deleteWhere('activities', 'userId');
-      } catch (e) {
-        developer.log('delete activities failed: $e');
-      }
-      try {
-        await deleteWhere('goal_daily_progress', 'userId');
-      } catch (e) {
-        developer.log('delete goal_daily_progress failed: $e');
-      }
-
-      // Delete any subcollections under users/{uid}
-      final subcollections = [
-        'goals',
-        'streaks',
-        'badges',
-        'alerts',
-        'development_activities',
-        'daily_activities',
-      ];
-      for (final sub in subcollections) {
-        try {
-          final subSnap = await _firestore
-              .collection('users')
-              .doc(uid)
-              .collection(sub)
-              .get();
-          final batch = _firestore.batch();
-          for (final d in subSnap.docs) {
-            batch.delete(d.reference);
-          }
-          await batch.commit();
-        } catch (e) {
-          developer.log('Error deleting subcollection $sub for $uid: $e');
-        }
-      }
-
-      // Delete the user profile document last
-      try {
-        await _firestore.collection('users').doc(uid).delete();
-      } catch (e) {
-        developer.log('Error deleting users/$uid: $e');
-      }
-
-      // Delete evidence files metadata for this user (best-effort)
-      try {
-        await deleteWhere('evidence_files', 'userId');
-      } catch (e) {
-        developer.log('Error deleting evidence_files for $uid: $e');
-      }
-
-      // Clear local settings
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
-
-      // Finally, delete Firebase Auth account
       await user.delete();
     } catch (e) {
       developer.log('Error deleting account: $e');
@@ -572,92 +380,21 @@ class SettingsService {
     }
   }
 
-  // Export user data
   static Future<Map<String, dynamic>> exportUserData() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
-
-    try {
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (!userDoc.exists) {
-        throw Exception(
-          'User profile not found. Please complete your profile setup.',
-        );
-      }
-
-      // Fetch full set of goals (with a safety cap)
-      late final QuerySnapshot goalsQuery;
-      late final QuerySnapshot activitiesQuery;
-      try {
-        goalsQuery = await _firestore
-            .collection('goals')
-            .where('userId', isEqualTo: user.uid)
-            .limit(200)
-            .get();
-
-        // Fetch recent activities (safely capped)
-        // Avoid server-side ordering to reduce risk of Firestore watch/index issues on web SDK.
-        activitiesQuery = await _firestore
-          .collection('activities')
-          .where('userId', isEqualTo: user.uid)
-          .limit(200)
-          .get();
-      } on FirebaseException catch (e) {
-        // If Firestore requires a composite index, the server returns a URL
-        final msg = e.message ?? e.toString();
-        final urlMatch = RegExp(r'https?://[^\s]+create_composite[^\s]+').firstMatch(msg);
-        if (urlMatch != null) {
-          throw Exception('Firestore index required for this export. Create it here: ${urlMatch.group(0)}');
-        }
-        // Surface internal assertion failures with clearer guidance
-        if (msg.contains('INTERNAL ASSERTION') || msg.contains('Unexpected state')) {
-          throw Exception('Firestore internal error occurred during export. Try again, and consider upgrading your Firebase SDKs. Technical details: $msg');
-        }
-        throw Exception('Firestore query failed during export: $msg');
-      }
-
-      // Fetch badges from user subcollection if present
-      List<Map<String, dynamic>> badges = [];
-      try {
-        final badgeSnapshot = await _firestore
-            .collection('users')
-            .doc(user.uid)
-            .collection('badges')
-            .get();
-        badges = badgeSnapshot.docs.map((d) => d.data()).toList();
-      } catch (_) {
-        // ignore - not all installations use user subcollection badges
-      }
-
-      final profileData = userDoc.data();
-      final filteredProfile = {
-        'displayName': profileData?['displayName'],
-        'email': profileData?['email'],
-        'department': profileData?['department'],
-        'jobTitle': profileData?['jobTitle'],
-        'photoURL': profileData?['photoURL'],
-        'userId': user.uid,
-        'createdAt': profileData?['createdAt']?.toString(),
-        'lastUpdated': profileData?['lastUpdated']?.toString(),
-        'currentStreak': profileData?['currentStreak'] ?? 0,
-        'points': profileData?['points'] ?? 0,
-      };
-
-      return {
-        'profile': filteredProfile,
-        'goals': goalsQuery.docs.map((doc) => doc.data()).toList(),
-        'activities': activitiesQuery.docs.map((doc) => doc.data()).toList(),
-        'badges': badges,
-        'exportDate': DateTime.now().toIso8601String(),
-      };
-    } catch (e) {
-      developer.log('Error exporting user data: $e');
-      // If it's a low-level FirebaseException, rethrow to UI for user guidance
-      rethrow;
-    }
+    final profile = await BackendAuthService.instance.getUser(user.uid);
+    final settings = await getUserSettings();
+    return {
+      'profile': profile,
+      'settings': settings?.toJson() ?? <String, dynamic>{},
+      'goals': const [],
+      'activities': const [],
+      'badges': const [],
+      'exportDate': DateTime.now().toIso8601String(),
+    };
   }
 
-  // Critical settings that should be saved locally
   static const List<String> _criticalSettings = [
     'darkMode',
     'speechRecognitionEnabled',
@@ -674,27 +411,14 @@ class SettingsService {
     'celebrationFeed',
   ];
 
-  // Get default settings for new users
-  static UserSettings getDefaultSettings(User user) {
-    return UserSettings(
-      userId: user.uid,
-      displayName: user.displayName ?? '',
-      email: user.email ?? '',
-      photoURL: user.photoURL,
-    );
-  }
-
-  // Initialize settings for new user
   static Future<void> initializeUserSettings(User user) async {
     try {
       final defaultSettings = getDefaultSettings(user);
-      await FirestoreSafe.setDoc<Map<String, dynamic>>(
-        _firestore.collection('users').doc(user.uid),
-        defaultSettings.toFirestore(),
-      );
+      await _ensureUserSettingsDocInitialized(user.uid, defaultSettings);
     } catch (e) {
       developer.log('Error initializing user settings: $e');
       rethrow;
     }
   }
 }
+

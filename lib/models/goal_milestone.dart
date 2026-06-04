@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 
 enum GoalMilestoneStatus {
   notStarted,
@@ -47,25 +47,6 @@ class MilestoneEvidence {
     this.reviewNotes,
   });
 
-  factory MilestoneEvidence.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
-    return MilestoneEvidence(
-      id: doc.id,
-      fileUrl: data['fileUrl']?.toString() ?? '',
-      fileName: data['fileName']?.toString() ?? '',
-      fileType: data['fileType']?.toString() ?? '',
-      fileSize: data['fileSize']?.toInt() ?? 0,
-      uploadedBy: data['uploadedBy']?.toString() ?? '',
-      uploadedByName: data['uploadedByName']?.toString(),
-      uploadedAt: _parseDate(data['uploadedAt']) ?? DateTime.now(),
-      status: _evidenceStatusFromString(data['status']?.toString()),
-      reviewedBy: data['reviewedBy']?.toString(),
-      reviewedByName: data['reviewedByName']?.toString(),
-      reviewedAt: _parseDate(data['reviewedAt']),
-      reviewNotes: data['reviewNotes']?.toString(),
-    );
-  }
-
   static MilestoneEvidenceStatus _evidenceStatusFromString(String? value) {
     if (value == null) {
       return MilestoneEvidenceStatus.pendingReview; // UPDATED: New default
@@ -77,27 +58,20 @@ class MilestoneEvidence {
     );
   }
 
-  static DateTime? _parseDate(dynamic v) {
-    if (v == null) return null;
-    if (v is Timestamp) return v.toDate();
-    if (v is DateTime) return v;
-    final parsed = DateTime.tryParse(v.toString());
-    return parsed;
-  }
-
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'fileUrl': fileUrl,
       'fileName': fileName,
       'fileType': fileType,
       'fileSize': fileSize,
       'uploadedBy': uploadedBy,
       'uploadedByName': uploadedByName,
-      'uploadedAt': Timestamp.fromDate(uploadedAt),
+      'uploadedAt': uploadedAt.toIso8601String(),
       'status': status.name,
       'reviewedBy': reviewedBy,
       'reviewedByName': reviewedByName,
-      'reviewedAt': reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
+      'reviewedAt': reviewedAt?.toIso8601String(),
       'reviewNotes': reviewNotes,
     };
   }
@@ -111,11 +85,11 @@ class MilestoneEvidence {
       fileSize: map['fileSize']?.toInt() ?? 0,
       uploadedBy: map['uploadedBy']?.toString() ?? '',
       uploadedByName: map['uploadedByName']?.toString(),
-      uploadedAt: _parseDate(map['uploadedAt']) ?? DateTime.now(),
+      uploadedAt: parseDate(map['uploadedAt']),
       status: _evidenceStatusFromString(map['status']?.toString()),
       reviewedBy: map['reviewedBy']?.toString(),
       reviewedByName: map['reviewedByName']?.toString(),
-      reviewedAt: _parseDate(map['reviewedAt']),
+      reviewedAt: parseNullableDate(map['reviewedAt']),
       reviewNotes: map['reviewNotes']?.toString(),
     );
   }
@@ -153,31 +127,33 @@ class GoalMilestone {
     this.evidence = const [], // Evidence list for new workflow
   });
 
-  factory GoalMilestone.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
-
-    // Parse evidence list for backward compatibility
+  factory GoalMilestone.fromMap(
+    Map<String, dynamic> map, {
+    String? id,
+    String? goalId,
+  }) {
     List<MilestoneEvidence> parsedEvidence = [];
-    if (data['evidence'] != null) {
-      final evidenceData = data['evidence'] as List;
+    if (map['evidence'] != null) {
+      final evidenceData = map['evidence'] as List;
       parsedEvidence = evidenceData
-          .map((e) => MilestoneEvidence.fromMap(e))
+          .map((e) => MilestoneEvidence.fromMap(
+                Map<String, dynamic>.from(e as Map),
+              ))
           .toList();
     }
 
     return GoalMilestone(
-      id: doc.id,
-      goalId: doc.reference.parent.parent?.id ?? '',
-      title: data['title']?.toString() ?? '',
-      description: data['description']?.toString() ?? '',
-      status: _statusFromString(data['status']?.toString()),
-      dueDate: _parseDate(data['dueDate']) ?? DateTime.now(),
-      createdBy: data['createdBy']?.toString() ?? '',
-      createdByName: data['createdByName']?.toString(),
-      createdAt: _parseDate(data['createdAt']) ?? DateTime.now(),
-      updatedAt: _parseDate(data['updatedAt']) ?? DateTime.now(),
-      completedAt: _parseDate(data['completedAt']),
-      // REMOVED: requiresEvidence and manager fields - no longer needed
+      id: id ?? map['id']?.toString() ?? '',
+      goalId: goalId ?? map['goalId']?.toString() ?? '',
+      title: map['title']?.toString() ?? '',
+      description: map['description']?.toString() ?? '',
+      status: _statusFromString(map['status']?.toString()),
+      dueDate: parseDate(map['dueDate']),
+      createdBy: map['createdBy']?.toString() ?? '',
+      createdByName: map['createdByName']?.toString(),
+      createdAt: parseDate(map['createdAt']),
+      updatedAt: parseDate(map['updatedAt']),
+      completedAt: parseNullableDate(map['completedAt']),
       evidence: parsedEvidence,
     );
   }
@@ -190,28 +166,19 @@ class GoalMilestone {
     );
   }
 
-  static DateTime? _parseDate(dynamic v) {
-    if (v == null) return null;
-    if (v is Timestamp) return v.toDate();
-    if (v is DateTime) return v;
-    final parsed = DateTime.tryParse(v.toString());
-    return parsed;
-  }
-
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
+      'goalId': goalId,
       'title': title,
       'description': description,
       'status': status.name,
-      'dueDate': Timestamp.fromDate(dueDate),
+      'dueDate': dueDate.toIso8601String(),
       'createdBy': createdBy,
       'createdByName': createdByName,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
-      'completedAt': completedAt != null
-          ? Timestamp.fromDate(completedAt!)
-          : null,
-      // REMOVED: requiresEvidence and manager fields - no longer needed
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'completedAt': completedAt?.toIso8601String(),
       'evidence': evidence.map((e) => e.toMap()).toList(),
     };
   }

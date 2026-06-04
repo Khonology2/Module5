@@ -12,5 +12,5 @@ Future<void> initializePdhEnv() async {
     dotenv.testLoad(fileInput: '');
   }
   mergeOpenRouterFromPlatformEnvironment();
-  mergeOpenRouterFromBackendRepoDotenv();
+  mergeBackendRepoDotenv();
 }

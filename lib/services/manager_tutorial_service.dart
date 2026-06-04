@@ -1,6 +1,6 @@
 import 'dart:developer' as developer;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 
@@ -22,22 +22,8 @@ class ManagerTutorialService {
     }
 
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      // If document doesn't exist, user is new - tutorial not completed
-      if (!doc.exists) {
-        developer.log(
-          'User document does not exist - tutorial not completed',
-          name: 'ManagerTutorialService',
-        );
-        return false;
-      }
-
-      final data = doc.data();
-      final isCompleted = data?['managerSidebarTutorialCompleted'] == true;
+      final data = await BackendAuthService.instance.getUser(user.uid);
+      final isCompleted = data['managerSidebarTutorialCompleted'] == true;
       developer.log(
         'Manager sidebar tutorial completed check: $isCompleted',
         name: 'ManagerTutorialService',
@@ -69,11 +55,9 @@ class ManagerTutorialService {
         'Marking manager sidebar tutorial as completed for user: ${user.uid}',
         name: 'ManagerTutorialService',
       );
-
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      await BackendAuthService.instance.updateUserProfile(user.uid, {
         'managerSidebarTutorialCompleted': true,
-        'managerSidebarTutorialCompletedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      });
 
       developer.log(
         'Manager sidebar tutorial marked as completed successfully',
@@ -94,9 +78,9 @@ class ManagerTutorialService {
     if (user == null) return;
 
     try {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      await BackendAuthService.instance.updateUserProfile(user.uid, {
         'managerSidebarTutorialCompleted': false,
-      }, SetOptions(merge: true));
+      });
       developer.log(
         'Manager sidebar tutorial completion reset',
         name: 'ManagerTutorialService',

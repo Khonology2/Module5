@@ -6,7 +6,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -369,10 +368,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     );
 
     try {
-      await FirebaseFirestore.instance.collection('goals').doc(goalId).update({
-        'targetDate': Timestamp.fromDate(picked),
+      await DatabaseService.patchGoalFields(goalId, {
+        'targetDate': picked.toIso8601String(),
         'status': GoalStatus.inProgress.name,
-        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdated': DateTime.now().toIso8601String(),
       });
 
       await AlertService.createMotivationalAlert(
@@ -2614,7 +2613,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         _isSelectionMode = false;
       });
 
-      // Mark as read in Firestore
+      // Mark as read in PostgreSQL
       for (final alertId in realAlerts) {
         try {
           await AlertService.markAsRead(alertId);
@@ -2647,7 +2646,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         _isSelectionMode = false;
       });
 
-      // Dismiss alerts in Firestore
+      // Dismiss alerts in PostgreSQL
       for (final alertId in realAlerts) {
         try {
           await AlertService.dismissAlert(alertId);
@@ -2976,8 +2975,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
     if (picked == null) return;
 
     try {
-      await FirebaseFirestore.instance.collection('goals').doc(goalId).update({
-        'targetDate': Timestamp.fromDate(picked),
+      await DatabaseService.patchGoalFields(goalId, {
+        'targetDate': picked.toIso8601String(),
         'status': GoalStatus.inProgress.name,
       });
 
@@ -3018,7 +3017,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
   Future<void> _pauseGoal(String goalId, EmployeeData employee) async {
     try {
-      await FirebaseFirestore.instance.collection('goals').doc(goalId).update({
+      await DatabaseService.patchGoalFields(goalId, {
         'status': GoalStatus.paused.name,
       });
 
@@ -3035,7 +3034,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
   Future<void> _markGoalBurnout(String goalId, EmployeeData employee) async {
     try {
-      await FirebaseFirestore.instance.collection('goals').doc(goalId).update({
+      await DatabaseService.patchGoalFields(goalId, {
         'status': GoalStatus.burnout.name,
       });
 
@@ -3953,7 +3952,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
   void _markAllAlertsAsRead(List<Alert> alerts) async {
     try {
-      // Filter out synthetic alerts (like inactivity) that don't exist in Firestore
+      // Filter out synthetic alerts (like inactivity) that don't exist in the backend
       final realAlerts = alerts
           .where((a) => !a.id.startsWith('synthetic_'))
           .toList();
@@ -3975,7 +3974,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
         });
       }
 
-      // Mark as read in Firestore
+      // Mark as read in PostgreSQL
       for (final alert in unreadAlerts) {
         try {
           await AlertService.markAsRead(alert.id);

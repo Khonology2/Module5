@@ -1,5 +1,5 @@
 // Milestone audit entry model for timeline tracking
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 
 enum MilestoneAuditAction {
   created,
@@ -49,24 +49,34 @@ class MilestoneAuditEntry {
     this.change,
   });
 
-  factory MilestoneAuditEntry.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory MilestoneAuditEntry.fromMap(
+    Map<String, dynamic> data, {
+    String? fallbackId,
+  }) {
     return MilestoneAuditEntry(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      action: data['action'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      details: data['details'],
-      changes: data['changes'],
-      field: data['field'] != null ? MilestoneFieldChanged.values.firstWhere(
-        (e) => e.name == data['field'],
-        orElse: () => MilestoneFieldChanged.title,
-      ) : null,
-      fieldType: data['fieldType'] != null ? FieldType.values.firstWhere(
-        (e) => e.name == data['fieldType'],
-        orElse: () => FieldType.string,
-      ) : null,
-      change: data['change'] != null ? FieldChange.fromMap(data['change']) : null,
+      id: (data['id'] ?? fallbackId ?? '').toString(),
+      userId: (data['userId'] ?? '').toString(),
+      action: (data['action'] ?? '').toString(),
+      timestamp: parseDate(data['timestamp']),
+      details: data['details']?.toString(),
+      changes: data['changes'] is Map
+          ? Map<String, dynamic>.from(data['changes'] as Map)
+          : null,
+      field: data['field'] != null
+          ? MilestoneFieldChanged.values.firstWhere(
+              (e) => e.name == data['field'],
+              orElse: () => MilestoneFieldChanged.title,
+            )
+          : null,
+      fieldType: data['fieldType'] != null
+          ? FieldType.values.firstWhere(
+              (e) => e.name == data['fieldType'],
+              orElse: () => FieldType.string,
+            )
+          : null,
+      change: data['change'] is Map
+          ? FieldChange.fromMap(Map<String, dynamic>.from(data['change'] as Map))
+          : null,
     );
   }
 }

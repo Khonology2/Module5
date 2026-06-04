@@ -2,9 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart';
 // import 'package:pdh/models/user_profile.dart';
-import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/user_display_name_service.dart';
 // ignore: unused_import
 import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
@@ -250,23 +249,13 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
 
   Future<void> _loadUserProfileAndSetGreeting() async {
     final user = FirebaseAuth.instance.currentUser;
-    String userName = 'User';
+    var userName = 'User';
     if (user != null) {
-      // Try to get display name from Firebase Auth first
-      if (user.displayName != null && user.displayName!.isNotEmpty) {
+      final resolved = await UserDisplayNameService.resolveForCurrentUser();
+      if (resolved.isNotEmpty) {
+        userName = resolved;
+      } else if (user.displayName != null && user.displayName!.isNotEmpty) {
         userName = user.displayName!;
-      } else {
-        // Fallback to Firestore for full name if displayName is null or empty
-        try {
-          final userProfile = await DatabaseService.getUserProfile(user.uid);
-          userName = userProfile.displayName.isNotEmpty
-              ? userProfile.displayName
-              : 'User';
-        } catch (e) {
-          // ignore: avoid_print
-          print('Error fetching user profile: $e');
-          userName = 'User'; // Default to 'User' on error
-        }
       }
     }
     // Only add greeting if messages list is empty (i.e., no history loaded)

@@ -1,13 +1,14 @@
 import 'dart:developer' as developer;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/goal_milestone.dart';
+import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 
 class MilestoneEvidenceService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static const int _maxEvidenceSize = 10 * 1024 * 1024; // 10MB
+  static final BackendAuthService _backend = BackendAuthService.instance;
+  static const int _maxEvidenceSize = 10 * 1024 * 1024;
   static const List<String> _allowedFileTypes = [
     'pdf',
     'doc',
@@ -35,7 +36,37 @@ class MilestoneEvidenceService {
     'gz',
   ];
 
-  /// Upload evidence for a milestone (additive extension)
+  static Map<String, dynamic> _evidenceToBackendMap(MilestoneEvidence evidence) {
+    return {
+      'id': evidence.id,
+      'fileUrl': evidence.fileUrl,
+      'fileName': evidence.fileName,
+      'fileType': evidence.fileType,
+      'fileSize': evidence.fileSize,
+      'uploadedBy': evidence.uploadedBy,
+      'uploadedByName': evidence.uploadedByName,
+      'uploadedAt': evidence.uploadedAt.toIso8601String(),
+      'status': evidence.status.name,
+      'reviewedBy': evidence.reviewedBy,
+      'reviewedByName': evidence.reviewedByName,
+      'reviewedAt': evidence.reviewedAt?.toIso8601String(),
+      'reviewNotes': evidence.reviewNotes,
+    };
+  }
+
+  static Future<Map<String, dynamic>?> _fetchMilestoneSnapshot({
+    required String goalId,
+    required String milestoneId,
+  }) async {
+    final milestones = await _backend.getMilestones(goalId: goalId);
+    for (final milestone in milestones) {
+      if (milestone['id']?.toString() == milestoneId) {
+        return milestone;
+      }
+    }
+    return null;
+  }
+
   static Future<MilestoneEvidence> uploadEvidence({
     required String milestoneId,
     required String goalId,
@@ -45,7 +76,6 @@ class MilestoneEvidenceService {
     required int fileSize,
   }) async {
     try {
-      // Validate file
       _validateFile(fileType, fileSize);
 
       final currentUser = FirebaseAuth.instance.currentUser;
@@ -53,20 +83,17 @@ class MilestoneEvidenceService {
         throw Exception('User not authenticated');
       }
 
-      // Get user name for display
       String? uploadedByName;
       try {
-        final userDoc = await _firestore
-            .collection('users')
-            .doc(currentUser.uid)
-            .get();
-        uploadedByName = userDoc.data()?['displayName']?.toString();
+        final userData = await _backend.getUser(currentUser.uid);
+        uploadedByName = userData['displayName']?.toString();
       } catch (e) {
         developer.log('Error getting user name: $e');
       }
 
+      final evidenceId = '${DateTime.now().microsecondsSinceEpoch}';
       final evidence = MilestoneEvidence(
-        id: _firestore.collection('milestone_evidence').doc().id,
+        id: evidenceId,
         fileUrl: fileUrl,
         fileName: fileName,
         fileType: fileType,
@@ -74,19 +101,37 @@ class MilestoneEvidenceService {
         uploadedBy: currentUser.uid,
         uploadedByName: uploadedByName,
         uploadedAt: DateTime.now(),
-        status: MilestoneEvidenceStatus.pendingReview, // UPDATED: New status
+        status: MilestoneEvidenceStatus.pendingReview,
       );
 
-      // Add evidence to milestone (additive update)
-      await _firestore
-          .collection('goals')
-          .doc(goalId)
-          .collection('milestones')
-          .doc(milestoneId)
-          .update({
-            'evidence': FieldValue.arrayUnion([evidence.toMap()]),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+      final milestoneSnapshot = await _fetchMilestoneSnapshot(
+        goalId: goalId,
+        milestoneId: milestoneId,
+      );
+      if (milestoneSnapshot == null) {
+        throw Exception('Milestone not found');
+      }
+
+      final existingEvidence = List<dynamic>.from(
+        milestoneSnapshot['evidence'] ?? const [],
+      );
+      existingEvidence.add(_evidenceToBackendMap(evidence));
+
+      await _backend.patchMilestone(milestoneId, {
+        'goalId': goalId,
+        'evidence': existingEvidence,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+
+      try {
+        await _backend.createMilestoneEvidence({
+          ..._evidenceToBackendMap(evidence),
+          'goalId': goalId,
+          'milestoneId': milestoneId,
+        });
+      } catch (e) {
+        developer.log('Error storing milestone evidence record: $e');
+      }
 
       developer.log('Evidence uploaded for milestone $milestoneId');
       return evidence;
@@ -96,33 +141,29 @@ class MilestoneEvidenceService {
     }
   }
 
-  /// Get all evidence for a milestone
   static Future<List<MilestoneEvidence>> getMilestoneEvidence({
     required String goalId,
     required String milestoneId,
   }) async {
     try {
-      final milestoneDoc = await _firestore
-          .collection('goals')
-          .doc(goalId)
-          .collection('milestones')
-          .doc(milestoneId)
-          .get();
+      final milestoneSnapshot = await _fetchMilestoneSnapshot(
+        goalId: goalId,
+        milestoneId: milestoneId,
+      );
+      if (milestoneSnapshot == null) return [];
 
-      if (!milestoneDoc.exists) return [];
+      final evidenceList = milestoneSnapshot['evidence'];
+      if (evidenceList == null) return [];
 
-      final data = milestoneDoc.data();
-      if (data == null || data['evidence'] == null) return [];
-
-      final evidenceList = data['evidence'] as List;
-      return evidenceList.map((e) => MilestoneEvidence.fromMap(e)).toList();
+      return (evidenceList as List)
+          .map((e) => MilestoneEvidence.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList();
     } catch (e) {
       developer.log('Error getting milestone evidence: $e');
       return [];
     }
   }
 
-  /// Review evidence (manager action)
   static Future<void> reviewEvidence({
     required String goalId,
     required String milestoneId,
@@ -136,58 +177,42 @@ class MilestoneEvidenceService {
         throw Exception('User not authenticated');
       }
 
-      // Get manager name
       String? reviewedByName;
       try {
-        final userDoc = await _firestore
-            .collection('users')
-            .doc(currentUser.uid)
-            .get();
-        reviewedByName = userDoc.data()?['displayName']?.toString();
+        final userData = await _backend.getUser(currentUser.uid);
+        reviewedByName = userData['displayName']?.toString();
       } catch (e) {
         developer.log('Error getting manager name: $e');
       }
 
-      // Get current milestone data
-      final milestoneDoc = await _firestore
-          .collection('goals')
-          .doc(goalId)
-          .collection('milestones')
-          .doc(milestoneId)
-          .get();
-
-      if (!milestoneDoc.exists) {
+      final milestoneSnapshot = await _fetchMilestoneSnapshot(
+        goalId: goalId,
+        milestoneId: milestoneId,
+      );
+      if (milestoneSnapshot == null) {
         throw Exception('Milestone not found');
       }
 
-      final data = milestoneDoc.data() as Map<String, dynamic>;
-      List<dynamic> evidenceList = data['evidence'] as List? ?? [];
+      final evidenceList = (milestoneSnapshot['evidence'] as List? ?? [])
+          .map((e) {
+            final evidenceMap = Map<String, dynamic>.from(e as Map);
+            if (evidenceMap['id']?.toString() == evidenceId) {
+              evidenceMap['status'] = status.name;
+              evidenceMap['reviewedBy'] = currentUser.uid;
+              evidenceMap['reviewedByName'] = reviewedByName;
+              evidenceMap['reviewedAt'] = DateTime.now().toIso8601String();
+              evidenceMap['reviewNotes'] = reviewNotes;
+            }
+            return evidenceMap;
+          })
+          .toList();
 
-      // Update the specific evidence
-      evidenceList = evidenceList.map((e) {
-        final evidenceMap = Map<String, dynamic>.from(e);
-        if (evidenceMap['id'] == evidenceId) {
-          evidenceMap['status'] = status.name;
-          evidenceMap['reviewedBy'] = currentUser.uid;
-          evidenceMap['reviewedByName'] = reviewedByName;
-          evidenceMap['reviewedAt'] = Timestamp.now();
-          evidenceMap['reviewNotes'] = reviewNotes;
-        }
-        return evidenceMap;
-      }).toList();
+      await _backend.patchMilestone(milestoneId, {
+        'goalId': goalId,
+        'evidence': evidenceList,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
 
-      // Update milestone with reviewed evidence
-      await _firestore
-          .collection('goals')
-          .doc(goalId)
-          .collection('milestones')
-          .doc(milestoneId)
-          .update({
-            'evidence': evidenceList,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-
-      // Send notification to employee about evidence review
       await _sendEvidenceReviewNotification(
         goalId: goalId,
         milestoneId: milestoneId,
@@ -205,56 +230,42 @@ class MilestoneEvidenceService {
     }
   }
 
-  /// Check if milestone can be completed (evidence validation)
   static Future<bool> canCompleteMilestone({
     required String goalId,
     required String milestoneId,
   }) async {
     try {
-      final milestoneDoc = await _firestore
-          .collection('goals')
-          .doc(goalId)
-          .collection('milestones')
-          .doc(milestoneId)
-          .get();
+      final milestoneSnapshot = await _fetchMilestoneSnapshot(
+        goalId: goalId,
+        milestoneId: milestoneId,
+      );
+      if (milestoneSnapshot == null) return false;
 
-      if (!milestoneDoc.exists) return false;
-
-      final data = milestoneDoc.data() as Map<String, dynamic>;
-      final requiresEvidence = data['requiresEvidence'] == true;
-
+      final requiresEvidence = milestoneSnapshot['requiresEvidence'] == true;
       if (!requiresEvidence) return true;
 
-      // Check if there's approved evidence
-      final evidenceList = data['evidence'] as List? ?? [];
-      final hasApprovedEvidence = evidenceList.any((e) {
-        final evidence = Map<String, dynamic>.from(e);
+      final evidenceList = milestoneSnapshot['evidence'] as List? ?? [];
+      return evidenceList.any((e) {
+        final evidence = Map<String, dynamic>.from(e as Map);
         return evidence['status'] == MilestoneEvidenceStatus.approved.name;
       });
-
-      return hasApprovedEvidence;
     } catch (e) {
       developer.log('Error checking milestone completion eligibility: $e');
       return false;
     }
   }
 
-  /// Set milestone evidence requirement (additive)
   static Future<void> setEvidenceRequirement({
     required String goalId,
     required String milestoneId,
     required bool requiresEvidence,
   }) async {
     try {
-      await _firestore
-          .collection('goals')
-          .doc(goalId)
-          .collection('milestones')
-          .doc(milestoneId)
-          .update({
-            'requiresEvidence': requiresEvidence,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+      await _backend.patchMilestone(milestoneId, {
+        'goalId': goalId,
+        'requiresEvidence': requiresEvidence,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
 
       developer.log(
         'Evidence requirement set to $requiresEvidence for milestone $milestoneId',
@@ -265,7 +276,6 @@ class MilestoneEvidenceService {
     }
   }
 
-  /// Manager acknowledgement of milestone completion
   static Future<void> acknowledgeMilestone({
     required String goalId,
     required String milestoneId,
@@ -277,33 +287,23 @@ class MilestoneEvidenceService {
         throw Exception('User not authenticated');
       }
 
-      // Get manager name
       String? managerName;
       try {
-        final userDoc = await _firestore
-            .collection('users')
-            .doc(currentUser.uid)
-            .get();
-        managerName = userDoc.data()?['displayName']?.toString();
+        final userData = await _backend.getUser(currentUser.uid);
+        managerName = userData['displayName']?.toString();
       } catch (e) {
         developer.log('Error getting manager name: $e');
       }
 
-      // Update milestone with acknowledgement
-      await _firestore
-          .collection('goals')
-          .doc(goalId)
-          .collection('milestones')
-          .doc(milestoneId)
-          .update({
-            'managerAcknowledgedBy': currentUser.uid,
-            'managerAcknowledgedByName': managerName,
-            'managerAcknowledgedAt': FieldValue.serverTimestamp(),
-            'managerNotes': notes,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+      await _backend.patchMilestone(milestoneId, {
+        'goalId': goalId,
+        'managerAcknowledgedBy': currentUser.uid,
+        'managerAcknowledgedByName': managerName,
+        'managerAcknowledgedAt': DateTime.now().toIso8601String(),
+        'managerNotes': notes,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
 
-      // Send acknowledgement notification to employee
       await _sendAcknowledgementNotification(
         goalId: goalId,
         milestoneId: milestoneId,
@@ -318,12 +318,10 @@ class MilestoneEvidenceService {
   }
 
   static void _validateFile(String fileType, int fileSize) {
-    // Check file size
     if (fileSize > _maxEvidenceSize) {
       throw Exception('File size exceeds 10MB limit');
     }
 
-    // Check file type
     final extension = fileType.toLowerCase().split('.').last;
     if (!_allowedFileTypes.contains(extension)) {
       throw Exception(
@@ -340,26 +338,28 @@ class MilestoneEvidenceService {
     String? reviewedByName,
   }) async {
     try {
-      // Get goal and milestone details
-      final goalDoc = await _firestore.collection('goals').doc(goalId).get();
-      final milestoneDoc = await _firestore
-          .collection('goals')
-          .doc(goalId)
-          .collection('milestones')
-          .doc(milestoneId)
-          .get();
+      final goals = await _backend.getGoals(goalId: goalId, limit: 1);
+      final milestones = await _backend.getMilestones(goalId: goalId);
+      if (goals.isEmpty) return;
 
-      if (!goalDoc.exists || !milestoneDoc.exists) return;
+      final goal = Goal.fromMap(goals.first, id: goalId);
+      final milestoneData = milestones.firstWhere(
+        (item) => item['id']?.toString() == milestoneId,
+        orElse: () => const {},
+      );
+      if (milestoneData.isEmpty) return;
 
-      final goal = Goal.fromFirestore(goalDoc);
-      final milestone = GoalMilestone.fromFirestore(milestoneDoc);
+      final milestone = GoalMilestone.fromMap(
+        milestoneData,
+        id: milestoneId,
+        goalId: goalId,
+      );
 
       final statusText = status == MilestoneEvidenceStatus.approved
           ? 'approved'
           : 'rejected';
 
-      await _firestore.collection('alerts').add({
-        'userId': goal.userId,
+      await _backend.createAlert(goal.userId, {
         'type': AlertType.managerGeneral.name,
         'priority': AlertPriority.medium.name,
         'title': 'Evidence Review',
@@ -369,12 +369,13 @@ class MilestoneEvidenceService {
         'actionRoute': '/my_goal_workspace',
         'actionData': {'goalId': goalId},
         'relatedGoalId': goalId,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
         'isRead': false,
         'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 7)),
-        ),
+        'expiresAt': DateTime.now()
+            .add(const Duration(days: 7))
+            .toIso8601String(),
+        'metadata': {'evidenceId': evidenceId, 'milestoneId': milestoneId},
       });
     } catch (e) {
       developer.log('Error sending evidence review notification: $e');
@@ -387,38 +388,30 @@ class MilestoneEvidenceService {
     String? managerName,
   }) async {
     try {
-      // Get goal and milestone details
-      final goalDoc = await _firestore.collection('goals').doc(goalId).get();
-      final milestoneDoc = await _firestore
-          .collection('goals')
-          .doc(goalId)
-          .collection('milestones')
-          .doc(milestoneId)
-          .get();
+      final goals = await _backend.getGoals(goalId: goalId, limit: 1);
+      final milestones = await _backend.getMilestones(goalId: goalId);
+      if (goals.isEmpty) return;
 
-      if (!goalDoc.exists || !milestoneDoc.exists) return;
+      final goal = Goal.fromMap(goals.first, id: goalId);
+      final milestoneData = milestones.firstWhere(
+        (item) => item['id']?.toString() == milestoneId,
+        orElse: () => const {},
+      );
+      if (milestoneData.isEmpty) return;
 
-      final goal = Goal.fromFirestore(goalDoc);
-      final milestone = GoalMilestone.fromFirestore(milestoneDoc);
+      final milestone = GoalMilestone.fromMap(
+        milestoneData,
+        id: milestoneId,
+        goalId: goalId,
+      );
 
-      await _firestore.collection('alerts').add({
-        'userId': goal.userId,
-        'type': AlertType.managerGeneral.name,
-        'priority': AlertPriority.medium.name,
-        'title': 'Milestone Acknowledged',
-        'message':
-            'Your completed milestone "${milestone.title}" has been acknowledged by ${managerName ?? 'your manager'}.',
-        'actionText': 'View Milestone',
-        'actionRoute': '/my_goal_workspace',
-        'actionData': {'goalId': goalId},
-        'relatedGoalId': goalId,
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-        'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 7)),
-        ),
-      });
+      await AlertService.createMilestoneAcknowledgedAlert(
+        employeeId: goal.userId,
+        goalId: goalId,
+        milestoneId: milestoneId,
+        milestoneTitle: milestone.title,
+        managerName: managerName ?? 'your manager',
+      );
     } catch (e) {
       developer.log('Error sending acknowledgement notification: $e');
     }

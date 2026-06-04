@@ -1,10 +1,10 @@
 import 'dart:developer' as developer;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:pdh/models/badge.dart';
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 
 /// Persists "last celebrated badge earnedAt" locally so we can show
 /// a one-time celebration popup for newly earned badges.
@@ -14,6 +14,7 @@ import 'package:pdh/services/badge_service.dart';
 /// - Works even if multiple badges are earned while away from the screen.
 class BadgeCelebrationService {
   static const String _prefsPrefix = 'badgeCelebration:lastSeenEarnedAt';
+  static final BackendAuthService _backend = BackendAuthService.instance;
 
   static String _key(String userId, String scope) => '$_prefsPrefix:$scope:$userId';
 
@@ -55,21 +56,10 @@ class BadgeCelebrationService {
     if (existing != null) return;
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .where('isEarned', isEqualTo: true)
-          .where(
-            'earnedAt',
-            isGreaterThan: Timestamp.fromDate(DateTime.fromMillisecondsSinceEpoch(0, isUtc: true)),
-          )
-          .orderBy('earnedAt', descending: true)
-          .limit(1)
-          .get();
-
-      final newestEarnedAt =
-          (snap.docs.isNotEmpty ? (snap.docs.first.data()['earnedAt'] as Timestamp?)?.toDate() : null);
+      final badges = await _backend.getBadges(userId, limit: 1);
+      final newestEarnedAt = badges.isNotEmpty
+          ? Badge.fromMap(badges.first).earnedAt
+          : null;
 
       await setLastSeenEarnedAt(
         userId,
@@ -100,24 +90,10 @@ class BadgeCelebrationService {
     // If there's no baseline yet, fall back to a reasonable recent window so
     // users still get a celebration for recently earned badges without spamming
     // their entire historical badge set.
-    final lastSeen =
-        await getLastSeenEarnedAt(userId, scope: scope) ??
-        DateTime.now().toUtc().subtract(const Duration(days: 30));
-
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .where('isEarned', isEqualTo: true)
-          .where('earnedAt', isGreaterThan: Timestamp.fromDate(lastSeen.toUtc()))
-          .orderBy('earnedAt', descending: false)
-          .limit(limit)
-          .get();
-
-      final list = snap.docs
-          .where((d) => d.id != 'init')
-          .map((d) => Badge.fromFirestore(d))
+      final badges = await _backend.getBadges(userId, limit: limit);
+      final list = badges
+          .map((item) => Badge.fromMap(item))
           .where((b) => b.isEarned && b.earnedAt != null)
           .toList();
 

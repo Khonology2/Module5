@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 
 enum BadgeCategory {
   achievement,
@@ -52,32 +52,40 @@ class Badge {
     required this.maxProgress,
   });
 
-  factory Badge.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>?;
+  factory Badge.fromMap(Map<String, dynamic> data, {String? fallbackId}) {
     return Badge(
-      id: doc.id,
-      name: data?['name'] ?? '',
-      description: data?['description'] ?? '',
-      iconName: data?['iconName'] ?? 'emoji_events',
+      id: (data['id'] ?? fallbackId ?? '').toString(),
+      name: (data['name'] ?? '').toString(),
+      description: (data['description'] ?? '').toString(),
+      iconName: (data['iconName'] ?? 'emoji_events').toString(),
       category: BadgeCategory.values.firstWhere(
-        (e) => e.name == (data?['category'] ?? 'achievement'),
+        (e) => e.name == (data['category'] ?? 'achievement').toString(),
         orElse: () => BadgeCategory.achievement,
       ),
       rarity: BadgeRarity.values.firstWhere(
-        (e) => e.name == (data?['rarity'] ?? 'common'),
+        (e) => e.name == (data['rarity'] ?? 'common').toString(),
         orElse: () => BadgeRarity.common,
       ),
-      pointsRequired: (data?['pointsRequired'] ?? 0) as int,
-      criteria: Map<String, dynamic>.from(data?['criteria'] ?? {}),
-      earnedAt: (data?['earnedAt'] as Timestamp?)?.toDate(),
-      isEarned: data?['isEarned'] ?? false,
-      progress: (data?['progress'] ?? 0) as int,
-      maxProgress: (data?['maxProgress'] ?? 1) as int,
+      pointsRequired: (data['pointsRequired'] ?? 0) is num
+          ? (data['pointsRequired'] as num).toInt()
+          : int.tryParse(data['pointsRequired']?.toString() ?? '0') ?? 0,
+      criteria: Map<String, dynamic>.from(
+        (data['criteria'] as Map?) ?? const {},
+      ),
+      earnedAt: parseNullableDate(data['earnedAt'] ?? data['createdAt']),
+      isEarned: data['isEarned'] == true,
+      progress: (data['progress'] ?? 0) is num
+          ? (data['progress'] as num).toInt()
+          : int.tryParse(data['progress']?.toString() ?? '0') ?? 0,
+      maxProgress: (data['maxProgress'] ?? 1) is num
+          ? (data['maxProgress'] as num).toInt()
+          : int.tryParse(data['maxProgress']?.toString() ?? '1') ?? 1,
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap({bool includeId = true}) {
     return {
+      if (includeId) 'id': id,
       'name': name,
       'description': description,
       'iconName': iconName,
@@ -85,7 +93,7 @@ class Badge {
       'rarity': rarity.name,
       'pointsRequired': pointsRequired,
       'criteria': criteria,
-      'earnedAt': earnedAt != null ? Timestamp.fromDate(earnedAt!) : null,
+      'earnedAt': earnedAt?.toIso8601String(),
       'isEarned': isEarned,
       'progress': progress,
       'maxProgress': maxProgress,

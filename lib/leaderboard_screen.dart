@@ -1,9 +1,8 @@
 import 'dart:developer' as developer;
 import 'dart:math';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/app_ai_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/onboarding_service.dart';
@@ -11,8 +10,6 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
-import 'package:pdh/utils/firestore_safe.dart';
-import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
 import 'package:pdh/widgets/branded_refresh_indicator.dart';
 
@@ -84,7 +81,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   late final AnimationController _topHoverController;
   bool _isTopHovered = false;
   List<Map<String, dynamic>> _lastLeaderboardData = [];
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _cachedUserDocs = const [];
+  List<Map<String, dynamic>> _cachedUserDocs = const [];
   bool _hasFetchedUsers = false;
   Future<void>? _fetchUsersFuture;
   List<Map<String, dynamic>> _cachedOnboardingUsers = const [];
@@ -157,7 +154,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         _selectedFilters.add(filter);
       }
 
-      // Only the team filter affects the Firestore query; refetch docs when toggled.
+      // Only the team filter affects the backend query; refetch when toggled.
       if (filter == LeaderboardFilter.myTeam) {
         _hasFetchedUsers = false;
         _fetchUsersFuture = null;
@@ -173,31 +170,21 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   // Removed unused _getOrderByField to satisfy linter
 
-  Query<Map<String, dynamic>> _buildQuery() {
-    Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(
-      'users',
-    );
-
+  Future<List<Map<String, dynamic>>> _fetchUsers() async {
+    final backend = BackendAuthService.instance;
     if (widget.forAdminOversight) {
-      query = query.where('role', isEqualTo: 'manager').limit(500);
-      return query;
+      return backend.listUsers(role: 'manager', limit: 500);
     }
-
-    // NOTE: We intentionally do NOT filter by `role` at the query level.
-    // Some user docs may be missing the `role` field; we treat missing role as "employee"
-    // and filter to employees in-memory during processing.
-
-    // Apply team filter if selected
-    if (_selectedFilters.contains(LeaderboardFilter.myTeam) &&
-        _currentUser != null &&
-        _currentUser!.department.isNotEmpty) {
-      query = query.where('department', isEqualTo: _currentUser!.department);
-    }
-
-    // Use a simple query without ordering to avoid field existence issues
-    // We'll handle sorting in the processing step
-    // Increased limit to 10000 to show all employees in Full Leaderboard
-    return query.limit(10000);
+    final department = _selectedFilters.contains(LeaderboardFilter.myTeam) &&
+            _currentUser != null &&
+            _currentUser!.department.isNotEmpty
+        ? _currentUser!.department
+        : null;
+    return backend.listUsers(
+      role: 'employee',
+      department: department,
+      limit: 2000,
+    );
   }
 
   Future<void> _ensureUsersFetched({bool force = false}) {
@@ -210,8 +197,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
     final fut = () async {
       try {
-        final snap = await FirestoreSafe.getQuery(_buildQuery());
-        _cachedUserDocs = snap.docs;
+        _cachedUserDocs = await _fetchUsers();
         _hasFetchedUsers = true;
       } catch (e) {
         developer.log('Leaderboard fetch users failed: $e');
@@ -258,13 +244,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   /// Fetch onboarding users and convert them to a list of maps compatible with user format
   Future<List<Map<String, dynamic>>> _fetchOnboardingUsers() async {
     try {
-      final onboardingSnapshot = await FirestoreSafe.getQuery(
-        FirebaseFirestore.instance.collection('onboarding'),
-      );
+      final onboardingItems =
+          await OnboardingService.listOnboardingRecords(limit: 500);
 
-      // Filter onboarding users to only include those with 'employee' persona for PDH
-      final employeeOnboardingUsers = onboardingSnapshot.docs.where((doc) {
-        final data = doc.data();
+      final employeeOnboardingUsers = onboardingItems.where((data) {
         final moduleAccessRole = data['moduleAccessRole'] as String?;
         return OnboardingService.shouldIncludeUser(
           moduleAccessRole,
@@ -272,13 +255,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         );
       }).toList();
 
-      // Convert onboarding users to user format
-      return employeeOnboardingUsers.map((doc) {
-        final data = doc.data();
+      return employeeOnboardingUsers.map((data) {
+        final id = (data['userId'] ?? data['id'] ?? '').toString();
         final convertedData =
-            OnboardingService.convertOnboardingUserToUserFormat(data, doc.id);
-        // Add the document ID for reference
-        convertedData['_id'] = doc.id;
+            OnboardingService.convertOnboardingUserToUserFormat(data, id);
+        convertedData['_id'] = id;
         return convertedData;
       }).toList();
     } catch (e) {
@@ -387,9 +368,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         try {
           Map<String, dynamic>? data;
 
-          // Handle both QueryDocumentSnapshot and _OnboardingUserDoc
-          if (doc is QueryDocumentSnapshot) {
-            data = doc.data() as Map<String, dynamic>?;
+          if (doc is Map<String, dynamic>) {
+            data = doc;
           } else if (doc is _OnboardingUserDoc) {
             data = doc.data;
           }
@@ -409,7 +389,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           }
           return false;
         } catch (e) {
-          final docId = doc is QueryDocumentSnapshot ? doc.id : 'unknown';
+          final docId = doc is Map<String, dynamic>
+              ? (doc['id'] ?? doc['userId'] ?? 'unknown').toString()
+              : 'unknown';
           developer.log('Error processing doc $docId: $e');
           return false;
         }
@@ -430,10 +412,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         Map<String, dynamic> data;
         String docId;
 
-        // Handle both QueryDocumentSnapshot and _OnboardingUserDoc
-        if (doc is QueryDocumentSnapshot) {
-          data = doc.data() as Map<String, dynamic>;
-          docId = doc.id;
+        if (doc is Map<String, dynamic>) {
+          data = doc;
+          docId = (doc['id'] ?? doc['userId'] ?? 'unknown').toString();
         } else if (doc is _OnboardingUserDoc) {
           data = doc.data;
           docId = data['_id'] as String? ?? 'unknown';
@@ -615,11 +596,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    // If Firestore Web entered an unrecoverable internal state, don't keep subscribing.
-    if (kIsWeb && FirestoreWebCircuitBreaker.isBroken) {
-      return _buildFirestoreBrokenState();
-    }
-
     final isManager = _currentUser?.role == 'manager';
 
     // Render as a plain widget so it works inside MainLayout
@@ -737,48 +713,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           ),
         );
       },
-    );
-  }
-
-  Widget _buildFirestoreBrokenState() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _LeaderboardChrome.cardFill,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _LeaderboardChrome.border),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.refresh, color: AppColors.warningColor, size: 40),
-            const SizedBox(height: 12),
-            Text(
-              'Live data temporarily unavailable',
-              style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'A Firestore web issue was detected. Please reload the page to recover.',
-              style: TextStyle(color: _LeaderboardChrome.fg, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: FirestoreWebCircuitBreaker.forceReload,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reload'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.activeColor,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

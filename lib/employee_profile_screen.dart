@@ -178,7 +178,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     if (user == null) return; // User not logged in
 
     try {
-      // Add a small delay to avoid race conditions with other Firestore operations
+      // Small delay to avoid race conditions with other backend operations
       if (retryCount > 0) {
         await Future.delayed(Duration(milliseconds: 500 * retryCount));
       }
@@ -226,9 +226,13 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      // Retry up to 2 times for Firestore internal errors
-      final errorString = e.toString();
-      if (errorString.contains('INTERNAL ASSERTION FAILED') && retryCount < 2) {
+      // Retry up to 2 times for transient backend errors
+      final errorString = e.toString().toLowerCase();
+      final isTransient = errorString.contains('internal assertion failed') ||
+          errorString.contains('backend_unavailable') ||
+          errorString.contains('timeout') ||
+          errorString.contains('network_error');
+      if (isTransient && retryCount < 2) {
         // Retry with exponential backoff
         await Future.delayed(Duration(milliseconds: 1000 * (retryCount + 1)));
         if (mounted) {

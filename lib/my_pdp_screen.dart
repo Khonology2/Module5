@@ -373,7 +373,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                         rootNavigator: true,
                                       ).pop();
                                     }
-                                    // Small delay to ensure Firestore propagates the change
+                                    // Small delay to ensure backend propagates the change
                                     await Future.delayed(
                                       const Duration(milliseconds: 500),
                                     );
@@ -413,7 +413,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                       rootNavigator: true,
                                     ).pop();
                                   }
-                                  // Small delay to ensure Firestore propagates the change
+                                  // Small delay to ensure backend propagates the change
                                   await Future.delayed(
                                     const Duration(milliseconds: 500),
                                   );
@@ -512,7 +512,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
           try {
             await DatabaseService.clearGoalEvidence(goalId: goal.id);
             debugPrint('Evidence cleared for goal ${goal.id} (text evidence)');
-            // Small delay to ensure Firestore propagates the change
+            // Small delay to ensure backend propagates the change
             await Future.delayed(const Duration(milliseconds: 500));
           } catch (clearError) {
             debugPrint('Error clearing evidence (text): $clearError');
@@ -525,7 +525,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             evidence: [result],
           );
           debugPrint('New text evidence attached for goal ${goal.id}');
-          // Small delay to ensure Firestore propagates the change
+          // Small delay to ensure backend propagates the change
           await Future.delayed(const Duration(milliseconds: 500));
         } catch (attachError) {
           debugPrint('Error attaching text evidence: $attachError');
@@ -917,7 +917,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
 
-      // Add retry logic for Firestore internal assertion failures
+      // Retry logic for transient backend load failures
       if (retryCount > 0) {
         await Future.delayed(Duration(milliseconds: 500 * retryCount));
       }
@@ -976,9 +976,13 @@ class _MyPdpScreenState extends State<MyPdpScreen>
       }
       return true;
     } catch (e) {
-      // Retry up to 2 times for Firestore internal assertion failures
-      final errorString = e.toString();
-      if (errorString.contains('INTERNAL ASSERTION FAILED') && retryCount < 2) {
+      // Retry up to 2 times for transient backend errors
+      final errorString = e.toString().toLowerCase();
+      final isTransient = errorString.contains('internal assertion failed') ||
+          errorString.contains('backend_unavailable') ||
+          errorString.contains('timeout') ||
+          errorString.contains('network_error');
+      if (isTransient && retryCount < 2) {
         // Retry with exponential backoff
         return _ensureDepartmentIsSet(retryCount: retryCount + 1);
       }
@@ -1817,10 +1821,13 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 // Handle errors gracefully
                 if (snapshot.hasError) {
                   final error = snapshot.error;
-                  final errorString = error.toString();
+                  final errorString = error.toString().toLowerCase();
 
-                  // Check if it's a Firestore internal assertion failure
-                  if (errorString.contains('INTERNAL ASSERTION FAILED')) {
+                  // Transient backend polling/load failure
+                  if (errorString.contains('internal assertion failed') ||
+                      errorString.contains('backend_unavailable') ||
+                      errorString.contains('timeout') ||
+                      errorString.contains('network_error')) {
                     return Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(

@@ -1,52 +1,49 @@
 import 'dart:developer' as developer;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:pdh/models/one_on_one_meeting.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
 
 class OneOnOneMeetingService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  static CollectionReference<Map<String, dynamic>> get _col =>
-      _firestore.collection('one_on_one_meetings');
+  static final BackendAuthService _backend = BackendAuthService.instance;
 
   static Stream<List<OneOnOneMeeting>> streamForEmployee(String employeeId) {
-    final query = _col.where('employeeId', isEqualTo: employeeId);
-    return FirestoreSafe.stream(query.snapshots()).map((snapshot) {
-      final items = snapshot.docs
-          .map((d) => OneOnOneMeeting.fromFirestore(d))
-          .where((m) => m.meetingId.isNotEmpty)
-          .toList();
+    return backendPollingListStream<OneOnOneMeeting>(
+      fetch: () => _backend.getOneOnOneMeetings(employeeId: employeeId),
+      mapper: OneOnOneMeeting.fromMap,
+    ).map((items) {
       items.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       return items;
     });
   }
 
   static Stream<List<OneOnOneMeeting>> streamForManager(String managerId) {
-    final query = _col.where('managerId', isEqualTo: managerId);
-    return FirestoreSafe.stream(query.snapshots()).map((snapshot) {
-      final items = snapshot.docs
-          .map((d) => OneOnOneMeeting.fromFirestore(d))
-          .where((m) => m.meetingId.isNotEmpty)
-          .toList();
+    return backendPollingListStream<OneOnOneMeeting>(
+      fetch: () => _backend.getOneOnOneMeetings(managerId: managerId),
+      mapper: OneOnOneMeeting.fromMap,
+    ).map((items) {
       items.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       return items;
     });
   }
 
   static Stream<OneOnOneMeeting?> streamMeeting(String meetingId) {
-    return FirestoreSafe.stream(_col.doc(meetingId).snapshots()).map((snap) {
-      if (!snap.exists) return null;
-      return OneOnOneMeeting.fromFirestore(snap);
-    });
+    return backendPollingStream<OneOnOneMeeting?>(
+      fetch: () async {
+        final items = await _backend.getOneOnOneMeetings(meetingId: meetingId, limit: 1);
+        if (items.isEmpty) return null;
+        return OneOnOneMeeting.fromMap(items.first);
+      },
+    );
   }
 
   static Future<OneOnOneMeeting?> getMeeting(String meetingId) async {
     try {
-      final snap = await FirestoreSafe.getDoc(_col.doc(meetingId));
-      if (!snap.exists) return null;
-      return OneOnOneMeeting.fromFirestore(snap);
+      final items = await _backend.getOneOnOneMeetings(meetingId: meetingId, limit: 1);
+      if (items.isEmpty) return null;
+      return OneOnOneMeeting.fromMap(items.first);
     } catch (e) {
       developer.log('Error getting one-on-one meeting: $e');
       return null;
@@ -59,12 +56,11 @@ class OneOnOneMeetingService {
     bool includeCancelled = false,
   }) async {
     try {
-      final q = _col
-          .where('managerId', isEqualTo: managerId)
-          .where('employeeId', isEqualTo: employeeId)
-          .limit(20);
-      final snap = await FirestoreSafe.getQuery(q);
-      final items = snap.docs.map((d) => OneOnOneMeeting.fromFirestore(d)).toList();
+      final items = (await _backend.getOneOnOneMeetings(
+        managerId: managerId,
+        employeeId: employeeId,
+        limit: 20,
+      )).map(OneOnOneMeeting.fromMap).toList();
       items.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       for (final m in items) {
         if (includeCancelled) return m;
@@ -77,31 +73,27 @@ class OneOnOneMeetingService {
     }
   }
 
-  /// Manager creates intent only (no time yet).
   static Future<String> requestOneOnOne({
     required String managerId,
     required String employeeId,
     String? agenda,
   }) async {
-    final ref = _col.doc();
-    await FirestoreSafe.setDoc(ref, {
-      'meetingId': ref.id,
+    final now = DateTime.now().toIso8601String();
+    final created = await _backend.createOneOnOneMeeting({
       'managerId': managerId,
       'employeeId': employeeId,
       'status': OneOnOneMeetingStatus.requested.name,
       'waitingOn': OneOnOneWaitingOn.employee.name,
       'proposedStartDateTime': null,
       'proposedEndDateTime': null,
-      // Backwards compatibility for older clients
       'proposedDateTime': null,
       'agenda': (agenda ?? '').trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+      'createdAt': now,
+      'updatedAt': now,
     });
-    return ref.id;
+    return (created['id'] ?? created['meetingId'] ?? '').toString();
   }
 
-  /// Manager proposes a meeting time range.
   static Future<String> proposeTime({
     required String managerId,
     required String employeeId,
@@ -112,37 +104,31 @@ class OneOnOneMeetingService {
     if (!proposedEndDateTime.isAfter(proposedStartDateTime)) {
       throw ArgumentError('End time must be after start time.');
     }
-    final ref = _col.doc();
-    await FirestoreSafe.setDoc(ref, {
-      'meetingId': ref.id,
+    final now = DateTime.now().toIso8601String();
+    final created = await _backend.createOneOnOneMeeting({
       'managerId': managerId,
       'employeeId': employeeId,
       'status': OneOnOneMeetingStatus.proposed.name,
       'waitingOn': OneOnOneWaitingOn.employee.name,
-      'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
-      'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
-      // Backwards compatibility for older clients
-      'proposedDateTime': Timestamp.fromDate(proposedStartDateTime),
+      'proposedStartDateTime': proposedStartDateTime.toIso8601String(),
+      'proposedEndDateTime': proposedEndDateTime.toIso8601String(),
+      'proposedDateTime': proposedStartDateTime.toIso8601String(),
       'agenda': (agenda ?? '').trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+      'createdAt': now,
+      'updatedAt': now,
     });
-    return ref.id;
+    return (created['id'] ?? created['meetingId'] ?? '').toString();
   }
 
-  static Future<void> employeeAccept({
-    required String meetingId,
-  }) async {
+  static Future<void> employeeAccept({required String meetingId}) async {
     await acceptMeeting(meetingId: meetingId);
   }
 
-  static Future<void> acceptMeeting({
-    required String meetingId,
-  }) async {
-    await FirestoreSafe.updateDoc(_col.doc(meetingId), {
+  static Future<void> acceptMeeting({required String meetingId}) async {
+    await _backend.patchOneOnOneMeeting(meetingId, {
       'status': OneOnOneMeetingStatus.accepted.name,
       'waitingOn': OneOnOneWaitingOn.none.name,
-      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedAt': DateTime.now().toIso8601String(),
       'updatedBy': FirebaseAuth.instance.currentUser?.uid,
     });
   }
@@ -156,33 +142,28 @@ class OneOnOneMeetingService {
     if (!proposedEndDateTime.isAfter(proposedStartDateTime)) {
       throw ArgumentError('End time must be after start time.');
     }
-    await FirestoreSafe.updateDoc(_col.doc(meetingId), {
+    await _backend.patchOneOnOneMeeting(meetingId, {
       'status': OneOnOneMeetingStatus.rescheduled.name,
       'waitingOn': OneOnOneWaitingOn.manager.name,
-      'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
-      'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
-      // Backwards compatibility for older clients
-      'proposedDateTime': Timestamp.fromDate(proposedStartDateTime),
+      'proposedStartDateTime': proposedStartDateTime.toIso8601String(),
+      'proposedEndDateTime': proposedEndDateTime.toIso8601String(),
+      'proposedDateTime': proposedStartDateTime.toIso8601String(),
       if (agenda != null) 'agenda': agenda.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedAt': DateTime.now().toIso8601String(),
       'updatedBy': FirebaseAuth.instance.currentUser?.uid,
     });
   }
 
-  /// Employee acknowledges an intent-only request without proposing a time.
-  ///
-  /// This keeps status = requested, but flips "waitingOn" to manager so both sides
-  /// can clearly see who should act next.
   static Future<void> employeeAcknowledgeRequest({
     required String meetingId,
     String? message,
   }) async {
-    await FirestoreSafe.updateDoc(_col.doc(meetingId), {
+    await _backend.patchOneOnOneMeeting(meetingId, {
       'status': OneOnOneMeetingStatus.requested.name,
       'waitingOn': OneOnOneWaitingOn.manager.name,
       if (message != null && message.trim().isNotEmpty)
         'employeeMessage': message.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedAt': DateTime.now().toIso8601String(),
       'updatedBy': FirebaseAuth.instance.currentUser?.uid,
     });
   }
@@ -196,28 +177,24 @@ class OneOnOneMeetingService {
     if (!proposedEndDateTime.isAfter(proposedStartDateTime)) {
       throw ArgumentError('End time must be after start time.');
     }
-    await FirestoreSafe.updateDoc(_col.doc(meetingId), {
+    await _backend.patchOneOnOneMeeting(meetingId, {
       'status': OneOnOneMeetingStatus.proposed.name,
       'waitingOn': OneOnOneWaitingOn.employee.name,
-      'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
-      'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
-      // Backwards compatibility for older clients
-      'proposedDateTime': Timestamp.fromDate(proposedStartDateTime),
+      'proposedStartDateTime': proposedStartDateTime.toIso8601String(),
+      'proposedEndDateTime': proposedEndDateTime.toIso8601String(),
+      'proposedDateTime': proposedStartDateTime.toIso8601String(),
       if (agenda != null) 'agenda': agenda.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedAt': DateTime.now().toIso8601String(),
       'updatedBy': FirebaseAuth.instance.currentUser?.uid,
     });
   }
 
-  static Future<void> cancel({
-    required String meetingId,
-  }) async {
-    await FirestoreSafe.updateDoc(_col.doc(meetingId), {
+  static Future<void> cancel({required String meetingId}) async {
+    await _backend.patchOneOnOneMeeting(meetingId, {
       'status': OneOnOneMeetingStatus.cancelled.name,
       'waitingOn': OneOnOneWaitingOn.none.name,
-      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedAt': DateTime.now().toIso8601String(),
       'updatedBy': FirebaseAuth.instance.currentUser?.uid,
     });
   }
 }
-

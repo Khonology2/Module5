@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -157,14 +156,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     try {
       _badgesSub?.cancel();
     } catch (_) {}
-    _badgesSub = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('badges')
-        .snapshots()
-        .listen((_) {
-          unawaited(_maybeCelebrateNewBadges(user.uid));
-        });
+    _badgesSub = BadgeService.getUserBadgesV2Stream(user.uid).listen((_) {
+      unawaited(_maybeCelebrateNewBadges(user.uid));
+    });
   }
 
   Future<void> _redirectIfManager() async {

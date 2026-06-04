@@ -1,29 +1,77 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/services/token_auth_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/agent_debug_log.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RoleService {
   RoleService._internal();
   static final RoleService instance = RoleService._internal();
 
   String? _cachedRole; // 'manager' | 'employee'
+  String? _stickyRole; // Last known good role; kept across transient backend failures
   String? _sessionRoleOverride;
   Stream<String?>? _roleBroadcast;
   String? _currentUserId; // Track which user the stream is for
   String? _onboardingInferAttemptedUserId;
   String? _onboardingCachedRole;
+  Future<String?>? _roleLoadInFlight;
 
   String? get cachedRole => _cachedRole;
 
-  String? _normalizeRole(dynamic role) {
-    return normalizeRoleLabel(role?.toString());
+  /// Best role for navigation/sidebar; never cleared by a failed refresh poll.
+  String? get effectiveRole =>
+      normalizeRoleLabel(
+        _cachedRole ?? _sessionRoleOverride ?? _stickyRole,
+      );
+
+  static String _persistedRoleKey(String userId) => 'pdh_role_$userId';
+
+  Future<String?> _readPersistedRole(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return normalizeRoleLabel(prefs.getString(_persistedRoleKey(userId)));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _persistRole(String userId, String role) async {
+    final normalized = normalizeRoleLabel(role);
+    if (normalized == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_persistedRoleKey(userId), normalized);
+    } catch (_) {}
+  }
+
+  void _applyResolvedRole(String role) {
+    final normalized = normalizeRoleLabel(role);
+    if (normalized == null) return;
+    _cachedRole = normalized;
+    _stickyRole = normalized;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      unawaited(_persistRole(uid, normalized));
+    }
+  }
+
+  Future<String?> _fallbackRoleForSignedInUser(String userId) async {
+    if (_stickyRole != null) return _stickyRole;
+    if (_sessionRoleOverride != null) return _sessionRoleOverride;
+    final persisted = await _readPersistedRole(userId);
+    if (persisted != null) {
+      _stickyRole = persisted;
+      _cachedRole = persisted;
+      return persisted;
+    }
+    return 'employee';
   }
 
   String? normalizeRoleLabel(String? rawRole) {
@@ -33,6 +81,74 @@ class RoleService {
     if (role.contains('admin')) return 'admin';
     if (role.contains('employee') || role.contains('staff')) return 'employee';
     return null;
+  }
+
+  String? _resolveRoleFromRecord(Map<String, dynamic> record) {
+    final candidates = <dynamic>[
+      record['role'],
+      record['moduleAccessRole'],
+      record['module_access_role'],
+      record['moduleRole'],
+      record['module_role'],
+    ];
+
+    for (final candidate in candidates) {
+      final raw = candidate?.toString().trim();
+      if (raw == null || raw.isEmpty) continue;
+
+      final persona = OnboardingService.extractPersonaForApp(raw);
+      final normalizedPersona = normalizeRoleLabel(persona);
+      if (normalizedPersona != null) {
+        return normalizedPersona;
+      }
+
+      final normalized = normalizeRoleLabel(raw);
+      if (normalized != null) {
+        return normalized;
+      }
+    }
+
+    return null;
+  }
+
+  int _rolePriority(String? role) {
+    switch (normalizeRoleLabel(role)) {
+      case 'admin':
+        return 3;
+      case 'manager':
+        return 2;
+      case 'employee':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  Future<String?> _resolveRoleByEmail(String? email) async {
+    final normalizedEmail = email?.trim().toLowerCase();
+    if (normalizedEmail == null || normalizedEmail.isEmpty) return null;
+
+    try {
+      final users = await BackendAuthService.instance.listUsers(limit: 2000);
+      String? bestRole;
+      var bestPriority = 0;
+      for (final user in users) {
+        final userEmail = user['email']?.toString().trim().toLowerCase();
+        if (userEmail != normalizedEmail) continue;
+
+        final role = _resolveRoleFromRecord(user);
+        final priority = _rolePriority(role);
+        if (priority > bestPriority) {
+          bestPriority = priority;
+          bestRole = role;
+        }
+        if (bestPriority == 3) break;
+      }
+      return bestRole;
+    } catch (e) {
+      developer.log('Error resolving role by email: $e');
+      return null;
+    }
   }
 
   String routeForRole(String? role) {
@@ -47,14 +163,14 @@ class RoleService {
     final normalized = normalizeRoleLabel(role);
     if (normalized != null) {
       _sessionRoleOverride = normalized;
-      _cachedRole = normalized;
+      _applyResolvedRole(normalized);
       return;
     }
     _sessionRoleOverride = 'employee';
-    _cachedRole = 'employee';
+    _applyResolvedRole('employee');
   }
 
-  /// Admin portal / Firestore `isAdmin()` alignment: exact `admin` plus common aliases.
+  /// Admin portal alignment: exact `admin` plus common aliases.
   /// Matches [DatabaseService] admin-like detection for approval privileges.
   static bool isAdminPortalRole(String? role) {
     final r = role?.trim().toLowerCase();
@@ -70,35 +186,35 @@ class RoleService {
     required String userId,
     required String? email,
   }) async {
-    // Prevent repeated Firestore reads during rebuilds.
+    // Prevent repeated backend reads during rebuilds.
     if (_onboardingInferAttemptedUserId == userId) {
       return _onboardingCachedRole;
     }
     _onboardingInferAttemptedUserId = userId;
 
     try {
-      // First try onboarding by UID.
-      final byId = await FirebaseFirestore.instance
-          .collection('onboarding')
-          .doc(userId)
-          .get();
+      Map<String, dynamic>? onboardingData;
+      try {
+        onboardingData = await BackendAuthService.instance.getOnboarding(userId);
+      } catch (_) {}
 
-      Map<String, dynamic>? onboardingData = byId.exists ? byId.data() : null;
-
-      // If not found by UID, try by email.
-      if (onboardingData == null && (email ?? '').trim().isNotEmpty) {
-        final byEmail = await FirebaseFirestore.instance
-            .collection('onboarding')
-            .where('email', isEqualTo: email!.trim())
-            .limit(1)
-            .get();
-        if (byEmail.docs.isNotEmpty) {
-          onboardingData = byEmail.docs.first.data();
+      if (onboardingData == null || onboardingData.isEmpty) {
+        final normalizedEmail = email?.trim();
+        if (normalizedEmail != null && normalizedEmail.isNotEmpty) {
+          try {
+            final onboardingMatches =
+                await OnboardingService.listOnboardingRecords(
+                  email: normalizedEmail,
+                  limit: 1,
+                );
+            if (onboardingMatches.isNotEmpty) {
+              onboardingData = onboardingMatches.first;
+            }
+          } catch (_) {}
         }
       }
 
-      final moduleAccessRole = onboardingData?['moduleAccessRole'] as String?;
-      final inferred = OnboardingService.extractPersonaForApp(moduleAccessRole);
+      final inferred = onboardingData == null ? null : _resolveRoleFromRecord(onboardingData);
       _onboardingCachedRole = inferred;
       return inferred;
     } catch (e) {
@@ -109,82 +225,69 @@ class RoleService {
   }
 
   Future<String?> getRole({bool refresh = false}) async {
-    if (_sessionRoleOverride != null) return _sessionRoleOverride;
+    if (!refresh && _sessionRoleOverride != null) return _sessionRoleOverride;
     if (!refresh && _cachedRole != null) return _cachedRole;
+    if (!refresh && _roleLoadInFlight != null) return _roleLoadInFlight;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       _cachedRole = null;
+      _stickyRole = null;
       return null;
     }
 
+    if (!refresh && _stickyRole == null) {
+      final persisted = await _readPersistedRole(user.uid);
+      if (persisted != null) {
+        _stickyRole = persisted;
+        _cachedRole ??= persisted;
+      }
+    }
+
+    Future<String?> loadRole() async {
+      try {
+        final userData = await BackendAuthService.instance.getUser(user.uid);
+        final role = _resolveRoleFromRecord(userData);
+        if (role != null) {
+          _applyResolvedRole(role);
+          return _cachedRole;
+        }
+      } catch (e) {
+        developer.log('Error getting role from user record: $e');
+      }
+
+      final inferred = await _inferRoleFromOnboarding(
+        userId: user.uid,
+        email: user.email,
+      );
+      if (inferred != null) {
+        _applyResolvedRole(inferred);
+        return _cachedRole;
+      }
+
+      final emailRole = await _resolveRoleByEmail(user.email);
+      if (emailRole != null) {
+        _applyResolvedRole(emailRole);
+        return _cachedRole;
+      }
+
+      if (_sessionRoleOverride != null) {
+        _applyResolvedRole(_sessionRoleOverride!);
+        return _cachedRole;
+      }
+
+      return _fallbackRoleForSignedInUser(user.uid);
+    }
+
+    final inFlight = loadRole();
+    if (!refresh) {
+      _roleLoadInFlight = inFlight;
+    }
     try {
-      final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      final snap = await ref.get();
-
-      if (!snap.exists) {
-        // Document doesn't exist - return null, don't create it
-        // This allows registration to set the role properly
-        _cachedRole = null;
-        return null;
+      return await inFlight;
+    } finally {
+      if (_roleLoadInFlight == inFlight) {
+        _roleLoadInFlight = null;
       }
-
-      // Document exists - get the role
-      final roleData = snap.data();
-      final role = _normalizeRole(roleData?['role']);
-
-      // Only set default role if role is truly missing (null or empty string)
-      // NEVER overwrite an existing role, even if it's empty string
-      // Empty string might indicate a role is being set elsewhere
-      if (role == null) {
-        // Double-check: read the document again to make sure we have the latest data
-        // This prevents race conditions where role might have been set between reads
-        final retrySnap = await ref.get();
-        final retryRole = _normalizeRole(retrySnap.data()?['role']);
-
-        if (retryRole != null) {
-          // Role was set between reads, use it
-          _cachedRole = retryRole;
-          return _cachedRole;
-        }
-
-        // Attempt to infer the role from the onboarding collection (common for
-        // Google sign-in users where `users/<uid>.role` may be missing).
-        final inferred = await _inferRoleFromOnboarding(
-          userId: user.uid,
-          email: user.email,
-        );
-        if (inferred != null) {
-          _cachedRole = inferred;
-          return _cachedRole;
-        }
-
-        // Role is still missing - only then set default
-        // But first, check if this is a brand new user (created in last 10 seconds)
-        // If so, don't set default - let registration complete
-        final createdAt = roleData?['createdAt'] as Timestamp?;
-        if (createdAt != null) {
-          final now = Timestamp.now();
-          final secondsSinceCreation = now.seconds - createdAt.seconds;
-          if (secondsSinceCreation < 10) {
-            // User was just created, don't set default role yet
-            _cachedRole = null;
-            return null;
-          }
-        }
-
-        // Role is missing and user is not brand new - do NOT set a default here
-        // Avoid accidental downgrades; let registration/admin flows set the role
-        _cachedRole = null;
-        return null;
-      }
-
-      _cachedRole = role;
-      return _cachedRole;
-    } catch (e) {
-      developer.log('Error getting role: $e');
-      // Return cached role if available, otherwise return null
-      // Let the calling code decide what to do with null role
-      return _cachedRole;
     }
   }
 
@@ -202,47 +305,11 @@ class RoleService {
       _currentUserId = user.uid; // Set new user ID immediately
     }
 
-    // Lazily initialize a single broadcast stream so all listeners share one Firestore subscription
+    // Lazily initialize a single broadcast stream so all listeners share one backend poller.
     if (_roleBroadcast == null) {
       _currentUserId = user.uid;
       try {
-        // Create the Firestore stream and convert to broadcast
-        // This ensures only ONE Firestore listener exists per user
-        final firestoreStream = FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .snapshots();
-
-        _roleBroadcast = firestoreStream
-            .asyncMap((doc) async {
-              try {
-                if (_sessionRoleOverride != null) {
-                  _cachedRole = _sessionRoleOverride;
-                  return _sessionRoleOverride;
-                }
-                final role = _normalizeRole(doc.data()?['role']);
-                if (role != null) {
-                  _cachedRole = role;
-                  return role;
-                }
-
-                // If role is missing in users doc, try onboarding inference once.
-                if (_cachedRole != null) return _cachedRole;
-                final inferred = await _inferRoleFromOnboarding(
-                  userId: user.uid,
-                  email: user.email,
-                );
-                if (inferred != null) {
-                  _cachedRole = inferred;
-                }
-                return _cachedRole;
-              } catch (e) {
-                developer.log('Error processing role snapshot: $e');
-                return _cachedRole;
-              }
-            })
-            .distinct()
-            .asBroadcastStream();
+        _roleBroadcast = _pollRoleStream().asBroadcastStream();
       } catch (e) {
         developer.log('Error creating role stream: $e');
         // Return a stream with cached role as fallback
@@ -253,31 +320,65 @@ class RoleService {
     return _roleBroadcast!;
   }
 
+  Stream<String?> _pollRoleStream() async* {
+    final first = await getRole(refresh: true);
+    yield first ?? _stickyRole ?? _cachedRole;
+    while (true) {
+      await Future.delayed(const Duration(seconds: 30));
+      final previous = _cachedRole ?? _stickyRole;
+      final next = await getRole(refresh: true);
+      yield next ?? previous;
+    }
+  }
+
   void _clearStream() {
-    // Only clear stream reference - don't force cancellation
-    // Let Firestore handle cleanup naturally when all listeners unsubscribe
+    // Only clear stream reference - don't force cancellation.
     _roleBroadcast = null;
     _currentUserId = null;
     _onboardingInferAttemptedUserId = null;
     _onboardingCachedRole = null;
+    _roleLoadInFlight = null;
   }
 
   // Method to clear cache (useful for sign out)
   void clearCache() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
     _cachedRole = null;
+    _stickyRole = null;
     _sessionRoleOverride = null;
     _clearStream();
+    if (uid != null) {
+      unawaited(() async {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove(_persistedRoleKey(uid));
+        } catch (_) {}
+      }());
+    }
   }
 
   // Method to ensure role is loaded and cached
   Future<void> ensureRoleLoaded() async {
     if (_cachedRole != null) return;
-    for (var attempt = 0; attempt < 4 && _cachedRole == null; attempt++) {
-      await getRole(refresh: true);
-      if (_cachedRole != null) return;
-      if (attempt < 3) {
-        await Future.delayed(Duration(milliseconds: 200 * (attempt + 1)));
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && _stickyRole == null) {
+      final persisted = await _readPersistedRole(user.uid);
+      if (persisted != null) {
+        _stickyRole = persisted;
+        _cachedRole = persisted;
+        return;
       }
+    }
+    for (var attempt = 0; attempt < 6 && _cachedRole == null; attempt++) {
+      await getRole(refresh: attempt > 0);
+      if (_cachedRole != null) return;
+      if (attempt < 5) {
+        await Future.delayed(Duration(milliseconds: 250 * (attempt + 1)));
+      }
+    }
+    if (_cachedRole == null && user != null) {
+      final fallback = await _fallbackRoleForSignedInUser(user.uid);
+      _cachedRole = fallback;
     }
   }
 }
@@ -376,7 +477,10 @@ class _RoleGateState extends State<RoleGate> {
       stream: RoleService.instance.roleStream(),
       initialData: RoleService.instance.cachedRole,
       builder: (context, snapshot) {
-        final role = snapshot.data ?? RoleService.instance.cachedRole;
+        final role =
+            snapshot.data ??
+            RoleService.instance.cachedRole ??
+            RoleService.instance.effectiveRole;
         if (widget.requiredRole == RequiredRole.any) return widget.child;
 
         final isLoading =
@@ -395,7 +499,9 @@ class _RoleGateState extends State<RoleGate> {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
           SchedulerBinding.instance.addPostFrameCallback((_) {
             if (!context.mounted) return;
-            final target = RoleService.instance.routeForRole(role);
+            final target = RoleService.instance.routeForRole(
+              RoleService.instance.effectiveRole ?? role,
+            );
             Navigator.pushNamedAndRemoveUntil(
               context,
               target,
@@ -407,17 +513,10 @@ class _RoleGateState extends State<RoleGate> {
           );
         }
 
-        // If role is still null, treat as loading for managers, allow employees through.
+        // Signed-in users should never hit a dead-end role screen.
         if (role == null) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
-          // If the stream is active but still no role, don't spin forever.
-          final isStillWaiting =
-              snapshot.connectionState == ConnectionState.waiting ||
-              snapshot.connectionState == ConnectionState.none;
-          if (isStillWaiting) {
-            return CustomLogoLoader(centerInViewport: true);
-          }
-          return widget.unauthorized ?? const _RoleUnknown();
+          return CustomLogoLoader(centerInViewport: true);
         }
 
         final ok =

@@ -5,8 +5,8 @@ import 'dart:convert' as convert;
 import 'dart:async'; // Add Timer import
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/audit_service.dart';
@@ -28,7 +28,6 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/streak_service.dart';
-import 'package:pdh/services/firestore_stream_broker.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
@@ -60,7 +59,7 @@ enum RepositoryAuditViewMode {
   adminOversight,
 }
 
-/// Filters admin Repository & Audit by Firestore role of the **goal owner** (`users/{uid}.role`).
+/// Filters admin Repository & Audit by PostgreSQL role of the **goal owner** (`users.role`).
 enum _AdminGoalOwnerFilter { all, managerOwners, employeeOwners }
 
 class RepositoryAuditScreen extends StatefulWidget {
@@ -110,8 +109,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   static const String _repoAuditIconRejected =
       'assets/Cancel_Exit_Escape/Cancel_Exit_Escape_White_Badge_Red.png';
 
-  // Single unified stream to prevent Firestore conflicts
-  StreamSubscription<QuerySnapshot>? _unifiedStreamSubscription;
+  static final BackendAuthService _backend = BackendAuthService.instance;
+
+  StreamSubscription<List<Map<String, dynamic>>>? _unifiedStreamSubscription;
   /// Rows from audit_entries before merging admin overlay(s).
   List<AuditEntry> _unifiedEntriesOnly = [];
   StreamSubscription<List<ApprovedGoalAudit>>?
@@ -171,13 +171,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       },
     );
 
-    // Enable repository auto-sync for functionality
-    try {
-      RepositoryService.startAutoSync();
-    } catch (e) {
-      developer.log('Error starting auto-sync: $e');
-    }
-
     // Backfill existing verified entries when screen loads
     _backfillVerifiedEntries();
 
@@ -195,18 +188,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final roleDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      final role = (roleDoc.data() ?? const {})['role'] as String?;
+      final userData = await _backend.getUser(user.uid);
+      final role = userData['role'] as String?;
 
       if (mounted) {
         setState(() {
           _isManager = _isManagerLikeRole(role);
           _currentUserId = user.uid;
-          _currentUserDepartment =
-              (roleDoc.data() ?? const {})['department'] as String?;
+          _currentUserDepartment = userData['department'] as String?;
         });
         // Build a trusted personal goal ownership index used to scope
         // personal workspace milestone/audit visibility.
@@ -230,17 +219,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Check role from stream or user profile
-      final roleDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      final role = (roleDoc.data() ?? const {})['role'] as String?;
+      final userData = await _backend.getUser(user.uid);
+      final role = userData['role'] as String?;
 
       if (role == 'manager') {
         // For managers: backfill all verified entries in their department
-        final department =
-            (roleDoc.data() ?? const {})['department'] as String?;
+        final department = userData['department'] as String?;
         if (department != null && department.isNotEmpty) {
           await RepositoryService.backfillVerifiedEntriesForDepartment(
             department,
@@ -325,11 +309,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     _approvedGoalsAuditSubscription = null;
     _searchController.dispose();
     _searchDebouncer.dispose();
-    try {
-      RepositoryService.stopAutoSync();
-    } catch (e) {
-      developer.log('Error stopping auto-sync: $e');
-    }
     super.dispose();
   }
 
@@ -418,36 +397,70 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     return out;
   }
 
+  Future<List<Map<String, dynamic>>> _fetchUnifiedAuditItems() async {
+    if (_currentUserId == null) return const [];
+
+    if (widget.forAdminOversight) {
+      return _backend.getAuditEntriesWithActions(
+        includeActions: true,
+        limit: 500,
+      );
+    }
+
+    if (_viewMode == RepositoryAuditViewMode.personal) {
+      return _backend.getAuditEntriesWithActions(
+        userId: _currentUserId,
+        includeActions: true,
+        limit: 500,
+      );
+    }
+
+    final dept = (_currentUserDepartment ?? '').trim();
+    if (dept.isEmpty) return const [];
+    return _backend.getAuditEntriesWithActions(
+      department: dept,
+      includeActions: true,
+      limit: 500,
+    );
+  }
+
+  Stream<List<Map<String, dynamic>>> _pollUnifiedAuditItems() async* {
+    while (true) {
+      try {
+        yield await _fetchUnifiedAuditItems();
+      } catch (e, st) {
+        developer.log(
+          'Unified audit poll error: $e',
+          error: e,
+          stackTrace: st,
+          name: 'RepositoryAuditScreen',
+        );
+        yield const [];
+      }
+      await Future.delayed(const Duration(seconds: 5));
+    }
+  }
+
   Future<void> _loadGoalsDocumentApprovalFallbackForAdmin() async {
     if (!mounted || _currentUserId == null) return;
     try {
-      final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-      final goals = FirebaseFirestore.instance.collection('goals');
+      final goalRows = <Map<String, dynamic>>[];
       if (_viewMode == RepositoryAuditViewMode.personal) {
-        final snap = await goals
-            .where('userId', isEqualTo: _currentUserId)
-            .limit(400)
-            .get();
-        docs.addAll(snap.docs);
+        goalRows.addAll(
+          await _backend.getGoals(userId: _currentUserId, limit: 400),
+        );
       } else if (_viewMode == RepositoryAuditViewMode.managerTeam) {
         final teamIds = _teamMemberIds.toList();
-        for (var i = 0; i < teamIds.length; i += 10) {
-          final chunk = teamIds.sublist(
-            i,
-            i + 10 > teamIds.length ? teamIds.length : i + 10,
-          );
-          if (chunk.isEmpty) continue;
-          final snap = await goals.where('userId', whereIn: chunk).limit(200).get();
-          docs.addAll(snap.docs);
+        for (final uid in teamIds) {
+          goalRows.addAll(await _backend.getGoals(userId: uid, limit: 200));
         }
       } else {
-        final snap = await goals.limit(500).get();
-        docs.addAll(snap.docs);
+        goalRows.addAll(await _backend.getGoals(limit: 500));
       }
 
       final ownerIds = <String>{};
-      for (final doc in docs) {
-        final uid = (doc.data()['userId'] ?? '').toString().trim();
+      for (final row in goalRows) {
+        final uid = (row['userId'] ?? row['user_id'] ?? '').toString().trim();
         if (uid.isNotEmpty) ownerIds.add(uid);
       }
 
@@ -455,9 +468,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       final deptByUid = <String, String>{};
       for (final uid in ownerIds) {
         try {
-          final ud =
-              await FirebaseFirestore.instance.collection('users').doc(uid).get();
-          final m = ud.data() ?? {};
+          final m = await _backend.getUser(uid);
           final nm = (m['displayName'] ??
                   m['fullName'] ??
                   m['name'] ??
@@ -475,14 +486,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       }
 
       final synth = <AuditEntry>[];
-      for (final doc in docs) {
-        final row = _auditEntrySyntheticFromGoalDocument(
-          doc.id,
-          doc.data(),
+      for (final row in goalRows) {
+        final goalDocId = (row['id'] ?? row['goalId'] ?? '').toString();
+        if (goalDocId.isEmpty) continue;
+        final synthetic = _auditEntrySyntheticFromGoalDocument(
+          goalDocId,
+          row,
           displayNameFor: displayByUid,
           departmentFor: deptByUid,
         );
-        if (row != null) synth.add(row);
+        if (synthetic != null) synth.add(synthetic);
       }
 
       if (!mounted) return;
@@ -509,7 +522,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     for (final k in keys) {
       final v = data[k];
       if (v == null) continue;
-      if (v is Timestamp) return v.toDate();
       if (v is DateTime) return v;
       final p = DateTime.tryParse(v.toString());
       if (p != null) return p;
@@ -626,30 +638,18 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  // Initialize unified stream that serves all UI components
+  // Initialize unified polling stream that serves all UI components
   void _initializeUnifiedStream() {
     if (_unifiedStreamSubscription != null) return;
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // Use the stream broker to get a shared stream
-    final broker = FirestoreStreamBroker();
-    final stream = broker.getAuditEntriesStream(
-      userId: user.uid,
-      isManager: _isManager,
-      includeTeamDataForManager: _useTeamDataView,
-      organizationWideAudit: widget.forAdminOversight,
-      managerDepartment: _currentUserDepartment,
-      strictManagerScope: _viewMode == RepositoryAuditViewMode.managerTeam,
-      limit: 500,
-    );
-
-    _unifiedStreamSubscription = stream.listen(
-      (snapshot) {
+    _unifiedStreamSubscription = _pollUnifiedAuditItems().listen(
+      (items) {
         if (mounted) {
           developer.log(
-            'Unified stream received ${snapshot.docs.length} documents',
+            'Unified poll received ${items.length} documents',
           );
 
           final entries = <AuditEntry>[];
@@ -658,11 +658,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           var milestoneCount = 0;
           var auditCount = 0;
 
-          for (final doc in snapshot.docs) {
-            final data = doc.data() as Map<String, dynamic>? ?? {};
+          for (final data in items) {
             if (!_shouldIncludeAuditDataForCurrentView(data)) {
               continue;
             }
+
+            final docId = (data['id'] ?? '').toString();
 
             // Skip entries without goalId
             if ((data['goalId'] ?? '').toString().isEmpty) {
@@ -674,37 +675,35 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             if (data.containsKey('action')) {
               final action = data['action'] as String? ?? '';
               if (_isMilestoneAction(action)) {
-                // Add to milestone audits
-                milestoneAudits.add({'id': doc.id, ...data});
+                milestoneAudits.add({'id': docId, ...data});
                 milestoneCount++;
               } else if (_isGoalLifecycleAction(action)) {
-                // Goal lifecycle actions are first-class audit records for
-                // manager-as-employee flows (created -> approved -> verified/rejected).
                 try {
-                  final lifecycleEntry = _auditEntryFromGoalAction(doc);
+                  final lifecycleEntry = _auditEntryFromGoalActionMap(
+                    data,
+                    id: docId,
+                  );
                   entries.add(lifecycleEntry);
                   auditCount++;
                 } catch (e) {
                   developer.log(
-                    'Error parsing goal lifecycle action ${doc.id}: $e',
+                    'Error parsing goal lifecycle action $docId: $e',
                     name: 'RepositoryAuditScreen',
                   );
                 }
               }
-              // Action-based records are fully handled above.
               continue;
             }
 
-            // Add to regular audit entries
             try {
-              final entry = AuditEntry.fromFirestore(doc);
+              final entry = AuditEntry.fromMap(data, fallbackId: docId);
               entries.add(entry);
               auditCount++;
               developer.log(
                 'Audit entry: ${entry.goalTitle} - Status: ${entry.status}',
               );
             } catch (e) {
-              developer.log('Error parsing audit entry ${doc.id}: $e');
+              developer.log('Error parsing audit entry $docId: $e');
             }
           }
 
@@ -726,13 +725,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           _scheduleHydrateGoalOwnerRoles(_allAuditEntries);
 
           developer.log(
-            'Unified stream updated: ${entries.length} audit entries (merged ${_allAuditEntries.length}), ${milestoneAudits.length} milestone audits',
+            'Unified poll updated: ${entries.length} audit entries (merged ${_allAuditEntries.length}), ${milestoneAudits.length} milestone audits',
           );
         }
       },
       onError: (error) {
         developer.log(
-          'Unified stream error: $error',
+          'Unified poll error: $error',
           name: 'RepositoryAuditScreen',
         );
         if (mounted) {
@@ -858,23 +857,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     if (ids.isEmpty) return;
 
     try {
-      final idList = ids.toList();
-      for (var i = 0; i < idList.length; i += 10) {
-        final chunk = idList.sublist(
-          i,
-          i + 10 > idList.length ? idList.length : i + 10,
-        );
-        final snap = await FirebaseFirestore.instance
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-        for (final d in snap.docs) {
+      for (final uid in ids) {
+        try {
+          final data = await _backend.getUser(uid);
           final raw =
-              (d.data()['role'] ?? 'employee').toString().trim().toLowerCase();
-          _goalOwnerRoleByUid[d.id] = raw;
-        }
-        for (final uid in chunk) {
-          _goalOwnerRoleByUid.putIfAbsent(uid, () => 'employee');
+              (data['role'] ?? 'employee').toString().trim().toLowerCase();
+          _goalOwnerRoleByUid[uid] = raw;
+        } catch (_) {
+          _goalOwnerRoleByUid[uid] = 'employee';
         }
       }
       if (mounted) setState(() {});
@@ -957,13 +947,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     ].contains(action);
   }
 
-  AuditEntry _auditEntryFromGoalAction(QueryDocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+  AuditEntry _auditEntryFromGoalActionMap(
+    Map<String, dynamic> data, {
+    String? id,
+  }) {
     final action = (data['action'] as String?) ?? '';
-    final submittedTs =
-        (data['submittedDate'] ?? data['createdAt'] ?? data['timestamp'])
-            as Timestamp?;
-    final submittedDate = submittedTs?.toDate() ?? DateTime.now();
+    final submittedDate = _readGoalDocDate(
+      data,
+      ['submittedDate', 'createdAt', 'timestamp'],
+    );
 
     String status;
     switch (action) {
@@ -987,19 +979,26 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     }
 
     return AuditEntry(
-      id: doc.id,
+      id: id ?? (data['id'] ?? '').toString(),
       userId: (data['userId'] as String?) ?? '',
       goalId: (data['goalId'] as String?) ?? '',
       goalTitle: (data['goalTitle'] as String?) ?? 'Untitled Goal',
-      completedDate:
-          (data['completedDate'] as Timestamp?)?.toDate() ?? submittedDate,
+      completedDate: data['completedDate'] != null
+          ? _readGoalDocDate(data, ['completedDate'])
+          : submittedDate,
       submittedDate: submittedDate,
-      verifiedDate: (data['verifiedDate'] as Timestamp?)?.toDate(),
-      rejectedDate: (data['rejectedDate'] as Timestamp?)?.toDate(),
-      approvedDate: (data['approvedDate'] as Timestamp?)?.toDate(),
-      createdDate:
-          (data['createdDate'] as Timestamp?)?.toDate() ??
-          (action == 'goal_created' ? submittedDate : null),
+      verifiedDate: data['verifiedDate'] != null
+          ? _readGoalDocDate(data, ['verifiedDate'])
+          : null,
+      rejectedDate: data['rejectedDate'] != null
+          ? _readGoalDocDate(data, ['rejectedDate'])
+          : null,
+      approvedDate: data['approvedDate'] != null
+          ? _readGoalDocDate(data, ['approvedDate'])
+          : null,
+      createdDate: data['createdDate'] != null
+          ? _readGoalDocDate(data, ['createdDate'])
+          : (action == 'goal_created' ? submittedDate : null),
       status: (data['status'] as String?) ?? status,
       evidence: List<String>.from(data['evidence'] ?? const []),
       acknowledgedBy: (data['acknowledgedBy'] as String?),
@@ -1018,54 +1017,55 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _loadStrictPersonalMilestoneAuditsFromOwnedGoals() async {
-    if (_personalGoalIds.isEmpty) return [];
+    if (_personalGoalIds.isEmpty || _currentUserId == null) return [];
 
-    final audits = <Map<String, dynamic>>[];
-    final goalIds = _personalGoalIds.toList();
+    final items = await _backend.getAuditEntriesWithActions(
+      userId: _currentUserId,
+      includeActions: true,
+      limit: 400,
+    );
 
-    // Firestore whereIn supports up to 10 values; query in chunks.
-    for (var i = 0; i < goalIds.length; i += 10) {
-      final chunk = goalIds.sublist(
-        i,
-        i + 10 > goalIds.length ? goalIds.length : i + 10,
-      );
+    final audits = items
+        .where((data) {
+          final goalId = (data['goalId'] ?? '').toString();
+          if (goalId.isEmpty || !_personalGoalIds.contains(goalId)) {
+            return false;
+          }
+          final action = (data['action'] as String?) ?? '';
+          return _isMilestoneAction(action);
+        })
+        .map((data) => {
+              'id': (data['id'] ?? '').toString(),
+              ...data,
+            })
+        .toList();
 
-      final snapshot = await FirebaseFirestore.instance
-          .collection('audit_entries')
-          .where('goalId', whereIn: chunk)
-          .limit(200)
-          .get();
-
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final action = (data['action'] as String?) ?? '';
-        if (_isMilestoneAction(action)) {
-          audits.add({'id': doc.id, ...data});
-        }
-      }
-    }
-
-    // Keep the newest records first for UI consistency.
     audits.sort((a, b) {
       final ta = a['timestamp'];
       final tb = b['timestamp'];
-      if (ta is Timestamp && tb is Timestamp) {
-        return tb.compareTo(ta);
-      }
-      return 0;
+      final da = ta is DateTime
+          ? ta
+          : DateTime.tryParse(ta?.toString() ?? '') ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+      final db = tb is DateTime
+          ? tb
+          : DateTime.tryParse(tb?.toString() ?? '') ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+      return db.compareTo(da);
     });
     return audits;
   }
 
   Future<void> _loadPersonalGoalIds(String userId) async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('goals')
-          .where('userId', isEqualTo: userId)
-          .get();
+      final goals = await _backend.getGoals(userId: userId, limit: 400);
       _personalGoalIds
         ..clear()
-        ..addAll(snapshot.docs.map((d) => d.id));
+        ..addAll(
+          goals
+              .map((g) => (g['id'] ?? g['goalId'] ?? '').toString())
+              .where((id) => id.isNotEmpty),
+        );
       _personalGoalIndexHealthy = true;
     } catch (e) {
       _personalGoalIndexHealthy = false;
@@ -1092,16 +1092,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         return;
       }
 
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('department', isEqualTo: dept)
-          .get();
+      final users = await _backend.listUsers(department: dept, limit: 500);
       final ids = <String>{};
-      for (final doc in snapshot.docs) {
-        if (doc.id == managerUid) continue;
-        final role = (doc.data()['role'] ?? '').toString().trim().toLowerCase();
+      for (final user in users) {
+        final uid = (user['id'] ?? user['uid'] ?? '').toString();
+        if (uid.isEmpty || uid == managerUid) continue;
+        final role = (user['role'] ?? '').toString().trim().toLowerCase();
         if (RoleService.isAdminPortalRole(role)) continue;
-        ids.add(doc.id);
+        ids.add(uid);
       }
       _teamMemberIds
         ..clear()
@@ -1130,37 +1128,24 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     try {
       // Resolve goal owner ids from goals docs.
       final missingGoalIds = goalIds.where((g) => !_goalOwnerIdByGoalId.containsKey(g)).toList();
-      for (var i = 0; i < missingGoalIds.length; i += 10) {
-        final chunk = missingGoalIds.sublist(
-          i,
-          i + 10 > missingGoalIds.length ? missingGoalIds.length : i + 10,
-        );
-        final snap = await FirebaseFirestore.instance
-            .collection('goals')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-        for (final d in snap.docs) {
-          final ownerId = (d.data()['userId'] ?? '').toString().trim();
-          _goalOwnerIdByGoalId[d.id] = ownerId;
+      for (final goalId in missingGoalIds) {
+        try {
+          final rows = await _backend.getGoals(goalId: goalId, limit: 1);
+          if (rows.isEmpty) continue;
+          final row = rows.first;
+          final ownerId = (row['userId'] ?? row['user_id'] ?? '').toString().trim();
+          _goalOwnerIdByGoalId[goalId] = ownerId;
           if (ownerId.isNotEmpty) userIds.add(ownerId);
-        }
+        } catch (_) {}
       }
 
       // Resolve display names for all involved user ids.
       final missingUserIds = userIds
           .where((u) => u.isNotEmpty && !_displayNameByUserId.containsKey(u))
           .toList();
-      for (var i = 0; i < missingUserIds.length; i += 10) {
-        final chunk = missingUserIds.sublist(
-          i,
-          i + 10 > missingUserIds.length ? missingUserIds.length : i + 10,
-        );
-        final snap = await FirebaseFirestore.instance
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-        for (final d in snap.docs) {
-          final m = d.data();
+      for (final uid in missingUserIds) {
+        try {
+          final m = await _backend.getUser(uid);
           final n = (m['displayName'] ??
                   m['fullName'] ??
                   m['name'] ??
@@ -1168,10 +1153,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   '')
               .toString()
               .trim();
-          _displayNameByUserId[d.id] = n;
-        }
-        for (final uid in chunk) {
-          _displayNameByUserId.putIfAbsent(uid, () => '');
+          _displayNameByUserId[uid] = n;
+        } catch (_) {
+          _displayNameByUserId[uid] = '';
         }
       }
 
@@ -1187,19 +1171,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           .where((id) => id.isNotEmpty && !_goalOwnerRoleByUid.containsKey(id))
           .toSet()
           .toList();
-      for (var i = 0; i < ownerIds.length; i += 10) {
-        final chunk = ownerIds.sublist(
-          i,
-          i + 10 > ownerIds.length ? ownerIds.length : i + 10,
-        );
-        final snap = await FirebaseFirestore.instance
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-        for (final d in snap.docs) {
+      for (final uid in ownerIds) {
+        try {
+          final data = await _backend.getUser(uid);
           final raw =
-              (d.data()['role'] ?? 'employee').toString().trim().toLowerCase();
-          _goalOwnerRoleByUid[d.id] = raw;
+              (data['role'] ?? 'employee').toString().trim().toLowerCase();
+          _goalOwnerRoleByUid[uid] = raw;
+        } catch (_) {
+          _goalOwnerRoleByUid[uid] = 'employee';
         }
       }
 
@@ -1235,17 +1214,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     if (missing.isEmpty) return;
 
     try {
-      for (var i = 0; i < missing.length; i += 10) {
-        final chunk = missing.sublist(
-          i,
-          i + 10 > missing.length ? missing.length : i + 10,
-        );
-        final snap = await FirebaseFirestore.instance
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-        for (final d in snap.docs) {
-          final m = d.data();
+      for (final uid in missing) {
+        try {
+          final m = await _backend.getUser(uid);
           final resolved = (m['displayName'] ??
                   m['fullName'] ??
                   m['name'] ??
@@ -1253,10 +1224,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   '')
               .toString()
               .trim();
-          _displayNameByUserId[d.id] = resolved;
-        }
-        for (final uid in chunk) {
-          _displayNameByUserId.putIfAbsent(uid, () => '');
+          _displayNameByUserId[uid] = resolved;
+        } catch (_) {
+          _displayNameByUserId[uid] = '';
         }
       }
       if (!mounted) return;
@@ -1320,9 +1290,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       final mid = (row['milestoneId'] ?? '').toString().trim();
       final action = (row['action'] ?? '').toString().trim();
       final ts = row['timestamp'];
-      final tsKey = ts is Timestamp
+      final tsKey = ts is DateTime
           ? ts.millisecondsSinceEpoch.toString()
-          : (ts?.toString() ?? '');
+          : (DateTime.tryParse(ts?.toString() ?? '')?.millisecondsSinceEpoch
+                  .toString() ??
+              ts?.toString() ??
+              '');
       final key = id.isNotEmpty ? id : '$gid|$mid|$action|$tsKey';
       if (seen.contains(key)) continue;
       seen.add(key);
@@ -1828,7 +1801,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           const SizedBox(height: 8),
           Text(
             widget.forAdminOversight
-                ? 'Shows goal lifecycle rows from audit_entries (created, pending, verified, rejected). If empty, those records may not exist in Firestore yet.'
+                ? 'Shows goal lifecycle rows from audit_entries (created, pending, verified, rejected). If empty, those records may not exist in the backend yet.'
                 : (isManager
                     ? 'Your team hasn\'t completed any goals yet. Encourage them to set and achieve goals!'
                     : 'You haven\'t completed any goals yet. Start by creating and completing some goals!'),
@@ -2040,7 +2013,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const SizedBox.shrink();
 
-    // Use cached data from unified stream to prevent Firestore conflicts
+    // Use cached data from unified stream to prevent redundant backend polling
     final entries = getCachedAuditEntries(applyUiFilters: false);
 
     // Verified goals and recorded approvals (approved_goals_audit / goal_approved rows)
@@ -2612,9 +2585,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
   String _formatDate(dynamic timestamp) {
     if (timestamp == null) return 'Unknown';
-    if (timestamp is Timestamp) {
-      final date = timestamp.toDate();
-      return '${date.day}-${date.month}-${date.year}';
+    if (timestamp is DateTime) {
+      return '${timestamp.day}-${timestamp.month}-${timestamp.year}';
+    }
+    final parsed = DateTime.tryParse(timestamp.toString());
+    if (parsed != null) {
+      return '${parsed.day}-${parsed.month}-${parsed.year}';
     }
     return 'Unknown';
   }

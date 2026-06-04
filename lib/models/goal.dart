@@ -1,5 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/utils/date_parse.dart';
 
 enum GoalCategory { personal, work, health, learning }
 
@@ -87,7 +86,7 @@ class Goal {
     return true;
   }
 
-  /// Partial/empty `goals` documents sometimes exist in Firestore; never show
+  /// Partial/empty goal records sometimes exist in the backend; never show
   /// them in team review, PDP lists, or aggregates.
   bool get isDisplayableGoal =>
       title.trim().isNotEmpty || description.trim().isNotEmpty;
@@ -115,102 +114,6 @@ class Goal {
     this.rejectionReason,
   });
 
-  factory Goal.fromFirestore(DocumentSnapshot doc) {
-    final data = FirestoreSafe.documentDataAsMap(doc);
-    final rawCategory = (data['category'] ?? 'personal')
-        .toString()
-        .toLowerCase();
-    final rawPriority = (data['priority'] ?? 'medium')
-        .toString()
-        .toLowerCase();
-    final rawStatus = (data['status'] ?? 'notStarted')
-        .toString()
-        .toLowerCase();
-    // Must match goals awaiting review: missing field means pending, not approved.
-    final rawApproval = (data['approvalStatus'] ?? 'pending')
-        .toString()
-        .toLowerCase();
-
-    DateTime parseDate(dynamic v) {
-      if (v is Timestamp) return v.toDate();
-      if (v is DateTime) return v;
-      final parsed = DateTime.tryParse(v?.toString() ?? '');
-      return parsed ?? DateTime.now();
-    }
-
-    List<String> parseEvidence(dynamic v) {
-      if (v is List) {
-        return v
-            .map((e) => e?.toString() ?? '')
-            .where((s) => s.isNotEmpty)
-            .toList();
-      }
-      if (v is String && v.trim().isNotEmpty) {
-        return <String>[v.trim()];
-      }
-      return const <String>[];
-    }
-
-    return Goal(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      title: data['title'] ?? '',
-      description: data['description'] ?? '',
-      category: GoalCategory.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawCategory,
-        orElse: () => GoalCategory.personal,
-      ),
-      priority: GoalPriority.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawPriority,
-        orElse: () => GoalPriority.medium,
-      ),
-      status: GoalStatus.values.firstWhere(
-        (e) =>
-            e.name.toLowerCase() == rawStatus ||
-            // tolerate common alternative spellings/cases
-            (rawStatus == 'in_progress' && e == GoalStatus.inProgress) ||
-            (rawStatus == 'notstarted' && e == GoalStatus.notStarted),
-        orElse: () => rawStatus == 'paused'
-            ? GoalStatus.paused
-            : rawStatus == 'burnout'
-            ? GoalStatus.burnout
-            : GoalStatus.notStarted,
-      ),
-      // Coerce numeric values safely to int (Firestore may store as double)
-      progress: (() {
-        final raw = data['progress'];
-        if (raw is int) return raw;
-        if (raw is num) return raw.round();
-        return 0;
-      })(),
-      createdAt: parseDate(data['createdAt']),
-      // tolerate older schemas that used 'dueDate'
-      targetDate: parseDate(data['targetDate'] ?? data['dueDate']),
-      points: (() {
-        final raw = data['points'];
-        if (raw is int) return raw;
-        if (raw is num) return raw.round();
-        return 0;
-      })(),
-      isSeasonGoal: (data['isSeasonGoal'] ?? false) == true,
-      kpa: (data['kpa'] as String?)?.toLowerCase(),
-      evidence: parseEvidence(data['evidence']),
-      approvalStatus: GoalApprovalStatus.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawApproval,
-        orElse: () => GoalApprovalStatus.pending,
-      ),
-      approvedByUserId: data['approvedByUserId']?.toString(),
-      approvedByName: data['approvedByName']?.toString(),
-      approvedAt: data['approvedAt'] != null
-          ? parseDate(data['approvedAt'])
-          : null,
-      approvalRequestedAt: data['approvalRequestedAt'] != null
-          ? parseDate(data['approvalRequestedAt'])
-          : null,
-      rejectionReason: data['rejectionReason']?.toString(),
-    );
-  }
-
   static Goal fromMap(Map<String, dynamic> map, {String? id}) {
     final rawCategory = (map['category'] ?? 'personal')
         .toString()
@@ -221,12 +124,7 @@ class Goal {
         .toString()
         .toLowerCase();
 
-    DateTime parseDate(dynamic v) {
-      if (v is Timestamp) return v.toDate();
-      if (v is DateTime) return v;
-      final parsed = DateTime.tryParse(v?.toString() ?? '');
-      return parsed ?? DateTime.now();
-    }
+    DateTime parseGoalDate(dynamic v) => parseDate(v);
 
     List<String> parseEvidence(dynamic v) {
       if (v is List) {
@@ -264,9 +162,9 @@ class Goal {
       progress: (map['progress'] ?? 0) is int
           ? (map['progress'] as int)
           : int.tryParse(map['progress']?.toString() ?? '0') ?? 0,
-      createdAt: parseDate(map['createdAt']),
+      createdAt: parseGoalDate(map['createdAt']),
       // tolerate older schemas that used 'dueDate'
-      targetDate: parseDate(map['targetDate'] ?? map['dueDate']),
+      targetDate: parseGoalDate(map['targetDate'] ?? map['dueDate']),
       points: (map['points'] ?? 0) is int
           ? (map['points'] as int)
           : int.tryParse(map['points']?.toString() ?? '0') ?? 0,
@@ -280,10 +178,10 @@ class Goal {
       approvedByUserId: map['approvedByUserId']?.toString(),
       approvedByName: map['approvedByName']?.toString(),
       approvedAt: map['approvedAt'] != null
-          ? parseDate(map['approvedAt'])
+          ? parseGoalDate(map['approvedAt'])
           : null,
       approvalRequestedAt: map['approvalRequestedAt'] != null
-          ? parseDate(map['approvalRequestedAt'])
+          ? parseGoalDate(map['approvalRequestedAt'])
           : null,
       rejectionReason: map['rejectionReason']?.toString(),
     );

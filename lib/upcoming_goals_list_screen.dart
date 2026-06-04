@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/database_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -11,7 +11,6 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/services/role_service.dart';
-import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class UpcomingGoalsListScreen extends StatelessWidget {
@@ -21,26 +20,19 @@ class UpcomingGoalsListScreen extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Stream.empty();
 
-    return FirestoreSafe.stream(
-      FirebaseFirestore.instance
-          .collection('goals')
-          .where('userId', isEqualTo: user.uid)
-          .snapshots(),
-    ).map((snapshot) {
-          final goals = snapshot.docs
-              .map((doc) => Goal.fromFirestore(doc))
-              .where(
-                (g) =>
-                    !g.isSeasonGoal &&
-                    g.approvalStatus == GoalApprovalStatus.approved &&
-                    g.status != GoalStatus.completed &&
-                    g.progress < 100,
-              )
-              .toList();
-
-          goals.sort((a, b) => a.targetDate.compareTo(b.targetDate));
-          return goals;
-        });
+    return DatabaseService.getUserGoalsStream(user.uid).map((goals) {
+      final filtered = goals
+          .where(
+            (g) =>
+                !g.isSeasonGoal &&
+                g.approvalStatus == GoalApprovalStatus.approved &&
+                g.status != GoalStatus.completed &&
+                g.progress < 100,
+          )
+          .toList();
+      filtered.sort((a, b) => a.targetDate.compareTo(b.targetDate));
+      return filtered;
+    });
   }
 
   @override

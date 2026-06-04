@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/manager_inbox_screen.dart';
 
-/// Admin-only inbox screen (Manager IBox). Uses the same UI as the manager inbox.
-/// Not shared with manager/employee.
+/// Admin-only inbox. Delegates to [ManagerInboxScreen];
+/// alerts and approvals are loaded from PostgreSQL via [BackendAuthService].
 class AdminInboxScreen extends StatelessWidget {
   const AdminInboxScreen({super.key, this.embedded = false});
 

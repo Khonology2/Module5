@@ -3,57 +3,61 @@
 
 import 'dart:convert';
 import 'dart:developer' as developer;
-// Web-only API for downloads (Flutter Web)
 import 'dart:html' as html;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import 'package:pdh/models/repository_goal.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 
 class RepositoryExportService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final BackendAuthService _backend = BackendAuthService.instance;
 
   static String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
-  static Future<List<RepositoryGoal>> _fetchGoals(String userId) async {
-    final snap = await _firestore
-        .collection('repositories')
-        .doc(userId)
-        .collection('completedGoals')
-        .orderBy('verifiedDate', descending: true)
-        .get();
-    return snap.docs.map((d) => RepositoryGoal.fromFirestore(d)).toList();
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value.toString());
   }
 
-  // -------------------- Manager Verified Audit Entries Export --------------------
+  static Future<List<RepositoryGoal>> _fetchGoals(String userId) async {
+    final items = await _backend.getRepositories(userId);
+    final goals = items
+        .map((item) => RepositoryGoal.fromMap(item))
+        .toList()
+      ..sort((a, b) {
+        final aDate = a.verifiedDate ?? a.completedDate;
+        final bDate = b.verifiedDate ?? b.completedDate;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return bDate.compareTo(aDate);
+      });
+    return goals;
+  }
+
   static Future<List<Map<String, dynamic>>> _fetchVerifiedAuditEntries({
     String? department,
     String? search,
-    String? monthFilter, // YYYY-MM
+    String? monthFilter,
     double? minScore,
     int limit = 1000,
   }) async {
-    Query query = _firestore
-        .collection('audit_entries')
-        .where('status', isEqualTo: 'verified');
+    final items = await _backend.getAuditEntries(
+      department: department,
+      status: 'verified',
+      limit: limit,
+    );
 
-    if (department != null && department.isNotEmpty) {
-      query = query.where('userDepartment', isEqualTo: department);
-    }
+    var filtered = items;
 
-    query = query.orderBy('submittedDate', descending: true).limit(limit);
-
-    final snap = await query.get();
-    var items = snap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
-
-    // Client-side filters to match UI
     if (search != null && search.trim().isNotEmpty) {
       final q = search.toLowerCase();
-      items = items.where((m) {
+      filtered = filtered.where((m) {
         final goalTitle = (m['goalTitle'] ?? '').toString().toLowerCase();
         final userName = (m['userDisplayName'] ?? '').toString().toLowerCase();
         final dept = (m['userDepartment'] ?? '').toString().toLowerCase();
@@ -68,9 +72,8 @@ class RepositoryExportService {
     }
 
     if (monthFilter != null && monthFilter.isNotEmpty) {
-      items = items.where((m) {
-        final ts = m['completedDate'] as Timestamp?;
-        final d = ts?.toDate();
+      filtered = filtered.where((m) {
+        final d = _parseDate(m['completedDate']);
         if (d == null) return false;
         final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
         return key == monthFilter;
@@ -78,12 +81,21 @@ class RepositoryExportService {
     }
 
     if (minScore != null) {
-      items = items
+      filtered = filtered
           .where((m) => ((m['score'] as num?)?.toDouble() ?? 0) >= minScore)
           .toList();
     }
 
-    return items;
+    filtered.sort((a, b) {
+      final aDate = _parseDate(a['submittedDate']);
+      final bDate = _parseDate(b['submittedDate']);
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return bDate.compareTo(aDate);
+    });
+
+    return filtered;
   }
 
   static Future<void> exportManagerVerifiedAsCSV({
@@ -101,14 +113,13 @@ class RepositoryExportService {
       );
 
       final buffer = StringBuffer();
-      // Friendlier manager CSV: people & goal details first, IDs last
       buffer.writeln(
         'Employee Name,Department,Goal Title,Score (0-10),Completed Date,Submitted Date,Verified By,No. of Evidence Items,Manager Comments,Employee ID,Goal ID',
       );
 
       for (final m in items) {
-        final completedDt = (m['completedDate'] as Timestamp?)?.toDate();
-        final submittedDt = (m['submittedDate'] as Timestamp?)?.toDate();
+        final completedDt = _parseDate(m['completedDate']);
+        final submittedDt = _parseDate(m['submittedDate']);
         final completed = completedDt != null ? _formatDate(completedDt) : '';
         final submitted = submittedDt != null ? _formatDate(submittedDt) : '';
         final title = (m['goalTitle'] ?? '').toString().replaceAll(',', ' ');
@@ -181,7 +192,6 @@ class RepositoryExportService {
         minScore: minScore,
       );
 
-      // Build a simple multi-page PDF report
       final doc = pw.Document();
       doc.addPage(
         pw.MultiPage(
@@ -210,7 +220,7 @@ class RepositoryExportService {
             widgets.add(pw.SizedBox(height: 16));
 
             for (final m in items) {
-              final completed = (m['completedDate'] as Timestamp?)?.toDate();
+              final completed = _parseDate(m['completedDate']);
               final completedStr = completed != null
                   ? _formatDate(completed)
                   : '';
@@ -293,7 +303,6 @@ class RepositoryExportService {
     try {
       final goals = await _fetchGoals(userId);
       final buffer = StringBuffer();
-      // Friendlier header for employee CSV: goal summary first
       buffer.writeln(
         'Goal Title,Score (0-10),Completed Date,Verified Date,Manager,No. of Evidence Items,Manager Comments,Goal ID',
       );
@@ -324,7 +333,6 @@ class RepositoryExportService {
         );
       }
 
-      // Direct download instead of Firebase Storage
       if (!kIsWeb) {
         throw UnsupportedError('CSV export is only supported on web');
       }
@@ -349,16 +357,20 @@ class RepositoryExportService {
     }
   }
 
-  // Manager-wide CSV export (all users). Requires rules allowing collectionGroup reads and Storage writes.
   static Future<void> exportAllRepositoriesAsCSV() async {
     try {
-      final snap = await _firestore
-          .collectionGroup('completedGoals')
-          .orderBy('verifiedDate', descending: true)
-          .get();
-      final goals = snap.docs
-          .map((d) => RepositoryGoal.fromFirestore(d))
-          .toList();
+      final items = await _backend.getAllRepositories();
+      final goals = items
+          .map((item) => RepositoryGoal.fromMap(item))
+          .toList()
+        ..sort((a, b) {
+          final aDate = a.verifiedDate ?? a.completedDate;
+          final bDate = b.verifiedDate ?? b.completedDate;
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return bDate.compareTo(aDate);
+        });
 
       final buffer = StringBuffer();
       buffer.writeln(
@@ -396,7 +408,6 @@ class RepositoryExportService {
         );
       }
 
-      // Direct download instead of Firebase Storage
       if (!kIsWeb) {
         throw UnsupportedError('CSV export is only supported on web');
       }
@@ -421,16 +432,20 @@ class RepositoryExportService {
     }
   }
 
-  // Manager-wide PDF export (text report placeholder)
   static Future<void> exportAllRepositoriesAsPDF() async {
     try {
-      final snap = await _firestore
-          .collectionGroup('completedGoals')
-          .orderBy('verifiedDate', descending: true)
-          .get();
-      final goals = snap.docs
-          .map((d) => RepositoryGoal.fromFirestore(d))
-          .toList();
+      final items = await _backend.getAllRepositories();
+      final goals = items
+          .map((item) => RepositoryGoal.fromMap(item))
+          .toList()
+        ..sort((a, b) {
+          final aDate = a.verifiedDate ?? a.completedDate;
+          final bDate = b.verifiedDate ?? b.completedDate;
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return bDate.compareTo(aDate);
+        });
 
       final doc = pw.Document();
       doc.addPage(
@@ -509,7 +524,6 @@ class RepositoryExportService {
         ),
       );
 
-      // Direct download instead of Firebase Storage
       if (!kIsWeb) {
         throw UnsupportedError('PDF export is only supported on web');
       }
@@ -621,7 +635,6 @@ class RepositoryExportService {
         ),
       );
 
-      // Direct download instead of Firebase Storage
       if (!kIsWeb) {
         throw UnsupportedError('PDF export is only supported on web');
       }

@@ -89,7 +89,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     }
     _loadManagerName();
     if (widget.forAdminOversight) {
-      _employeesStream = ManagerRealtimeService.getManagersDataStream();
+      _employeesStream = ManagerRealtimeService.getManagersDataStreamForAdmin(
+        selectedManagerId: widget.selectedManagerId,
+      );
     } else {
       _employeesStream = _realtime.employeesStream();
     }
@@ -229,7 +231,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         name: 'ManagerDashboardScreen',
       );
 
-      // Add delay for first attempt to ensure Firestore writes are complete
+      // Add delay for first attempt to ensure backend writes are complete
       if (retryCount == 0) {
         await Future.delayed(const Duration(milliseconds: 800));
       } else {
@@ -449,7 +451,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'We couldn’t load your team data. This is usually caused by a connection issue or missing Firestore permissions.',
+                            'We couldn’t load your team data. This is usually caused by a connection issue or the backend API being unavailable.',
                             style: AppTypography.bodyMedium.copyWith(
                               color: DashboardChrome.fg,
                             ),
@@ -515,7 +517,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             _employeesLoadWatch.stop();
           }
 
-          // Compute metrics locally to avoid adding another Firestore listener
+          // Compute metrics locally to avoid adding another backend poller
           final metrics = _computeTeamMetrics(employees);
 
           final topGridColumns = width >= 920

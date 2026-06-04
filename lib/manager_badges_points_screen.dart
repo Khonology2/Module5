@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/date_parse.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -90,14 +91,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     try {
       _badgesSub?.cancel();
     } catch (_) {}
-    _badgesSub = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('badges')
-        .snapshots()
-        .listen((_) {
-          unawaited(_maybeCelebrateNewManagerBadges(user.uid));
-        });
+    _badgesSub = BadgeService.getUserBadgesV2Stream(user.uid).listen((_) {
+      unawaited(_maybeCelebrateNewManagerBadges(user.uid));
+    });
   }
 
   Color _rarityColor(badge_model.BadgeRarity rarity) {
@@ -695,29 +691,31 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     // Team metrics stream (reuses existing service)
     final teamMetrics$ = ManagerRealtimeService.getTeamMetricsStream();
 
-    // Approvals and nudges snapshots (one-time fetch on changes via snapshots)
-    final approvalsQuery = FirebaseFirestore.instance
-        .collection('goals')
-        .where('approvedByUserId', isEqualTo: managerId);
-
-    final nudgesQuery = FirebaseFirestore.instance
-        .collection('alerts')
-        .where('type', isEqualTo: AlertType.managerNudge.name)
-        .where('fromUserId', isEqualTo: managerId);
-
-    // Seasons created by this manager for manager badges
-    final seasonsQuery = FirebaseFirestore.instance
-        .collection('seasons')
-        .where('createdBy', isEqualTo: managerId);
-
     await for (final tm in teamMetrics$) {
       try {
-        final approvalsSnap = await approvalsQuery.get();
-        final nudgesSnap = await nudgesQuery.get();
-        final seasonsSnap = await seasonsQuery.get();
+        final backend = BackendAuthService.instance;
+        final allGoals = await backend.getGoals(limit: 500);
+        final approvals = allGoals
+            .where(
+              (g) => (g['approvedByUserId'] ?? '').toString() == managerId,
+            )
+            .toList();
+        final allAlerts = await backend.getCollectionItems('alerts', limit: 500);
+        final nudges = allAlerts
+            .where(
+              (a) =>
+                  (a['type'] ?? '').toString() ==
+                      AlertType.managerNudge.name &&
+                  (a['fromUserId'] ?? '').toString() == managerId,
+            )
+            .toList();
+        final seasons = await backend.getSeasons(limit: 500);
+        final managerSeasons = seasons
+            .where((s) => (s['createdBy'] ?? '').toString() == managerId)
+            .toList();
 
-        final approvalsCount = approvalsSnap.docs.length;
-        final nudgesSent = nudgesSnap.docs.length;
+        final approvalsCount = approvals.length;
+        final nudgesSent = nudges.length;
 
         // Compute team outcome metrics
         final goalsCompleted = tm.goalsCompleted;
@@ -736,8 +734,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         int activeSeasonsTeamPoints = 0;
         int completedTeamChallenges = 0;
         final recentActions = <_RecentManagerAction>[];
-        for (final d in seasonsSnap.docs) {
-          final data = d.data();
+        for (final data in managerSeasons) {
           final metrics = (data['metrics'] ?? {}) as Map<String, dynamic>;
           final list = (metrics['managerBadgesEarned'] ?? []) as List<dynamic>;
           for (final id in list) {
@@ -757,17 +754,14 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         }
 
         // Build recent actions: latest 10 nudges and approvals
-        final recentNudges = await FirebaseFirestore.instance
-            .collection('alerts')
-            .where('type', isEqualTo: AlertType.managerNudge.name)
-            .where('fromUserId', isEqualTo: managerId)
-            .orderBy('createdAt', descending: true)
-            .limit(10)
-            .get();
-        for (final doc in recentNudges.docs) {
-          final data = doc.data();
-          final createdAt =
-              (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+        final recentNudges = List<Map<String, dynamic>>.from(nudges)
+          ..sort(
+            (a, b) => parseDate(b['createdAt']).compareTo(
+              parseDate(a['createdAt']),
+            ),
+          );
+        for (final data in recentNudges.take(10)) {
+          final createdAt = parseDate(data['createdAt']);
           recentActions.add(
             _RecentManagerAction(
               type: 'nudge',
@@ -776,16 +770,14 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
             ),
           );
         }
-        final recentApprovals = await FirebaseFirestore.instance
-            .collection('goals')
-            .where('approvedByUserId', isEqualTo: managerId)
-            .orderBy('lastUpdated', descending: true)
-            .limit(10)
-            .get();
-        for (final doc in recentApprovals.docs) {
-          final data = doc.data();
-          final updatedAt =
-              (data['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now();
+        final recentApprovals = List<Map<String, dynamic>>.from(approvals)
+          ..sort(
+            (a, b) => parseDate(b['lastUpdated'] ?? b['approvedAt']).compareTo(
+              parseDate(a['lastUpdated'] ?? a['approvedAt']),
+            ),
+          );
+        for (final data in recentApprovals.take(10)) {
+          final updatedAt = parseDate(data['lastUpdated'] ?? data['approvedAt']);
           final title = data['title'] ?? 'Goal approval';
           recentActions.add(
             _RecentManagerAction(

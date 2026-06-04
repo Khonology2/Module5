@@ -1,4 +1,4 @@
-// ignore_for_file: duplicate_ignore, unnecessary_underscores, sort_child_properties_last
+// ignore_for_file: deprecated_member_use, duplicate_ignore, unnecessary_underscores, sort_child_properties_last
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
@@ -6,7 +6,6 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 //import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/firebase_options.dart';
 import 'package:pdh/my_pdp_screen.dart';
 import 'package:pdh/progress_visuals_screen.dart';
@@ -60,7 +59,6 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
-import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/agent_debug_log.dart';
 import 'package:pdh/utils/route_arguments.dart';
@@ -83,39 +81,6 @@ final ValueNotifier<String?> speechRecognitionStatusNotifier =
 // Global notifier used by Settings screen to trigger locale changes
 final ValueNotifier<Locale?> appLocaleNotifier = ValueNotifier<Locale?>(null);
 
-/// Clears Firestore local cache (IndexedDB/SQLite) on startup to reduce
-/// corrupted client state that can trigger internal assertion errors.
-Future<void> _clearFirestoreCache() async {
-  final fs = FirebaseFirestore.instance;
-  // On web, persistence is disabled above and terminate() can leave the client
-  // irrecoverable; just attempt a cache clear and move on.
-  if (kIsWeb) {
-    try {
-      await fs.clearPersistence();
-      debugPrint('Firestore cache cleared on startup (web)');
-    } catch (e) {
-      debugPrint('Firestore cache clear skipped/failed on web: $e');
-    }
-    return;
-  }
-
-  try {
-    await fs.terminate(); // stop active clients
-    await fs.clearPersistence();
-    debugPrint('Firestore cache cleared on startup');
-  } catch (e) {
-    // If persistence is disabled or the client was already terminated, just log it.
-    debugPrint('Firestore cache clear skipped/failed: $e');
-  } finally {
-    // Always try to bring the client back online so later calls do not see a terminated client.
-    try {
-      await fs.enableNetwork();
-    } catch (e) {
-      debugPrint('Firestore enableNetwork after cache clear failed: $e');
-    }
-  }
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Force `/#/...` URLs on web so portal sidebar sync (fragment-based) matches the router
@@ -137,36 +102,13 @@ void main() async {
     } catch (_) {
       // Non-web or older SDKs will ignore
     }
-    // Mitigate Firestore Web internal assertion bugs by disabling persistence
-    // Must be set before any Firestore usage
-    try {
-      FirebaseFirestore.instance.settings = const Settings(
-        persistenceEnabled: false,
-      );
-    } catch (_) {}
   }
-
-  // Clear cached Firestore state before the app mounts any listeners.
-  await _clearFirestoreCache();
 
   // Global error handling: prevent web inspector from crashing on Diagnostics
   // and show a simple fallback widget instead of a blank white screen.
   FlutterError.onError = (FlutterErrorDetails details) {
     final error = details.exceptionAsString();
     debugPrint('FlutterError: $error');
-
-    // Catch Firestore internal assertion errors and prevent them from crashing
-    if (error.contains('FIRESTORE') &&
-        error.contains('INTERNAL ASSERTION FAILED')) {
-      debugPrint(
-        'Caught Firestore internal assertion error - suppressing crash',
-      );
-      FirestoreWebCircuitBreaker.maybeReload(details.exception);
-      // Don't mark as broken to allow retry logic to work
-      // FirestoreWebCircuitBreaker.isBroken = true;
-      // Don't show error dialog for Firestore internal errors
-      return;
-    }
 
     if (details.stack != null) {
       debugPrint(details.stack.toString());
@@ -177,15 +119,7 @@ void main() async {
   };
 
   // Catch uncaught async errors (including some web/JS promise rejections).
-  ui.PlatformDispatcher.instance.onError = (error, stack) {
-    if (FirestoreWebCircuitBreaker.isFirestoreInternalUnexpectedState(error)) {
-      FirestoreWebCircuitBreaker.maybeReload(error);
-      // Don't mark as broken to allow retry logic to work
-      // FirestoreWebCircuitBreaker.isBroken = true;
-      return true;
-    }
-    return false;
-  };
+  ui.PlatformDispatcher.instance.onError = (error, stack) => false;
 
   // Note: For unhandled async errors, FlutterError.onError should catch most cases
   // PlatformDispatcher.onError is available in Flutter 3.7+ but we'll rely on

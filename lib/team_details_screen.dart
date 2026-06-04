@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
+import 'package:pdh/utils/date_parse.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class TeamDetailsScreen extends StatefulWidget {
@@ -30,12 +31,12 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       onLogout: () {
         Navigator.pushReplacementNamed(context, '/sign_in');
       },
-      content: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirestoreSafe.stream<DocumentSnapshot<Map<String, dynamic>>>(
-          FirebaseFirestore.instance
-              .collection('team_goals')
-              .doc(widget.teamGoalId)
-              .snapshots(),
+      content: StreamBuilder<Map<String, dynamic>?>(
+        stream: backendPollingStream<Map<String, dynamic>?>(
+          fetch: () => BackendAuthService.instance.getCollectionItem(
+            'team_goals',
+            widget.teamGoalId,
+          ),
         ),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -44,15 +45,15 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
             );
           }
 
-          if (!snapshot.hasData || !(snapshot.data?.exists ?? false)) {
+          final teamGoal = snapshot.data;
+          if (teamGoal == null || teamGoal.isEmpty) {
             return const Center(child: Text('Team goal not found.'));
           }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              teamGoal.isEmpty) {
             return const CustomLogoLoader(centerInViewport: true);
           }
-
-          final teamGoal = snapshot.data!.data() ?? const <String, dynamic>{};
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
@@ -61,18 +62,22 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
               children: [
                 Text(
                   teamGoal['title'] ?? 'Untitled Goal',
-                  style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+                  style: AppTypography.heading2.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
                   teamGoal['description'] ?? 'No description provided.',
-                  style: AppTypography.bodyLarge.copyWith(color: AppColors.textSecondary),
+                  style: AppTypography.bodyLarge.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 _buildDetailRow(
                   icon: Icons.calendar_today,
                   label: 'Deadline',
-                  value: _formatDate((teamGoal['targetDate'] as Timestamp).toDate()),
+                  value: _formatDate(parseNullableDate(teamGoal['targetDate'])),
                 ),
                 _buildDetailRow(
                   icon: Icons.star,
@@ -92,7 +97,9 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
                 const SizedBox(height: AppSpacing.lg),
                 Text(
                   'Manager: ${teamGoal['managerName'] ?? 'N/A'}',
-                  style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -102,29 +109,39 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
     );
   }
 
-  Widget _buildDetailRow({required IconData icon, required String label, required String value}) {
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
         children: [
           Icon(icon, color: AppColors.activeColor, size: 20),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(
-              label,
-              style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            '$label: ',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          Text(
-            value,
-            style: AppTypography.bodyLarge.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  String _formatDate(DateTime date) {
-    return "${date.day}/${date.month}/${date.year}";
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'N/A';
+    return '${date.day}/${date.month}/${date.year}';
   }
 }

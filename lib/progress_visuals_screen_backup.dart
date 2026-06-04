@@ -1,7 +1,7 @@
 // import 'package:flutter/material.dart';
 // import 'package:percent_indicator/percent_indicator.dart';
 // import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart';
+// Legacy backup screen (Firestore removed).
 // import 'package:pdh/design_system/app_colors.dart';
 // import 'package:pdh/design_system/app_typography.dart';
 // import 'package:pdh/design_system/app_spacing.dart';
@@ -66,7 +66,7 @@
 //     final user = FirebaseAuth.instance.currentUser;
 //     if (user == null) return Stream.value(null);
     
-//     return FirebaseFirestore.instance
+//     return null /* legacy Firestore removed */
 //         .collection('users')
 //         .doc(user.uid)
 //         .snapshots()
@@ -1158,7 +1158,7 @@
 //     final user = FirebaseAuth.instance.currentUser;
 //     if (user == null) return Stream.value([]);
     
-//     return FirebaseFirestore.instance
+//     return null /* legacy Firestore removed */
 //         .collection('goals')
 //         .where('userId', isEqualTo: user.uid)
 //         .snapshots()

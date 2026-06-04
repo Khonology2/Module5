@@ -205,6 +205,11 @@ class SidebarConfig {
       label: 'Repository & Audit',
       route: '/repository_audit',
     ),
+    itemWithManagerSidebarIcon(
+      number: '5',
+      label: 'Learning Assignments',
+      route: '/manager_learning_assignments',
+    ),
   ]);
 
   /// Global navigation items (always visible at bottom)
@@ -333,6 +338,11 @@ class SidebarConfig {
       route: '/repository_audit',
     ),
     itemWithManagerSidebarIcon(
+      number: '5',
+      label: 'Learning Assignments',
+      route: '/manager_learning_assignments',
+    ),
+    itemWithManagerSidebarIcon(
       number: '10',
       label: 'My Profile',
       route: '/manager_profile',
@@ -415,6 +425,10 @@ class SidebarConfig {
 
     // Employees only have access to My Workspace (personal goals)
     if (roleLower == 'employee') {
+      // Stale role cache during refresh must not hide manager workspace nav.
+      if (workspace == WorkspaceContext.managerWorkspace) {
+        return [...managerWorkspaceItems, ...globalItems];
+      }
       return [...myWorkspaceItems, ...globalItems];
     }
 
@@ -423,12 +437,19 @@ class SidebarConfig {
       return adminItems;
     }
 
-    // Managers can switch between workspaces
-    if (workspace == WorkspaceContext.managerWorkspace) {
-      return [...managerWorkspaceItems, ...globalItems];
-    } else {
+    // Managers can switch between workspaces (use workspace context, not stale role cache)
+    if (roleLower == 'manager' || roleLower == 'admin') {
+      if (workspace == WorkspaceContext.managerWorkspace) {
+        return [...managerWorkspaceItems, ...globalItems];
+      }
       return [...managerMyWorkspaceItems, ...globalItems];
     }
+
+    // Unknown role while manager workspace is selected: keep manager nav visible.
+    if (workspace == WorkspaceContext.managerWorkspace) {
+      return [...managerWorkspaceItems, ...globalItems];
+    }
+    return [...managerMyWorkspaceItems, ...globalItems];
   }
 
   static List<SidebarItem> getItemsForRole(String role) {
@@ -463,6 +484,9 @@ class SidebarConfig {
     if (_adminRoutes.contains(route)) {
       return adminItems;
     }
+    if (route == '/manager_learning_assignments') {
+      return [...managerWorkspaceItems, ...globalItems];
+    }
     if (route.startsWith('/manager') || route.startsWith('/dashboard')) {
       return managerItems;
     }
@@ -472,7 +496,10 @@ class SidebarConfig {
   /// Get sidebar items based on current workspace context
   static List<SidebarItem> getItemsForCurrentWorkspace() {
     final workspaceService = WorkspaceContextService();
-    final role = RoleService.instance.cachedRole ?? 'employee';
+    final role =
+        RoleService.instance.effectiveRole ??
+        RoleService.instance.cachedRole ??
+        'employee';
     return getItemsForWorkspaceAndRole(role, workspaceService.currentContext);
   }
 
@@ -495,7 +522,12 @@ class SidebarConfig {
   }
 
   static Widget? getIconForRoute(String route) {
-    final allItems = [...employeeItems, ...managerItems, ...adminItems];
+    final allItems = [
+      ...employeeItems,
+      ...managerItems,
+      ...managerWorkspaceItems,
+      ...adminItems,
+    ];
     final item = allItems.firstWhere(
       (item) => item.route == route,
       orElse: () => const SidebarItem(
@@ -508,7 +540,12 @@ class SidebarConfig {
   }
 
   static String getLabelForRoute(String route) {
-    final allItems = [...employeeItems, ...managerItems, ...adminItems];
+    final allItems = [
+      ...employeeItems,
+      ...managerItems,
+      ...managerWorkspaceItems,
+      ...adminItems,
+    ];
     final item = allItems.firstWhere(
       (item) => item.route == route,
       orElse: () => const SidebarItem(

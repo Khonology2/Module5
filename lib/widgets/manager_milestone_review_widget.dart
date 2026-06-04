@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/services/milestone_evidence_service.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/services/database_service.dart';
-import 'package:pdh/services/milestone_evidence_service.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -88,27 +87,14 @@ class _ManagerMilestoneReviewWidgetState
           }
 
           // Create evidence record
-          final evidence = MilestoneEvidence(
-            id: FirebaseFirestore.instance
-                .collection('milestone_evidence')
-                .doc()
-                .id,
+          await MilestoneEvidenceService.uploadEvidence(
+            goalId: widget.goalId,
+            milestoneId: widget.milestone.id,
             fileUrl: cloudinaryUrl,
             fileName: file.name,
             fileType: file.extension ?? 'unknown',
             fileSize: file.size,
-            uploadedBy: FirebaseAuth.instance.currentUser!.uid,
-            uploadedByName:
-                FirebaseAuth.instance.currentUser!.displayName ?? 'Manager',
-            uploadedAt: DateTime.now(),
-            status: MilestoneEvidenceStatus.pendingReview,
           );
-
-          // Save evidence to Firestore
-          await FirebaseFirestore.instance
-              .collection('milestone_evidence')
-              .doc(evidence.id)
-              .set(evidence.toMap());
         }
 
         await _loadEvidence();

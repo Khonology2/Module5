@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/models/season.dart';
-import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/widgets/season_milestone_progress_card.dart';
@@ -99,13 +100,23 @@ class _SeasonGoalCompletionScreenState
   }
 
   Widget _buildContent() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('goals')
-          .where('userId', isEqualTo: _currentUserId)
-          .where('seasonId', isEqualTo: widget.seasonId)
-          .where('isSeasonGoal', isEqualTo: true)
-          .snapshots(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: backendPollingStream<List<Map<String, dynamic>>>(
+        initialValue: const [],
+        fetch: () async {
+          final items = await BackendAuthService.instance.getGoals(
+            userId: _currentUserId,
+            limit: 200,
+          );
+          return items
+              .where(
+                (g) =>
+                    g['isSeasonGoal'] == true &&
+                    (g['seasonId'] ?? '').toString() == widget.seasonId,
+              )
+              .toList();
+        },
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const CustomLogoLoader(centerInViewport: true);
@@ -119,20 +130,20 @@ class _SeasonGoalCompletionScreenState
           return _buildEmptyState();
         }
 
-        final docs = snapshot.data!.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>? ?? {};
-          final status = (data['status'] ?? 'notStarted').toString();
-          return status != 'completed';
-        }).toList();
+        final goals = (snapshot.data ?? const <Map<String, dynamic>>[])
+            .where((data) {
+              final status = (data['status'] ?? 'notStarted').toString();
+              return status != 'completed';
+            })
+            .toList();
 
-        if (docs.isEmpty) {
+        if (goals.isEmpty) {
           return _buildEmptyState();
         }
 
-        final goals = docs;
         final targetGoal = widget.goalId != null
             ? goals.firstWhere(
-                (doc) => doc.id == widget.goalId,
+                (data) => (data['id'] ?? '').toString() == widget.goalId,
                 orElse: () => goals.first,
               )
             : goals.first;
@@ -179,9 +190,8 @@ class _SeasonGoalCompletionScreenState
                                 ),
                                 const SizedBox(height: AppSpacing.xs),
                                 Text(
-                                  (targetGoal.data()
-                                          as Map<String, dynamic>?)?['title'] ??
-                                      'Untitled Goal',
+                                  (targetGoal['title'] ?? 'Untitled Goal')
+                                      .toString(),
                                   style: AppTypography.heading4.copyWith(
                                     color: AppColors.textPrimary,
                                     fontWeight: FontWeight.bold,
@@ -194,9 +204,8 @@ class _SeasonGoalCompletionScreenState
                       ),
                       const SizedBox(height: AppSpacing.md),
                       Text(
-                        (targetGoal.data()
-                                as Map<String, dynamic>?)?['description'] ??
-                            'No description available',
+                        (targetGoal['description'] ?? 'No description available')
+                            .toString(),
                         style: AppTypography.bodyMedium.copyWith(
                           color: AppColors.textSecondary,
                         ),
@@ -207,15 +216,13 @@ class _SeasonGoalCompletionScreenState
                           _buildGoalMetric(
                             icon: Icons.stars,
                             label: 'Points',
-                            value:
-                                '${(targetGoal.data() as Map<String, dynamic>?)?['points'] ?? 0}',
+                            value: '${targetGoal['points'] ?? 0}',
                           ),
                           const SizedBox(width: AppSpacing.lg),
                           _buildGoalMetric(
                             icon: Icons.trending_up,
                             label: 'Progress',
-                            value:
-                                '${(targetGoal.data() as Map<String, dynamic>?)?['progress'] ?? 0}%',
+                            value: '${targetGoal['progress'] ?? 0}%',
                           ),
                         ],
                       ),
@@ -295,7 +302,9 @@ class _SeasonGoalCompletionScreenState
                 child: ElevatedButton.icon(
                   onPressed: _isLoading
                       ? null
-                      : () => _completeGoal(targetGoal.id),
+                      : () => _completeGoal(
+                            (targetGoal['id'] ?? '').toString(),
+                          ),
                   icon: _isLoading
                       ? const SizedBox(
                           width: 20,
@@ -330,7 +339,14 @@ class _SeasonGoalCompletionScreenState
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                ...goals.where((doc) => doc.id != targetGoal.id).map((goalDoc) {
+                ...goals
+                    .where(
+                      (g) =>
+                          (g['id'] ?? '').toString() !=
+                          (targetGoal['id'] ?? '').toString(),
+                    )
+                    .map((goalDoc) {
+                  final otherGoalId = (goalDoc['id'] ?? '').toString();
                   return Card(
                     margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                     child: ListTile(
@@ -347,21 +363,20 @@ class _SeasonGoalCompletionScreenState
                         ),
                       ),
                       title: Text(
-                        (goalDoc.data() as Map<String, dynamic>?)?['title'] ??
-                            'Untitled Goal',
+                        (goalDoc['title'] ?? 'Untitled Goal').toString(),
                         style: AppTypography.bodyMedium.copyWith(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       subtitle: Text(
-                        '${(goalDoc.data() as Map<String, dynamic>?)?['progress'] ?? 0}% complete',
+                        '${goalDoc['progress'] ?? 0}% complete',
                         style: AppTypography.bodySmall.copyWith(
                           color: AppColors.textSecondary,
                         ),
                       ),
                       trailing: Text(
-                        '${(goalDoc.data() as Map<String, dynamic>?)?['points'] ?? 0} pts',
+                        '${goalDoc['points'] ?? 0} pts',
                         style: AppTypography.bodySmall.copyWith(
                           color: AppColors.activeColor,
                           fontWeight: FontWeight.w600,
@@ -373,7 +388,7 @@ class _SeasonGoalCompletionScreenState
                           MaterialPageRoute(
                             builder: (context) => SeasonGoalCompletionScreen(
                               seasonId: widget.seasonId,
-                              goalId: goalDoc.id,
+                              goalId: otherGoalId,
                             ),
                           ),
                         );
@@ -494,11 +509,13 @@ class _SeasonGoalCompletionScreenState
     });
 
     try {
-      final goalDoc = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      final goalTitle = (goalDoc.data()?['title'] ?? 'Season Goal').toString();
+      final goalData = await BackendAuthService.instance.getGoals(
+        goalId: goalId,
+        limit: 1,
+      );
+      final goalTitle =
+          (goalData.isNotEmpty ? goalData.first['title'] : 'Season Goal')
+              .toString();
       await DatabaseService.submitSeasonGoalForFinalReview(
         goalId: goalId,
         userId: _currentUserId!,
@@ -526,8 +543,7 @@ class _SeasonGoalCompletionScreenState
     }
   }
 
-  Widget _buildMilestoneProgressCard(QueryDocumentSnapshot targetGoal) {
-    final goalData = targetGoal.data() as Map<String, dynamic>;
+  Widget _buildMilestoneProgressCard(Map<String, dynamic> goalData) {
     final String? challengeId = goalData['challengeId'] as String?;
     if (challengeId == null || _currentUserId == null) {
       return const SizedBox.shrink();

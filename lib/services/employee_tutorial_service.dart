@@ -1,10 +1,10 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:developer' as developer;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
@@ -370,26 +370,10 @@ class EmployeeTutorialService {
     }
 
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      // If document doesn't exist, user is new - tutorial not completed
-      if (!doc.exists) {
-        developer.log(
-          'User document does not exist - tutorial not completed',
-          name: 'EmployeeTutorialService',
-        );
-        return false;
-      }
-
-      final data = doc.data();
-      // Tutorial is completed only if explicitly set to true
-      // null or false means tutorial hasn't been completed yet
-      final isCompleted = data?['employeeSidebarTutorialCompleted'] == true;
+      final data = await BackendAuthService.instance.getUser(user.uid);
+      final isCompleted = data['employeeSidebarTutorialCompleted'] == true;
       developer.log(
-        'Employee sidebar tutorial completed check: $isCompleted (raw value: ${data?['employeeSidebarTutorialCompleted']})',
+        'Employee sidebar tutorial completed check: $isCompleted (raw value: ${data['employeeSidebarTutorialCompleted']})',
         name: 'EmployeeTutorialService',
       );
       return isCompleted;
@@ -419,11 +403,9 @@ class EmployeeTutorialService {
         'Marking employee sidebar tutorial as completed for user: ${user.uid}',
         name: 'EmployeeTutorialService',
       );
-
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      await BackendAuthService.instance.updateUserProfile(user.uid, {
         'employeeSidebarTutorialCompleted': true,
-        'employeeSidebarTutorialCompletedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      });
 
       developer.log(
         'Employee sidebar tutorial marked as completed successfully',
@@ -444,9 +426,9 @@ class EmployeeTutorialService {
     if (user == null) return;
 
     try {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      await BackendAuthService.instance.updateUserProfile(user.uid, {
         'employeeSidebarTutorialCompleted': false,
-      }, SetOptions(merge: true));
+      });
       developer.log(
         'Employee sidebar tutorial completion reset',
         name: 'EmployeeTutorialService',

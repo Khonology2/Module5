@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 
 class UserProfile {
   final String uid;
@@ -62,79 +62,63 @@ class UserProfile {
     this.lastActivityAt,
   });
 
-  // Factory constructor to create a UserProfile from a Firestore DocumentSnapshot
-  factory UserProfile.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>?;
-    final dn = (data?['displayName']?.toString() ?? '').trim();
-    final fn = (data?['fullName']?.toString() ?? '').trim();
+  factory UserProfile.fromBackendMap(
+    Map<String, dynamic> data, {
+    String? fallbackId,
+  }) {
+    DateTime? readDate(dynamic v) => parseNullableDate(v);
 
-    DateTime? readDate(dynamic v) {
-      if (v == null) return null;
-      if (v is DateTime) return v;
-      if (v is Timestamp) return v.toDate();
-      if (v is int) {
-        // Accept both seconds and milliseconds.
-        if (v > 1000000000000) {
-          return DateTime.fromMillisecondsSinceEpoch(v);
-        }
-        if (v > 1000000000) {
-          return DateTime.fromMillisecondsSinceEpoch(v * 1000);
-        }
-      }
-      if (v is String) {
-        return DateTime.tryParse(v);
-      }
-      return null;
-    }
+    final dn = (data['displayName']?.toString() ?? '').trim();
+    final fn = (data['fullName']?.toString() ?? '').trim();
 
     return UserProfile(
-      uid: doc.id,
-      email: data?['email'] ?? '',
+      uid: (data['userId'] ?? data['id'] ?? fallbackId ?? '').toString(),
+      email: (data['email'] ?? '').toString(),
       displayName: dn.isNotEmpty ? dn : fn,
-      totalPoints: (data?['totalPoints'] ?? 0) as int,
-      level: (data?['level'] ?? 1) as int,
-      badges: List<String>.from(data?['badges'] ?? const []),
-      badgesV2: List<String>.from(data?['badgesV2'] ?? const []),
-      role: data?['role'] ?? 'employee', // Deserialize role
-      jobTitle: data?['jobTitle'] ?? '',
-      department: data?['department'] ?? '',
-      phoneNumber: data?['phoneNumber'] ?? '',
-      profilePhotoUrl: data?['profilePhotoUrl'],
-      skills: List<String>.from(data?['skills'] ?? const []),
-      developmentAreas: List<String>.from(
-        data?['developmentAreas'] ?? const [],
-      ),
-      careerAspirations: data?['careerAspirations'] ?? '',
-      currentProjects: data?['currentProjects'] ?? '',
-      learningStyle: data?['learningStyle'] ?? '',
+      totalPoints: (data['totalPoints'] ?? 0) is num
+          ? (data['totalPoints'] as num).toInt()
+          : int.tryParse(data['totalPoints']?.toString() ?? '0') ?? 0,
+      level: (data['level'] ?? 1) is num
+          ? (data['level'] as num).toInt()
+          : int.tryParse(data['level']?.toString() ?? '1') ?? 1,
+      badges: List<String>.from(data['badges'] ?? const []),
+      badgesV2: List<String>.from(data['badgesV2'] ?? const []),
+      role: (data['role'] ?? 'employee').toString(),
+      jobTitle: (data['jobTitle'] ?? '').toString(),
+      department: (data['department'] ?? '').toString(),
+      phoneNumber: (data['phoneNumber'] ?? '').toString(),
+      profilePhotoUrl: data['profilePhotoUrl']?.toString(),
+      skills: List<String>.from(data['skills'] ?? const []),
+      developmentAreas: List<String>.from(data['developmentAreas'] ?? const []),
+      careerAspirations: (data['careerAspirations'] ?? '').toString(),
+      currentProjects: (data['currentProjects'] ?? '').toString(),
+      learningStyle: (data['learningStyle'] ?? '').toString(),
       preferredDevActivities: List<String>.from(
-        data?['preferredDevActivities'] ?? const [],
+        data['preferredDevActivities'] ?? const [],
       ),
-      shortGoals: data?['shortGoals'] ?? '',
-      longGoals: data?['longGoals'] ?? '',
-      notificationFrequency: data?['notificationFrequency'] ?? 'daily',
-      goalVisibility: data?['goalVisibility'] ?? 'private',
-      leaderboardOptin:
-          data?['leaderboardOptin'] ??
-          data?['leaderboardParticipation'] ??
-          false,
-      badgeName: data?['badgeName'] ?? '',
-      celebrationConsent: data?['celebrationConsent'] ?? 'private',
-      lastLoginAt: readDate(data?['lastLoginAt']),
-      lastActivityAt: readDate(data?['lastActivityAt']),
+      shortGoals: (data['shortGoals'] ?? '').toString(),
+      longGoals: (data['longGoals'] ?? '').toString(),
+      notificationFrequency: (data['notificationFrequency'] ?? 'daily').toString(),
+      goalVisibility: (data['goalVisibility'] ?? 'private').toString(),
+      leaderboardOptin: data['leaderboardOptin'] == true ||
+          data['leaderboardParticipation'] == true,
+      badgeName: (data['badgeName'] ?? '').toString(),
+      celebrationConsent: (data['celebrationConsent'] ?? 'private').toString(),
+      lastLoginAt: readDate(data['lastLoginAt']),
+      lastActivityAt: readDate(data['lastActivityAt']),
     );
   }
 
-  // Method to convert UserProfile to a Map for Firestore
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap({bool includeId = true}) {
     return {
+      if (includeId) 'userId': uid,
       'email': email,
       'displayName': displayName,
       'totalPoints': totalPoints,
       'level': level,
       'badges': badges,
       'badgesV2': badgesV2,
-      'role': role, // Serialize role
+      'role': role,
       'jobTitle': jobTitle,
       'department': department,
       'phoneNumber': phoneNumber,
@@ -153,12 +137,8 @@ class UserProfile {
       'leaderboardParticipation': leaderboardOptin,
       'badgeName': badgeName,
       'celebrationConsent': celebrationConsent,
-      'lastLoginAt': lastLoginAt != null
-          ? Timestamp.fromDate(lastLoginAt!)
-          : null,
-      'lastActivityAt': lastActivityAt != null
-          ? Timestamp.fromDate(lastActivityAt!)
-          : null,
+      'lastLoginAt': lastLoginAt?.toIso8601String(),
+      'lastActivityAt': lastActivityAt?.toIso8601String(),
     };
   }
 
@@ -226,41 +206,9 @@ class UserProfile {
   }
 
   static UserProfile fromMap(Map<String, dynamic> map, {String? id}) {
-    return UserProfile(
-      uid: id ?? map['uid'] ?? '',
-      email: map['email'] ?? '',
-      displayName: map['displayName'] ?? '',
-      totalPoints: (map['totalPoints'] ?? 0) as int,
-      level: (map['level'] ?? 1) as int,
-      badges: List<String>.from(map['badges'] ?? const []),
-      badgesV2: List<String>.from(map['badgesV2'] ?? const []),
-      role: map['role'] ?? 'employee',
-      jobTitle: map['jobTitle'] ?? '',
-      department: map['department'] ?? '',
-      phoneNumber: map['phoneNumber'] ?? '',
-      profilePhotoUrl: map['profilePhotoUrl'],
-      skills: List<String>.from(map['skills'] ?? const []),
-      developmentAreas: List<String>.from(map['developmentAreas'] ?? const []),
-      careerAspirations: map['careerAspirations'] ?? '',
-      currentProjects: map['currentProjects'] ?? '',
-      learningStyle: map['learningStyle'] ?? '',
-      preferredDevActivities: List<String>.from(
-        map['preferredDevActivities'] ?? const [],
-      ),
-      shortGoals: map['shortGoals'] ?? '',
-      longGoals: map['longGoals'] ?? '',
-      notificationFrequency: map['notificationFrequency'] ?? 'daily',
-      goalVisibility: map['goalVisibility'] ?? 'private',
-      leaderboardOptin:
-          map['leaderboardOptin'] ?? map['leaderboardParticipation'] ?? false,
-      badgeName: map['badgeName'] ?? '',
-      celebrationConsent: map['celebrationConsent'] ?? 'private',
-      lastLoginAt: map['lastLoginAt'] is Timestamp
-          ? (map['lastLoginAt'] as Timestamp).toDate()
-          : null,
-      lastActivityAt: map['lastActivityAt'] is Timestamp
-          ? (map['lastActivityAt'] as Timestamp).toDate()
-          : null,
+    return UserProfile.fromBackendMap(
+      map,
+      fallbackId: id ?? map['uid']?.toString() ?? map['userId']?.toString(),
     );
   }
 }

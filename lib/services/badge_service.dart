@@ -1,17 +1,98 @@
 import 'dart:developer' as developer;
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/badges_v2/badge_v2_definition.dart';
 import 'package:pdh/badges_v2/badge_v2_engine.dart';
 import 'package:pdh/models/badge.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/streak_service.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
 
 class BadgeService {
-  static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  static final BackendAuthService _backend = BackendAuthService.instance;
   static const BadgeEngineV2 _engineV2 = BadgeEngineV2();
+
+  static String _badgeIdFromMap(Map<String, dynamic> data) =>
+      (data['id'] ?? data['badgeId'] ?? '').toString();
+
+  static Future<List<Badge>> _fetchUserBadges(String userId) async {
+    final items = await _backend.getBadges(userId, limit: 500);
+    return items
+        .map((m) => Badge.fromMap(m, fallbackId: _badgeIdFromMap(m)))
+        .toList();
+  }
+
+  static Future<List<Goal>> _fetchUserGoals(String userId) async {
+    final items = await _backend.getGoals(userId: userId, limit: 500);
+    return items
+        .where((m) => !_isPlaceholderGoalDoc(m, _badgeIdFromMap(m)))
+        .map((m) => Goal.fromMap(m, id: _badgeIdFromMap(m)))
+        .toList();
+  }
+
+  static Future<UserProfile> _fetchUserProfile(String userId) async {
+    final data = await _backend.getUser(userId);
+    return UserProfile.fromMap(data, id: userId);
+  }
+
+  static Future<void> _upsertUserBadge(String userId, Badge badge) async {
+    await _backend.upsertBadge(
+      userId,
+      badge.id,
+      badge.toMap(includeId: false),
+    );
+  }
+
+  static Future<void> _patchUserBadge(
+    String userId,
+    String badgeId,
+    Map<String, dynamic> payload,
+  ) async {
+    await _backend.patchBadge(userId, badgeId, payload);
+  }
+
+  static List<Badge> _sortBadgesLegacy(List<Badge> list) {
+    return list
+      ..sort((a, b) {
+        final rarityOrder = {
+          BadgeRarity.common: 0,
+          BadgeRarity.rare: 1,
+          BadgeRarity.epic: 2,
+          BadgeRarity.legendary: 3,
+        };
+        final aOrder = rarityOrder[a.rarity] ?? 99;
+        final bOrder = rarityOrder[b.rarity] ?? 99;
+        if (aOrder != bOrder) return aOrder.compareTo(bOrder);
+        if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
+        return b.progressPercentage.compareTo(a.progressPercentage);
+      });
+  }
+
+  static Future<List<Map<String, dynamic>>> _participantSeasons(
+    String userId,
+  ) async {
+    final seasons = await _backend.getSeasons(limit: 500);
+    return seasons
+        .where(
+          (s) => List<String>.from(s['participantIds'] ?? const [])
+              .contains(userId),
+        )
+        .toList();
+  }
+
+  static List<Badge> _sortBadgesV2(List<Badge> list) {
+    return list
+      ..sort((a, b) {
+        if (a.category != b.category) {
+          return a.category.name.compareTo(b.category.name);
+        }
+        if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
+        final p = b.progressPercentage.compareTo(a.progressPercentage);
+        if (p != 0) return p;
+        return a.name.compareTo(b.name);
+      });
+  }
 
   static bool isV2BadgeId(String badgeId) =>
       badgeId.toLowerCase().startsWith('v2_');
@@ -23,12 +104,6 @@ class BadgeService {
     if (docId == 'init') return true;
     final placeholderFlag = data?['placeholder'];
     return placeholderFlag is bool && placeholderFlag;
-  }
-
-  static bool _isManualUserGoalDoc(Map<String, dynamic>? data, String docId) {
-    if (_isPlaceholderGoalDoc(data, docId)) return false;
-    final isSeasonGoal = data?['isSeasonGoal'];
-    return !(isSeasonGoal is bool && isSeasonGoal);
   }
 
   static bool _isApprovedManualGoal(Goal goal) {
@@ -101,49 +176,30 @@ class BadgeService {
     return 'leadership';
   }
 
-  /// Re-categorize already-existing manager badges in Firestore so they show up
+  /// Re-categorize already-existing manager badges in PostgreSQL so they show up
   /// in the new manager category UI.
   ///
   /// Safe to call multiple times (idempotent).
   static Future<void> migrateManagerBadgeCategories(String userId) async {
     if (userId.trim().isEmpty) return;
     try {
-      final col = _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges');
-      final snap = await FirestoreSafe.getQuery(col);
-      if (snap.docs.isEmpty) return;
+      final items = await _backend.getBadges(userId, limit: 500);
+      if (items.isEmpty) return;
 
-      WriteBatch batch = _firestore.batch();
-      var pending = 0;
       var updated = 0;
-
-      Future<void> commitIfNeeded({bool force = false}) async {
-        if (!force && pending < 450) return;
-        if (pending == 0) return;
-        await batch.commit();
-        batch = _firestore.batch();
-        pending = 0;
-      }
-
-      for (final d in snap.docs) {
-        final data = d.data();
+      for (final data in items) {
+        final docId = _badgeIdFromMap(data);
         final desired = _desiredManagerCategoryForBadgeDoc(
-          docId: d.id,
+          docId: docId,
           data: data,
         );
         if (desired == null) continue;
         final current = (data['category'] ?? '').toString().trim();
         if (current == desired) continue;
-
-        batch.set(d.reference, {'category': desired}, SetOptions(merge: true));
-        pending++;
+        await _patchUserBadge(userId, docId, {'category': desired});
         updated++;
-        await commitIfNeeded();
       }
 
-      await commitIfNeeded(force: true);
       if (updated > 0) {
         developer.log('Migrated manager badge categories: $updated updates');
       }
@@ -152,18 +208,18 @@ class BadgeService {
     }
   }
 
-  // ===== Real-time tracking =====
-  static final Map<String, List<StreamSubscription>> _trackingSubsByUser = {};
+  // ===== Real-time tracking (backend polling) =====
+  static final Map<String, Timer?> _trackingTimersByUser = {};
   static final Map<String, DateTime> _lastCheckAtByUser = {};
   static const Duration _throttleDuration = Duration(seconds: 2);
 
-  /// Start real-time tracking for a user's activity to automatically
+  /// Start polling-based tracking for a user's activity to automatically
   /// evaluate and award badges as they meet criteria.
   static void startRealtimeTracking(String userId) {
     if (userId.isEmpty) return;
-    if (_trackingSubsByUser.containsKey(userId)) return; // already tracking
+    if (_trackingTimersByUser.containsKey(userId)) return;
 
-    void maybeCheck() async {
+    Future<void> maybeCheck() async {
       final now = DateTime.now();
       final last = _lastCheckAtByUser[userId];
       if (last != null && now.difference(last) < _throttleDuration) return;
@@ -175,129 +231,43 @@ class BadgeService {
       }
     }
 
-    final goalsSub = _firestore
-        .collection('goals')
-        .where('userId', isEqualTo: userId)
-        .snapshots();
-    final goalsSafeSub = FirestoreSafe.stream(
-      goalsSub,
-    ).listen((_) => maybeCheck());
-
-    final userDocSafeSub = FirestoreSafe.stream(
-      _firestore.collection('users').doc(userId).snapshots(),
-    ).listen((_) => maybeCheck());
-
-    // Also listen to seasons where the user participates so season-based badges update realtime
-    final seasonsSafeSub = FirestoreSafe.stream(
-      _firestore
-          .collection('seasons')
-          .where('participantIds', arrayContains: userId)
-          .snapshots(),
-    ).listen((_) => maybeCheck());
-
-    _trackingSubsByUser[userId] = [
-      goalsSafeSub,
-      userDocSafeSub,
-      seasonsSafeSub,
-    ];
-
-    // Kick off an initial check on start
+    _trackingTimersByUser[userId]?.cancel();
+    _trackingTimersByUser[userId] = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => maybeCheck(),
+    );
     maybeCheck();
   }
 
   /// Stop real-time tracking for a user.
   static void stopRealtimeTracking(String userId) {
-    final subs = _trackingSubsByUser.remove(userId);
-    if (subs != null) {
-      for (final s in subs) {
-        try {
-          s.cancel();
-        } catch (_) {}
-      }
-    }
+    _trackingTimersByUser.remove(userId)?.cancel();
     _lastCheckAtByUser.remove(userId);
   }
 
   // Get all badges for a user with their progress
-  static Stream<List<Badge>> getUserBadgesStream(String userId) async* {
-    // Defensive stream: emit empty list on any Firestore/watch error instead of bubbling.
-    try {
-      await for (final snapshot in FirestoreSafe.stream(
-        _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .snapshots(),
-      )) {
-        try {
-          final list =
-              snapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList()
-                ..sort((a, b) {
-                  // Primary: rarity order Common -> Rare -> Epic -> Legendary
-                  final rarityOrder = {
-                    BadgeRarity.common: 0,
-                    BadgeRarity.rare: 1,
-                    BadgeRarity.epic: 2,
-                    BadgeRarity.legendary: 3,
-                  };
-                  final aOrder = rarityOrder[a.rarity] ?? 99;
-                  final bOrder = rarityOrder[b.rarity] ?? 99;
-                  if (aOrder != bOrder) return aOrder.compareTo(bOrder);
-
-                  // Secondary: earned first within the same rarity
-                  if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
-
-                  // Tertiary: higher progress first
-                  return b.progressPercentage.compareTo(a.progressPercentage);
-                });
-          yield list;
-        } catch (e, st) {
-          developer.log('Error processing badges snapshot: $e', stackTrace: st);
-          yield <Badge>[];
-        }
-      }
-    } catch (e, st) {
-      developer.log('Error loading badges stream: $e', stackTrace: st);
-      // Emit a safe empty list so UI continues rendering.
-      yield <Badge>[];
-    }
+  static Stream<List<Badge>> getUserBadgesStream(String userId) {
+    return backendPollingStream<List<Badge>>(
+      fetch: () async => _sortBadgesLegacy(await _fetchUserBadges(userId)),
+      onError: (error, stackTrace) {
+        developer.log('Error loading badges stream: $error', stackTrace: stackTrace);
+      },
+    );
   }
 
   /// V2-only stream: emits only badges that belong to the new category-based design.
-  static Stream<List<Badge>> getUserBadgesV2Stream(String userId) async* {
-    try {
-      await for (final snapshot in FirestoreSafe.stream(
-        _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .snapshots(),
-      )) {
-        try {
-          final v2Docs = snapshot.docs.where((d) => isV2BadgeId(d.id)).toList();
-          final list = v2Docs.map((doc) => Badge.fromFirestore(doc)).toList()
-            ..sort((a, b) {
-              if (a.category != b.category) {
-                return a.category.name.compareTo(b.category.name);
-              }
-              if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
-              final p = b.progressPercentage.compareTo(a.progressPercentage);
-              if (p != 0) return p;
-              return a.name.compareTo(b.name);
-            });
-          yield list;
-        } catch (e, st) {
-          developer.log(
-            'Error processing v2 badges snapshot: $e',
-            stackTrace: st,
-          );
-          yield <Badge>[];
-        }
-      }
-    } catch (e, st) {
-      developer.log('Error loading v2 badges stream: $e', stackTrace: st);
-      yield <Badge>[];
-    }
+  static Stream<List<Badge>> getUserBadgesV2Stream(String userId) {
+    return backendPollingStream<List<Badge>>(
+      fetch: () async {
+        final badges = await _fetchUserBadges(userId);
+        return _sortBadgesV2(
+          badges.where((b) => isV2BadgeId(b.id)).toList(),
+        );
+      },
+      onError: (error, stackTrace) {
+        developer.log('Error loading v2 badges stream: $error', stackTrace: stackTrace);
+      },
+    );
   }
 
   static List<BadgeDefinitionV2> _getDefaultBadgeDefinitionsV2() {
@@ -420,24 +390,13 @@ class BadgeService {
   static Future<void> initializeUserBadgesV2(String userId) async {
     try {
       final defs = _getDefaultBadgeDefinitionsV2();
-      final existing = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .get();
-      final existingIds = existing.docs.map((d) => d.id).toSet();
+      final existing = await _fetchUserBadges(userId);
+      final existingIds = existing.map((b) => b.id).toSet();
 
-      final batch = _firestore.batch();
       for (final def in defs) {
         if (existingIds.contains(def.id)) continue;
-        final ref = _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .doc(def.id);
-        batch.set(ref, def.seedBadge().toFirestore(), SetOptions(merge: true));
+        await _upsertUserBadge(userId, def.seedBadge());
       }
-      await batch.commit();
       await updateUserBadgeSummaryV2(userId);
     } catch (e) {
       developer.log('Error initializing v2 badges: $e');
@@ -448,33 +407,8 @@ class BadgeService {
     try {
       await initializeUserBadgesV2(userId);
 
-      // Load user profile for points
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      final userProfile = UserProfile.fromFirestore(userDoc);
-
-      // Load goals (merge top-level + user subcollection if present)
-      final goalsSnapshot = await _firestore
-          .collection('goals')
-          .where('userId', isEqualTo: userId)
-          .get();
-      List<Goal> goals = goalsSnapshot.docs
-          .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
-          .map((doc) => Goal.fromFirestore(doc))
-          .toList();
-      try {
-        final subSnap = await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('goals')
-            .get();
-        final subGoals = subSnap.docs
-            .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
-            .map((doc) => Goal.fromFirestore(doc))
-            .toList();
-        final seen = goals.map((g) => g.id).toSet();
-        goals.addAll(subGoals.where((g) => !seen.contains(g.id)));
-      } catch (_) {}
-
+      final userProfile = await _fetchUserProfile(userId);
+      final goals = await _fetchUserGoals(userId);
       final manualGoals = goals.where(_isApprovedManualGoal).toList();
       final goalsCreated = manualGoals.length;
       final goalsCompleted = manualGoals
@@ -485,11 +419,13 @@ class BadgeService {
 
       int seasonsJoined = 0;
       try {
-        final seasonsSnap = await _firestore
-            .collection('seasons')
-            .where('participantIds', arrayContains: userId)
-            .get();
-        seasonsJoined = seasonsSnap.docs.length;
+        final seasons = await _backend.getSeasons(limit: 500);
+        seasonsJoined = seasons
+            .where(
+              (s) => List<String>.from(s['participantIds'] ?? const [])
+                  .contains(userId),
+            )
+            .length;
       } catch (_) {}
 
       // Collaboration engagements are now wired to real events through the badge system
@@ -505,21 +441,16 @@ class BadgeService {
       );
 
       final defs = _getDefaultBadgeDefinitionsV2();
+      final existingBadges = await _fetchUserBadges(userId);
+      final badgeById = {for (final b in existingBadges) b.id: b};
       for (final def in defs) {
-        final ref = _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .doc(def.id);
-        final snap = await ref.get();
-        if (!snap.exists) continue; // should have been seeded
-        final current = Badge.fromFirestore(snap);
+        final current = badgeById[def.id];
+        if (current == null) continue;
 
         final newProgress = _engineV2.progressFor(def.rule, stats);
         final maxProgress = current.maxProgress;
         final nowEarned = newProgress >= maxProgress;
 
-        // Preserve earnedAt once earned.
         final wasEarned = current.isEarned;
         final earnedAt = nowEarned
             ? (wasEarned ? current.earnedAt : DateTime.now())
@@ -533,7 +464,7 @@ class BadgeService {
 
         if (updated.progress != current.progress ||
             updated.isEarned != current.isEarned) {
-          await ref.set(updated.toFirestore(), SetOptions(merge: true));
+          await _upsertUserBadge(userId, updated);
 
           if (updated.isEarned && !current.isEarned) {
             await _createBadgeEarnedAlert(userId, updated);
@@ -549,28 +480,21 @@ class BadgeService {
 
   static Future<void> updateUserBadgeSummaryV2(String userId) async {
     try {
-      final badgeSnapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .get();
-
-      final v2Docs = badgeSnapshot.docs
-          .where((d) => isV2BadgeId(d.id))
-          .toList();
-      final earnedBadgeIds = v2Docs
-          .where((doc) => _isBadgeEarned(doc.data()))
-          .map((doc) => doc.id)
+      final items = await _backend.getBadges(userId, limit: 500);
+      final v2Items = items.where((d) => isV2BadgeId(_badgeIdFromMap(d))).toList();
+      final earnedBadgeIds = v2Items
+          .where((doc) => _isBadgeEarned(doc))
+          .map(_badgeIdFromMap)
           .toList();
 
-      await _firestore.collection('users').doc(userId).set({
+      await _backend.updateUserProfile(userId, {
         'badgesV2': earnedBadgeIds,
         'badgeV2Summary': {
           'earned': earnedBadgeIds.length,
-          'total': v2Docs.length,
-          'lastSyncedAt': FieldValue.serverTimestamp(),
+          'total': v2Items.length,
+          'lastSyncedAt': DateTime.now().toIso8601String(),
         },
-      }, SetOptions(merge: true));
+      });
     } catch (e) {
       developer.log('Error syncing v2 badge summary for $userId: $e');
     }
@@ -579,95 +503,44 @@ class BadgeService {
   // Initialize default badges for a user
   static Future<void> initializeUserBadges(String userId) async {
     try {
-      // First, check if user has any goals (critical for first_goal badge)
-      int userGoalCount = 0;
-      try {
-        final goalsSnapshot = await _firestore
-            .collection('goals')
-            .where('userId', isEqualTo: userId)
-            .get();
-        userGoalCount = goalsSnapshot.docs
-            .where((doc) => _isManualUserGoalDoc(doc.data(), doc.id))
-            .length;
-        try {
-          final subSnap = await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('goals')
-              .get();
-          final validSubDocs = subSnap.docs.where(
-            (doc) => _isManualUserGoalDoc(doc.data(), doc.id),
-          );
-          userGoalCount += validSubDocs.length;
-        } catch (_) {}
-      } catch (_) {}
-
+      final goals = await _fetchUserGoals(userId);
+      final userGoalCount = goals.where((g) => !g.isSeasonGoal).length;
       final defaultBadges = _getDefaultBadges();
-      final batch = _firestore.batch();
 
       for (final badge in defaultBadges) {
-        final docRef = _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .doc(badge.id);
-
-        // CRITICAL: For first_goal badge, ensure it's NEVER created as earned if user has no goals
         if (badge.id == 'first_goal' && userGoalCount == 0) {
-          final safeBadge = badge.copyWith(
-            isEarned: false,
-            progress: 0,
-            earnedAt: null,
+          await _upsertUserBadge(
+            userId,
+            badge.copyWith(isEarned: false, progress: 0, earnedAt: null),
           );
-          batch.set(docRef, safeBadge.toFirestore());
           developer.log(
             'Initialized first_goal badge as unearned (user has no goals)',
           );
         } else {
-          batch.set(docRef, badge.toFirestore());
+          await _upsertUserBadge(userId, badge);
         }
       }
 
-      await batch.commit();
-
-      // CRITICAL: Immediately after initialization, verify and correct first_goal badge
-      // This ensures the badge is never incorrectly marked as earned
       try {
-        final firstGoalBadgeRef = _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .doc('first_goal');
-        final firstGoalBadgeDoc = await firstGoalBadgeRef.get();
-
-        if (firstGoalBadgeDoc.exists) {
-          final badgeData = firstGoalBadgeDoc.data() ?? {};
-          final isEarned = (badgeData['isEarned'] ?? false) as bool;
-
-          // Double-check: if badge is marked as earned but user has no goals, correct it
-          if (isEarned && userGoalCount == 0) {
-            await firstGoalBadgeRef.update({
-              'isEarned': false,
-              'progress': 0,
-              'earnedAt': null,
-            });
-            developer.log(
-              'Post-initialization correction: first_goal badge un-earned (user has no goals)',
-            );
-          }
+        final existing = await _fetchUserBadges(userId);
+        final firstGoal = existing.where((b) => b.id == 'first_goal').toList();
+        if (firstGoal.isNotEmpty &&
+            firstGoal.first.isEarned &&
+            userGoalCount == 0) {
+          await _patchUserBadge(userId, 'first_goal', {
+            'isEarned': false,
+            'progress': 0,
+            'earnedAt': null,
+          });
+          developer.log(
+            'Post-initialization correction: first_goal badge un-earned (user has no goals)',
+          );
         }
       } catch (e) {
         developer.log('Error in post-initialization badge correction: $e');
       }
 
-      await updateUserBadgeSummary(
-        userId,
-        snapshot: await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .get(),
-      );
+      await updateUserBadgeSummary(userId);
     } catch (e) {
       developer.log('Error initializing badges: $e');
     }
@@ -682,40 +555,11 @@ class BadgeService {
         'Starting retroactive badge and level update for user: $userId',
       );
 
-      // Get user profile and goals
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      final userData = userDoc.data() ?? {};
+      final userData = await _backend.getUser(userId);
       final currentPoints = (userData['totalPoints'] ?? 0) as int;
       final currentLevel = (userData['level'] ?? 1) as int;
-
-      // Calculate correct level based on points (500 points per level)
       final correctLevel = (currentPoints ~/ 500) + 1;
-
-      // Get user goals
-      final goalsSnapshot = await _firestore
-          .collection('goals')
-          .where('userId', isEqualTo: userId)
-          .get();
-
-      List<Goal> goals = goalsSnapshot.docs
-          .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
-          .map((doc) => Goal.fromFirestore(doc))
-          .toList();
-
-      // Also check user subcollection
-      try {
-        final subSnap = await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('goals')
-            .get();
-        final subGoals = subSnap.docs
-            .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
-            .map((doc) => Goal.fromFirestore(doc))
-            .toList();
-        final seen = goals.map((g) => g.id).toSet();
-        goals.addAll(subGoals.where((g) => !seen.contains(g.id)));
-      } catch (_) {}
+      final goals = await _fetchUserGoals(userId);
 
       // Count completed goals
       final completedGoals = goals
@@ -729,9 +573,7 @@ class BadgeService {
 
       // Update level if needed
       if (correctLevel > currentLevel) {
-        await _firestore.collection('users').doc(userId).update({
-          'level': correctLevel,
-        });
+        await _backend.updateUserProfile(userId, {'level': correctLevel});
         developer.log('Updated user level from $currentLevel to $correctLevel');
       }
 
@@ -1001,64 +843,27 @@ class BadgeService {
   static Future<void> _ensureDefaultBadgesExist(String userId) async {
     try {
       final defaults = _getDefaultBadges();
-      final existing = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .get();
-
-      final existingIds = existing.docs.map((d) => d.id).toSet();
-      final missing = defaults
-          .where((b) => !existingIds.contains(b.id))
-          .toList();
+      final existing = await _fetchUserBadges(userId);
+      final existingIds = existing.map((b) => b.id).toSet();
+      final missing = defaults.where((b) => !existingIds.contains(b.id)).toList();
       if (missing.isEmpty) return;
 
-      // Before creating missing badges, verify user has goals for first_goal badge
-      int userGoalCount = 0;
+      var userGoalCount = 0;
       if (missing.any((b) => b.id == 'first_goal')) {
-        try {
-          final goalsSnapshot = await _firestore
-              .collection('goals')
-              .where('userId', isEqualTo: userId)
-              .get();
-          userGoalCount = goalsSnapshot.docs
-              .where((doc) => _isManualUserGoalDoc(doc.data(), doc.id))
-              .length;
-          try {
-            final subSnap = await _firestore
-                .collection('users')
-                .doc(userId)
-                .collection('goals')
-                .get();
-            final validSubDocs = subSnap.docs.where(
-              (doc) => _isManualUserGoalDoc(doc.data(), doc.id),
-            );
-            userGoalCount += validSubDocs.length;
-          } catch (_) {}
-        } catch (_) {}
+        final goals = await _fetchUserGoals(userId);
+        userGoalCount = goals.where((g) => !g.isSeasonGoal).length;
       }
 
-      final batch = _firestore.batch();
       for (final badge in missing) {
-        final ref = _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .doc(badge.id);
-
-        // For first_goal badge, ensure it's not marked as earned if user has no goals
         if (badge.id == 'first_goal' && userGoalCount == 0) {
-          final safeBadge = badge.copyWith(
-            isEarned: false,
-            progress: 0,
-            earnedAt: null,
+          await _upsertUserBadge(
+            userId,
+            badge.copyWith(isEarned: false, progress: 0, earnedAt: null),
           );
-          batch.set(ref, safeBadge.toFirestore());
         } else {
-          batch.set(ref, badge.toFirestore());
+          await _upsertUserBadge(userId, badge);
         }
       }
-      await batch.commit();
     } catch (e) {
       developer.log('Error ensuring default badges: $e');
     }
@@ -1077,64 +882,30 @@ class BadgeService {
     try {
       // Special validation for first_goal badge: verify user actually has goals
       if (badgeId == 'first_goal') {
-        final goalsSnapshot = await _firestore
-            .collection('goals')
-            .where('userId', isEqualTo: userId)
-            .get();
-
-        // Also check user subcollection
-        int totalGoals = goalsSnapshot.docs
-            .where((doc) => _isManualUserGoalDoc(doc.data(), doc.id))
-            .length;
-        try {
-          final subSnap = await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('goals')
-              .get();
-          final validSubDocs = subSnap.docs.where(
-            (doc) => _isManualUserGoalDoc(doc.data(), doc.id),
-          );
-          totalGoals += validSubDocs.length;
-        } catch (_) {}
-
-        // Don't award the badge if user has no goals
+        final goals = await _fetchUserGoals(userId);
+        final totalGoals = goals.where((g) => !g.isSeasonGoal).length;
         if (totalGoals == 0) {
           developer.log('Skipping first_goal badge award: user has no goals');
-          // If badge exists and is incorrectly marked as earned, correct it
-          final badgeDoc = await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('badges')
-              .doc(badgeId)
-              .get();
-          if (badgeDoc.exists) {
-            final data = badgeDoc.data() ?? {};
-            final isEarned = (data['isEarned'] ?? false) as bool;
-            if (isEarned) {
-              await _firestore
-                  .collection('users')
-                  .doc(userId)
-                  .collection('badges')
-                  .doc(badgeId)
-                  .update({'isEarned': false, 'progress': 0, 'earnedAt': null});
-              developer.log(
-                'Corrected first_goal badge: un-earned because user has no goals',
-              );
-            }
+          final existing = await _fetchUserBadges(userId);
+          final firstGoal = existing.where((b) => b.id == badgeId).toList();
+          if (firstGoal.isNotEmpty && firstGoal.first.isEarned) {
+            await _patchUserBadge(userId, badgeId, {
+              'isEarned': false,
+              'progress': 0,
+              'earnedAt': null,
+            });
+            developer.log(
+              'Corrected first_goal badge: un-earned because user has no goals',
+            );
           }
           return;
         }
       }
 
-      final badgeDoc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .doc(badgeId)
-          .get();
+      final existing = await _fetchUserBadges(userId);
+      final prior = existing.where((b) => b.id == badgeId).toList();
 
-      if (!badgeDoc.exists) {
+      if (prior.isEmpty) {
         final badge = Badge(
           id: badgeId,
           name: name,
@@ -1149,37 +920,21 @@ class BadgeService {
           earnedAt: DateTime.now(),
           progress: 1,
         );
-
-        await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .doc(badgeId)
-            .set(badge.toFirestore());
-
+        await _upsertUserBadge(userId, badge);
         developer.log('Awarded retroactive badge: $name');
       } else {
-        // If badge exists but is not earned, mark it as earned
-        final data = badgeDoc.data() ?? {};
-        final isEarned = (data['isEarned'] ?? false) as bool;
-        final progress = (data['progress'] ?? 0) as int;
-        final maxProgress = (data['maxProgress'] ?? 1) as int;
-        if (!isEarned || progress < maxProgress) {
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('badges')
-              .doc(badgeId)
-              .update({
-                'isEarned': true,
-                'progress': maxProgress,
-                'earnedAt': FieldValue.serverTimestamp(),
-                'name': name,
-                'description': description,
-                'iconName': iconName,
-                'category': category.name,
-                'rarity': rarity.name,
-              });
+        final current = prior.first;
+        if (!current.isEarned || current.progress < current.maxProgress) {
+          await _patchUserBadge(userId, badgeId, {
+            'isEarned': true,
+            'progress': current.maxProgress,
+            'earnedAt': DateTime.now().toIso8601String(),
+            'name': name,
+            'description': description,
+            'iconName': iconName,
+            'category': category.name,
+            'rarity': rarity.name,
+          });
           developer.log('Updated existing badge to earned: $name');
         }
       }
@@ -1191,117 +946,55 @@ class BadgeService {
   // Check and award badges based on user activity
   static Future<void> checkAndAwardBadges(String userId) async {
     try {
-      // Get user profile and goals
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      final userProfile = UserProfile.fromFirestore(userDoc);
-
-      final goalsSnapshot = await _firestore
-          .collection('goals')
-          .where('userId', isEqualTo: userId)
-          .get();
-
-      List<Goal> goals = goalsSnapshot.docs
-          .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
-          .map((doc) => Goal.fromFirestore(doc))
-          .toList();
-
-      // Also check user subcollection (if app stores goals there)
-      try {
-        final subSnap = await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('goals')
-            .get();
-        final subGoals = subSnap.docs
-            .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
-            .map((doc) => Goal.fromFirestore(doc))
-            .toList();
-        final seen = goals.map((g) => g.id).toSet();
-        goals.addAll(subGoals.where((g) => !seen.contains(g.id)));
-      } catch (_) {}
-
+      final userProfile = await _fetchUserProfile(userId);
+      final goals = await _fetchUserGoals(userId);
       final approvedManualGoals = goals.where(_isApprovedManualGoal).toList();
       final hasUserCreatedGoals = approvedManualGoals.isNotEmpty;
 
-      // Ensure defaults exist so newly added badges appear for legacy users
       await _ensureDefaultBadgesExist(userId);
 
-      // CRITICAL: Explicitly validate and correct first_goal badge before any other checks
-      // This ensures the badge is never incorrectly marked as earned for users with no goals
       try {
-        final firstGoalBadgeRef = _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .doc('first_goal');
-        final firstGoalBadgeDoc = await firstGoalBadgeRef.get();
-
-        if (firstGoalBadgeDoc.exists) {
-          final badgeData = firstGoalBadgeDoc.data() ?? {};
-          final isEarned = (badgeData['isEarned'] ?? false) as bool;
-
-          // If badge is marked as earned but user has no goals, correct it immediately
-          if (isEarned && !hasUserCreatedGoals) {
-            await firstGoalBadgeRef.update({
-              'isEarned': false,
-              'progress': 0,
-              'earnedAt': null,
-            });
-            developer.log(
-              'Corrected first_goal badge: user has no goals but badge was marked as earned',
-            );
-          }
+        final existing = await _fetchUserBadges(userId);
+        final firstGoal = existing.where((b) => b.id == 'first_goal').toList();
+        if (firstGoal.isNotEmpty &&
+            firstGoal.first.isEarned &&
+            !hasUserCreatedGoals) {
+          await _patchUserBadge(userId, 'first_goal', {
+            'isEarned': false,
+            'progress': 0,
+            'earnedAt': null,
+          });
+          developer.log(
+            'Corrected first_goal badge: user has no goals but badge was marked as earned',
+          );
         }
       } catch (e) {
         developer.log('Error validating first_goal badge: $e');
       }
 
-      // Get user badges
-      var badgesSnapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .get();
-      // Migration: if 'goal_finisher' exists with outdated metadata, align it
+      var userBadges = await _fetchUserBadges(userId);
       try {
-        final finisherDocs = badgesSnapshot.docs
-            .where((d) => d.id == 'goal_finisher')
-            .toList();
-        if (finisherDocs.isNotEmpty) {
-          final data = finisherDocs.first.data();
-          final needsUpdate =
-              (data['maxProgress'] ?? 10) != 10 ||
-              (data['name'] ?? '') != 'Goal Master' ||
-              (data['description'] ?? '') != 'Complete 10 goals' ||
-              (data['category'] ?? '') != BadgeCategory.achievement.name ||
-              (data['rarity'] ?? '') != BadgeRarity.rare.name;
+        final finisher = userBadges.where((b) => b.id == 'goal_finisher').toList();
+        if (finisher.isNotEmpty) {
+          final badge = finisher.first;
+          final needsUpdate = badge.maxProgress != 10 ||
+              badge.name != 'Goal Master' ||
+              badge.description != 'Complete 10 goals' ||
+              badge.category != BadgeCategory.achievement ||
+              badge.rarity != BadgeRarity.rare;
           if (needsUpdate) {
-            await _firestore
-                .collection('users')
-                .doc(userId)
-                .collection('badges')
-                .doc('goal_finisher')
-                .update({
-                  'name': 'Goal Master',
-                  'description': 'Complete 10 goals',
-                  'iconName': 'check_circle',
-                  'category': BadgeCategory.achievement.name,
-                  'rarity': BadgeRarity.rare.name,
-                  'maxProgress': 10,
-                });
-            // Refresh snapshot after migration
-            badgesSnapshot = await _firestore
-                .collection('users')
-                .doc(userId)
-                .collection('badges')
-                .get();
+            await _patchUserBadge(userId, 'goal_finisher', {
+              'name': 'Goal Master',
+              'description': 'Complete 10 goals',
+              'iconName': 'check_circle',
+              'category': BadgeCategory.achievement.name,
+              'rarity': BadgeRarity.rare.name,
+              'maxProgress': 10,
+            });
+            userBadges = await _fetchUserBadges(userId);
           }
         }
       } catch (_) {}
-
-      final userBadges = badgesSnapshot.docs
-          .map((doc) => Badge.fromFirestore(doc))
-          .toList();
 
       // Check each badge criteria
       for (final badge in userBadges) {
@@ -1341,12 +1034,7 @@ class BadgeService {
 
   // Update a user's badge progress
   static Future<void> _updateUserBadge(String userId, Badge badge) async {
-    await _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('badges')
-        .doc(badge.id)
-        .update(badge.toFirestore());
+    await _patchUserBadge(userId, badge.id, badge.toMap(includeId: false));
   }
 
   // Check badge criteria and update progress
@@ -1569,68 +1257,21 @@ class BadgeService {
       // ===== Season-based badges =====
       // Joined at least 1 season
       case 'season_joined_1':
-        try {
-          final snap = await _firestore
-              .collection('seasons')
-              .where('participantIds', arrayContains: userId)
-              .get();
-          newProgress = snap.docs.length.clamp(0, badge.maxProgress);
-        } catch (_) {
-          newProgress = 0;
-        }
-        break;
-
-      // Joined at least 3 seasons (progressive)
       case 'season_joined_3':
         try {
-          final snap = await _firestore
-              .collection('seasons')
-              .where('participantIds', arrayContains: userId)
-              .get();
-          newProgress = snap.docs.length.clamp(0, badge.maxProgress);
+          final joined = await _participantSeasons(userId);
+          newProgress = joined.length.clamp(0, badge.maxProgress);
         } catch (_) {
           newProgress = 0;
         }
         break;
 
-      // Contributed 500 season points (progressive)
       case 'season_contributor_500':
-        try {
-          final snap = await _firestore
-              .collection('seasons')
-              .where('participantIds', arrayContains: userId)
-              .get();
-          int total = 0;
-          for (final d in snap.docs) {
-            final data = d.data();
-            final participation =
-                (data['participations'] ?? {}) as Map<String, dynamic>;
-            final me = participation[userId] as Map<String, dynamic>?;
-            if (me != null) {
-              final points = me['totalPoints'];
-              if (points is int) {
-                total += points;
-              } else if (points is num) {
-                total += points.round();
-              }
-            }
-          }
-          newProgress = total.clamp(0, badge.maxProgress);
-        } catch (_) {
-          newProgress = 0;
-        }
-        break;
-
-      // Contributed 1000 season points (progressive)
       case 'season_contributor_1000':
         try {
-          final snap = await _firestore
-              .collection('seasons')
-              .where('participantIds', arrayContains: userId)
-              .get();
-          int total = 0;
-          for (final d in snap.docs) {
-            final data = d.data();
+          final joined = await _participantSeasons(userId);
+          var total = 0;
+          for (final data in joined) {
             final participation =
                 (data['participations'] ?? {}) as Map<String, dynamic>;
             final me = participation[userId] as Map<String, dynamic>?;
@@ -1649,29 +1290,24 @@ class BadgeService {
         }
         break;
 
-      // Completed at least 1 season (boolean)
       case 'season_finisher_1':
         try {
-          final snap = await _firestore
-              .collection('seasons')
-              .where('status', isEqualTo: 'completed')
-              .where('participantIds', arrayContains: userId)
-              .get();
-          newProgress = snap.docs.isNotEmpty ? 1 : 0;
+          final joined = await _participantSeasons(userId);
+          final completed = joined
+              .where((s) => (s['status'] ?? '').toString() == 'completed');
+          newProgress = completed.isNotEmpty ? 1 : 0;
         } catch (_) {
           newProgress = 0;
         }
         break;
 
-      // Completed at least 3 seasons (progressive boolean as count up to 3)
       case 'season_finisher_3':
         try {
-          final snap = await _firestore
-              .collection('seasons')
-              .where('status', isEqualTo: 'completed')
-              .where('participantIds', arrayContains: userId)
-              .get();
-          newProgress = snap.docs.length.clamp(0, badge.maxProgress);
+          final joined = await _participantSeasons(userId);
+          final completedCount = joined
+              .where((s) => (s['status'] ?? '').toString() == 'completed')
+              .length;
+          newProgress = completedCount.clamp(0, badge.maxProgress);
         } catch (_) {
           newProgress = 0;
         }
@@ -2002,37 +1638,30 @@ class BadgeService {
 
   static Future<void> updateUserBadgeSummary(
     String userId, {
-    QuerySnapshot<Map<String, dynamic>>? snapshot,
+    List<Map<String, dynamic>>? badgeItems,
   }) async {
     try {
-      final badgeSnapshot =
-          snapshot ??
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('badges')
-              .get();
+      final items = badgeItems ??
+          await _backend.getBadges(userId, limit: 500);
 
-      final visibleDocs = badgeSnapshot.docs
-          .where((d) => !d.id.startsWith('level_up_'))
+      final visibleItems = items
+          .where((d) => !_badgeIdFromMap(d).startsWith('level_up_'))
           .toList();
 
-      final earnedBadgeIds = visibleDocs
-          .where((doc) {
-            return _isBadgeEarned(doc.data());
-          })
-          .map((doc) => doc.id)
+      final earnedBadgeIds = visibleItems
+          .where(_isBadgeEarned)
+          .map(_badgeIdFromMap)
           .toList();
 
-      await _firestore.collection('users').doc(userId).set({
+      await _backend.updateUserProfile(userId, {
         'badges': earnedBadgeIds,
         'earnedBadgesCount': earnedBadgeIds.length,
         'badgeSummary': {
           'earned': earnedBadgeIds.length,
-          'total': visibleDocs.length,
-          'lastSyncedAt': FieldValue.serverTimestamp(),
+          'total': visibleItems.length,
+          'lastSyncedAt': DateTime.now().toIso8601String(),
         },
-      }, SetOptions(merge: true));
+      });
     } catch (e) {
       developer.log('Error syncing badge summary for $userId: $e');
     }
@@ -2058,52 +1687,37 @@ class BadgeService {
     bool onlyOptedIn = true,
   }) async {
     try {
-      Query query = _firestore.collection('users');
+      final users = await _backend.listUsers(
+        role: 'employee',
+        department: department,
+        limit: limit * 4,
+      );
 
-      // ALWAYS filter to only show employees (not managers) - leaderboard is for employees only
-      query = query.where('role', isEqualTo: 'employee');
-
-      // Add department filter if specified
-      if (department != null && department.isNotEmpty) {
-        query = query.where('department', isEqualTo: department);
-      }
-
-      // Add ordering
-      query = query
-          .orderBy(orderBy, descending: descending)
-          .limit(limit * 2); // Get more to filter
-
-      final snapshot = await query.get();
-
-      // Filter for opted-in users after fetching and ensure no managers slipped through
-      final filteredDocs = snapshot.docs.where((doc) {
-        try {
-          final data = doc.data() as Map<String, dynamic>?;
-          if (data == null) return false;
-
-          // Double-check: ALWAYS exclude managers
-          final role = data['role']?.toString() ?? 'employee';
-          if (role != 'employee') {
-            return false;
-          }
-
-          // Filter by opt-in status if required
-          if (onlyOptedIn) {
-            final optIn = data['leaderboardOptin'];
-            final legacyOptIn = data['leaderboardParticipation'];
-            return optIn == true || legacyOptIn == true;
-          }
-
-          return true;
-        } catch (e) {
-          return false;
+      Iterable<Map<String, dynamic>> filtered = users.where((data) {
+        final role = data['role']?.toString() ?? 'employee';
+        if (role != 'employee') return false;
+        if (onlyOptedIn) {
+          final optIn = data['leaderboardOptin'];
+          final legacyOptIn = data['leaderboardParticipation'];
+          return optIn == true || legacyOptIn == true;
         }
-      }).toList();
+        return true;
+      });
 
-      return filteredDocs.take(limit).toList().asMap().entries.map((entry) {
+      filtered = filtered.toList()
+        ..sort((a, b) {
+          final aVal = a[orderBy];
+          final bVal = b[orderBy];
+          if (aVal is num && bVal is num) {
+            return descending ? bVal.compareTo(aVal) : aVal.compareTo(bVal);
+          }
+          return 0;
+        });
+
+      return filtered.take(limit).toList().asMap().entries.map((entry) {
         final index = entry.key;
-        final doc = entry.value;
-        final data = doc.data() as Map<String, dynamic>;
+        final data = entry.value;
+        final userId = (data['id'] ?? data['uid'] ?? '').toString();
 
         // Safely extract badge count
         int badgeCount = 0;
@@ -2159,7 +1773,7 @@ class BadgeService {
 
         return {
           'rank': index + 1,
-          'userId': doc.id,
+          'userId': userId,
           'name': data['displayName']?.toString() ?? 'Anonymous',
           'points': (data['totalPoints'] is num) ? data['totalPoints'] : 0,
           'level': (data['level'] is num) ? data['level'] : 1,
@@ -2235,15 +1849,15 @@ class BadgeService {
   // Get user's rank
   static Future<int> getUserRank(String userId) async {
     try {
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      final userPoints = (userDoc.data()?['totalPoints'] ?? 0) as int;
-
-      final higherRanked = await _firestore
-          .collection('users')
-          .where('totalPoints', isGreaterThan: userPoints)
-          .get();
-
-      return higherRanked.docs.length + 1;
+      final userData = await _backend.getUser(userId);
+      final userPoints = (userData['totalPoints'] ?? 0) as int;
+      final employees = await _backend.listUsers(role: 'employee', limit: 2000);
+      final higher = employees.where((u) {
+        final pts = u['totalPoints'];
+        if (pts is num) return pts > userPoints;
+        return false;
+      }).length;
+      return higher + 1;
     } catch (e) {
       developer.log('Error getting user rank: $e');
       return 0;
@@ -2256,7 +1870,7 @@ class BadgeService {
     Badge badge,
   ) async {
     try {
-      await _firestore.collection('alerts').add({
+      await _backend.createAlert(userId, {
         'userId': userId,
         'type': 'badge_earned',
         'priority': 'high',
@@ -2268,15 +1882,15 @@ class BadgeService {
           'badgeId': badge.id,
           'badgeCategory': badge.category.name,
         },
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
         'badgeId': badge.id,
         'badgeCategory': badge.category.name,
         'badgeRarity': badge.rarity.name,
         'isRead': false,
         'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 7)),
-        ),
+        'expiresAt': DateTime.now()
+            .add(const Duration(days: 7))
+            .toIso8601String(),
       });
     } catch (e) {
       developer.log('Error creating badge alert: $e');
@@ -2306,14 +1920,10 @@ class BadgeService {
   static Future<void> _awardStreakBadge(String userId, int streakDays) async {
     try {
       final badgeId = 'streak_master_$streakDays';
-      final badgeDoc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .doc(badgeId)
-          .get();
+      final existing = await _fetchUserBadges(userId);
+      final hasBadge = existing.any((b) => b.id == badgeId);
 
-      if (!badgeDoc.exists) {
+      if (!hasBadge) {
         final badge = Badge(
           id: badgeId,
           name: streakDays >= 100
@@ -2341,13 +1951,7 @@ class BadgeService {
           progress: 1,
         );
 
-        await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .doc(badgeId)
-            .set(badge.toFirestore());
-
+        await _upsertUserBadge(userId, badge);
         await _createBadgeEarnedAlert(userId, badge);
       }
     } catch (e) {
@@ -2387,14 +1991,10 @@ class BadgeService {
   static Future<void> _awardPointsBadge(String userId, int points) async {
     try {
       final badgeId = 'point_collector_$points';
-      final badgeDoc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .doc(badgeId)
-          .get();
+      final existing = await _fetchUserBadges(userId);
+      final hasBadge = existing.any((b) => b.id == badgeId);
 
-      if (!badgeDoc.exists) {
+      if (!hasBadge) {
         final badge = Badge(
           id: badgeId,
           name: points >= 5000
@@ -2426,13 +2026,7 @@ class BadgeService {
           progress: 1,
         );
 
-        await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .doc(badgeId)
-            .set(badge.toFirestore());
-
+        await _upsertUserBadge(userId, badge);
         await _createBadgeEarnedAlert(userId, badge);
       }
     } catch (e) {
@@ -2445,15 +2039,7 @@ class BadgeService {
     String userId,
   ) async {
     try {
-      final badgesSnapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .get();
-
-      final badges = badgesSnapshot.docs
-          .map((doc) => Badge.fromFirestore(doc))
-          .toList();
+      final badges = await _fetchUserBadges(userId);
 
       final earnedBadges = badges.where((b) => b.isEarned).toList();
       final totalBadges = badges.length;

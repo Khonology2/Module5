@@ -3,7 +3,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/auth_service.dart';
 
 class CloudinaryService {
   // Cloudinary configuration - you'll need to get these from your Cloudinary dashboard
@@ -38,7 +38,7 @@ class CloudinaryService {
     String? folder,
   }) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = AuthService().currentUser;
       if (user == null) throw Exception('User not authenticated');
 
       // Create form data (auto-detect resource type; fallback to raw on failure)
@@ -105,7 +105,7 @@ class CloudinaryService {
     required String goalId,
   }) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = AuthService().currentUser;
       if (user == null) throw Exception('User not authenticated');
 
       // Create form data (auto-detect resource type; fallback to raw on failure)

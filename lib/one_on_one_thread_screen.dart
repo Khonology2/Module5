@@ -1,4 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/role_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -238,12 +239,9 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return 'employee';
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      final role = (snap.data()?['role'] ?? 'employee').toString().trim();
-      return role.isEmpty ? 'employee' : role.toLowerCase();
+      final role =
+          (await RoleService.instance.getRole() ?? '').trim().toLowerCase();
+      return role.isEmpty ? 'employee' : role;
     } catch (_) {
       return 'employee';
     }
@@ -298,15 +296,14 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
     }
 
     try {
-      final snap = await FirebaseFirestore.instance.collection('users').doc(id).get();
-      final data = snap.data();
-      final name = (data?['displayName'] ?? data?['name'] ?? data?['email'] ?? fallback)
-          .toString()
-          .trim();
-      final role = data?['role']?.toString().trim().toLowerCase();
+      final profile = await DatabaseService.getUserProfile(id);
+      final name = profile.displayName.isNotEmpty
+          ? profile.displayName
+          : (profile.email.isNotEmpty ? profile.email : fallback);
+      final role = profile.role.trim().toLowerCase();
       return _UserSummary(
         name: name.isEmpty ? fallback : name,
-        role: role?.isEmpty == true ? null : role,
+        role: role.isEmpty ? null : role,
       );
     } catch (_) {
       return _UserSummary(name: widget.participantName ?? fallback, role: null);
@@ -1551,16 +1548,11 @@ class _OneOnOneThreadScreenState extends State<OneOnOneThreadScreen> {
     if (currentUser == null) return 'Employee';
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.uid)
-          .get();
-      final data = snap.data();
-      final name =
-          (data?['displayName'] ?? data?['name'] ?? currentUser.displayName ?? 'Employee')
-              .toString()
-              .trim();
-      return name.isEmpty ? 'Employee' : name;
+      final profile = await DatabaseService.getUserProfile(currentUser.uid);
+      final name = profile.displayName.isNotEmpty
+          ? profile.displayName
+          : (currentUser.displayName ?? 'Employee');
+      return name.trim().isEmpty ? 'Employee' : name.trim();
     } catch (_) {
       final fallback = currentUser.displayName?.trim();
       return (fallback == null || fallback.isEmpty) ? 'Employee' : fallback;

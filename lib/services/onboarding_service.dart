@@ -1,9 +1,48 @@
 import 'dart:developer' as developer;
 
-/// Service to handle onboarding collection users and extract persona from moduleAccessRole
+import 'package:pdh/services/backend_auth_service.dart';
+
+/// Parses onboarding records from PostgreSQL and extracts persona from moduleAccessRole.
 class OnboardingService {
+  OnboardingService._();
+
+  static final BackendAuthService _backend = BackendAuthService.instance;
+
   /// App name constant - used to identify this app in moduleAccessRole
   static const String appName = 'PDH';
+
+  /// Fetch a single onboarding record from PostgreSQL by user id.
+  static Future<Map<String, dynamic>> fetchOnboardingRecord(
+    String userId,
+  ) async {
+    if (userId.trim().isEmpty) return {};
+    return _backend.tryGetOnboarding(userId.trim());
+  }
+
+  /// Fetch onboarding records from PostgreSQL, optionally filtered by email.
+  static Future<List<Map<String, dynamic>>> listOnboardingRecords({
+    String? email,
+    int limit = 500,
+  }) {
+    return _backend.listOnboarding(email: email, limit: limit);
+  }
+
+  /// Resolve a display name from a PostgreSQL onboarding record.
+  static String? displayNameFromOnboarding(Map<String, dynamic> onboardingData) {
+    final name =
+        onboardingData['displayName'] ??
+        onboardingData['fullName'] ??
+        onboardingData['name'] ??
+        onboardingData['firstName'] ??
+        (onboardingData['firstName'] != null &&
+                onboardingData['lastName'] != null
+            ? '${onboardingData['firstName']} ${onboardingData['lastName']}'
+                  .trim()
+            : null);
+    if (name == null) return null;
+    final trimmed = name.toString().trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
 
   /// Parse moduleAccessRole string and extract persona for the specified app
   ///
@@ -18,21 +57,17 @@ class OnboardingService {
     }
 
     try {
-      // Split by comma to get individual app-persona pairs
       final pairs = moduleAccessRole.split(',');
 
       for (final pair in pairs) {
         final trimmed = pair.trim();
-        // Split by " - " to separate app name and persona
         if (trimmed.contains(' - ')) {
           final parts = trimmed.split(' - ');
           if (parts.length == 2) {
             final appNamePart = parts[0].trim();
             final personaPart = parts[1].trim();
 
-            // Check if this entry matches our app
             if (appNamePart == app) {
-              // Map persona to role format
               final personaLower = personaPart.toLowerCase();
               if (personaLower == 'employee') {
                 return 'employee';
@@ -50,8 +85,7 @@ class OnboardingService {
     return null;
   }
 
-  /// Check if a user from onboarding collection should be included based on their persona
-  /// Returns true if persona matches the required role
+  /// Check if a user from onboarding should be included based on their persona
   static bool shouldIncludeUser(
     String? moduleAccessRole,
     String requiredRole, {
@@ -63,16 +97,16 @@ class OnboardingService {
     return persona == requiredRole.toLowerCase();
   }
 
-  /// Convert onboarding user data to a format compatible with users collection
-  /// This allows onboarding users to be displayed alongside regular users
+  /// Convert a PostgreSQL onboarding record to a user-like map for UI lists.
   static Map<String, dynamic> convertOnboardingUserToUserFormat(
     Map<String, dynamic> onboardingData,
     String userId,
   ) {
-    final moduleAccessRole = onboardingData['moduleAccessRole'] as String?;
+    final moduleAccessRole =
+        onboardingData['moduleAccessRole'] as String? ??
+        onboardingData['module_access_role'] as String?;
     final persona = extractPersonaForApp(moduleAccessRole) ?? 'employee';
 
-    // Extract common fields from onboarding data
     final displayName =
         onboardingData['displayName'] ??
         onboardingData['name'] ??
@@ -81,13 +115,12 @@ class OnboardingService {
 
     final email = onboardingData['email'] ?? '';
 
-    // Create a user-like document
     return {
       'displayName': displayName,
       'email': email,
       'role': persona,
-      'fromOnboarding': true, // Flag to identify onboarding users
-      // Copy other relevant fields if they exist
+      'fromOnboarding': true,
+      'userId': userId,
       ...onboardingData,
     };
   }

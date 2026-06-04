@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 
 enum SeasonStatus { planning, active, completed, cancelled }
 
@@ -45,10 +45,13 @@ class Season {
     required this.settings,
   });
 
-  factory Season.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  static DateTime _parseDate(dynamic value, {DateTime? fallback}) {
+    return parseDate(value, fallback: fallback);
+  }
+
+  factory Season.fromMap(Map<String, dynamic> data, {String? id}) {
     return Season(
-      id: doc.id,
+      id: (id ?? data['id'] ?? '').toString(),
       title: data['title'] ?? '',
       description: data['description'] ?? '',
       theme: data['theme'] ?? '',
@@ -56,9 +59,9 @@ class Season {
         (e) => e.name == (data['status'] ?? 'planning'),
         orElse: () => SeasonStatus.planning,
       ),
-      startDate: (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      endDate: (data['endDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      startDate: _parseDate(data['startDate']),
+      endDate: _parseDate(data['endDate']),
+      createdAt: _parseDate(data['createdAt']),
       createdBy: data['createdBy'] ?? '',
       createdByName: data['createdByName'] ?? '',
       department: data['department'],
@@ -77,19 +80,24 @@ class Season {
       metrics: SeasonMetrics.fromMap(
         data['metrics'] as Map<String, dynamic>? ?? {},
       ),
-      settings: Map<String, dynamic>.from(data['settings'] ?? {}),
+      settings: {
+        ...Map<String, dynamic>.from(data['settings'] ?? {}),
+        if (data['createdByRole'] != null)
+          'createdByRole': data['createdByRole'],
+      },
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap({bool includeId = true}) {
     return {
+      if (includeId) 'id': id,
       'title': title,
       'description': description,
       'theme': theme,
       'status': status.name,
-      'startDate': Timestamp.fromDate(startDate),
-      'endDate': Timestamp.fromDate(endDate),
-      'createdAt': Timestamp.fromDate(createdAt),
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+      'createdAt': createdAt.toIso8601String(),
       'createdBy': createdBy,
       'createdByName': createdByName,
       'department': department,
@@ -98,7 +106,7 @@ class Season {
       'participations': participations.map(
         (key, value) => MapEntry(key, value.toMap()),
       ),
-      'metrics': metrics.toMap(),
+      'metrics': metrics.toMapForBackend(),
       'settings': settings,
     };
   }
@@ -279,7 +287,7 @@ class SeasonMilestone {
       title: map['title'] ?? '',
       description: map['description'] ?? '',
       points: map['points'] ?? 0,
-      targetDate: (map['targetDate'] as Timestamp?)?.toDate(),
+      targetDate: parseNullableDate(map['targetDate']),
       criteria: Map<String, dynamic>.from(map['criteria'] ?? {}),
       challengeId: challengeId,
     );
@@ -291,7 +299,7 @@ class SeasonMilestone {
       'title': title,
       'description': description,
       'points': points,
-      'targetDate': targetDate != null ? Timestamp.fromDate(targetDate!) : null,
+      'targetDate': targetDate?.toIso8601String(),
       'criteria': criteria,
     };
   }
@@ -326,7 +334,7 @@ class SeasonParticipation {
     return SeasonParticipation(
       userId: map['userId'] ?? '',
       userName: map['userName'] ?? '',
-      joinedAt: (map['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      joinedAt: parseDate(map['joinedAt']),
       milestoneProgress: Map<String, MilestoneStatus>.from(
         (map['milestoneProgress'] as Map<String, dynamic>? ?? {}).map(
           (key, value) => MapEntry(
@@ -352,7 +360,7 @@ class SeasonParticipation {
       totalPoints: map['totalPoints'] ?? 0,
       badgesEarned: List<String>.from(map['badgesEarned'] ?? []),
       completedChallenges: map['completedChallenges'] ?? 0,
-      lastActivity: (map['lastActivity'] as Timestamp?)?.toDate(),
+      lastActivity: parseNullableDate(map['lastActivity']),
     );
   }
 
@@ -360,7 +368,7 @@ class SeasonParticipation {
     return {
       'userId': userId,
       'userName': userName,
-      'joinedAt': Timestamp.fromDate(joinedAt),
+      'joinedAt': joinedAt.toIso8601String(),
       'milestoneProgress': milestoneProgress.map(
         (key, value) => MapEntry(key, value.name),
       ),
@@ -371,9 +379,7 @@ class SeasonParticipation {
       'totalPoints': totalPoints,
       'badgesEarned': badgesEarned,
       'completedChallenges': completedChallenges,
-      'lastActivity': lastActivity != null
-          ? Timestamp.fromDate(lastActivity!)
-          : null,
+      'lastActivity': lastActivity?.toIso8601String(),
     };
   }
 }
@@ -408,11 +414,10 @@ class SeasonChallengeSubmission {
         orElse: () => ChallengeSubmissionStatus.notSubmitted,
       ),
       submittedBy: map['submittedBy'] ?? '',
-      submittedAt:
-          (map['submittedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      submittedAt: parseDate(map['submittedAt']),
       feedback: map['feedback'] as String?,
       reviewedBy: map['reviewedBy'] as String?,
-      reviewedAt: (map['reviewedAt'] as Timestamp?)?.toDate(),
+      reviewedAt: parseNullableDate(map['reviewedAt']),
     );
   }
 
@@ -422,10 +427,10 @@ class SeasonChallengeSubmission {
       'evidence': evidence,
       'status': status.name,
       'submittedBy': submittedBy,
-      'submittedAt': Timestamp.fromDate(submittedAt),
+      'submittedAt': submittedAt.toIso8601String(),
       'feedback': feedback,
       'reviewedBy': reviewedBy,
-      'reviewedAt': reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
+      'reviewedAt': reviewedAt?.toIso8601String(),
     };
   }
 }
@@ -478,8 +483,7 @@ class SeasonMetrics {
           ),
         ),
       ),
-      lastUpdated:
-          (map['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastUpdated: Season._parseDate(map['lastUpdated']),
       totalTeamPoints: map['totalTeamPoints'] ?? 0,
       completedTeamChallenges: map['completedTeamChallenges'] ?? 0,
       managerBadgesEarned: List<String>.from(map['managerBadgesEarned'] ?? []),
@@ -488,6 +492,10 @@ class SeasonMetrics {
   }
 
   Map<String, dynamic> toMap() {
+    return toMapForBackend();
+  }
+
+  Map<String, dynamic> toMapForBackend() {
     return {
       'totalParticipants': totalParticipants,
       'activeParticipants': activeParticipants,
@@ -498,7 +506,7 @@ class SeasonMetrics {
       'challengeCompletions': challengeCompletions.map(
         (key, value) => MapEntry(key.name, value),
       ),
-      'lastUpdated': Timestamp.fromDate(lastUpdated),
+      'lastUpdated': lastUpdated.toIso8601String(),
       'totalTeamPoints': totalTeamPoints,
       'completedTeamChallenges': completedTeamChallenges,
       'managerBadgesEarned': managerBadgesEarned,

@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 
 class AuditTimelineEvent {
-  final String id; // Firestore doc ID
+  final String id; // Backend record id
   final String eventType; // submission, verification, rejection, update, etc.
   final DateTime timestamp;
   final String actorId;
@@ -17,22 +17,22 @@ class AuditTimelineEvent {
     required this.description,
   });
 
-  factory AuditTimelineEvent.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory AuditTimelineEvent.fromMap(Map<String, dynamic> data, {String? fallbackId}) {
     return AuditTimelineEvent(
-      id: doc.id,
-      eventType: data['eventType'] ?? 'update',
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      actorId: data['actorId'] ?? '',
-      actorName: data['actorName'] ?? '',
-      description: data['description'] ?? '',
+      id: (data['id'] ?? fallbackId ?? '').toString(),
+      eventType: (data['eventType'] ?? 'update').toString(),
+      timestamp: parseDate(data['timestamp'] ?? data['createdAt']),
+      actorId: (data['actorId'] ?? '').toString(),
+      actorName: (data['actorName'] ?? '').toString(),
+      description: (data['description'] ?? '').toString(),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap({bool includeId = true}) {
     return {
+      if (includeId) 'id': id,
       'eventType': eventType,
-      'timestamp': Timestamp.fromDate(timestamp),
+      'timestamp': timestamp.toIso8601String(),
       'actorId': actorId,
       'actorName': actorName,
       'description': description,

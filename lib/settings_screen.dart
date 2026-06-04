@@ -63,7 +63,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    // Hydrate from local cache first so UI has data even if Firestore is slow
+    // Hydrate from local cache first so UI has data even if the backend is slow
     _hydrateLocalSettings();
     // Ensure role is loaded
     RoleService.instance.ensureRoleLoaded();
@@ -340,11 +340,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// Wrap the raw settings stream with a safe async generator that logs
   /// errors and yields `null` on stream errors so the UI doesn't crash
-  /// when Firestore emits internal assertion errors on web.
+  /// when the backend settings poller emits transient errors on web.
   Stream<UserSettings?> _safeSettingsStream() async* {
     try {
       final base = SettingsService.getUserSettingsStream();
-      // Log and suppress errors coming from Firestore internals
       await for (final s in base.handleError((e, st) {
         developer.log('Settings stream error', error: e, stackTrace: st);
       })) {
@@ -992,12 +991,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            // Hide low-signal internal Firestore errors from the UI; show a friendly message instead.
+            // Hide low-signal transient backend errors from the UI.
             final msg = e.toString();
             final isTransient =
                 msg.toLowerCase().contains('unavailable') ||
                 msg.toLowerCase().contains('offline') ||
                 msg.toLowerCase().contains('network') ||
+                msg.toLowerCase().contains('timeout') ||
+                msg.toLowerCase().contains('backend_unavailable') ||
                 msg.toLowerCase().contains('failed-precondition') ||
                 msg.toLowerCase().contains('permission-denied') ||
                 msg.toLowerCase().contains('internal assertion failed') ||
@@ -2224,7 +2225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Sanitizes values to remove non-serializable Firestore objects
+  /// Sanitizes values to remove non-serializable backend objects
   dynamic _sanitizeValue(dynamic value) {
     try {
       if (value == null) {
@@ -2255,11 +2256,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return sanitized;
       }
 
-      // For any other type (including Firestore internal types),
+      // For any other type (including legacy timestamp objects),
       // convert to string and filter out problematic characters
       final stringValue = value.toString();
 
-      // Skip if it looks like an internal Firestore object
+      // Skip if it looks like an internal SDK object
       if (stringValue.contains('_Namespace') ||
           stringValue.contains('Instance of') ||
           stringValue.startsWith('_')) {
@@ -2272,7 +2273,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Formats Firestore-like timestamps (and other date representations) into readable strings.
+  /// Formats backend timestamps (and other date representations) into readable strings.
   String _formatTimestamp(dynamic ts) {
     try {
       if (ts == null) return 'N/A';
@@ -2288,7 +2289,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           dt = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
         }
       } else if (ts is Map) {
-        // Firestore Timestamp-like map: {seconds: ..., nanoseconds: ...}
+        // Legacy timestamp map: {seconds: ..., nanoseconds: ...}
         if (ts.containsKey('seconds')) {
           final s = ts['seconds'];
           if (s is int) dt = DateTime.fromMillisecondsSinceEpoch(s * 1000);

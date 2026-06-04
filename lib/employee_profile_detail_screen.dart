@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -156,18 +155,14 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
         if (viewerId == null) {
           return Stream.value(null);
         }
-        return FirebaseFirestore.instance
-            .collection('users')
-            .doc(widget.employeeId)
-            .snapshots()
-            .asyncMap((doc) async {
-          if (!doc.exists) return null;
+        return DatabaseService.getUserProfileStream(widget.employeeId)
+            .asyncMap((profile) async {
+          if (profile == null) return null;
           final allowed = await DatabaseService.canViewerSeeUserProfile(
             viewerId: viewerId,
             targetUserId: widget.employeeId,
           );
-          if (!allowed) return null;
-          return UserProfile.fromFirestore(doc);
+          return allowed ? profile : null;
         });
       }
 

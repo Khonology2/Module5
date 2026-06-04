@@ -1,13 +1,13 @@
 import 'dart:developer' as developer;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:pdh/services/backend_auth_service.dart';
 
 /// Free alternative to Firebase Functions for sending email notifications
 /// Uses a free serverless function (Vercel/Netlify) or EmailJS
 class EmailNotificationService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final BackendAuthService _backend = BackendAuthService.instance;
   
   // Option 1: Use a free Vercel/Netlify serverless function
   // Your deployed Vercel function URL
@@ -69,12 +69,8 @@ class EmailNotificationService {
 
   static Future<bool> _shouldSendEmail(String userId) async {
     try {
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data();
-        return userData?['emailNotifications'] != false;
-      }
-      return true; // Default to sending
+      final userData = await _backend.getUser(userId);
+      return userData['emailNotifications'] != false;
     } catch (e) {
       developer.log('Error checking email preferences: $e');
       return true;
@@ -83,12 +79,9 @@ class EmailNotificationService {
 
   static Future<String?> _getUserEmail(String userId) async {
     try {
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data();
-        if (userData?['email'] != null) {
-          return userData!['email'] as String;
-        }
+      final userData = await _backend.getUser(userId);
+      if (userData['email'] != null) {
+        return userData['email'] as String;
       }
       // Fallback to Firebase Auth
       final user = FirebaseAuth.instance.currentUser;
@@ -101,12 +94,9 @@ class EmailNotificationService {
 
   static Future<String> _getUserDisplayName(String userId) async {
     try {
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data();
-        if (userData?['displayName'] != null) {
-          return userData!['displayName'] as String;
-        }
+      final userData = await _backend.getUser(userId);
+      if (userData['displayName'] != null) {
+        return userData['displayName'] as String;
       }
       final user = FirebaseAuth.instance.currentUser;
       return user?.displayName ?? user?.email?.split('@')[0] ?? 'User';

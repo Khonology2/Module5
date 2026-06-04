@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum OneOnOneMeetingStatus {
   requested,
   proposed,
@@ -20,10 +18,7 @@ class OneOnOneMeeting {
   final String employeeId;
   final OneOnOneMeetingStatus status;
   final OneOnOneWaitingOn waitingOn;
-  /// Proposed meeting start time (local display; stored in Firestore as Timestamp).
   final DateTime? proposedStartDateTime;
-
-  /// Proposed meeting end time (local display; stored in Firestore as Timestamp).
   final DateTime? proposedEndDateTime;
   final String? agenda;
   final String? employeeMessage;
@@ -44,79 +39,69 @@ class OneOnOneMeeting {
     required this.updatedAt,
   });
 
-  factory OneOnOneMeeting.fromFirestore(DocumentSnapshot doc) {
-    final data = (doc.data() as Map<String, dynamic>?) ?? {};
+  static OneOnOneMeetingStatus _parseStatus(dynamic v) {
+    final raw = v?.toString() ?? OneOnOneMeetingStatus.requested.name;
+    return OneOnOneMeetingStatus.values.firstWhere(
+      (e) => e.name == raw,
+      orElse: () => OneOnOneMeetingStatus.requested,
+    );
+  }
 
-    OneOnOneMeetingStatus parseStatus(dynamic v) {
-      final raw = v?.toString() ?? OneOnOneMeetingStatus.requested.name;
-      return OneOnOneMeetingStatus.values.firstWhere(
-        (e) => e.name == raw,
-        orElse: () => OneOnOneMeetingStatus.requested,
-      );
-    }
+  static OneOnOneWaitingOn _parseWaitingOn(dynamic v) {
+    final raw = v?.toString() ?? OneOnOneWaitingOn.employee.name;
+    return OneOnOneWaitingOn.values.firstWhere(
+      (e) => e.name == raw,
+      orElse: () => OneOnOneWaitingOn.employee,
+    );
+  }
 
-    OneOnOneWaitingOn parseWaitingOn(dynamic v) {
-      final raw = v?.toString() ?? OneOnOneWaitingOn.employee.name;
-      return OneOnOneWaitingOn.values.firstWhere(
-        (e) => e.name == raw,
-        orElse: () => OneOnOneWaitingOn.employee,
-      );
-    }
+  static DateTime _parseDate(dynamic v) {
+    if (v is DateTime) return v;
+    final parsed = DateTime.tryParse(v?.toString() ?? '');
+    return parsed ?? DateTime.now();
+  }
 
-    DateTime parseDate(dynamic v) {
-      if (v is Timestamp) return v.toDate();
-      if (v is DateTime) return v;
-      final parsed = DateTime.tryParse(v?.toString() ?? '');
-      return parsed ?? DateTime.now();
-    }
+  static DateTime? _parseNullableDate(dynamic v) {
+    if (v == null) return null;
+    return _parseDate(v);
+  }
 
-    DateTime? parseNullableDate(dynamic v) {
-      if (v == null) return null;
-      return parseDate(v);
-    }
-
+  factory OneOnOneMeeting.fromMap(Map<String, dynamic> data, {String? id}) {
     final proposedStart =
-        parseNullableDate(data['proposedStartDateTime']) ??
-        // Backwards compatibility: older docs used a single proposedDateTime.
-        parseNullableDate(data['proposedDateTime']);
-    final proposedEnd = parseNullableDate(data['proposedEndDateTime']);
+        _parseNullableDate(data['proposedStartDateTime']) ??
+        _parseNullableDate(data['proposedDateTime']);
+    final proposedEnd = _parseNullableDate(data['proposedEndDateTime']);
 
     return OneOnOneMeeting(
-      meetingId: (data['meetingId']?.toString() ?? doc.id),
+      meetingId: (data['meetingId'] ?? data['id'] ?? id ?? '').toString(),
       managerId: data['managerId']?.toString() ?? '',
       employeeId: data['employeeId']?.toString() ?? '',
-      status: parseStatus(data['status']),
-      waitingOn: parseWaitingOn(data['waitingOn']),
+      status: _parseStatus(data['status']),
+      waitingOn: _parseWaitingOn(data['waitingOn']),
       proposedStartDateTime: proposedStart,
       proposedEndDateTime: proposedEnd,
       agenda: data['agenda']?.toString(),
       employeeMessage: data['employeeMessage']?.toString(),
-      createdAt: parseDate(data['createdAt']),
-      updatedAt: parseDate(data['updatedAt']),
+      createdAt: _parseDate(data['createdAt']),
+      updatedAt: _parseDate(data['updatedAt']),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap() {
     return {
       'meetingId': meetingId,
+      'id': meetingId,
       'managerId': managerId,
       'employeeId': employeeId,
       'status': status.name,
       'waitingOn': waitingOn.name,
-      'proposedStartDateTime': proposedStartDateTime != null
-          ? Timestamp.fromDate(proposedStartDateTime!)
-          : null,
-      'proposedEndDateTime':
-          proposedEndDateTime != null ? Timestamp.fromDate(proposedEndDateTime!) : null,
-      // Backwards compatibility for older clients expecting a single time.
-      'proposedDateTime': proposedStartDateTime != null
-          ? Timestamp.fromDate(proposedStartDateTime!)
-          : null,
+      'proposedStartDateTime': proposedStartDateTime?.toIso8601String(),
+      'proposedEndDateTime': proposedEndDateTime?.toIso8601String(),
+      'proposedDateTime': proposedStartDateTime?.toIso8601String(),
       'agenda': agenda,
       'employeeMessage': employeeMessage,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 }
-

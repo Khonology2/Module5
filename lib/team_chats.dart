@@ -3,7 +3,9 @@ import 'dart:ui';
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
+import 'package:pdh/utils/date_parse.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdh/services/cloudinary_service.dart';
@@ -279,10 +281,10 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
       final payload = <String, dynamic>{
         'senderId': uid,
         'text': text,
-        'timestamp': FieldValue.serverTimestamp(),
+        'timestamp': DateTime.now().toIso8601String(),
         'senderName': name,
         'isDeleted': false,
-        'clientAt': Timestamp.fromDate(DateTime.now()),
+        'clientAt': DateTime.now().toIso8601String(),
         'editedAt': null,
       };
       if (_replyingTo != null) {
@@ -309,11 +311,14 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         payload['attachmentType'] = _pendingAttachmentType;
         payload['attachmentSizeBytes'] = _pendingAttachmentSizeBytes;
       }
-      final collection = FirebaseFirestore.instance.collection('team.chat');
-      final docRef = await collection.add(payload);
+      final created = await BackendAuthService.instance.createCollectionItem(
+        'team_chat',
+        payload,
+      );
+      final messageId = (created['id'] ?? '').toString();
       final now = DateTime.now();
       final newMsg = ChatMessage(
-        id: docRef.id,
+        id: messageId,
         senderId: uid,
         text: text,
         timestamp: now,
@@ -333,7 +338,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         goalId: payload['goalId'] as String?,
         goalTitle: payload['goalTitle'] as String?,
       );
-      _processedIds.add(docRef.id);
+      _processedIds.add(messageId);
       setState(() {
         // Keep newest messages at the front for reverse: true list
         _visibleMessages.insert(0, newMsg);
@@ -881,43 +886,39 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
-      final docRef = FirebaseFirestore.instance
-          .collection('team.chat')
-          .doc(msg.id);
-      await FirebaseFirestore.instance.runTransaction((tx) async {
-        final snap = await tx.get(docRef);
-        if (!snap.exists) return;
-        final data = snap.data() as Map<String, dynamic>;
-        final rawReactions = (data['reactions'] is Map)
-            ? Map<String, dynamic>.from(data['reactions'] as Map)
-            : <String, dynamic>{};
+      final item = await BackendAuthService.instance.getCollectionItem(
+        'team_chat',
+        msg.id,
+      );
+      final rawReactions = (item['reactions'] is Map)
+          ? Map<String, dynamic>.from(item['reactions'] as Map)
+          : <String, dynamic>{};
 
-        // Remove the user from any existing emoji arrays first (enforce one reaction per user)
-        String? existingEmojiOfUser;
-        final updated = <String, List<String>>{};
-        rawReactions.forEach((k, v) {
-          final list = (v is List)
-              ? v.whereType<String>().toList()
-              : <String>[];
-          if (list.contains(uid)) existingEmojiOfUser = k;
-          updated[k] = list.where((x) => x != uid).toList();
-        });
-
-        // Toggle logic: if tapping the same emoji, leave user removed (unreact). Otherwise add to chosen emoji.
-        if (existingEmojiOfUser != emoji) {
-          final target = updated[emoji] ?? <String>[];
-          if (!target.contains(uid)) target.add(uid);
-          updated[emoji] = target;
-        }
-
-        // Clean up empty arrays to keep map tidy
-        final cleaned = <String, dynamic>{};
-        updated.forEach((k, v) {
-          if (v.isNotEmpty) cleaned[k] = v;
-        });
-
-        tx.update(docRef, {'reactions': cleaned});
+      String? existingEmojiOfUser;
+      final updated = <String, List<String>>{};
+      rawReactions.forEach((k, v) {
+        final list =
+            (v is List) ? v.whereType<String>().toList() : <String>[];
+        if (list.contains(uid)) existingEmojiOfUser = k;
+        updated[k] = list.where((x) => x != uid).toList();
       });
+
+      if (existingEmojiOfUser != emoji) {
+        final target = updated[emoji] ?? <String>[];
+        if (!target.contains(uid)) target.add(uid);
+        updated[emoji] = target;
+      }
+
+      final cleaned = <String, dynamic>{};
+      updated.forEach((k, v) {
+        if (v.isNotEmpty) cleaned[k] = v;
+      });
+
+      await BackendAuthService.instance.patchCollectionItem(
+        'team_chat',
+        msg.id,
+        {'reactions': cleaned},
+      );
     } catch (e) {
       if (!mounted) return;
       await _showCenterNotice(context, 'Failed to react: $e');
@@ -953,10 +954,11 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     if (newText == null) return;
     if (newText.isEmpty || newText == msg.text) return;
     try {
-      await FirebaseFirestore.instance
-          .collection('team.chat')
-          .doc(msg.id)
-          .update({'text': newText, 'editedAt': FieldValue.serverTimestamp()});
+      await BackendAuthService.instance.patchCollectionItem(
+        'team_chat',
+        msg.id,
+        {'text': newText, 'editedAt': DateTime.now().toIso8601String()},
+      );
     } catch (e) {
       if (!mounted) return;
       await _showCenterNotice(context, 'Failed to edit: $e');
@@ -1064,14 +1066,15 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
             );
           });
         }
-        await FirebaseFirestore.instance
-            .collection('team.chat')
-            .doc(msg.id)
-            .update({
-              'isDeleted': true,
-              'deletedAt': FieldValue.serverTimestamp(),
-              'deletedBy': FirebaseAuth.instance.currentUser?.uid,
-            });
+        await BackendAuthService.instance.patchCollectionItem(
+          'team_chat',
+          msg.id,
+          {
+            'isDeleted': true,
+            'deletedAt': DateTime.now().toIso8601String(),
+            'deletedBy': FirebaseAuth.instance.currentUser?.uid,
+          },
+        );
       } catch (e) {
         if (!mounted) return;
         await _showCenterNotice(context, 'Failed to delete: $e');
@@ -1274,121 +1277,16 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                   ),
                   Expanded(
                     child: StreamBuilder<List<ChatMessage>>(
-                      stream: FirebaseFirestore.instance
-                          .collection('team.chat')
-                          .orderBy('clientAt', descending: true)
-                          .snapshots()
-                          .handleError((error) {
-                            // Silently handle errors to prevent unmount errors
-                            developer.log('Error in team chat stream: $error');
-                          })
-                          .map(
-                            (snapshot) => snapshot.docs.map((doc) {
-                              final data = doc.data();
-                              final ts = data['timestamp'];
-                              final ca = data['clientAt'];
-                              DateTime dt;
-                              if (ts is Timestamp) {
-                                dt = ts.toDate();
-                              } else if (ca is Timestamp) {
-                                dt = ca.toDate();
-                              } else {
-                                dt = DateTime.now();
-                              }
-                              final dynamic rawText = data['text'];
-                              final String safeText = rawText is String
-                                  ? rawText
-                                  : '';
-                              final dynamic rawSenderId = data['senderId'];
-                              final String safeSenderId = rawSenderId is String
-                                  ? rawSenderId
-                                  : '';
-                              final dynamic rawSenderName = data['senderName'];
-                              final String safeSenderName =
-                                  rawSenderName is String ? rawSenderName : '';
-                              final dynamic rawDeleted = data['isDeleted'];
-                              final bool safeDeleted = rawDeleted is bool
-                                  ? rawDeleted
-                                  : false;
-                              final dynamic rawEdited = data['editedAt'];
-                              final DateTime? safeEdited =
-                                  rawEdited is Timestamp
-                                  ? rawEdited.toDate()
-                                  : null;
-                              final String? replyTo =
-                                  (data['replyTo'] is String)
-                                  ? data['replyTo'] as String
-                                  : null;
-                              final String? replyToText =
-                                  (data['replyToText'] is String)
-                                  ? data['replyToText'] as String
-                                  : null;
-                              final String? replyToSender =
-                                  (data['replyToSender'] is String)
-                                  ? data['replyToSender'] as String
-                                  : null;
-                              final Map<String, List<String>> safeReactions =
-                                  {};
-                              if (data['reactions'] is Map) {
-                                final m = Map<String, dynamic>.from(
-                                  data['reactions'] as Map,
-                                );
-                                m.forEach((k, v) {
-                                  if (v is List) {
-                                    safeReactions[k] = v
-                                        .whereType<String>()
-                                        .toList();
-                                  }
-                                });
-                              }
-                              final String? attachmentUrl =
-                                  (data['attachmentUrl'] is String)
-                                      ? data['attachmentUrl'] as String
-                                      : null;
-                              final String? attachmentName =
-                                  (data['attachmentName'] is String)
-                                      ? data['attachmentName'] as String
-                                      : null;
-                              final String? attachmentType =
-                                  (data['attachmentType'] is String)
-                                      ? data['attachmentType'] as String
-                                      : null;
-                              final int? attachmentSizeBytes =
-                                  data['attachmentSizeBytes'] is int
-                                      ? data['attachmentSizeBytes'] as int
-                                      : (data['attachmentSizeBytes'] is num
-                                          ? (data['attachmentSizeBytes'] as num)
-                                              .round()
-                                          : null);
-                              final String? goalId =
-                                  (data['goalId'] is String)
-                                      ? data['goalId'] as String
-                                      : null;
-                              final String? goalTitle =
-                                  (data['goalTitle'] is String)
-                                      ? data['goalTitle'] as String
-                                      : null;
-                              return ChatMessage(
-                                id: doc.id,
-                                senderId: safeSenderId,
-                                text: safeText,
-                                timestamp: dt,
-                                senderName: safeSenderName,
-                                isDeleted: safeDeleted,
-                                editedAt: safeEdited,
-                                replyTo: replyTo,
-                                replyToText: replyToText,
-                                replyToSender: replyToSender,
-                                reactions: safeReactions,
-                                attachmentUrl: attachmentUrl,
-                                attachmentName: attachmentName,
-                                attachmentType: attachmentType,
-                                attachmentSizeBytes: attachmentSizeBytes,
-                                goalId: goalId,
-                                goalTitle: goalTitle,
-                              );
-                            }).toList(),
-                          ),
+                      stream: backendPollingStream<List<ChatMessage>>(
+                        fetch: () async {
+                          final items = await BackendAuthService.instance
+                              .getCollectionItems('team_chat', limit: 500);
+                          return items.map(_chatMessageFromMap).toList()
+                            ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+                        },
+                      ).handleError((error) {
+                        developer.log('Error in team chat stream: $error');
+                      }),
                       initialData: const <ChatMessage>[],
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
@@ -1772,6 +1670,71 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  ChatMessage _chatMessageFromMap(Map<String, dynamic> data) {
+    final id = (data['id'] ?? '').toString();
+    final dt = parseNullableDate(data['timestamp']) ??
+        parseNullableDate(data['clientAt']) ??
+        DateTime.now();
+    final rawText = data['text'];
+    final safeText = rawText is String ? rawText : '';
+    final rawSenderId = data['senderId'];
+    final safeSenderId = rawSenderId is String ? rawSenderId : '';
+    final rawSenderName = data['senderName'];
+    final safeSenderName = rawSenderName is String ? rawSenderName : '';
+    final rawDeleted = data['isDeleted'];
+    final safeDeleted = rawDeleted is bool ? rawDeleted : false;
+    final safeEdited = parseNullableDate(data['editedAt']);
+    final String? replyTo =
+        data['replyTo'] is String ? data['replyTo'] as String : null;
+    final String? replyToText =
+        data['replyToText'] is String ? data['replyToText'] as String : null;
+    final String? replyToSender =
+        data['replyToSender'] is String ? data['replyToSender'] as String : null;
+    final Map<String, List<String>> safeReactions = {};
+    if (data['reactions'] is Map) {
+      final m = Map<String, dynamic>.from(data['reactions'] as Map);
+      m.forEach((k, v) {
+        if (v is List) {
+          safeReactions[k] = v.whereType<String>().toList();
+        }
+      });
+    }
+    final String? attachmentUrl =
+        data['attachmentUrl'] is String ? data['attachmentUrl'] as String : null;
+    final String? attachmentName =
+        data['attachmentName'] is String ? data['attachmentName'] as String : null;
+    final String? attachmentType =
+        data['attachmentType'] is String ? data['attachmentType'] as String : null;
+    final int? attachmentSizeBytes = data['attachmentSizeBytes'] is int
+        ? data['attachmentSizeBytes'] as int
+        : (data['attachmentSizeBytes'] is num
+            ? (data['attachmentSizeBytes'] as num).round()
+            : null);
+    final String? goalId =
+        data['goalId'] is String ? data['goalId'] as String : null;
+    final String? goalTitle =
+        data['goalTitle'] is String ? data['goalTitle'] as String : null;
+    return ChatMessage(
+      id: id,
+      senderId: safeSenderId,
+      text: safeText,
+      timestamp: dt,
+      senderName: safeSenderName,
+      isDeleted: safeDeleted,
+      editedAt: safeEdited,
+      replyTo: replyTo,
+      replyToText: replyToText,
+      replyToSender: replyToSender,
+      reactions: safeReactions,
+      attachmentUrl: attachmentUrl,
+      attachmentName: attachmentName,
+      attachmentType: attachmentType,
+      attachmentSizeBytes: attachmentSizeBytes,
+      goalId: goalId,
+      goalTitle: goalTitle,
     );
   }
 }

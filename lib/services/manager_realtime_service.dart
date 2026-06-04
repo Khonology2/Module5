@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -8,11 +7,11 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/one_on_one_meeting_service.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/onboarding_service.dart';
-import 'package:pdh/utils/firestore_safe.dart';
-import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
 
 enum TimeFilter { today, week, month, quarter, year }
 
@@ -33,24 +32,6 @@ class EmployeeActivity {
     required this.metadata,
   });
 
-  factory EmployeeActivity.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>?;
-    return EmployeeActivity(
-      activityId: doc.id,
-      userId: (data != null ? data['userId'] : '') ?? '',
-      activityType:
-          (data != null ? data['activityType'] : 'unknown') ?? 'unknown',
-      description: (data != null ? data['description'] : '') ?? '',
-      timestamp: (data != null && data['timestamp'] is Timestamp)
-          ? (data['timestamp'] as Timestamp).toDate()
-          // IMPORTANT: don't default missing timestamps to "now" (it breaks "Last active")
-          : DateTime.fromMillisecondsSinceEpoch(0),
-      metadata: Map<String, dynamic>.from(
-        (data != null ? data['metadata'] : {}) ?? {},
-      ),
-    );
-  }
-
   static EmployeeActivity fromMap(Map<String, dynamic> map) {
     return EmployeeActivity(
       activityId: map['activityId'] ?? '',
@@ -58,12 +39,9 @@ class EmployeeActivity {
       activityType: map['activityType'] ?? 'unknown',
       description: map['description'] ?? '',
       timestamp: map['timestamp'] is DateTime
-          ? map['timestamp']
-          : (map['timestamp'] is Timestamp
-                ? (map['timestamp'] as Timestamp).toDate()
-                : DateTime.tryParse(map['timestamp']?.toString() ?? '') ??
-                      // IMPORTANT: don't default missing timestamps to "now"
-                      DateTime.fromMillisecondsSinceEpoch(0)),
+          ? map['timestamp'] as DateTime
+          : DateTime.tryParse(map['timestamp']?.toString() ?? '') ??
+                DateTime.fromMillisecondsSinceEpoch(0),
       metadata: Map<String, dynamic>.from(map['metadata'] ?? {}),
     );
   }
@@ -132,10 +110,8 @@ class EmployeeData {
       totalPoints: map['totalPoints'] ?? 0,
       lastActivity: map['lastActivity'] is DateTime
           ? map['lastActivity']
-          : (map['lastActivity'] is Timestamp
-                ? (map['lastActivity'] as Timestamp).toDate()
-                : DateTime.tryParse(map['lastActivity']?.toString() ?? '') ??
-                      DateTime.now()),
+          : ManagerRealtimeService._parseDate(map['lastActivity']) ??
+                DateTime.now(),
       avgProgress: (map['avgProgress'] is num)
           ? (map['avgProgress'] as num).toDouble()
           : 0.0,
@@ -187,10 +163,8 @@ class TeamInsight {
       ),
       createdAt: map['createdAt'] is DateTime
           ? map['createdAt']
-          : (map['createdAt'] is Timestamp
-                ? (map['createdAt'] as Timestamp).toDate()
-                : DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
-                      DateTime.now()),
+          : ManagerRealtimeService._parseDate(map['createdAt']) ??
+                DateTime.now(),
     );
   }
 }
@@ -234,21 +208,22 @@ class ManagerAction {
     this.completedAt,
   });
 
-  factory ManagerAction.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory ManagerAction.fromMap(Map<String, dynamic> data, {String? id}) {
     return ManagerAction(
-      actionId: doc.id,
+      actionId: id ?? (data['actionId'] ?? data['id'] ?? '').toString(),
       actionType: ManagementAction.values.firstWhere(
-        (e) => e.name == (data['actionType']),
+        (e) => e.name == (data['actionType'] ?? '').toString(),
         orElse: () => ManagementAction.sendNudge,
       ),
-      employeeId: data['employeeId'] ?? '',
-      employeeName: data['employeeName'] ?? '',
-      description: data['description'] ?? '',
+      employeeId: data['employeeId']?.toString() ?? '',
+      employeeName: data['employeeName']?.toString() ?? '',
+      description: data['description']?.toString() ?? '',
       details: Map<String, dynamic>.from(data['details'] ?? {}),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      status: data['status'] ?? 'pending',
-      completedAt: (data['completedAt'] as Timestamp?)?.toDate(),
+      createdAt:
+          ManagerRealtimeService._parseDate(data['createdAt']) ??
+          DateTime.now(),
+      status: data['status']?.toString() ?? 'pending',
+      completedAt: ManagerRealtimeService._parseDate(data['completedAt']),
     );
   }
 }
@@ -353,10 +328,86 @@ class _EmployeeNudgeAccumulator {
 }
 
 class ManagerRealtimeService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final BackendAuthService _backend = BackendAuthService.instance;
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value.toString());
+  }
+
+  static Future<Map<String, List<Goal>>> _fetchGoalsByEmployees(
+    List<String> employeeIds,
+    DateTime startDate,
+  ) async {
+    final map = <String, List<Goal>>{};
+    await Future.wait(
+      employeeIds.map((id) async {
+        try {
+          final items = await _backend.getGoals(userId: id, limit: 500);
+          map[id] = items
+              .map((g) => Goal.fromMap(g))
+              .where((g) {
+                return g.createdAt.isAfter(startDate) ||
+                    (g.status != GoalStatus.completed &&
+                        g.status != GoalStatus.paused);
+              })
+              .toList();
+        } catch (_) {
+          map[id] = [];
+        }
+      }),
+    );
+    return map;
+  }
+
+  static Future<Map<String, List<EmployeeActivity>>> _fetchActivitiesByEmployees(
+    List<String> employeeIds,
+  ) async {
+    final map = <String, List<EmployeeActivity>>{};
+    final cutoff = DateTime.now().subtract(const Duration(days: 30));
+    await Future.wait(
+      employeeIds.map((id) async {
+        try {
+          final items = await _backend.getActivities(id, limit: 200);
+          map[id] = items
+              .map((a) => EmployeeActivity.fromMap(a))
+              .where((a) => a.timestamp.isAfter(cutoff))
+              .toList();
+        } catch (_) {
+          map[id] = [];
+        }
+      }),
+    );
+    return map;
+  }
+
+  static Future<Map<String, List<Alert>>> _fetchAlertsByEmployees(
+    List<String> employeeIds,
+  ) async {
+    final map = <String, List<Alert>>{};
+    final cutoff = DateTime.now().subtract(const Duration(days: 30));
+    await Future.wait(
+      employeeIds.map((id) async {
+        try {
+          final items = await _backend.getAlerts(id, limit: 200);
+          map[id] = items
+              .map((a) => Alert.fromMap(a))
+              .where((a) {
+                if (a.isDismissed) return false;
+                final created = _parseDate(a.createdAt) ?? DateTime.now();
+                return created.isAfter(cutoff);
+              })
+              .toList();
+        } catch (_) {
+          map[id] = [];
+        }
+      }),
+    );
+    return map;
+  }
 
   /// Ensure the app has an authenticated user. Will attempt anonymous sign-in
   /// if no user exists. Make sure Anonymous Auth is enabled in the Firebase console
@@ -381,34 +432,27 @@ class ManagerRealtimeService {
     try {
       String norm(String? s) => (s ?? '').trim().toLowerCase();
 
-      final Query<Map<String, dynamic>> onboardingQuery =
-          _firestore.collection('onboarding');
+      final items = await OnboardingService.listOnboardingRecords(limit: 500);
 
-      // Note: We can't filter by department in onboarding collection easily
-      // So we fetch all and filter in memory if needed
-      final onboardingSnapshot = await onboardingQuery.get();
-
-      final onboardingProfiles = onboardingSnapshot.docs
-          .where((doc) {
-            final data = doc.data();
+      final onboardingProfiles = items
+          .where((data) {
             final moduleAccessRole = data['moduleAccessRole'] as String?;
-            // Only include employees (not managers) for PDH app
             return OnboardingService.shouldIncludeUser(
               moduleAccessRole,
               'employee',
             );
           })
-          .map((doc) {
-            final data = doc.data();
+          .map((data) {
+            final uid =
+                (data['userId'] ?? data['id'] ?? data['uid'] ?? '').toString();
             final convertedData =
                 OnboardingService.convertOnboardingUserToUserFormat(
                   data,
-                  doc.id,
+                  uid,
                 );
 
-            // Convert to UserProfile
             return UserProfile(
-              uid: doc.id,
+              uid: uid,
               email: convertedData['email'] ?? '',
               displayName: convertedData['displayName'] ?? 'Unknown User',
               totalPoints: (convertedData['totalPoints'] ?? 0) as int,
@@ -438,14 +482,12 @@ class ManagerRealtimeService {
               badgeName: convertedData['badgeName'] ?? '',
               celebrationConsent:
                   convertedData['celebrationConsent'] ?? 'private',
-              lastLoginAt: convertedData['lastLoginAt'] is Timestamp
-                  ? (convertedData['lastLoginAt'] as Timestamp).toDate()
-                  : null,
+              lastLoginAt: _parseDate(convertedData['lastLoginAt']),
             );
           })
+          .where((profile) => profile.uid.isNotEmpty)
           .toList();
 
-      // Filter by department if specified
       if (department != null && department.trim().isNotEmpty) {
         final target = norm(department);
         return onboardingProfiles
@@ -464,8 +506,8 @@ class ManagerRealtimeService {
   /// Used to exclude deleted employees from team review and all manager-side lists.
   static Future<Set<String>> getDeletedAccountUids() async {
     try {
-      final snap = await _firestore.collection('deleted_accounts').get();
-      return snap.docs.map((d) => d.id).toSet();
+      final ids = await _backend.getDeletedAccountIds();
+      return ids.toSet();
     } catch (e) {
       developer.log('Error fetching deleted_accounts: $e');
       return {};
@@ -477,80 +519,64 @@ class ManagerRealtimeService {
   }
 
   Stream<TeamMetrics?> teamMetricsStream() async* {
-    // reuse employeesStream to compute aggregated metrics
     await _ensureSignedIn();
-    try {
-      yield* employeesStream().map((employees) {
-        if (employees.isEmpty) return null;
-        final now = DateTime.now();
-        final sevenDaysAgo = now.subtract(const Duration(days: 7));
-        final totalEmployees = employees.length;
-        final activeEmployees = employees
-            .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
-            .length;
-        final avgProgress = totalEmployees > 0
-            ? employees.map((e) => e.avgProgress).fold(0.0, (a, b) => a + b) /
-                  totalEmployees
-            : 0.0;
-        final engagement = totalEmployees > 0
-            ? (activeEmployees / totalEmployees) * 100.0
-            : 0.0;
-        return TeamMetrics(
-          totalEmployees: totalEmployees,
-          activeEmployees: activeEmployees,
-          avgTeamProgress: avgProgress,
-          teamEngagement: engagement,
-          onTrackGoals: employees.fold<int>(0, (acc, e) {
-            // Count goals that are on track for each employee
-            final onTrack = e.goals
-                .where(
-                  (g) =>
-                      g.status != GoalStatus.completed &&
-                      g.targetDate.isAfter(DateTime.now()) &&
-                      g.progress >= 30,
-                )
-                .length;
-            return acc + onTrack;
-          }),
-          atRiskGoals: employees.fold<int>(0, (acc, e) {
-            // Count goals that are at risk for each employee
-            final atRisk = e.goals
-                .where(
-                  (g) =>
-                      g.status != GoalStatus.completed &&
-                      g.targetDate.isAfter(DateTime.now()) &&
-                      g.progress < 30,
-                )
-                .length;
-            return acc + atRisk;
-          }),
-          overdueGoals: employees.fold<int>(
-            0,
-            (acc, e) => acc + (e.overdueGoalsCount),
-          ),
-          totalPointsEarned: employees.fold<int>(
-            0,
-            (acc, e) => acc + e.totalPoints,
-          ),
-          goalsCompleted: employees.fold<int>(
-            0,
-            (acc, e) => acc + e.completedGoalsCount,
-          ),
-          lastUpdated: DateTime.now(),
-        );
-      });
-    } on FirebaseException catch (e, st) {
-      FirestoreWebCircuitBreaker.maybeReload(e);
-      if (kDebugMode) {
-        debugPrint('teamMetricsStream FirebaseException: $e\n$st');
-      }
-      throw FirebaseException(
-        plugin: e.plugin,
-        code: e.code,
-        message:
-            'Firestore error (${e.code}). Check rules/auth: ${e.message ?? ''}',
+    yield* employeesStream().map((employees) {
+      if (employees.isEmpty) return null;
+      final now = DateTime.now();
+      final sevenDaysAgo = now.subtract(const Duration(days: 7));
+      final totalEmployees = employees.length;
+      final activeEmployees = employees
+          .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+          .length;
+      final avgProgress = totalEmployees > 0
+          ? employees.map((e) => e.avgProgress).fold(0.0, (a, b) => a + b) /
+                totalEmployees
+          : 0.0;
+      final engagement = totalEmployees > 0
+          ? (activeEmployees / totalEmployees) * 100.0
+          : 0.0;
+      return TeamMetrics(
+        totalEmployees: totalEmployees,
+        activeEmployees: activeEmployees,
+        avgTeamProgress: avgProgress,
+        teamEngagement: engagement,
+        onTrackGoals: employees.fold<int>(0, (acc, e) {
+          final onTrack = e.goals
+              .where(
+                (g) =>
+                    g.status != GoalStatus.completed &&
+                    g.targetDate.isAfter(DateTime.now()) &&
+                    g.progress >= 30,
+              )
+              .length;
+          return acc + onTrack;
+        }),
+        atRiskGoals: employees.fold<int>(0, (acc, e) {
+          final atRisk = e.goals
+              .where(
+                (g) =>
+                    g.status != GoalStatus.completed &&
+                    g.targetDate.isAfter(DateTime.now()) &&
+                    g.progress < 30,
+              )
+              .length;
+          return acc + atRisk;
+        }),
+        overdueGoals: employees.fold<int>(
+          0,
+          (acc, e) => acc + (e.overdueGoalsCount),
+        ),
+        totalPointsEarned: employees.fold<int>(
+          0,
+          (acc, e) => acc + e.totalPoints,
+        ),
+        goalsCompleted: employees.fold<int>(
+          0,
+          (acc, e) => acc + e.completedGoalsCount,
+        ),
+        lastUpdated: DateTime.now(),
       );
-    }
+    });
   }
 
   static Future<NudgeAnalyticsSummary> fetchManagerNudgeAnalytics({
@@ -566,25 +592,26 @@ class ManagerRealtimeService {
 
     final now = DateTime.now();
     final since = now.subtract(Duration(days: lookbackDays));
-    final sinceTimestamp = Timestamp.fromDate(since);
 
     try {
-      final actionsQuery = await _firestore
-          .collection('manager_actions')
-          .where('managerId', isEqualTo: currentUser.uid)
-          .where('createdAt', isGreaterThanOrEqualTo: sinceTimestamp)
-          .orderBy('createdAt', descending: false)
-          .limit(1000)
-          .get();
+      final allActions = await _backend.getManagerActions(
+        currentUser.uid,
+        limit: 1000,
+      );
+      final actionsQuery = allActions.where((data) {
+        final createdAt = _parseDate(data['createdAt']);
+        return createdAt != null && !createdAt.isBefore(since);
+      }).toList();
 
-      final alertsQuery = await _firestore
-          .collection('alerts')
-          .where('type', isEqualTo: AlertType.managerNudge.name)
-          .where('fromUserId', isEqualTo: currentUser.uid)
-          .where('createdAt', isGreaterThanOrEqualTo: sinceTimestamp)
-          .orderBy('createdAt', descending: false)
-          .limit(1000)
-          .get();
+      final allAlerts = await _backend.getCollectionItems('alerts', limit: 1000);
+      final alertsQuery = allAlerts.where((data) {
+        final type = (data['type'] ?? '').toString();
+        if (type != AlertType.managerNudge.name) return false;
+        final fromUserId = (data['fromUserId'] ?? '').toString();
+        if (fromUserId != currentUser.uid) return false;
+        final createdAt = _parseDate(data['createdAt']);
+        return createdAt != null && !createdAt.isBefore(since);
+      }).toList();
 
       final Map<DateTime, int> nudgesByDay = {};
       final Map<DateTime, int> followUpsByDay = {};
@@ -594,11 +621,9 @@ class ManagerRealtimeService {
       int totalNudges = 0;
       int nudgesLast7Days = 0;
 
-      for (final doc in actionsQuery.docs) {
-        // ignore: unnecessary_cast
-        final data = doc.data() as Map<String, dynamic>;
+      for (final data in actionsQuery) {
         final actionType = (data['actionType'] ?? '').toString();
-        final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? now;
+        final createdAt = _parseDate(data['createdAt']) ?? now;
         final dayKey = DateTime(createdAt.year, createdAt.month, createdAt.day);
 
         if (actionType == ManagementAction.sendNudge.name) {
@@ -628,14 +653,12 @@ class ManagerRealtimeService {
 
       final Map<String, _EmployeeNudgeAccumulator> employeeAccum = {};
 
-      for (final doc in alertsQuery.docs) {
-        // ignore: unnecessary_cast
-        final data = doc.data() as Map<String, dynamic>;
+      for (final data in alertsQuery) {
         final userId = (data['userId'] ?? '').toString();
         final isRead = data['isRead'] == true;
         final isDismissed = data['isDismissed'] == true;
         final priority = (data['priority'] ?? '').toString();
-        final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? now;
+        final createdAt = _parseDate(data['createdAt']) ?? now;
 
         if (isRead) {
           readNudges++;
@@ -663,8 +686,7 @@ class ManagerRealtimeService {
         }
       }
 
-      final unreadNudges =
-          alertsQuery.docs.length - readNudges - dismissedNudges;
+      final unreadNudges = alertsQuery.length - readNudges - dismissedNudges;
 
       final List<EmployeeNudgeMetric> outstandingEmployees =
           employeeAccum.entries
@@ -716,14 +738,6 @@ class ManagerRealtimeService {
         outstandingEmployees: outstandingEmployees,
         generatedAt: DateTime.now(),
       );
-    } on FirebaseException catch (e) {
-      developer.log('fetchManagerNudgeAnalytics FirebaseException: $e');
-      throw FirebaseException(
-        plugin: e.plugin,
-        code: e.code,
-        message:
-            'Unable to load analytics data (${e.code}). Please verify Firestore indexes and permissions.',
-      );
     } catch (e, st) {
       developer.log('fetchManagerNudgeAnalytics error: $e', stackTrace: st);
       rethrow;
@@ -732,36 +746,30 @@ class ManagerRealtimeService {
 
   Stream<List<TeamInsight>> teamInsightsStream() async* {
     await _ensureSignedIn();
-    try {
-      yield* FirestoreSafe.stream(_db.collection('team_insights').snapshots())
-          .map((snap) {
-        return snap.docs.map((doc) {
-          final data = doc.data();
-          return TeamInsight.fromMap(
-            data,
-            id: doc.id,
-          ); // adjust factory if needed
-        }).toList();
-      });
-    } on FirebaseException catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('teamInsightsStream FirebaseException: $e\n$st');
-      }
-      throw FirebaseException(
-        plugin: e.plugin,
-        code: e.code,
-        message: 'Firestore error (${e.code}). Ensure rules/auth are correct.',
-      );
-    }
+    yield* getTeamInsightsStream();
   }
 
   /// Convenience single-read for an employee (optional).
   Future<EmployeeData?> getEmployeeById(String id) async {
     try {
-      final doc = await _db.collection('employees').doc(id).get();
-      if (!doc.exists) return null;
-      final data = doc.data() as Map<String, dynamic>;
-      return EmployeeData.fromMap(data, id: doc.id);
+      Map<String, dynamic>? data;
+      try {
+        data = await _backend.getUser(id);
+      } catch (_) {}
+
+      if (data == null || data.isEmpty) {
+        final items = await _backend.getCollectionItems('employees', limit: 500);
+        for (final item in items) {
+          final itemId = (item['id'] ?? item['uid'] ?? '').toString();
+          if (itemId == id) {
+            data = item;
+            break;
+          }
+        }
+      }
+
+      if (data == null || data.isEmpty) return null;
+      return EmployeeData.fromMap(data, id: id);
     } catch (e, st) {
       if (kDebugMode) debugPrint('getEmployeeById error: $e\n$st');
       return null;
@@ -772,11 +780,9 @@ class ManagerRealtimeService {
   static const int _initialEmployeeLimit =
       10000; // Show all employees for managers (avoid silently dropping users)
 
-  /// One-time fetch equivalent of [getTeamDataStream] (no Firestore live listeners).
+  /// One-time fetch equivalent of [getTeamDataStream] (no live listeners).
   ///
-  /// This is useful on Flutter Web to avoid Firestore Web SDK instability
-  /// ("INTERNAL ASSERTION FAILED: Unexpected state") when many listeners
-  /// attach/detach during rebuilds/navigation.
+  /// Useful on Flutter Web to avoid listener churn during rebuilds/navigation.
   static Future<List<EmployeeData>> getTeamDataOnce({
     String? department,
     TimeFilter timeFilter = TimeFilter.month,
@@ -801,31 +807,32 @@ class ManagerRealtimeService {
         return norm(p.department) == norm(explicitDepartment);
       }
 
-      final Query<Map<String, dynamic>> usersQuery =
-          _firestore.collection('users').limit(_initialEmployeeLimit);
-      final usersSnapshot = await FirestoreSafe.getQuery(usersQuery);
-
-      // Exclude employees whose accounts have been permanently deleted
+      final users = await _backend.listUsers(limit: _initialEmployeeLimit);
       final deletedUids = await getDeletedAccountUids();
-
-      // Fetch onboarding users with employee persona and convert to UserProfile
       final onboardingProfiles =
           await ManagerRealtimeService._fetchOnboardingEmployees(department);
 
-      // Filter regular users to employees (and department if specified), excluding deleted
-      final regularEmployeeDocs = usersSnapshot.docs.where((doc) {
-        if (deletedUids.contains(doc.id)) return false;
-        final profile = UserProfile.fromFirestore(doc);
-        return includeEmployeeProfile(profile);
-      }).toList();
+      final regularEmployeeProfiles = users
+          .where((data) {
+            final uid =
+                (data['userId'] ?? data['id'] ?? data['uid'] ?? '').toString();
+            if (uid.isEmpty || deletedUids.contains(uid)) return false;
+            final profile = UserProfile.fromMap(data, id: uid);
+            return includeEmployeeProfile(profile);
+          })
+          .map((data) => UserProfile.fromMap(
+                data,
+                id: (data['userId'] ?? data['id'] ?? data['uid'] ?? '').toString(),
+              ))
+          .toList();
 
       // Exclude deleted accounts from onboarding list
       final activeOnboardingProfiles = onboardingProfiles
           .where((p) => !deletedUids.contains(p.uid))
           .toList();
 
-      // Get regular employee IDs
-      final regularEmployeeIds = regularEmployeeDocs.map((doc) => doc.id).toList();
+      final regularEmployeeIds =
+          regularEmployeeProfiles.map((p) => p.uid).toList();
 
       // Get onboarding employee IDs
       final onboardingEmployeeIds =
@@ -838,101 +845,18 @@ class ManagerRealtimeService {
         return <EmployeeData>[];
       }
 
-      // Firestore whereIn supports up to 10 values. Fetch in batches.
       final startDate = _getStartDateForFilter(timeFilter);
-
-      Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> fetchInBatches(
-        String collection,
-      ) async {
-        final results = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-        for (int i = 0; i < allEmployeeIds.length; i += 10) {
-          final batch = allEmployeeIds.sublist(
-            i,
-            i + 10 > allEmployeeIds.length ? allEmployeeIds.length : i + 10,
-          );
-          Query<Map<String, dynamic>> base =
-              _firestore.collection(collection).where('userId', whereIn: batch);
-
-          // Apply collection-specific filters to minimize data
-          try {
-            if (collection == 'activities') {
-              final thirtyDaysAgo =
-                  DateTime.now().subtract(const Duration(days: 30));
-              base = base
-                  .where(
-                    'timestamp',
-                    isGreaterThan: Timestamp.fromDate(thirtyDaysAgo),
-                  )
-                  .orderBy('timestamp', descending: true)
-                  .limit(200);
-            } else if (collection == 'alerts') {
-              final thirtyDaysAgo =
-                  DateTime.now().subtract(const Duration(days: 30));
-              base = base
-                  .where('isDismissed', isEqualTo: false)
-                  .where(
-                    'createdAt',
-                    isGreaterThan: Timestamp.fromDate(thirtyDaysAgo),
-                  )
-                  .orderBy('createdAt', descending: true)
-                  .limit(200);
-            } else if (collection == 'goals') {
-              base = base
-                  .where(
-                    'createdAt',
-                    isGreaterThan: Timestamp.fromDate(startDate),
-                  )
-                  .limit(500);
-            }
-
-            final snap = await FirestoreSafe.getQuery(base);
-            results.addAll(snap.docs);
-          } on FirebaseException {
-            // Fallback if index missing: fetch without extra filters
-            final snap = await FirestoreSafe.getQuery(
-              _firestore.collection(collection).where('userId', whereIn: batch),
-            );
-            results.addAll(snap.docs);
-          }
-        }
-        return results;
-      }
-
-      final results =
-          await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
-        fetchInBatches('goals'),
-        fetchInBatches('activities'),
-        fetchInBatches('alerts'),
-      ]);
-
-      final goalsDocs = results[0];
-      final activitiesDocs = results[1];
-      final alertsDocs = results[2];
-
-      final goalsByEmployee = <String, List<Goal>>{};
-      for (final doc in goalsDocs) {
-        final goal = Goal.fromFirestore(doc);
-        goalsByEmployee.putIfAbsent(goal.userId, () => []).add(goal);
-      }
-
-      final activitiesByEmployee = <String, List<EmployeeActivity>>{};
-      for (final doc in activitiesDocs) {
-        final activity = EmployeeActivity.fromFirestore(doc);
-        activitiesByEmployee.putIfAbsent(activity.userId, () => []).add(activity);
-      }
-
-      final alertsByEmployee = <String, List<Alert>>{};
-      for (final doc in alertsDocs) {
-        final alert = Alert.fromFirestore(doc);
-        alertsByEmployee.putIfAbsent(alert.userId, () => []).add(alert);
-      }
+      final goalsByEmployee =
+          await _fetchGoalsByEmployees(allEmployeeIds, startDate);
+      final activitiesByEmployee =
+          await _fetchActivitiesByEmployees(allEmployeeIds);
+      final alertsByEmployee = await _fetchAlertsByEmployees(allEmployeeIds);
 
       final now = DateTime.now();
       final employeeDataList = <EmployeeData>[];
 
-      for (final userDoc in regularEmployeeDocs) {
-        final userProfile = UserProfile.fromFirestore(userDoc);
-        final rawAlerts = alertsByEmployee[userDoc.id] ?? [];
+      for (final userProfile in regularEmployeeProfiles) {
+        final rawAlerts = alertsByEmployee[userProfile.uid] ?? [];
         final activeAlerts = rawAlerts.where((a) {
           if (a.isDismissed) return false;
           if (a.expiresAt != null && a.expiresAt!.isBefore(now)) return false;
@@ -941,8 +865,8 @@ class ManagerRealtimeService {
         final employeeData = await _buildEmployeeData(
           userProfile,
           timeFilter,
-          goalsByEmployee[userDoc.id] ?? [],
-          activitiesByEmployee[userDoc.id] ?? [],
+          goalsByEmployee[userProfile.uid] ?? [],
+          activitiesByEmployee[userProfile.uid] ?? [],
           activeAlerts,
         );
         employeeDataList.add(employeeData);
@@ -975,7 +899,6 @@ class ManagerRealtimeService {
       return employeeDataList;
     } catch (e) {
       developer.log('getTeamDataOnce error: $e');
-      FirestoreWebCircuitBreaker.maybeReload(e);
       return <EmployeeData>[];
     }
   }
@@ -984,321 +907,13 @@ class ManagerRealtimeService {
     String? department,
     TimeFilter timeFilter = TimeFilter.month,
   }) {
-    return Stream<List<EmployeeData>>.multi((controller) async {
-      StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? usersSub;
-      bool isCancelled = false;
-
-      try {
-        final currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser == null) {
-          controller.addError('No authenticated user');
-          return;
-        }
-
-        // TEMP: allow managers to view all employees regardless of department unless explicitly filtered
-        final String? explicitDepartment =
-            (department != null && department.trim().isNotEmpty)
-            ? department.trim()
-            : null;
-
-        String norm(String? s) => (s ?? '').trim().toLowerCase();
-
-        bool includeEmployeeProfile(UserProfile p) {
-          // Treat missing/blank role as employee (many parts of the app default this way)
-          final role = norm(p.role).isEmpty ? 'employee' : norm(p.role);
-          if (role != 'employee') return false;
-          if (explicitDepartment == null) return true;
-          return norm(p.department) == norm(explicitDepartment);
-        }
-
-        // Query users broadly, then filter in-memory.
-        // This prevents accidentally excluding employees whose user doc is missing `role`
-        // (many parts of the app default missing role to 'employee').
-        final Query<Map<String, dynamic>> usersQuery =
-            _firestore.collection('users').limit(_initialEmployeeLimit);
-
-        Future<void> rebuildAndEmit(
-          QuerySnapshot<Map<String, dynamic>> usersSnapshot,
-          Set<String> deletedUids,
-        ) async {
-          if (isCancelled) return;
-
-          // Fetch onboarding users with employee persona and convert to UserProfile
-          final onboardingProfiles =
-              await ManagerRealtimeService._fetchOnboardingEmployees(
-                department,
-              );
-
-          if (isCancelled) return;
-
-          // Filter regular users to employees (and department if specified), excluding deleted
-          final regularEmployeeDocs = usersSnapshot.docs.where((doc) {
-            if (deletedUids.contains(doc.id)) return false;
-            final profile = UserProfile.fromFirestore(doc);
-            return includeEmployeeProfile(profile);
-          }).toList();
-
-          // Exclude deleted accounts from onboarding list
-          final activeOnboardingProfiles = onboardingProfiles
-              .where((p) => !deletedUids.contains(p.uid))
-              .toList();
-
-          // Get regular employee IDs
-          final regularEmployeeIds =
-              regularEmployeeDocs.map((doc) => doc.id).toList();
-
-          // Get onboarding employee IDs (only non-deleted)
-          final onboardingEmployeeIds = activeOnboardingProfiles
-              .map((profile) => profile.uid)
-              .toList();
-
-          // Combine all employee IDs
-          final allEmployeeIds = <String>[
-            ...regularEmployeeIds,
-            ...onboardingEmployeeIds,
-          ];
-
-          if (allEmployeeIds.isEmpty) {
-            if (!isCancelled) controller.add([]);
-            return;
-          }
-
-          // Firestore whereIn supports up to 10 values. Fetch in batches.
-          final startDate = _getStartDateForFilter(timeFilter);
-
-          Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> fetchInBatches(
-            String collection,
-          ) async {
-            final results = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-            for (int i = 0; i < allEmployeeIds.length; i += 10) {
-              final batch = allEmployeeIds.sublist(
-                i,
-                i + 10 > allEmployeeIds.length ? allEmployeeIds.length : i + 10,
-              );
-              Query<Map<String, dynamic>> base = _firestore
-                  .collection(collection)
-                  .where('userId', whereIn: batch);
-
-              // Apply collection-specific filters to minimize data
-              try {
-                if (collection == 'activities') {
-                  // Last 30 days of activity, newest first
-                  final thirtyDaysAgo = DateTime.now().subtract(
-                    const Duration(days: 30),
-                  );
-                  base = base
-                      .where(
-                        'timestamp',
-                        isGreaterThan: Timestamp.fromDate(thirtyDaysAgo),
-                      )
-                      .orderBy('timestamp', descending: true)
-                      .limit(200);
-                } else if (collection == 'alerts') {
-                  // Only active/undismissed alerts, recent first
-                  final thirtyDaysAgo = DateTime.now().subtract(
-                    const Duration(days: 30),
-                  );
-                  base = base
-                      .where('isDismissed', isEqualTo: false)
-                      .where(
-                        'createdAt',
-                        isGreaterThan: Timestamp.fromDate(thirtyDaysAgo),
-                      )
-                      .orderBy('createdAt', descending: true)
-                      .limit(200);
-                } else if (collection == 'goals') {
-                  // Only goals created in current time window for dashboard metrics
-                  base = base
-                      .where(
-                        'createdAt',
-                        isGreaterThan: Timestamp.fromDate(startDate),
-                      )
-                      .limit(500);
-                }
-
-                final snap = await base.get();
-                results.addAll(snap.docs);
-              } on FirebaseException {
-                // Fallback if index missing: fetch without extra filters
-                final snap = await _firestore
-                    .collection(collection)
-                    .where('userId', whereIn: batch)
-                    .get();
-                results.addAll(snap.docs);
-              }
-            }
-            return results;
-          }
-
-          // Batch fetch goals, activities, and alerts IN PARALLEL to reduce total wait time
-          final results =
-              await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
-            fetchInBatches('goals'),
-            fetchInBatches('activities'),
-            fetchInBatches('alerts'),
-          ]);
-
-          if (isCancelled) return;
-
-          final goalsDocs = results[0];
-          final activitiesDocs = results[1];
-          final alertsDocs = results[2];
-
-          final goalsByEmployee = <String, List<Goal>>{};
-          for (final doc in goalsDocs) {
-            final goal = Goal.fromFirestore(doc);
-            goalsByEmployee.putIfAbsent(goal.userId, () => []).add(goal);
-          }
-
-          final activitiesByEmployee = <String, List<EmployeeActivity>>{};
-          for (final doc in activitiesDocs) {
-            final activity = EmployeeActivity.fromFirestore(doc);
-            activitiesByEmployee
-                .putIfAbsent(activity.userId, () => [])
-                .add(activity);
-          }
-
-          final alertsByEmployee = <String, List<Alert>>{};
-          for (final doc in alertsDocs) {
-            final alert = Alert.fromFirestore(doc);
-            alertsByEmployee.putIfAbsent(alert.userId, () => []).add(alert);
-          }
-
-          final now = DateTime.now();
-          final employeeDataList = <EmployeeData>[];
-
-          // Process regular employees
-          for (final userDoc in regularEmployeeDocs) {
-            final userProfile = UserProfile.fromFirestore(userDoc);
-            final rawAlerts = alertsByEmployee[userDoc.id] ?? [];
-            final activeAlerts = rawAlerts.where((a) {
-              if (a.isDismissed) return false;
-              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) {
-                return false;
-              }
-              return true;
-            }).toList();
-            final employeeData = await _buildEmployeeData(
-              userProfile,
-              timeFilter,
-              goalsByEmployee[userDoc.id] ?? [],
-              activitiesByEmployee[userDoc.id] ?? [],
-              activeAlerts,
-            );
-            employeeDataList.add(employeeData);
-          }
-
-          // Process onboarding employees (only non-deleted)
-          for (final userProfile in activeOnboardingProfiles) {
-            final rawAlerts = alertsByEmployee[userProfile.uid] ?? [];
-            final activeAlerts = rawAlerts.where((a) {
-              if (a.isDismissed) return false;
-              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) {
-                return false;
-              }
-              return true;
-            }).toList();
-            final employeeData = await _buildEmployeeData(
-              userProfile,
-              timeFilter,
-              goalsByEmployee[userProfile.uid] ?? [],
-              activitiesByEmployee[userProfile.uid] ?? [],
-              activeAlerts,
-            );
-            employeeDataList.add(employeeData);
-          }
-
-          employeeDataList.sort((a, b) {
-            final aRisk = _getRiskScore(a);
-            final bRisk = _getRiskScore(b);
-            if (aRisk != bRisk) return bRisk.compareTo(aRisk);
-            return b.totalPoints.compareTo(a.totalPoints);
-          });
-
-          if (!isCancelled) {
-            controller.add(employeeDataList);
-          }
-        }
-
-        usersSub = FirestoreSafe.stream(usersQuery.snapshots()).listen(
-          (snapshot) async {
-            if (isCancelled) return;
-
-            // Exclude deleted accounts from all manager-side team data
-            final deletedUids = await getDeletedAccountUids();
-            if (isCancelled) return;
-
-            // Emit a lightweight team list immediately to transition UI out of 'waiting'
-            try {
-              final minimal = snapshot.docs
-                  .map((d) => UserProfile.fromFirestore(d))
-                  .where((profile) =>
-                      !deletedUids.contains(profile.uid) &&
-                      includeEmployeeProfile(profile))
-                  .map((profile) {
-                    final lastActive =
-                        profile.lastActivityAt ??
-                        profile.lastLoginAt ??
-                        // Unknown/invalid until we enrich from activities.
-                        DateTime.fromMillisecondsSinceEpoch(0);
-                    return EmployeeData(
-                      profile: profile,
-                      goals: const [],
-                      recentActivities: const [],
-                      recentAlerts: const [],
-                      completedGoalsCount: 0,
-                      overdueGoalsCount: 0,
-                      totalPoints: profile.totalPoints,
-                      lastActivity: lastActive,
-                      avgProgress: 0.0,
-                      streakDays: 0,
-                      status: EmployeeStatus.onTrack,
-                      weeklyActivityCount: 0,
-                      engagementScore: 0.0,
-                      motivationLevel: 'N/A',
-                      isPlaceholder: true,
-                    );
-                  })
-                  .toList();
-              // Only emit if we actually have docs; otherwise let full rebuild handle empty
-              if (minimal.isNotEmpty && !isCancelled) {
-                controller.add(minimal);
-              }
-            } catch (e) {
-              // Ignore minimal emit failures; continue with full rebuild
-            }
-
-            // Perform full enrichment and emit the computed team data
-            if (!isCancelled) {
-              await rebuildAndEmit(snapshot, deletedUids);
-            }
-          },
-          onError: (error) {
-            if (!isCancelled) {
-              developer.log('Error in team data stream: $error');
-              if (error is Object) {
-                FirestoreWebCircuitBreaker.maybeReload(error);
-              }
-              controller.addError(error);
-            }
-          },
-        );
-
-        controller.onCancel = () {
-          isCancelled = true;
-          try {
-            usersSub?.cancel();
-          } catch (e) {
-            developer.log('Error cancelling stream subscription: $e');
-          }
-        };
-      } catch (e) {
-        if (!isCancelled) {
-          developer.log('Error setting up team data stream: $e');
-          controller.addError(e);
-        }
-      }
-    }).asBroadcastStream();
+    return createManagedPollingStream<List<EmployeeData>>(
+      fetch: () => getTeamDataOnce(
+        department: department,
+        timeFilter: timeFilter,
+      ),
+      initialValue: const [],
+    );
   }
 
   // Get real-time team metrics
@@ -1368,211 +983,86 @@ class ManagerRealtimeService {
     });
   }
 
+  /// One-time fetch equivalent of [getManagersDataStream].
+  static Future<List<EmployeeData>> getManagersDataOnce({
+    TimeFilter timeFilter = TimeFilter.month,
+  }) async {
+    try {
+      final deletedUids = await getDeletedAccountUids();
+      final users = await _backend.listUsers(role: 'manager', limit: 200);
+
+      final managerProfiles = users
+          .where((data) {
+            final uid =
+                (data['userId'] ?? data['id'] ?? data['uid'] ?? '').toString();
+            if (uid.isEmpty || deletedUids.contains(uid)) return false;
+            final profile = UserProfile.fromMap(data, id: uid);
+            return profile.role.trim().toLowerCase() == 'manager';
+          })
+          .map(
+            (data) => UserProfile.fromMap(
+              data,
+              id: (data['userId'] ?? data['id'] ?? data['uid'] ?? '')
+                  .toString(),
+            ),
+          )
+          .toList();
+
+      if (managerProfiles.isEmpty) {
+        return <EmployeeData>[];
+      }
+
+      final managerIds = managerProfiles.map((p) => p.uid).toList();
+      final startDate = _getStartDateForFilter(timeFilter);
+      final goalsByEmployee =
+          await _fetchGoalsByEmployees(managerIds, startDate);
+      final activitiesByEmployee =
+          await _fetchActivitiesByEmployees(managerIds);
+      final alertsByEmployee = await _fetchAlertsByEmployees(managerIds);
+
+      final now = DateTime.now();
+      final dataList = <EmployeeData>[];
+
+      for (final userProfile in managerProfiles) {
+        final rawAlerts = alertsByEmployee[userProfile.uid] ?? [];
+        final activeAlerts = rawAlerts.where((a) {
+          if (a.isDismissed) return false;
+          if (a.expiresAt != null && a.expiresAt!.isBefore(now)) return false;
+          return true;
+        }).toList();
+        final employeeData = await _buildEmployeeData(
+          userProfile,
+          timeFilter,
+          goalsByEmployee[userProfile.uid] ?? [],
+          activitiesByEmployee[userProfile.uid] ?? [],
+          activeAlerts,
+        );
+        dataList.add(employeeData);
+      }
+
+      dataList.sort((a, b) {
+        final aRisk = _getRiskScore(a);
+        final bRisk = _getRiskScore(b);
+        if (aRisk != bRisk) return bRisk.compareTo(aRisk);
+        return b.totalPoints.compareTo(a.totalPoints);
+      });
+
+      return dataList;
+    } catch (e) {
+      developer.log('getManagersDataOnce error: $e');
+      return <EmployeeData>[];
+    }
+  }
+
   /// Stream of all users with role == 'manager', as [EmployeeData].
   /// Used by the admin dashboard to show manager KPIs and comparisons.
   static Stream<List<EmployeeData>> getManagersDataStream({
     TimeFilter timeFilter = TimeFilter.month,
   }) {
-    return Stream<List<EmployeeData>>.multi((controller) async {
-      StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? sub;
-      bool isCancelled = false;
-
-      try {
-        final usersQuery = _firestore
-            .collection('users')
-            .where('role', isEqualTo: 'manager')
-            .limit(200);
-
-        Future<void> rebuildAndEmit(
-          QuerySnapshot<Map<String, dynamic>> snapshot,
-          Set<String> deletedUids,
-        ) async {
-          if (isCancelled) return;
-
-          final managerDocs = snapshot.docs.where((doc) {
-            if (deletedUids.contains(doc.id)) return false;
-            final data = doc.data();
-            final role = (data['role'] as String? ?? '').trim().toLowerCase();
-            return role == 'manager';
-          }).toList();
-
-          final managerIds = managerDocs.map((d) => d.id).toList();
-          if (managerIds.isEmpty) {
-            if (!isCancelled) controller.add([]);
-            return;
-          }
-
-          final startDate = _getStartDateForFilter(timeFilter);
-
-          Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> fetchInBatches(
-            String collection,
-          ) async {
-            final results = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-            for (var i = 0; i < managerIds.length; i += 10) {
-              final batch = managerIds.sublist(
-                i,
-                i + 10 > managerIds.length ? managerIds.length : i + 10,
-              );
-              Query<Map<String, dynamic>> base = _firestore
-                  .collection(collection)
-                  .where('userId', whereIn: batch);
-              try {
-                if (collection == 'activities') {
-                  final thirtyDaysAgo =
-                      DateTime.now().subtract(const Duration(days: 30));
-                  base = base
-                      .where('timestamp',
-                          isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
-                      .orderBy('timestamp', descending: true)
-                      .limit(200);
-                } else if (collection == 'alerts') {
-                  final thirtyDaysAgo =
-                      DateTime.now().subtract(const Duration(days: 30));
-                  base = base
-                      .where('isDismissed', isEqualTo: false)
-                      .where('createdAt',
-                          isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
-                      .orderBy('createdAt', descending: true)
-                      .limit(200);
-                } else if (collection == 'goals') {
-                  base = base
-                      .where('createdAt',
-                          isGreaterThan: Timestamp.fromDate(startDate))
-                      .limit(500);
-                }
-                final snap = await base.get();
-                results.addAll(snap.docs);
-              } on FirebaseException {
-                final snap = await _firestore
-                    .collection(collection)
-                    .where('userId', whereIn: batch)
-                    .get();
-                results.addAll(snap.docs);
-              }
-            }
-            return results;
-          }
-
-          final results = await Future.wait([
-            fetchInBatches('goals'),
-            fetchInBatches('activities'),
-            fetchInBatches('alerts'),
-          ]);
-
-          if (isCancelled) return;
-
-          final goalsByUser = <String, List<Goal>>{};
-          for (final doc in results[0]) {
-            final goal = Goal.fromFirestore(doc);
-            goalsByUser.putIfAbsent(goal.userId, () => []).add(goal);
-          }
-          final activitiesByUser = <String, List<EmployeeActivity>>{};
-          for (final doc in results[1]) {
-            final activity = EmployeeActivity.fromFirestore(doc);
-            activitiesByUser
-                .putIfAbsent(activity.userId, () => [])
-                .add(activity);
-          }
-          final alertsByUser = <String, List<Alert>>{};
-          for (final doc in results[2]) {
-            final alert = Alert.fromFirestore(doc);
-            alertsByUser.putIfAbsent(alert.userId, () => []).add(alert);
-          }
-
-          final now = DateTime.now();
-          final dataList = <EmployeeData>[];
-
-          for (final userDoc in managerDocs) {
-            final profile = UserProfile.fromFirestore(userDoc);
-            final rawAlerts = alertsByUser[userDoc.id] ?? [];
-            final activeAlerts = rawAlerts.where((a) {
-              if (a.isDismissed) return false;
-              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) {
-                return false;
-              }
-              return true;
-            }).toList();
-            final employeeData = await _buildEmployeeData(
-              profile,
-              timeFilter,
-              goalsByUser[userDoc.id] ?? [],
-              activitiesByUser[userDoc.id] ?? [],
-              activeAlerts,
-            );
-            dataList.add(employeeData);
-          }
-
-          dataList.sort((a, b) {
-            final aRisk = _getRiskScore(a);
-            final bRisk = _getRiskScore(b);
-            if (aRisk != bRisk) return bRisk.compareTo(aRisk);
-            return b.totalPoints.compareTo(a.totalPoints);
-          });
-
-          if (!isCancelled) controller.add(dataList);
-        }
-
-        sub = FirestoreSafe.stream(usersQuery.snapshots()).listen(
-          (snapshot) async {
-            if (isCancelled) return;
-            final deletedUids = await getDeletedAccountUids();
-            if (isCancelled) return;
-
-            try {
-              final minimal = snapshot.docs
-                  .where((d) => !deletedUids.contains(d.id))
-                  .map((d) => UserProfile.fromFirestore(d))
-                  .where((p) =>
-                      (p.role.trim().toLowerCase()) == 'manager')
-                  .map((p) {
-                    final lastActive = p.lastActivityAt ??
-                        p.lastLoginAt ??
-                        DateTime.fromMillisecondsSinceEpoch(0);
-                    return EmployeeData(
-                      profile: p,
-                      goals: const [],
-                      recentActivities: const [],
-                      recentAlerts: const [],
-                      completedGoalsCount: 0,
-                      overdueGoalsCount: 0,
-                      totalPoints: p.totalPoints,
-                      lastActivity: lastActive,
-                      avgProgress: 0.0,
-                      streakDays: 0,
-                      status: EmployeeStatus.onTrack,
-                      weeklyActivityCount: 0,
-                      engagementScore: 0.0,
-                      motivationLevel: 'N/A',
-                      isPlaceholder: true,
-                    );
-                  }).toList();
-              if (minimal.isNotEmpty && !isCancelled) {
-                controller.add(minimal);
-              }
-            } catch (_) {}
-
-            if (!isCancelled) await rebuildAndEmit(snapshot, deletedUids);
-          },
-          onError: (e) {
-            if (!isCancelled) {
-              developer.log('Error in managers data stream: $e');
-              if (e is Object) FirestoreWebCircuitBreaker.maybeReload(e);
-              controller.addError(e);
-            }
-          },
-        );
-
-        controller.onCancel = () {
-          isCancelled = true;
-          sub?.cancel();
-        };
-      } catch (e) {
-        if (!isCancelled) {
-          developer.log('Error setting up managers stream: $e');
-          controller.addError(e);
-        }
-      }
-    }).asBroadcastStream();
+    return createManagedPollingStream<List<EmployeeData>>(
+      fetch: () => getManagersDataOnce(timeFilter: timeFilter),
+      initialValue: const [],
+    );
   }
 
   /// For admin oversight: stream of managers only. If [selectedManagerId] is
@@ -1973,43 +1463,23 @@ class ManagerRealtimeService {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
-      final now = Timestamp.fromDate(DateTime.now());
+      final now = DateTime.now();
 
-      // Always persist the activity first. This is the core action used by
-      // manager inbox feedback (nudge responses/reactions).
-      await FirestoreSafe.addDoc<Map<String, dynamic>>(
-        _firestore.collection('activities'),
-        {
-          'userId': employeeId,
-          'activityType': activityType,
-          'description': description,
-          'metadata': metadata ?? {},
-          // Use a stable, client-side timestamp so queries ordered by `timestamp`
-          // don't temporarily drop/reorder documents while serverTimestamp resolves.
-          // Keep `serverTimestamp` for auditing / server-accurate time if needed.
-          'timestamp': now,
-          'serverTimestamp': FieldValue.serverTimestamp(),
-        },
-      );
+      await _backend.createActivity(employeeId, {
+        'userId': employeeId,
+        'activityType': activityType,
+        'description': description,
+        'metadata': metadata ?? {},
+        'timestamp': now.toIso8601String(),
+      });
 
-      // Update user's timestamps ONLY when the user is recording their own activity.
-      // Managers should not be able to mutate employee profile timestamps.
       if (currentUser.uid == employeeId) {
-        final userRef = _firestore.collection('users').doc(employeeId);
         try {
-          // Use merge so this does not fail when a user profile doc was not yet
-          // created in /users (for example onboarding-first accounts).
-          await FirestoreSafe.setDoc<Map<String, dynamic>>(
-            userRef,
-            {
-              'lastActivityAt': FieldValue.serverTimestamp(),
-              // Keep lastLoginAt in sync for self activity only.
-              'lastLoginAt': FieldValue.serverTimestamp(),
-            },
-            options: SetOptions(merge: true),
-          );
+          await _backend.updateUserProfile(employeeId, {
+            'lastActivityAt': now.toIso8601String(),
+            'lastLoginAt': now.toIso8601String(),
+          });
         } catch (e) {
-          // Non-fatal: activity already recorded above.
           developer.log('Skipped self timestamp sync for $employeeId: $e');
         }
       }
@@ -2030,54 +1500,59 @@ class ManagerRealtimeService {
     String? managerName,
     int limit = 300,
   }) {
-    // Pull reactions/responses broadly, then filter client-side. This avoids
-    // dropping older reactions that may be missing managerId/managerNameLower
-    // metadata while still keeping a generous history window via the limit.
-    return FirestoreSafe.stream(
-      _firestore
-          .collection('activities')
-          .where('activityType', whereIn: [
-            'nudge_response',
-            'nudge_reaction',
-          ])
-          .orderBy('timestamp', descending: true)
-          .limit(limit)
-          .snapshots(),
-    ).map((snapshot) {
-      return snapshot.docs.map((doc) {
-        final data = FirestoreSafe.documentDataAsMap(doc);
-        final ts = data['timestamp'];
-        return <String, dynamic>{
-          'id': doc.id,
-          'employeeId': data['userId'],
-          'activityType': data['activityType'],
-          'description': data['description'],
-          'metadata': FirestoreSafe.asStringKeyedMap(data['metadata']),
-          'timestamp': ts is Timestamp ? ts.toDate() : null,
-        };
-      }).toList();
-    });
+    return createManagedPollingStream<List<Map<String, dynamic>>>(
+      initialValue: const [],
+      fetch: () async {
+        final items = await _backend.getCollectionItems(
+          'activities',
+          limit: limit,
+        );
+        final feedback = items
+            .where((data) {
+              final type = (data['activityType'] ?? '').toString();
+              return type == 'nudge_response' || type == 'nudge_reaction';
+            })
+            .map((data) {
+              final metadata = data['metadata'];
+              return <String, dynamic>{
+                'id': data['id']?.toString() ?? '',
+                'employeeId': data['userId'],
+                'activityType': data['activityType'],
+                'description': data['description'],
+                'metadata': metadata is Map
+                    ? Map<String, dynamic>.from(metadata)
+                    : <String, dynamic>{},
+                'timestamp': _parseDate(data['timestamp']),
+              };
+            })
+            .toList();
+        feedback.sort((a, b) {
+          final aTime =
+              a['timestamp'] as DateTime? ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final bTime =
+              b['timestamp'] as DateTime? ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          return bTime.compareTo(aTime);
+        });
+        return feedback;
+      },
+    );
   }
 
-  // Get employee activities for monitoring
   static Stream<List<EmployeeActivity>> getEmployeeActivitiesStream({
     required String employeeId,
     int limit = 20,
   }) {
-    return FirestoreSafe.stream(
-      _firestore
-          .collection('activities')
-          .where('userId', isEqualTo: employeeId)
-          .orderBy('timestamp', descending: true)
-          .limit(limit)
-          .snapshots(),
-    ).map((snapshot) {
-          final list = snapshot.docs
-              .map((doc) => EmployeeActivity.fromFirestore(doc))
-              .toList();
-          list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-          return list;
-        });
+    return createManagedPollingStream<List<EmployeeActivity>>(
+      initialValue: const [],
+      fetch: () async {
+        final items = await _backend.getActivities(employeeId, limit: limit);
+        final list = items.map((a) => EmployeeActivity.fromMap(a)).toList();
+        list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        return list;
+      },
+    );
   }
 
   // Send comprehensive nudge to employee
@@ -2092,17 +1567,15 @@ class ManagerRealtimeService {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
-      final managerDoc = await _firestore
-          .collection('users')
-          .doc(currentUser.uid)
-          .get();
-      final managerName = managerDoc.data()?['displayName'] ?? 'Your Manager';
+      final managerData = await _backend.getUser(currentUser.uid);
+      final managerName = managerData['displayName'] ?? 'Your Manager';
 
-      // Get goal title
       String goalTitle = 'Goal';
       try {
-        final goalDoc = await _firestore.collection('goals').doc(goalId).get();
-        goalTitle = goalDoc.data()?['title'] ?? 'Goal';
+        final goals = await _backend.getGoals(goalId: goalId, limit: 1);
+        if (goals.isNotEmpty) {
+          goalTitle = goals.first['title']?.toString() ?? 'Goal';
+        }
       } catch (e) {
         developer.log('Could not fetch goal title: $e');
       }
@@ -2151,19 +1624,13 @@ class ManagerRealtimeService {
     required String toEmployeeId,
   }) async {
     try {
-      final batch = _firestore.batch();
-
-      // Update goal with new userId
-      final goalRef = _firestore.collection('goals').doc(goalId);
-      batch.update(goalRef, {
+      await _backend.patchGoal(goalId, {
         'userId': toEmployeeId,
-        'reassignedAt': FieldValue.serverTimestamp(),
+        'reassignedAt': DateTime.now().toIso8601String(),
         'reassignedFrom': fromEmployeeId,
       });
 
-      // Create alert for new assignee
-      final newAssigneeAlertRef = _firestore.collection('alerts').doc();
-      batch.set(newAssigneeAlertRef, {
+      await _backend.createAlert(toEmployeeId, {
         'userId': toEmployeeId,
         'type': 'goalReassigned',
         'priority': 'high',
@@ -2171,21 +1638,19 @@ class ManagerRealtimeService {
         'message': 'A goal has been reassigned to you by your manager.',
         'actionText': 'View Goal',
         'actionRoute': '/my_goal_workspace',
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
         'relatedGoalId': goalId,
         'isRead': false,
         'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 14)),
-        ),
+        'expiresAt': DateTime.now()
+            .add(const Duration(days: 14))
+            .toIso8601String(),
       });
 
-      await batch.commit();
       developer.log(
         'Goal $goalId reassigned from $fromEmployeeId to $toEmployeeId',
       );
 
-      // Record management action
       await recordManagerAction(
         actionType: ManagementAction.reassignGoal,
         employeeId: toEmployeeId,
@@ -2209,14 +1674,15 @@ class ManagerRealtimeService {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
-      final employeeDoc = await _firestore
-          .collection('users')
-          .doc(employeeId)
-          .get();
+      Map<String, dynamic> employeeData = {};
+      try {
+        employeeData = await _backend.getUser(employeeId);
+      } catch (_) {}
       final employeeName =
-          employeeDoc.data()?['displayName'] ?? 'Unknown Employee';
+          employeeData['displayName']?.toString() ?? 'Unknown Employee';
 
-      await _firestore.collection('manager_actions').add({
+      final now = DateTime.now().toIso8601String();
+      await _backend.createManagerAction(currentUser.uid, {
         'actionType': actionType.name,
         'managerId': currentUser.uid,
         'employeeId': employeeId,
@@ -2224,8 +1690,8 @@ class ManagerRealtimeService {
         'description': description,
         'details': details ?? {},
         'status': 'completed',
-        'createdAt': FieldValue.serverTimestamp(),
-        'completedAt': FieldValue.serverTimestamp(),
+        'createdAt': now,
+        'completedAt': now,
       });
 
       developer.log(
@@ -2250,20 +1716,19 @@ class ManagerRealtimeService {
     // - Phase 2 (best-effort): activity/audit logging (must NOT surface as "failed"
     //   when Phase 1 already succeeded)
     try {
-      final batch = _firestore.batch();
+      Map<String, dynamic> employeeData = {};
+      try {
+        employeeData = await _backend.getUser(employeeId);
+      } catch (_) {}
+      final currentPoints = employeeData['totalPoints'] is num
+          ? (employeeData['totalPoints'] as num).toInt()
+          : 0;
 
-      // Update employee points
-      final userRef = _firestore.collection('users').doc(employeeId);
-      batch.update(userRef, {'totalPoints': FieldValue.increment(points)});
+      await _backend.updateUserProfile(employeeId, {
+        'totalPoints': currentPoints + points,
+      });
 
-      // NOTE:
-      // We intentionally do NOT mutate the employee's earned badges list here.
-      // Badge awarding/sync is handled by BadgeService based on badge documents,
-      // and "kudos" should primarily award points + an alert.
-
-      // Create alert for employee
-      final alertRef = _firestore.collection('alerts').doc();
-      batch.set(alertRef, {
+      await _backend.createAlert(employeeId, {
         'userId': employeeId,
         'type': 'recognition',
         'priority': 'high',
@@ -2273,15 +1738,21 @@ class ManagerRealtimeService {
             ' (+$points pts)',
         'actionText': 'View Achievement',
         'actionRoute': recipientActionRoute ?? '/badges_points',
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
         'isRead': false,
         'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 30)),
-        ),
+        'expiresAt': DateTime.now()
+            .add(const Duration(days: 30))
+            .toIso8601String(),
       });
 
-      await batch.commit();
+      try {
+        await _backend.createPointEvent({
+          'userId': employeeId,
+          'amount': points,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
 
       // Best-effort logging (do not fail the UX if rules block these writes)
       try {
@@ -2328,7 +1799,7 @@ class ManagerRealtimeService {
       );
 
       await Future.wait([
-        _firestore.collection('manager_actions').add({
+        _backend.createManagerAction(managerId, {
           'actionType': 'requestMeeting',
           'managerId': managerId,
           'employeeId': employeeId,
@@ -2339,7 +1810,7 @@ class ManagerRealtimeService {
             'agenda': (agenda ?? '').trim(),
           },
           'status': 'requested',
-          'createdAt': FieldValue.serverTimestamp(),
+          'createdAt': DateTime.now().toIso8601String(),
         }),
         AlertService.createOneOnOneRequestedAlert(
           employeeId: employeeId,
@@ -2379,24 +1850,23 @@ class ManagerRealtimeService {
       );
 
       await Future.wait([
-        _firestore.collection('manager_actions').add({
+        _backend.createManagerAction(managerId, {
           'actionType': 'scheduleMeeting',
           'managerId': managerId,
           'employeeId': employeeId,
-          'employeeName': '', // Will be filled by recordManagerAction
+          'employeeName': '',
           'description': 'Proposed 1:1 meeting time',
           'details': {
             'meetingId': meetingId,
-            'proposedStartDateTime': Timestamp.fromDate(scheduledStartTime),
-            'proposedEndDateTime': Timestamp.fromDate(scheduledEndTime),
-            // Backwards compatibility for older dashboards/analytics
-            'proposedDateTime': Timestamp.fromDate(scheduledStartTime),
+            'proposedStartDateTime': scheduledStartTime.toIso8601String(),
+            'proposedEndDateTime': scheduledEndTime.toIso8601String(),
+            'proposedDateTime': scheduledStartTime.toIso8601String(),
             'purpose': purpose,
             'notes': notes ?? '',
           },
           'status': 'proposed',
-          'createdAt': FieldValue.serverTimestamp(),
-          'scheduledFor': Timestamp.fromDate(scheduledStartTime),
+          'createdAt': DateTime.now().toIso8601String(),
+          'scheduledFor': scheduledStartTime.toIso8601String(),
         }),
         AlertService.createOneOnOneProposedAlert(
           employeeId: employeeId,
@@ -2426,22 +1896,24 @@ class ManagerRealtimeService {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return const Stream.empty();
 
-      Query<Map<String, dynamic>> query = _firestore
-          .collection('manager_actions')
-          .where('managerId', isEqualTo: currentUser.uid);
-
-      if (employeeId != null) {
-        query = query.where('employeeId', isEqualTo: employeeId);
-      }
-
-      return FirestoreSafe.stream(query.snapshots()).map((snapshot) {
-        final actions = snapshot.docs
-            .map((doc) => ManagerAction.fromFirestore(doc))
-            .toList();
-        // Sort in memory to avoid composite index requirement
-        actions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return actions.take(limit).toList();
-      });
+      return createManagedPollingStream<List<ManagerAction>>(
+        initialValue: const [],
+        fetch: () async {
+          final items = await _backend.getManagerActions(
+            currentUser.uid,
+            limit: limit * 2,
+          );
+          final actions = items
+              .where((data) {
+                if (employeeId == null) return true;
+                return (data['employeeId'] ?? '').toString() == employeeId;
+              })
+              .map((data) => ManagerAction.fromMap(data))
+              .toList();
+          actions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return actions.take(limit).toList();
+        },
+      );
     } catch (e) {
       developer.log('Error getting manager actions: $e');
       return const Stream.empty();
@@ -2457,7 +1929,7 @@ class ManagerRealtimeService {
     required int points,
   }) async {
     try {
-      await _firestore.collection('goals').add({
+      await _backend.createGoal({
         'userId': employeeId,
         'title': title,
         'description': description,
@@ -2465,15 +1937,14 @@ class ManagerRealtimeService {
         'priority': GoalPriority.high.name,
         'status': GoalStatus.notStarted.name,
         'progress': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'targetDate': Timestamp.fromDate(targetDate),
+        'createdAt': DateTime.now().toIso8601String(),
+        'targetDate': targetDate.toIso8601String(),
         'points': points,
         'isStretchGoal': true,
         'createdByManager': true,
       });
 
-      // Create alert for employee
-      await _firestore.collection('alerts').add({
+      await _backend.createAlert(employeeId, {
         'userId': employeeId,
         'type': 'stretchGoalAssigned',
         'priority': 'medium',
@@ -2481,12 +1952,12 @@ class ManagerRealtimeService {
         'message': 'Your manager has assigned you a stretch goal: $title',
         'actionText': 'View Goal',
         'actionRoute': '/my_goal_workspace',
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
         'isRead': false,
         'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 7)),
-        ),
+        'expiresAt': DateTime.now()
+            .add(const Duration(days: 7))
+            .toIso8601String(),
       });
 
       developer.log('Stretch goal created for employee $employeeId');

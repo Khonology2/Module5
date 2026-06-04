@@ -1,7 +1,6 @@
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -24,8 +23,9 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:showcaseview/showcaseview.dart';
-import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/version_control_widget.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
@@ -180,7 +180,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     // Check if tutorial should be shown
     _checkTutorial();
 
-    // Cache onboarding name lookups to avoid repeated Firestore reads on rebuilds (esp. on web).
+    // Cache onboarding name lookups to avoid repeated backend reads on rebuilds (esp. on web).
     final authUser = FirebaseAuth.instance.currentUser;
     if (authUser != null) {
       _onboardingNameFuture = DatabaseService.getUserNameFromOnboarding(
@@ -594,49 +594,23 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Stream<UserProfile?> _getUserProfileStream() {
     final uid = _effectiveUserId;
     if (uid == null) return Stream.value(null);
-    return FirestoreSafe.stream(
-      FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
-    ).map((doc) {
-      if (!doc.exists) return null;
-      return UserProfile.fromFirestore(doc);
-    });
+    return DatabaseService.getUserProfileStream(uid);
   }
 
   Stream<List<Goal>> _getUserGoalsStream() {
     final uid = _effectiveUserId;
     if (uid == null) return Stream.value([]);
-    return FirestoreSafe.stream(
-      FirebaseFirestore.instance
-          .collection('goals')
-          .where('userId', isEqualTo: uid)
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-    ).map((snapshot) {
-      final goals = snapshot.docs
-          .map((doc) => Goal.fromFirestore(doc))
-          .where((goal) => !goal.isSeasonGoal)
-          .toList();
-      // Removed in-memory sort - using Firestore orderBy instead
-      return goals;
-    });
+    return DatabaseService.getUserGoalsStream(uid).map(
+      (goals) => goals.where((goal) => !goal.isSeasonGoal).toList(),
+    );
   }
 
   Stream<int> _getEarnedBadgesCountStream() {
     final uid = _effectiveUserId;
     if (uid == null) return Stream.value(0);
-    return FirestoreSafe.stream(
-      FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('badges')
-          .where('isEarned', isEqualTo: true)
-          .snapshots(),
-    ).map((snapshot) {
-      return snapshot.docs
-          .where((d) => d.id != 'init')
-          .where((d) => d.id.toLowerCase().startsWith('v2_'))
-          .length;
-    });
+    return BadgeService.getUserBadgesV2Stream(uid).map(
+      (badges) => badges.where((b) => b.isEarned).length,
+    );
   }
 
   String _getTimeBasedGreeting() {
@@ -946,7 +920,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       motivationalMessage = 'Time to wrap up and reflect on your progress!';
     }
 
-    // Determine avatar photo URL: prefer Firestore profile; only fall back to Auth if profile is not yet loaded
+    // Determine avatar photo URL: prefer PostgreSQL profile; fall back to Auth if not yet loaded
     final authUserForAvatar = FirebaseAuth.instance.currentUser;
     String photoUrl = '';
     if (userProfile == null) {
@@ -1882,18 +1856,18 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirestoreSafe.stream(
-              FirebaseFirestore.instance
-                  .collection('users')
-                  .limit(250)
-                  .snapshots(),
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: backendPollingStream<List<Map<String, dynamic>>>(
+              initialValue: const [],
+              fetch: () => BackendAuthService.instance.listUsers(
+                role: 'employee',
+                limit: 250,
+              ),
             ),
             builder: (context, snapshot) {
-              final docs = snapshot.data?.docs ?? const [];
+              final docs = snapshot.data ?? const [];
               final rows =
                   docs
-                      .map((d) => d.data())
                       .where((u) {
                         final role = (u['role'] ?? 'employee')
                             .toString()

@@ -41,15 +41,12 @@ void mergeOpenRouterFromPlatformEnvironment() {
   }
 }
 
-/// If OpenRouter keys are still empty, load `backend/app/.env` from the process
-/// working directory (repo root when you run `flutter run`).
+/// Load `backend/app/.env` from the process working directory on IO targets.
 ///
-/// Flutter only auto-loads a **project root** `.env`; backend keys often live in
-/// `backend/app/.env` — this merges those without copying secrets into the web bundle.
-void mergeOpenRouterFromBackendRepoDotenv() {
-  final primary = dotenv.maybeGet('OPENROUTER_API_KEY_PRIMARY')?.trim();
-  if (primary != null && primary.isNotEmpty) return;
-
+/// Flutter only auto-loads a **project root** `.env`; the backend keeps its own
+/// env file under `backend/app/.env`. This merges those values into the local
+/// Dart dotenv state without bundling them into web builds.
+void mergeBackendRepoDotenv() {
   final candidates = <String>[
     // Normal: `flutter run` with cwd = repo root
     '${Directory.current.path}${Platform.pathSeparator}backend${Platform.pathSeparator}app${Platform.pathSeparator}.env',
@@ -62,20 +59,23 @@ void mergeOpenRouterFromBackendRepoDotenv() {
     if (!file.existsSync()) continue;
     try {
       final parsed = _parseDotenvLines(file.readAsStringSync());
-      for (final key in _openRouterKeys) {
-        final v = parsed[key]?.trim();
-        if (v == null || v.isEmpty) continue;
+      var mergedAny = false;
+      for (final entry in parsed.entries) {
+        final key = entry.key.trim();
+        final v = entry.value.trim();
+        if (key.isEmpty || v.isEmpty) continue;
         final existing = dotenv.maybeGet(key)?.trim();
         if (existing == null || existing.isEmpty) {
           dotenv.env[key] = v;
+          mergedAny = true;
         }
       }
-      if (dotenv.maybeGet('OPENROUTER_API_KEY_PRIMARY')?.trim().isNotEmpty == true) {
-        debugPrint('OpenRouter: merged keys from ${file.path}');
+      if (mergedAny) {
+        debugPrint('Backend env: merged keys from ${file.path}');
       }
       return;
     } catch (e) {
-      debugPrint('OpenRouter: skipped reading $path ($e)');
+      debugPrint('Backend env: skipped reading $path ($e)');
     }
   }
 }

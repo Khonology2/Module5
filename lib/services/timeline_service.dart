@@ -1,9 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/audit_timeline_event.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 
 class TimelineService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
   static Map<String, dynamic> buildEvent({
@@ -28,7 +28,7 @@ class TimelineService {
     return {
       'eventType': eventType,
       'description': description,
-      'timestamp': Timestamp.now(),
+      'timestamp': DateTime.now().toIso8601String(),
       'actorId': actorId,
       'actorName': name,
     };
@@ -38,26 +38,25 @@ class TimelineService {
     String entryId,
     Map<String, dynamic> event,
   ) async {
-    final data = Map<String, dynamic>.from(event);
-    data['timestamp'] = data['timestamp'] ?? Timestamp.now();
-    await _firestore
-        .collection('audit_entries')
-        .doc(entryId)
-        .collection('timeline')
-        .add(data);
+    await BackendAuthService.instance.addAuditTimelineEvent(
+      entryId,
+      Map<String, dynamic>.from(event),
+    );
   }
 
   static Stream<List<AuditTimelineEvent>> getTimelineStream(String entryId) {
-    return _firestore
-        .collection('audit_entries')
-        .doc(entryId)
-        .collection('timeline')
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => AuditTimelineEvent.fromFirestore(doc))
-              .toList(),
-        );
+    return _pollTimeline(entryId);
+  }
+
+  static Stream<List<AuditTimelineEvent>> _pollTimeline(String entryId) async* {
+    while (true) {
+      try {
+        final items = await BackendAuthService.instance.getAuditTimeline(entryId);
+        yield items.map((item) => AuditTimelineEvent.fromMap(item)).toList();
+      } catch (_) {
+        yield <AuditTimelineEvent>[];
+      }
+      await Future.delayed(const Duration(seconds: 5));
+    }
   }
 }

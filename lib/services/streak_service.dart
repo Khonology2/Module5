@@ -1,78 +1,103 @@
-import 'dart:developer' as developer;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
+import 'dart:developer' as developer;
+
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/badge_service.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
 
 class StreakService {
-  // Lazily access Firestore to ensure web settings are applied first
-  static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
-  static final Map<String, List<StreamSubscription>> _subsByUser = {};
+  static final BackendAuthService _backend = BackendAuthService.instance;
+  static final Map<String, List<StreamSubscription<dynamic>>> _subsByUser = {};
   static final Map<String, Timer> _midnightTimerByUser = {};
   static final Map<String, bool> _cancelledByUser = {};
 
-  // Record daily activity (goal progress, completion, etc.)
+  static DateTime? _parseActivityDate(Map<String, dynamic> data) {
+    final dateValue = data['date'];
+    if (dateValue is DateTime) return dateValue;
+    if (dateValue != null) {
+      final parsed = DateTime.tryParse(dateValue.toString());
+      if (parsed != null) return parsed;
+    }
+    final id = data['id']?.toString() ?? data['dateKey']?.toString() ?? '';
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(id)) {
+      return DateTime.tryParse(id);
+    }
+    return null;
+  }
+
+  static bool _isSameDay(DateTime? a, DateTime b) {
+    if (a == null) return false;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  static String _dateKey(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  static List<Map<String, dynamic>> _sortedDailyActivities(
+    List<Map<String, dynamic>> items,
+  ) {
+    final sorted = List<Map<String, dynamic>>.from(items);
+    sorted.sort((a, b) {
+      final aDate = _parseActivityDate(a);
+      final bDate = _parseActivityDate(b);
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return bDate.compareTo(aDate);
+    });
+    return sorted;
+  }
+
   static Future<void> recordDailyActivity(
     String userId,
     String activityType,
   ) async {
     try {
       final today = DateTime.now();
-      final todayString =
-          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final todayString = _dateKey(today);
 
-      // Refresh lastLoginAt FIRST so streak calculation considers today as an active day
       try {
-        await _firestore.collection('users').doc(userId).set({
-          'lastLoginAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        await _backend.patchUserStreak(userId, {
+          'lastLoginAt': today.toIso8601String(),
+        });
       } catch (_) {}
 
-      // Record in the activities collection for manager visibility
-      await _firestore.collection('activities').add({
+      await _backend.createActivity(userId, {
         'userId': userId,
         'type': activityType,
-        'timestamp': FieldValue.serverTimestamp(),
+        'timestamp': today.toIso8601String(),
         'description': 'User performed $activityType',
       });
 
-      // Check if activity already recorded today
-      final existingActivity = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('daily_activities')
-          .doc(todayString)
-          .get();
+      final existingActivities = await _backend.getDailyActivities(userId);
+      Map<String, dynamic>? todayActivity;
+      for (final item in existingActivities) {
+        if (_isSameDay(_parseActivityDate(item), today)) {
+          todayActivity = item;
+          break;
+        }
+      }
 
-      if (!existingActivity.exists) {
-        // Record today's activity
-        await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('daily_activities')
-            .doc(todayString)
-            .set({
-              'date': Timestamp.fromDate(today),
-              'activities': [activityType],
-              'createdAt': Timestamp.fromDate(today),
-            });
-
-        // Update streak
+      if (todayActivity == null) {
+        await _backend.createDailyActivity(userId, {
+          'id': todayString,
+          'dateKey': todayString,
+          'date': today.toIso8601String(),
+          'activities': [activityType],
+          'createdAt': today.toIso8601String(),
+        });
         await _updateStreak(userId);
       } else {
-        // Add activity to existing day
-        final activities = List<String>.from(
-          existingActivity.data()?['activities'] ?? [],
-        );
+        final activities = List<String>.from(todayActivity['activities'] ?? []);
         if (!activities.contains(activityType)) {
           activities.add(activityType);
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('daily_activities')
-              .doc(todayString)
-              .update({'activities': activities});
+          await _backend.patchDailyActivity(
+            userId,
+            (todayActivity['id'] ?? todayString).toString(),
+            {'activities': activities},
+          );
         }
       }
     } catch (e) {
@@ -82,47 +107,34 @@ class StreakService {
 
   static Future<void> _updateStreak(String userId) async {
     if (userId.isEmpty) return;
-
-    // Check if tracking was cancelled for this user
     if (_cancelledByUser[userId] == true) return;
 
     try {
-      // Get user's daily activities, sorted by date
-      final activitiesSnapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('daily_activities')
-          .orderBy('date', descending: true)
-          .limit(365) // Check last year
-          .get();
+      final activitiesSnapshot = _sortedDailyActivities(
+        await _backend.getDailyActivities(userId, limit: 365),
+      );
 
-      if (activitiesSnapshot.docs.isEmpty) return;
-
-      // Check again after async operation
+      if (activitiesSnapshot.isEmpty) return;
       if (_cancelledByUser[userId] == true) return;
 
       int currentStreak = 0;
       DateTime? lastDate;
 
-      // Require activity recorded today to maintain a streak (timezone-safe)
       final now = DateTime.now();
       final todayOnly = DateTime(now.year, now.month, now.day);
-      final mostRecent =
-          (activitiesSnapshot.docs.first.data()['date'] as Timestamp).toDate();
-      final mostRecentOnly = DateTime(
-        mostRecent.year,
-        mostRecent.month,
-        mostRecent.day,
-      );
-      if (!mostRecentOnly.isAtSameMomentAs(todayOnly)) {
-        await _firestore.collection('users').doc(userId).update({
-          'currentStreak': 0,
-        });
+      final mostRecent = _parseActivityDate(activitiesSnapshot.first);
+      final mostRecentOnly = mostRecent == null
+          ? null
+          : DateTime(mostRecent.year, mostRecent.month, mostRecent.day);
+      if (mostRecentOnly == null ||
+          !mostRecentOnly.isAtSameMomentAs(todayOnly)) {
+        await _backend.patchUserStreak(userId, {'currentStreak': 0});
         return;
       }
 
-      for (final doc in activitiesSnapshot.docs) {
-        final activityDate = (doc.data()['date'] as Timestamp).toDate();
+      for (final doc in activitiesSnapshot) {
+        final activityDate = _parseActivityDate(doc);
+        if (activityDate == null) continue;
         final activityDateOnly = DateTime(
           activityDate.year,
           activityDate.month,
@@ -130,54 +142,51 @@ class StreakService {
         );
 
         if (lastDate == null) {
-          // First activity (most recent)
           lastDate = activityDateOnly;
           currentStreak = 1;
         } else {
-          // Check if this activity is consecutive (previous day)
           final expectedDate = lastDate.subtract(const Duration(days: 1));
           if (activityDateOnly.isAtSameMomentAs(expectedDate)) {
             currentStreak++;
             lastDate = activityDateOnly;
           } else {
-            // Streak broken
             break;
           }
         }
       }
 
-      // Check again before Firestore write
       if (_cancelledByUser[userId] == true) return;
 
-      // Update user's streak in profile
-      final userRef = _firestore.collection('users').doc(userId);
-      final userDoc = await userRef.get();
+      Map<String, dynamic> userData;
+      try {
+        userData = await _backend.getUser(userId);
+      } catch (_) {
+        return;
+      }
 
-      if (!userDoc.exists) return;
-
-      // Final check before update
       if (_cancelledByUser[userId] == true) return;
 
-      final previousStreak = (userDoc.data()?['currentStreak'] ?? 0) as int;
+      final previousStreak = (userData['currentStreak'] ?? 0) is int
+          ? userData['currentStreak'] as int
+          : int.tryParse(userData['currentStreak']?.toString() ?? '0') ?? 0;
+      final longestStreak = (userData['longestStreak'] ?? 0) is int
+          ? userData['longestStreak'] as int
+          : int.tryParse(userData['longestStreak']?.toString() ?? '0') ?? 0;
 
       try {
-        await userRef.update({
+        await _backend.patchUserStreak(userId, {
           'currentStreak': currentStreak,
-          'longestStreak': FieldValue.increment(
-            currentStreak > (userDoc.data()?['longestStreak'] ?? 0)
-                ? currentStreak - (userDoc.data()?['longestStreak'] ?? 0)
-                : 0,
-          ),
+          'longestStreak': currentStreak > longestStreak
+              ? currentStreak
+              : longestStreak,
         });
       } catch (e) {
-        // If update fails (e.g., document was deleted or stream cancelled), log and return
         if (!(_cancelledByUser[userId] == true)) {
-          developer.log('Error updating streak in Firestore: $e');
+          developer.log('Error updating streak via backend: $e');
         }
         return;
       }
 
-      // Check for streak milestones
       if (currentStreak > previousStreak) {
         await _checkStreakMilestones(userId, currentStreak);
       }
@@ -186,46 +195,28 @@ class StreakService {
     }
   }
 
-  /// Start real-time streak tracking: reacts to activity changes and day rollover
   static void startRealtimeTracking(String userId) {
     if (userId.isEmpty) return;
     if (_subsByUser.containsKey(userId)) return;
 
-    // Clear any cancellation flag
     _cancelledByUser[userId] = false;
 
-    // Listen to most recent daily activity to recompute streak
-    final activitiesSub = FirestoreSafe.stream(
-      _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('daily_activities')
-          .orderBy('date', descending: true)
-          .limit(1)
-          .snapshots(),
+    final activitiesSub = createManagedPollingStream<List<Map<String, dynamic>>>(
+      fetch: () => _backend.getDailyActivities(userId, limit: 1),
+      initialValue: const [],
     ).listen(
-          (_) {
-            if (!(_cancelledByUser[userId] ?? false)) {
-              _updateStreak(userId).catchError((e) {
-                developer.log('Error updating streak from stream: $e');
-              });
-            }
-          },
-          cancelOnError: false,
-        );
+      (_) {
+        if (!(_cancelledByUser[userId] ?? false)) {
+          _updateStreak(userId).catchError((e) {
+            developer.log('Error updating streak from stream: $e');
+          });
+        }
+      },
+      cancelOnError: false,
+    );
 
-    // Also listen to user doc changes that might affect streak display
-    final userDocSub = FirestoreSafe.stream(
-      _firestore.collection('users').doc(userId).snapshots(),
-    ).listen(
-          (_) {},
-          cancelOnError: false,
-        );
+    _subsByUser[userId] = [activitiesSub];
 
-    // Store subscriptions
-    _subsByUser[userId] = [activitiesSub, userDocSub];
-
-    // Schedule a timer at next midnight to recompute streak across day boundary
     void scheduleMidnightTimer() {
       final now = DateTime.now();
       final nextMidnight = DateTime(
@@ -242,21 +233,16 @@ class StreakService {
     }
 
     scheduleMidnightTimer();
-
-    // Kick initial computation
     _updateStreak(userId);
   }
 
-  /// Stop real-time streak tracking for a user
   static void stopRealtimeTracking(String userId) {
-    // Mark as cancelled first to prevent new operations
     _cancelledByUser[userId] = true;
 
     final subs = _subsByUser.remove(userId);
     if (subs != null) {
       for (final s in subs) {
         try {
-          // Cancel subscription gracefully
           s.cancel();
         } catch (e) {
           developer.log('Error cancelling streak subscription: $e');
@@ -269,7 +255,6 @@ class StreakService {
   }
 
   static Future<void> _checkStreakMilestones(String userId, int streak) async {
-    // Award alerts for streak milestones
     final milestones = [3, 7, 14, 30, 60, 100, 365];
 
     for (final milestone in milestones) {
@@ -279,7 +264,6 @@ class StreakService {
           streakDays: streak,
         );
 
-        // Award bonus points for major milestones
         int bonusPoints = 0;
         if (streak == 7) {
           bonusPoints = 50;
@@ -299,24 +283,17 @@ class StreakService {
           );
         }
 
-        // After alerts and points, update badges progress/awards
         await BadgeService.checkAndAwardBadgesV2(userId);
         break;
       }
     }
   }
 
-  // Get current streak for a user
   static Future<int> getCurrentStreak(String userId) async {
     try {
       if (userId.isEmpty) return 0;
 
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      if (!userDoc.exists) return 0;
-
-      final data = userDoc.data();
-      if (data == null) return 0;
-
+      final data = await _backend.getUser(userId);
       final streak = data['currentStreak'];
       if (streak == null) return 0;
 
@@ -327,40 +304,30 @@ class StreakService {
     }
   }
 
-  // Get longest streak for a user
   static Future<int> getLongestStreak(String userId) async {
     try {
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      return (userDoc.data()?['longestStreak'] ?? 0) as int;
+      final data = await _backend.getUser(userId);
+      final streak = data['longestStreak'];
+      if (streak == null) return 0;
+      return (streak is int) ? streak : int.tryParse(streak.toString()) ?? 0;
     } catch (e) {
       return 0;
     }
   }
 
-  // Check if user has activity today
   static Future<bool> hasActivityToday(String userId) async {
     try {
       if (userId.isEmpty) return false;
 
       final today = DateTime.now();
-      final todayString =
-          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-
-      final doc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('daily_activities')
-          .doc(todayString)
-          .get();
-
-      return doc.exists;
+      final activities = await _backend.getDailyActivities(userId, limit: 30);
+      return activities.any((item) => _isSameDay(_parseActivityDate(item), today));
     } catch (e) {
       developer.log('Error checking today\'s activity: $e');
       return false;
     }
   }
 
-  // Get activity history for visualization
   static Future<List<Map<String, dynamic>>> getActivityHistory(
     String userId, {
     int days = 30,
@@ -369,22 +336,20 @@ class StreakService {
       final endDate = DateTime.now();
       final startDate = endDate.subtract(Duration(days: days));
 
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('daily_activities')
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
-          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
-          .orderBy('date', descending: false)
-          .get();
-
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'date': (data['date'] as Timestamp).toDate(),
-          'activities': List<String>.from(data['activities'] ?? []),
-        };
-      }).toList();
+      final snapshot = await _backend.getDailyActivities(userId, limit: days + 30);
+      return snapshot
+          .map((doc) {
+            final date = _parseActivityDate(doc);
+            if (date == null) return null;
+            if (date.isBefore(startDate) || date.isAfter(endDate)) return null;
+            return {
+              'date': date,
+              'activities': List<String>.from(doc['activities'] ?? []),
+            };
+          })
+          .whereType<Map<String, dynamic>>()
+          .toList()
+        ..sort((a, b) => (a['date'] as DateTime).compareTo(b['date'] as DateTime));
     } catch (e) {
       return [];
     }

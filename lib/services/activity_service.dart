@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'dart:developer' as developer;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 
 /// Service for recording and managing user activities
 class ActivityService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Record a user activity
   static Future<void> recordActivity({
@@ -22,13 +22,14 @@ class ActivityService {
         return;
       }
 
-      await _firestore.collection('activities').add({
+      final now = DateTime.now().toIso8601String();
+      await BackendAuthService.instance.createActivity(targetUserId, {
         'userId': targetUserId,
         'activityType': activityType,
         'description': description,
         'metadata': metadata ?? {},
-        'timestamp': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
+        'timestamp': now,
+        'createdAt': now,
       });
 
       developer.log('Recorded activity: $activityType for user $targetUserId');
@@ -81,17 +82,7 @@ class ActivityService {
     required String userId,
     int limit = 20,
   }) {
-    return _firestore
-        .collection('activities')
-        .where('userId', isEqualTo: userId)
-        .orderBy('timestamp', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs
-              .map((doc) => ActivityRecord.fromFirestore(doc))
-              .toList();
-        });
+    return _pollActivities(userId: userId, limit: limit);
   }
 
   /// Record goal status change activities
@@ -206,6 +197,25 @@ class ActivityService {
       'Created ${activities.length} sample activities for user $userId',
     );
   }
+
+  static Stream<List<ActivityRecord>> _pollActivities({
+    required String userId,
+    required int limit,
+  }) async* {
+    while (true) {
+      try {
+        final items = await BackendAuthService.instance.getActivities(
+          userId,
+          limit: limit,
+        );
+        yield items.map((item) => ActivityRecord.fromMap(item)).toList();
+      } catch (e) {
+        developer.log('Error getting activities: $e');
+        yield <ActivityRecord>[];
+      }
+      await Future.delayed(const Duration(seconds: 5));
+    }
+  }
 }
 
 /// Activity record data model
@@ -228,16 +238,33 @@ class ActivityRecord {
     required this.createdAt,
   });
 
-  factory ActivityRecord.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory ActivityRecord.fromMap(Map<String, dynamic> data, {String? fallbackId}) {
+    DateTime parseDate(dynamic value) {
+      if (value is DateTime) return value;
+      final parsed = DateTime.tryParse(value?.toString() ?? '');
+      return parsed ?? DateTime.now();
+    }
+
     return ActivityRecord(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      activityType: data['activityType'] ?? 'unknown',
-      description: data['description'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      metadata: Map<String, dynamic>.from(data['metadata'] ?? {}),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      id: (data['id'] ?? fallbackId ?? '').toString(),
+      userId: (data['userId'] ?? data['user_id'] ?? '').toString(),
+      activityType: (data['activityType'] ?? 'unknown').toString(),
+      description: (data['description'] ?? '').toString(),
+      timestamp: parseDate(data['timestamp'] ?? data['createdAt']),
+      metadata: Map<String, dynamic>.from((data['metadata'] as Map?) ?? const {}),
+      createdAt: parseDate(data['createdAt'] ?? data['timestamp']),
     );
+  }
+
+  Map<String, dynamic> toMap({bool includeId = true}) {
+    return {
+      if (includeId) 'id': id,
+      'userId': userId,
+      'activityType': activityType,
+      'description': description,
+      'timestamp': timestamp.toIso8601String(),
+      'metadata': metadata,
+      'createdAt': createdAt.toIso8601String(),
+    };
   }
 }

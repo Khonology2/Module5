@@ -1,15 +1,15 @@
 import 'dart:io';
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 
 class EmployeeExportService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final BackendAuthService _backend = BackendAuthService.instance;
 
   static Future<void> exportEmployeeData() async {
     final user = _auth.currentUser;
@@ -25,7 +25,7 @@ class EmployeeExportService {
         developer.log('Export attempt ${retryCount + 1} of $maxRetries');
 
         // Get user profile with retry logic
-        final userDoc = await _getUserProfileWithRetry(user.uid);
+        final userData = await _getUserProfileWithRetry(user.uid);
 
         // Get goals with small limit to avoid errors
         final goalsQuery = await _getGoalsWithRetry(user.uid);
@@ -34,9 +34,9 @@ class EmployeeExportService {
         final activitiesQuery = await _getActivitiesWithRetry(user.uid);
 
         final exportData = {
-          'profile': _filterProfileData(userDoc.data() as Map<String, dynamic>),
-          'goals': goalsQuery.docs.map((doc) => doc.data()).toList(),
-          'activities': activitiesQuery.docs.map((doc) => doc.data()).toList(),
+          'profile': _filterProfileData(userData),
+          'goals': goalsQuery.map(_normalizeJsonMap).toList(),
+          'activities': activitiesQuery.map(_normalizeJsonMap).toList(),
           'exportDate': DateTime.now().toIso8601String(),
         };
 
@@ -83,46 +83,34 @@ class EmployeeExportService {
     }
   }
 
-  static Future<DocumentSnapshot> _getUserProfileWithRetry(
-    String userId,
-  ) async {
+  static Future<Map<String, dynamic>> _getUserProfileWithRetry(String userId) async {
     try {
-      return await _firestore.collection('users').doc(userId).get();
+      return await _backend.getUser(userId);
     } catch (e) {
       developer.log('Error getting user profile: $e');
       rethrow;
     }
   }
 
-  static Future<QuerySnapshot> _getGoalsWithRetry(String userId) async {
+  static Future<List<Map<String, dynamic>>> _getGoalsWithRetry(String userId) async {
     try {
-      return await _firestore
-          .collection('goals')
-          .where('userId', isEqualTo: userId)
-          .limit(1) // Very small limit to avoid errors
-          .get();
+      return await _backend.getGoals(userId: userId, limit: 1);
     } catch (e) {
       developer.log('Error getting goals: $e');
       rethrow;
     }
   }
 
-  static Future<QuerySnapshot> _getActivitiesWithRetry(String userId) async {
+  static Future<List<Map<String, dynamic>>> _getActivitiesWithRetry(String userId) async {
     try {
-      return await _firestore
-          .collection('activities')
-          .where('userId', isEqualTo: userId)
-          .limit(2) // Small limit
-          .get();
+      return await _backend.getActivities(userId, limit: 2);
     } catch (e) {
       developer.log('Error getting activities: $e');
       rethrow;
     }
   }
 
-  static Map<String, dynamic> _filterProfileData(
-    Map<String, dynamic> profileData,
-  ) {
+  static Map<String, dynamic> _filterProfileData(Map<String, dynamic> profileData) {
     return {
       'displayName': profileData['displayName'],
       'email': profileData['email'],
@@ -132,6 +120,23 @@ class EmployeeExportService {
       'createdAt': profileData['createdAt'],
       'lastUpdated': profileData['lastUpdated'],
     };
+  }
+
+  static Map<String, dynamic> _normalizeJsonMap(Map<String, dynamic> data) {
+    final out = <String, dynamic>{};
+    data.forEach((key, value) {
+      if (value is Map) {
+        out[key] = Map<String, dynamic>.from(value);
+      } else if (value is List) {
+        out[key] = value.map((item) {
+          if (item is Map) return Map<String, dynamic>.from(item);
+          return item;
+        }).toList();
+      } else {
+        out[key] = value;
+      }
+    });
+    return out;
   }
 
   static Future<pw.Document> _generatePdf(Map<String, dynamic> data) async {

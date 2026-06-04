@@ -35,6 +35,20 @@ class Settings(BaseSettings):
     # Optional backend URL
     backend_url: Optional[str] = Field(None, alias='BACKEND_URL')
 
+    # Azure OpenAI configuration
+    azure_openai_api_key: Optional[str] = Field(None, alias='AZURE_OPENAI_API_KEY')
+    azure_openai_api_endpoint: Optional[str] = Field(
+        None, alias='AZURE_OPENAI_API_ENDPOINT'
+    )
+    azure_openai_model: Optional[str] = Field(None, alias='AZURE_OPENAI_MODEL')
+
+    # Postgres configuration (loaded for backend features that use the shared env file)
+    postgres_host: Optional[str] = Field(None, alias='POSTGRES_HOST')
+    postgres_port: Optional[str] = Field(None, alias='POSTGRES_PORT')
+    postgres_user: Optional[str] = Field(None, alias='POSTGRES_USER')
+    postgres_password: Optional[str] = Field(None, alias='POSTGRES_PASSWORD')
+    postgres_db: Optional[str] = Field(None, alias='POSTGRES_DB')
+
     # Optional: Firebase Web client config (for GET /firebase-config; not in service account JSON)
     firebase_web_api_key: Optional[str] = Field(None, alias='FIREBASE_WEB_API_KEY')
     firebase_web_app_id: Optional[str] = Field(None, alias='FIREBASE_WEB_APP_ID')
@@ -64,6 +78,14 @@ class Settings(BaseSettings):
             'JWT_SECRET_KEY': 'jwt_secret',
             'ENCRYPTION_KEY': 'encryption_key',
             'BACKEND_URL': 'backend_url',
+            'AZURE_OPENAI_API_KEY': 'azure_openai_api_key',
+            'AZURE_OPENAI_API_ENDPOINT': 'azure_openai_api_endpoint',
+            'AZURE_OPENAI_MODEL': 'azure_openai_model',
+            'POSTGRES_HOST': 'postgres_host',
+            'POSTGRES_PORT': 'postgres_port',
+            'POSTGRES_USER': 'postgres_user',
+            'POSTGRES_PASSWORD': 'postgres_password',
+            'POSTGRES_DB': 'postgres_db',
             'FIREBASE_WEB_API_KEY': 'firebase_web_api_key',
             'FIREBASE_WEB_APP_ID': 'firebase_web_app_id',
             'FIREBASE_WEB_MESSAGING_SENDER_ID': 'firebase_web_messaging_sender_id',
@@ -137,17 +159,13 @@ def validate_settings(settings: Settings) -> None:
         ValueError: If required settings are missing or invalid.
     """
     raw = (settings.firebase_service_account_json or "").strip()
-    if not raw:
-        raise ValueError(
-            "FIREBASE_SERVICE_ACCOUNT_JSON environment variable is required. "
-            "Set it to the full service account JSON as a single-line string."
-        )
     if not settings.jwt_secret:
         raise ValueError("JWT_SECRET_KEY environment variable is required")
-    try:
-        parse_firebase_service_account_json(raw)
-    except (json.JSONDecodeError, ValueError) as e:
-        raise ValueError(f"Invalid FIREBASE_SERVICE_ACCOUNT_JSON: {e}")
+    if raw:
+        try:
+            parse_firebase_service_account_json(raw)
+        except (json.JSONDecodeError, ValueError) as e:
+            raise ValueError(f"Invalid FIREBASE_SERVICE_ACCOUNT_JSON: {e}")
 
 
 def parse_firebase_service_account_json(json_str: str) -> Dict[str, Any]:

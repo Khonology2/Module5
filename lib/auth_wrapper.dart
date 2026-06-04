@@ -61,30 +61,22 @@ class _AuthWrapperState extends State<AuthWrapper> {
             return RoleService.instance.cachedRole;
           }(),
           builder: (context, roleSnapshot) {
-            final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
+            final role =
+                roleSnapshot.data ??
+                RoleService.instance.cachedRole ??
+                RoleService.instance.effectiveRole;
 
             // While role is unknown, keep a loading screen to avoid misrouting
-            if (roleSnapshot.connectionState == ConnectionState.waiting) {
+            if (roleSnapshot.connectionState == ConnectionState.waiting &&
+                role == null) {
               return const Scaffold(
                 body: CustomLogoLoader(centerInViewport: true),
               );
             }
 
-            // If role is still null after loading, don't spin forever.
-            if (role == null) {
-              return _RoleNotSetScreen(
-                onTryAgain: () async {
-                  RoleService.instance.clearCache();
-                  await RoleService.instance.ensureRoleLoaded();
-                  if (context.mounted) setState(() {});
-                },
-                onSignOut: () async {
-                  await FirebaseAuth.instance.signOut();
-                },
-              );
-            }
-
-            final normalized = RoleService.instance.normalizeRoleLabel(role);
+            final normalized = RoleService.instance.normalizeRoleLabel(
+              role ?? 'employee',
+            );
             final targetRoute = RoleService.instance.routeForRole(normalized);
             // #region agent log
             agentDebugLog(

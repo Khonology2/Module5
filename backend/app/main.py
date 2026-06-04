@@ -14,7 +14,8 @@ import importlib
 try:
     from app.config import get_settings, validate_settings, get_firebase_service_account_dict
     from app.firebase_client import initialize_firebase
-    from app.routes import auth, ai
+    from app.postgres_store import init_postgres_schema
+    from app.routes import auth, ai, users, collections, learning
     from app.models import ErrorResponse
 except ModuleNotFoundError:
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -23,7 +24,8 @@ except ModuleNotFoundError:
     importlib.invalidate_caches()
     from app.config import get_settings, validate_settings, get_firebase_service_account_dict
     from app.firebase_client import initialize_firebase
-    from app.routes import auth, ai
+    from app.postgres_store import init_postgres_schema
+    from app.routes import auth, ai, users, collections, learning
     from app.models import ErrorResponse
 
 # Configure logging
@@ -52,9 +54,18 @@ async def lifespan(app: FastAPI):
         validate_settings(settings)
         logger.info("Configuration validated successfully")
         
-        # Initialize Firebase
-        initialize_firebase()
-        logger.info("Firebase Admin SDK initialized")
+        init_postgres_schema()
+        logger.info("PostgreSQL schema initialized")
+
+        # Initialize Firebase only when the service-account JSON is present.
+        # This keeps the backend usable for AI-only/local development with the shared .env.
+        if (settings.firebase_service_account_json or "").strip():
+            initialize_firebase()
+            logger.info("Firebase Admin SDK initialized")
+        else:
+            logger.warning(
+                "FIREBASE_SERVICE_ACCOUNT_JSON is not set; Firebase auth routes will return 503"
+            )
         
         logger.info("PDH Backend started successfully")
         
@@ -104,6 +115,9 @@ app.add_middleware(
 # Register routes
 app.include_router(auth.router)
 app.include_router(ai.router)
+app.include_router(users.router)
+app.include_router(collections.router)
+app.include_router(learning.router)
 
 
 @app.middleware("http")

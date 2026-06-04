@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/progress_visuals_screen.dart';
 
-/// Admin-only Progress Visuals screen. Uses the same UI as the Progress Visuals screen.
-/// Not shared with manager/employee. Clicking "Progress Visuals" in the admin sidebar goes here.
+/// Admin-only Progress Visuals. Delegates to [ProgressVisualsScreen];
+/// metrics are loaded from PostgreSQL via [BackendAuthService].
 class AdminProgressVisualsScreen extends StatelessWidget {
   const AdminProgressVisualsScreen({
     super.key,

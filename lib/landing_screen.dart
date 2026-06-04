@@ -7,7 +7,6 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/services/user_display_name_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/data/pdh_firestore.dart';
 import 'package:pdh/widgets/version_control_widget.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
@@ -346,22 +345,18 @@ class _PersonalDevelopmentHubScreenState
             internalRole = 'manager';
           }
 
-          // Brief delay so Firestore client picks up the new auth token (avoids permission-denied race)
-          await Future.delayed(const Duration(milliseconds: 150));
-
           try {
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(effectiveUserId.isNotEmpty ? effectiveUserId : userId)
-                .set({
-                  if (email.isNotEmpty) 'email': email,
-                  if (resolvedDisplayName.isNotEmpty)
-                    'displayName': resolvedDisplayName,
-                  'role': internalRole,
-                  'pdhRole': pdhRole,
-                  'tokenAuthenticated': true,
-                  'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
+            await BackendAuthService.instance.updateUserProfile(
+              effectiveUserId.isNotEmpty ? effectiveUserId : userId,
+              {
+                if (email.isNotEmpty) 'email': email,
+                if (resolvedDisplayName.isNotEmpty)
+                  'displayName': resolvedDisplayName,
+                'role': internalRole,
+                'pdhRole': pdhRole,
+                'tokenAuthenticated': true,
+              },
+            );
           } catch (e) {
             _swallowError(e);
           }

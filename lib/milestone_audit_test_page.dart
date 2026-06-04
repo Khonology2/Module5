@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/unified_milestone_audit.dart';
 
@@ -98,9 +98,9 @@ class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
 
               for (final entry in auditEntries) {
                 final action = entry['action'] ?? 'unknown';
-                final timestamp = entry['timestamp'] as Timestamp?;
+                final timestamp = parseNullableDate(entry['timestamp']);
                 _testResults.add(
-                  '📝 $action at ${timestamp?.toDate() ?? 'unknown time'}',
+                  '📝 $action at ${timestamp ?? 'unknown time'}',
                 );
               }
 

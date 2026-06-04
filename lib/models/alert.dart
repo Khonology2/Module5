@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 
 enum AlertType {
   goalCreated,
@@ -109,15 +109,12 @@ class Alert {
     );
   }
 
-  factory Alert.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  static Map<String, dynamic> _mergeActionData(Map<String, dynamic> data) {
     final rawActionData = data['actionData'];
     final actionData = rawActionData is Map
         ? Map<String, dynamic>.from(rawActionData)
         : <String, dynamic>{};
 
-    // Backwards-compatible: older badge-earned alerts store badge fields at the
-    // top level (not in actionData). Merge them in so UIs can deep-link.
     final topBadgeId = data['badgeId'];
     if (topBadgeId != null && actionData['badgeId'] == null) {
       actionData['badgeId'] = topBadgeId.toString();
@@ -126,8 +123,6 @@ class Alert {
     if (topBadgeCategory != null && actionData['badgeCategory'] == null) {
       actionData['badgeCategory'] = topBadgeCategory.toString();
     }
-    // Keep workflow diagnostics queryable across old/new records by ensuring
-    // key approval-routing fields are always available in actionData.
     final topRequestedByUserId = data['requestedByUserId'];
     if (topRequestedByUserId != null &&
         actionData['requestedByUserId'] == null) {
@@ -142,38 +137,11 @@ class Alert {
     if (topApprovalChain != null && actionData['approvalChain'] == null) {
       actionData['approvalChain'] = topApprovalChain.toString();
     }
-
-    return Alert(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      type: parseAlertType((data['type'] ?? 'goalCreated').toString()),
-      audience: _parseAlertAudience(data['audience']?.toString()),
-      priority: AlertPriority.values.firstWhere(
-        (e) => e.name == (data['priority'] ?? 'medium'),
-        orElse: () => AlertPriority.medium,
-      ),
-      title: data['title'] ?? '',
-      message: data['message'] ?? '',
-      actionText: data['actionText'],
-      actionRoute: data['actionRoute'],
-      actionData: actionData.isEmpty ? null : actionData,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      isRead: data['isRead'] ?? false,
-      isDismissed: data['isDismissed'] ?? false,
-      expiresAt: (data['expiresAt'] as Timestamp?)?.toDate(),
-      relatedGoalId: data['relatedGoalId']?.toString(),
-      fromUserId: data['fromUserId']?.toString(),
-      fromUserName: data['fromUserName']?.toString(),
-    );
+    return actionData;
   }
 
   static Alert fromMap(Map<String, dynamic> map, {String? id}) {
-    DateTime parseDate(dynamic v) {
-      if (v is Timestamp) return v.toDate();
-      if (v is DateTime) return v;
-      final parsed = DateTime.tryParse(v?.toString() ?? '');
-      return parsed ?? DateTime.now();
-    }
+    final actionData = _mergeActionData(map);
 
     return Alert(
       id: id ?? (map['id']?.toString() ?? ''),
@@ -188,25 +156,36 @@ class Alert {
       message: map['message']?.toString() ?? '',
       actionText: map['actionText']?.toString(),
       actionRoute: map['actionRoute']?.toString(),
-      actionData: map['actionData'] is Map<String, dynamic>
-          ? Map<String, dynamic>.from(map['actionData'])
-          : null,
+      actionData: actionData.isEmpty ? null : actionData,
       createdAt: parseDate(map['createdAt']),
       isRead: (map['isRead'] ?? false) == true,
       isDismissed: (map['isDismissed'] ?? false) == true,
-      expiresAt: map['expiresAt'] != null ? parseDate(map['expiresAt']) : null,
+      expiresAt:
+          map['expiresAt'] != null ? parseNullableDate(map['expiresAt']) : null,
       relatedGoalId: map['relatedGoalId']?.toString(),
       fromUserId: map['fromUserId']?.toString(),
       fromUserName: map['fromUserName']?.toString(),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  static dynamic _serializeValue(dynamic value) {
+    if (value is DateTime) return value.toIso8601String();
+    if (value is Map) {
+      return value.map(
+        (k, v) => MapEntry(k.toString(), _serializeValue(v)),
+      );
+    }
+    return value;
+  }
+
+  Map<String, dynamic> toMap({bool includeId = true}) {
     final requestedByUserId = actionData?['requestedByUserId']?.toString();
     final requiredApproverRole =
         actionData?['requiredApproverRole']?.toString();
     final approvalChain = actionData?['approvalChain']?.toString();
+    final serializedActionData = actionData?.map((k, v) => MapEntry(k, _serializeValue(v)));
     return {
+      if (includeId && id.isNotEmpty) 'id': id,
       'userId': userId,
       'type': type.name,
       'audience': audience.name,
@@ -215,11 +194,11 @@ class Alert {
       'message': message,
       'actionText': actionText,
       'actionRoute': actionRoute,
-      'actionData': actionData,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'actionData': serializedActionData,
+      'createdAt': createdAt.toIso8601String(),
       'isRead': isRead,
       'isDismissed': isDismissed,
-      'expiresAt': expiresAt != null ? Timestamp.fromDate(expiresAt!) : null,
+      if (expiresAt != null) 'expiresAt': expiresAt!.toIso8601String(),
       'relatedGoalId': relatedGoalId,
       'fromUserId': fromUserId,
       'fromUserName': fromUserName,

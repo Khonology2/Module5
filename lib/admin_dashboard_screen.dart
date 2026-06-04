@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/manager_dashboard_screen.dart';
 
-/// Admin-only dashboard screen. Uses the same UI as the manager dashboard
-/// with admin oversight (managers as "team"). Not shared with manager/employee.
+/// Admin-only dashboard. Delegates to [ManagerDashboardScreen];
+/// team/manager data is loaded from PostgreSQL via [ManagerRealtimeService].
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({
     super.key,

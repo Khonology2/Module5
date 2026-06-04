@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:web/web.dart' as web;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -28,43 +27,14 @@ class ManagerEmployeeDetailScreen extends StatefulWidget {
 class _ManagerEmployeeDetailScreenState
     extends State<ManagerEmployeeDetailScreen> {
   Stream<List<Goal>> _goalsStream() {
-    // Merge top-level and nested user goals
-    final topLevel = FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: widget.employee.profile.uid)
-        .snapshots()
-        .map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
-
-    final nested = FirebaseFirestore.instance
-        .collection('users')
-        .doc(widget.employee.profile.uid)
-        .collection('goals')
-        .snapshots()
-        .map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
-
-    return topLevel.combineLatest<List<Goal>, List<Goal>>(nested, (a, b) {
-      int richness(Goal g) =>
-          g.title.trim().length + g.description.trim().length;
-
-      Goal? pickBetter(Goal? current, Goal candidate) {
-        if (!candidate.isDisplayableGoal) return current;
-        if (current == null) return candidate;
-        final rc = richness(candidate);
-        final r0 = richness(current);
-        return rc > r0 ? candidate : current;
-      }
-
-      final byId = <String, Goal>{};
-      for (final g in a) {
-        final next = pickBetter(byId[g.id], g);
-        if (next != null) byId[g.id] = next;
-      }
-      for (final g in b) {
-        final next = pickBetter(byId[g.id], g);
-        if (next != null) byId[g.id] = next;
-      }
-      final merged = byId.values.where((g) => g.isDisplayableGoal).toList();
-      merged.sort((x, y) => y.createdAt.compareTo(x.createdAt));
+    final viewerId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    return DatabaseService.getUserGoalsStreamForViewer(
+      viewerId: viewerId,
+      targetUserId: widget.employee.profile.uid,
+    ).map((goals) {
+      final merged =
+          goals.where((g) => g.isDisplayableGoal).toList()
+            ..sort((x, y) => y.createdAt.compareTo(x.createdAt));
       return merged;
     });
   }
@@ -543,9 +513,9 @@ class _ManagerEmployeeDetailScreenState
 
   Future<void> _resumeGoal(Goal goal) async {
     try {
-      await FirebaseFirestore.instance.collection('goals').doc(goal.id).update({
+      await DatabaseService.patchGoalFields(goal.id, {
         'status': GoalStatus.inProgress.name,
-        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdated': DateTime.now().toIso8601String(),
       });
 
       await AlertService.createMotivationalAlert(
@@ -587,8 +557,8 @@ class _ManagerEmployeeDetailScreenState
     if (picked == null) return;
 
     try {
-      await FirebaseFirestore.instance.collection('goals').doc(goal.id).update({
-        'targetDate': Timestamp.fromDate(picked),
+      await DatabaseService.patchGoalFields(goal.id, {
+        'targetDate': picked.toIso8601String(),
         'status': GoalStatus.inProgress.name,
       });
 
@@ -679,10 +649,10 @@ class _ManagerEmployeeDetailScreenState
     );
 
     try {
-      await FirebaseFirestore.instance.collection('goals').doc(goal.id).update({
-        'targetDate': Timestamp.fromDate(picked),
+      await DatabaseService.patchGoalFields(goal.id, {
+        'targetDate': picked.toIso8601String(),
         'status': GoalStatus.inProgress.name,
-        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdated': DateTime.now().toIso8601String(),
       });
 
       await AlertService.createMotivationalAlert(
@@ -734,7 +704,7 @@ class _ManagerEmployeeDetailScreenState
 
   Future<void> _pauseGoal(Goal goal) async {
     try {
-      await FirebaseFirestore.instance.collection('goals').doc(goal.id).update({
+      await DatabaseService.patchGoalFields(goal.id, {
         'status': GoalStatus.paused.name,
       });
 
@@ -767,7 +737,7 @@ class _ManagerEmployeeDetailScreenState
 
   Future<void> _markGoalBurnout(Goal goal) async {
     try {
-      await FirebaseFirestore.instance.collection('goals').doc(goal.id).update({
+      await DatabaseService.patchGoalFields(goal.id, {
         'status': GoalStatus.burnout.name,
       });
 

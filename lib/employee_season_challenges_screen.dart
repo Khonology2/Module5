@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/services/database_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/services/season_service.dart';
-import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
@@ -93,15 +93,12 @@ class _EmployeeSeasonChallengesScreenState
       });
 
       // Get user department
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      if (userDoc.exists) {
+      try {
+        final profile = await DatabaseService.getUserProfile(user.uid);
         setState(() {
-          _currentUserDepartment = userDoc.data()?['department'];
+          _currentUserDepartment = profile.department;
         });
-      }
+      } catch (_) {}
 
       // Sync season challenge points into the employee profile.
       await SeasonService.syncCurrentEmployeeSeasonPoints();
@@ -112,13 +109,16 @@ class _EmployeeSeasonChallengesScreenState
 
   Future<void> _loadAdminUserIds() async {
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'admin')
-          .get();
+      final admins = await BackendAuthService.instance.listUsers(
+        role: 'admin',
+        limit: 500,
+      );
       if (!mounted) return;
       setState(() {
-        _adminUserIds = snap.docs.map((d) => d.id).toSet();
+        _adminUserIds = admins
+            .map((u) => (u['id'] ?? u['userId'] ?? '').toString())
+            .where((id) => id.isNotEmpty)
+            .toSet();
         _adminUsersLoaded = true;
       });
     } catch (_) {
@@ -1089,28 +1089,12 @@ class _EmployeeSeasonChallengesScreenState
       final rawGoal = goal;
       return rawGoal.isSeasonGoal;
     }).toList();
-    final seasonGoalDocs = await FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: currentUserId)
-        .get();
-    final docs =
-        seasonGoalDocs.docs.where((doc) {
-          final data = doc.data();
-          return data['isSeasonGoal'] == true &&
-              (data['seasonId'] ?? '').toString() == season.id;
-        }).toList()..sort((a, b) {
-          final aCreated = a.data()['createdAt'];
-          final bCreated = b.data()['createdAt'];
-          final aDate = aCreated is Timestamp
-              ? aCreated.toDate()
-              : DateTime(1970);
-          final bDate = bCreated is Timestamp
-              ? bCreated.toDate()
-              : DateTime(1970);
-          return bDate.compareTo(aDate);
-        });
+    final seasonGoalsForSeason = seasonGoals
+        .where((g) => g.isSeasonGoal)
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    if (seasonGoals.isEmpty || docs.isEmpty) {
+    if (seasonGoalsForSeason.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1121,26 +1105,24 @@ class _EmployeeSeasonChallengesScreenState
       return;
     }
 
-    QueryDocumentSnapshot<Map<String, dynamic>>? selected;
+    Goal? selected;
 
     if (preferredChallengeId != null) {
-      for (final doc in docs) {
-        final challengeId = (doc.data()['challengeId'] ?? '').toString();
-        if (challengeId == preferredChallengeId) {
-          selected = doc;
+      for (final goal in seasonGoalsForSeason) {
+        // challengeId is stored on goal payload when present
+        if (goal.id == preferredChallengeId) {
+          selected = goal;
           break;
         }
       }
     }
 
-    selected ??= docs.first;
-    for (final doc in docs) {
-      final status = (doc.data()['status'] ?? 'notStarted').toString();
+    selected ??= seasonGoalsForSeason.first;
+    for (final goal in seasonGoalsForSeason) {
       final isPreferredMatch =
-          preferredChallengeId == null ||
-          (doc.data()['challengeId'] ?? '').toString() == preferredChallengeId;
-      if (isPreferredMatch && status != 'completed') {
-        selected = doc;
+          preferredChallengeId == null || goal.id == preferredChallengeId;
+      if (isPreferredMatch && goal.status != GoalStatus.completed) {
+        selected = goal;
         break;
       }
     }
@@ -1156,7 +1138,7 @@ class _EmployeeSeasonChallengesScreenState
       return;
     }
 
-    final goal = Goal.fromFirestore(selected);
+    final goal = selected;
     if (!mounted) return;
     await Navigator.push(
       context,

@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/services/app_ai_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_components.dart';
@@ -25,7 +24,9 @@ import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/manager_badge_evaluator.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/date_parse.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
 import 'package:pdh/widgets/branded_refresh_indicator.dart';
@@ -103,7 +104,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
   void _seedFastProfile() {
     // Render instantly using an in-memory or auth-based profile placeholder.
-    // The Firestore stream + DatabaseService load will replace this shortly.
+    // The backend polling stream + DatabaseService load will replace this shortly.
     if (_cachedProfile != null || userProfile != null) return;
     if (_globalCachedProfile != null) {
       _cachedProfile = _globalCachedProfile;
@@ -190,12 +191,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
 
-    return FirestoreSafe.stream(
-      FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
-    ).map((doc) {
-      if (!doc.exists) return null;
-      return UserProfile.fromFirestore(doc);
-    });
+    return DatabaseService.getUserProfileStream(user.uid);
   }
 
   @override
@@ -1291,35 +1287,7 @@ class _ManagerProgressVisualsContentState
   Stream<List<Goal>> _getManagerGoalsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
-
-    // Merge top-level and nested user goals (same pattern as manager_employee_detail_screen)
-    final topLevel = FirestoreSafe.stream(
-      FirebaseFirestore.instance
-          .collection('goals')
-          .where('userId', isEqualTo: user.uid)
-          .snapshots(),
-    ).map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
-
-    final nested = FirestoreSafe.stream(
-      FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('goals')
-          .snapshots(),
-    ).map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
-
-    return topLevel.combineLatest<List<Goal>, List<Goal>>(nested, (a, b) {
-      final seen = <String>{};
-      final merged = <Goal>[];
-      for (final g in [...a, ...b]) {
-        if (!seen.contains(g.id)) {
-          seen.add(g.id);
-          merged.add(g);
-        }
-      }
-      merged.sort((x, y) => y.createdAt.compareTo(x.createdAt));
-      return merged;
-    });
+    return DatabaseService.getUserGoalsStream(user.uid);
   }
 
   Map<String, dynamic> _calculateManagerGoalMetrics(List<Goal> goals) {
@@ -1499,82 +1467,66 @@ class _ManagerProgressVisualsContentState
 
     return Stream.periodic(const Duration(seconds: 5)).asyncMap((_) async {
       final activities = <ManagerActivity>[];
-      final seenActivityIds = <String>{}; // Track to avoid duplicates
+      final seenActivityIds = <String>{};
+      final nameCache = <String, String?>{};
+
+      Future<String?> employeeName(String? employeeId) async {
+        if (employeeId == null || employeeId.isEmpty) return null;
+        if (nameCache.containsKey(employeeId)) return nameCache[employeeId];
+        try {
+          final data = await BackendAuthService.instance.getUser(employeeId);
+          final name = (data['displayName'] ?? '').toString().trim();
+          nameCache[employeeId] = name.isNotEmpty ? name : null;
+        } catch (_) {
+          nameCache[employeeId] = null;
+        }
+        return nameCache[employeeId];
+      }
+
+      DateTime parseCreated(dynamic v) =>
+          parseNullableDate(v) ?? DateTime.now();
 
       try {
-        // Fetch nudges from alerts - try with composite index first, fallback to simpler query
-        List<QueryDocumentSnapshot> nudgeDocs = [];
+        final nudgeAlerts = <Map<String, dynamic>>[];
         try {
-          final nudgesSnapshot = await FirebaseFirestore.instance
-              .collection('alerts')
-              .where('type', isEqualTo: AlertType.managerNudge.name)
-              .where('fromUserId', isEqualTo: user.uid)
-              .orderBy('createdAt', descending: true)
-              .limit(50)
-              .get();
-          nudgeDocs = nudgesSnapshot.docs;
-        } catch (e) {
-          // If composite index fails, try without orderBy and sort in memory
-          developer.log(
-            'Alerts composite index query failed, using fallback: $e',
-          );
-          try {
-            final allNudges = await FirebaseFirestore.instance
-                .collection('alerts')
-                .where('type', isEqualTo: AlertType.managerNudge.name)
-                .where('fromUserId', isEqualTo: user.uid)
-                .limit(100)
-                .get();
-
-            // Sort in memory and take top 50
-            nudgeDocs = allNudges.docs.toList()
-              ..sort((a, b) {
-                final aTime =
-                    (a.data()['createdAt'] as Timestamp?)?.toDate() ??
-                    DateTime.fromMillisecondsSinceEpoch(0);
-                final bTime =
-                    (b.data()['createdAt'] as Timestamp?)?.toDate() ??
-                    DateTime.fromMillisecondsSinceEpoch(0);
-                return bTime.compareTo(aTime);
-              });
-            nudgeDocs = nudgeDocs.take(50).toList();
-          } catch (e2) {
-            developer.log('Fallback alerts query also failed: $e2');
-            // Continue - nudges will be picked up from manager_actions
+          final users =
+              await BackendAuthService.instance.listUsers(limit: 2000);
+          for (final u in users) {
+            final uid = (u['id'] ?? u['uid'] ?? '').toString();
+            if (uid.isEmpty) continue;
+            try {
+              final alerts =
+                  await BackendAuthService.instance.getAlerts(uid, limit: 200);
+              nudgeAlerts.addAll(
+                alerts.where(
+                  (a) =>
+                      (a['type'] ?? '').toString() ==
+                          AlertType.managerNudge.name &&
+                      (a['fromUserId'] ?? '').toString() == user.uid,
+                ),
+              );
+            } catch (_) {}
           }
+          nudgeAlerts.sort((a, b) {
+            final at = parseCreated(a['createdAt']);
+            final bt = parseCreated(b['createdAt']);
+            return bt.compareTo(at);
+          });
+        } catch (e) {
+          developer.log('Error loading manager nudge alerts: $e');
         }
 
-        // Process nudges from alerts
-        for (final doc in nudgeDocs) {
-          final activityId = 'alert_${doc.id}';
+        for (final data in nudgeAlerts.take(50)) {
+          final docId = (data['id'] ?? '').toString();
+          final activityId = 'alert_$docId';
           if (seenActivityIds.contains(activityId)) continue;
           seenActivityIds.add(activityId);
 
-          final data = doc.data() as Map<String, dynamic>?;
-          if (data == null) continue;
-
-          final employeeId = data['userId'] as String?;
-          String? employeeName;
-          if (employeeId != null) {
-            try {
-              final empDoc = await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(employeeId)
-                  .get();
-              employeeName = empDoc.data()?['displayName'] as String?;
-            } catch (_) {
-              // Ignore errors fetching employee name
-            }
-          }
-
-          // Format description from manager's perspective
-          // Alert message format: "$managerName sent you a nudge about "$goalTitle": $nudgeMessage"
-          // We need: "You sent a nudge to [employee name]"
-          String description = 'Sent a nudge to employee';
-          if (employeeName != null) {
-            description = 'You sent a nudge to $employeeName';
-          } else if (employeeId != null) {
-            description = 'You sent a nudge to employee';
+          final employeeId = data['userId']?.toString();
+          final empName = await employeeName(employeeId);
+          var description = 'Sent a nudge to employee';
+          if (empName != null) {
+            description = 'You sent a nudge to $empName';
           }
 
           activities.add(
@@ -1584,118 +1536,51 @@ class _ManagerProgressVisualsContentState
               title: 'Sent Nudge',
               description: description,
               employeeId: employeeId,
-              employeeName: employeeName,
-              createdAt:
-                  (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+              employeeName: empName,
+              createdAt: parseCreated(data['createdAt']),
               isCompleted: true,
               metadata: {'goalTitle': data['relatedGoalId']},
             ),
           );
         }
 
-        // Fetch approvals from goals (ONLY goals approved by *this* manager).
-        // Include both top-level goals and nested user goals, with index-safe fallbacks.
-        List<QueryDocumentSnapshot<Map<String, dynamic>>> approvalDocs = [];
-        Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
-        fetchApprovalDocsFrom(Query<Map<String, dynamic>> q) async {
-          try {
-            final snap = await q
-                .where('approvedByUserId', isEqualTo: user.uid)
-                .where(
-                  'approvalStatus',
-                  isEqualTo: GoalApprovalStatus.approved.name,
-                )
-                .orderBy('approvedAt', descending: true)
-                .limit(50)
-                .get();
-            return snap.docs;
-          } catch (e) {
-            // If composite index fails, try without orderBy and sort in memory
-            developer.log('Approvals orderBy failed, using fallback: $e');
-            try {
-              final snap = await q
-                  .where('approvedByUserId', isEqualTo: user.uid)
-                  .where(
-                    'approvalStatus',
-                    isEqualTo: GoalApprovalStatus.approved.name,
-                  )
-                  .limit(100)
-                  .get();
-              final docs = snap.docs.toList()
-                ..sort((a, b) {
-                  final aTime =
-                      (a.data()['approvedAt'] as Timestamp?)?.toDate() ??
-                      DateTime.fromMillisecondsSinceEpoch(0);
-                  final bTime =
-                      (b.data()['approvedAt'] as Timestamp?)?.toDate() ??
-                      DateTime.fromMillisecondsSinceEpoch(0);
-                  return bTime.compareTo(aTime);
-                });
-              return docs.take(50).toList();
-            } catch (e2) {
-              developer.log('Approvals fallback also failed: $e2');
-              return const [];
-            }
-          }
-        }
+        final allGoals =
+            await BackendAuthService.instance.getGoals(limit: 2000);
+        final approvalGoals = allGoals
+            .where(
+              (g) =>
+                  (g['approvedByUserId'] ?? '').toString() == user.uid &&
+                  (g['approvalStatus'] ?? '').toString() ==
+                      GoalApprovalStatus.approved.name,
+            )
+            .toList()
+          ..sort((a, b) {
+            final at = parseCreated(a['approvedAt']);
+            final bt = parseCreated(b['approvedAt']);
+            return bt.compareTo(at);
+          });
 
-        // Top-level goals approvals
-        approvalDocs.addAll(
-          await fetchApprovalDocsFrom(
-            FirebaseFirestore.instance.collection('goals'),
-          ),
-        );
-        // Nested user goals approvals (in case approvals are stored under users/{uid}/goals)
-        approvalDocs.addAll(
-          await fetchApprovalDocsFrom(
-            FirebaseFirestore.instance.collectionGroup('goals'),
-          ),
-        );
-
-        // Process approvals (dedupe across sources)
         final seenApprovalKeys = <String>{};
-        for (final doc in approvalDocs) {
-          final data = doc.data();
-
-          // Defensive: ensure it's really approved by this manager
-          if ((data['approvedByUserId'] ?? '').toString() != user.uid) continue;
-          if ((data['approvalStatus'] ?? '').toString() !=
-              GoalApprovalStatus.approved.name) {
-            continue;
-          }
-
+        for (final data in approvalGoals.take(50)) {
           final employeeId = (data['userId'] ?? data['ownerId'])?.toString();
-          final approvedAt =
-              (data['approvedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+          final approvedAt = parseCreated(data['approvedAt']);
           final goalTitle = (data['title'] ?? 'Approved a goal').toString();
+          final goalId = (data['id'] ?? '').toString();
 
-          // Build a stable dedupe key across collections
           final approvalKey =
               '${employeeId ?? ''}|$goalTitle|${approvedAt.millisecondsSinceEpoch}';
           if (seenApprovalKeys.contains(approvalKey)) continue;
           seenApprovalKeys.add(approvalKey);
 
-          String? employeeName;
-          if (employeeId != null && employeeId.isNotEmpty) {
-            try {
-              final empDoc = await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(employeeId)
-                  .get();
-              employeeName = empDoc.data()?['displayName'] as String?;
-            } catch (_) {
-              // Ignore errors fetching employee name
-            }
-          }
-
+          final empName = await employeeName(employeeId);
           activities.add(
             ManagerActivity(
-              id: 'approval_${doc.id}',
+              id: 'approval_$goalId',
               type: ManagerActivityType.approval,
               title: 'Approved Goal',
               description: goalTitle,
               employeeId: employeeId,
-              employeeName: employeeName,
+              employeeName: empName,
               createdAt: approvedAt,
               isCompleted: true,
               metadata: {'goalTitle': goalTitle},
@@ -1703,59 +1588,23 @@ class _ManagerProgressVisualsContentState
           );
         }
 
-        // Fetch replans and other actions from manager_actions (primary source for nudges)
         try {
-          List<QueryDocumentSnapshot> actionDocs = [];
-          try {
-            final actionsSnapshot = await FirebaseFirestore.instance
-                .collection('manager_actions')
-                .where('managerId', isEqualTo: user.uid)
-                .orderBy('createdAt', descending: true)
-                .limit(50)
-                .get();
-            actionDocs = actionsSnapshot.docs;
-          } catch (e) {
-            // If orderBy fails, try without it and sort in memory
-            developer.log('Manager actions orderBy failed, using fallback: $e');
-            try {
-              final allActions = await FirebaseFirestore.instance
-                  .collection('manager_actions')
-                  .where('managerId', isEqualTo: user.uid)
-                  .limit(100)
-                  .get();
+          final actionDocs = await BackendAuthService.instance
+              .getManagerActions(user.uid, limit: 100);
+          actionDocs.sort((a, b) {
+            final at = parseCreated(a['createdAt']);
+            final bt = parseCreated(b['createdAt']);
+            return bt.compareTo(at);
+          });
 
-              actionDocs = allActions.docs.toList()
-                ..sort((a, b) {
-                  final aTime =
-                      (a.data()['createdAt'] as Timestamp?)?.toDate() ??
-                      DateTime.fromMillisecondsSinceEpoch(0);
-                  final bTime =
-                      (b.data()['createdAt'] as Timestamp?)?.toDate() ??
-                      DateTime.fromMillisecondsSinceEpoch(0);
-                  return bTime.compareTo(aTime);
-                });
-              actionDocs = actionDocs.take(50).toList();
-            } catch (e2) {
-              developer.log('Manager actions fallback also failed: $e2');
-            }
-          }
-
-          // Process all manager actions (including nudges)
-          developer.log('Processing ${actionDocs.length} manager actions');
-          for (final doc in actionDocs) {
-            final activityId = 'action_${doc.id}';
+          for (final data in actionDocs.take(50)) {
+            final docId = (data['id'] ?? '').toString();
+            final activityId = 'action_$docId';
             if (seenActivityIds.contains(activityId)) continue;
             seenActivityIds.add(activityId);
 
-            final data = doc.data() as Map<String, dynamic>?;
-            if (data == null) continue;
-
-            final actionType = data['actionType'] as String? ?? '';
-            final type = data['type'] as String? ?? '';
-
-            developer.log(
-              'Processing action: actionType=$actionType, type=$type, id=${doc.id}',
-            );
+            final actionType = data['actionType']?.toString() ?? '';
+            final type = data['type']?.toString() ?? '';
 
             ManagerActivityType activityType;
             String title;
@@ -1765,14 +1614,14 @@ class _ManagerProgressVisualsContentState
               activityType = ManagerActivityType.replan;
               title = 'Helped Replan Goal';
               description =
-                  data['note'] as String? ?? 'Helped employee replan a goal';
+                  data['note']?.toString() ?? 'Helped employee replan a goal';
             } else if (actionType == 'scheduleMeeting' ||
                 actionType == 'schedule_meeting') {
               activityType = ManagerActivityType.meeting;
               title = 'Scheduled Meeting';
               description =
-                  data['description'] as String? ?? 'Scheduled a 1:1 meeting';
-              final scheduledFor = data['scheduledFor'] as Timestamp?;
+                  data['description']?.toString() ?? 'Scheduled a 1:1 meeting';
+              final scheduledFor = parseNullableDate(data['scheduledFor']);
               if (scheduledFor != null) {
                 activities.add(
                   ManagerActivity(
@@ -1780,14 +1629,14 @@ class _ManagerProgressVisualsContentState
                     type: activityType,
                     title: title,
                     description: description,
-                    employeeId: data['employeeId'] as String?,
-                    employeeName: data['employeeName'] as String?,
-                    createdAt:
-                        (data['createdAt'] as Timestamp?)?.toDate() ??
-                        DateTime.now(),
-                    scheduledFor: scheduledFor.toDate(),
-                    isCompleted: scheduledFor.toDate().isBefore(DateTime.now()),
-                    metadata: data['details'] as Map<String, dynamic>?,
+                    employeeId: data['employeeId']?.toString(),
+                    employeeName: data['employeeName']?.toString(),
+                    createdAt: parseCreated(data['createdAt']),
+                    scheduledFor: scheduledFor,
+                    isCompleted: scheduledFor.isBefore(DateTime.now()),
+                    metadata: data['details'] is Map<String, dynamic>
+                        ? data['details'] as Map<String, dynamic>
+                        : null,
                   ),
                 );
                 continue;
@@ -1796,52 +1645,44 @@ class _ManagerProgressVisualsContentState
               activityType = ManagerActivityType.checkIn;
               title = 'Gave Recognition';
               description =
-                  data['description'] as String? ??
+                  data['description']?.toString() ??
                   'Recognized employee achievement';
             } else if (actionType == 'sendNudge') {
               activityType = ManagerActivityType.nudge;
               title = 'Sent Nudge';
-              // Format description from manager's perspective
-              final employeeName = data['employeeName'] as String?;
+              final employeeName = data['employeeName']?.toString();
               if (employeeName != null) {
                 description = 'You sent a nudge to $employeeName';
               } else {
                 description =
-                    data['description'] as String? ??
-                    'Sent a nudge to employee';
-                // If description exists but doesn't have employee name, try to enhance it
+                    data['description']?.toString() ?? 'Sent a nudge to employee';
                 if (description != 'Sent a nudge to employee' &&
                     !description.toLowerCase().startsWith('you sent')) {
                   description = 'You sent a nudge to employee';
                 }
               }
-              developer.log(
-                'Found nudge in manager_actions: ${doc.id}, actionType: $actionType, description: $description',
-              );
             } else {
               activityType = ManagerActivityType.checkIn;
               title = 'Manager Action';
               description =
-                  data['description'] as String? ?? 'Performed manager action';
+                  data['description']?.toString() ?? 'Performed manager action';
             }
 
-            final status = data['status'] as String? ?? 'completed';
+            final status = data['status']?.toString() ?? 'completed';
             activities.add(
               ManagerActivity(
                 id: activityId,
                 type: activityType,
                 title: title,
                 description: description,
-                employeeId: data['employeeId'] as String?,
-                employeeName: data['employeeName'] as String?,
-                createdAt:
-                    (data['createdAt'] as Timestamp?)?.toDate() ??
-                    DateTime.now(),
-                scheduledFor: data['scheduledFor'] != null
-                    ? (data['scheduledFor'] as Timestamp).toDate()
-                    : null,
+                employeeId: data['employeeId']?.toString(),
+                employeeName: data['employeeName']?.toString(),
+                createdAt: parseCreated(data['createdAt']),
+                scheduledFor: parseNullableDate(data['scheduledFor']),
                 isCompleted: status == 'completed',
-                metadata: data['details'] as Map<String, dynamic>?,
+                metadata: data['details'] is Map<String, dynamic>
+                    ? data['details'] as Map<String, dynamic>
+                    : null,
               ),
             );
           }
@@ -1849,7 +1690,6 @@ class _ManagerProgressVisualsContentState
           developer.log('Error fetching manager_actions: $e');
         }
 
-        // Sort by date (most recent first)
         activities.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       } catch (e) {
         developer.log('Error fetching manager activities: $e');
@@ -2759,27 +2599,26 @@ class _ManagerProgressVisualsContentState
 
     final Map<String, List<double>> byDate = <String, List<double>>{};
 
-    for (int i = 0; i < userIds.length; i += 10) {
-      final end = (i + 10 < userIds.length) ? i + 10 : userIds.length;
-      final chunk = userIds.sublist(i, end);
-      final query = FirebaseFirestore.instance
-          .collection('goal_daily_progress')
-          .where('userId', whereIn: chunk)
-          .where('date', isGreaterThanOrEqualTo: sinceKey)
-          .where('date', isLessThan: untilKey)
-          .limit(2000);
-
-      final snapshot = await query.get();
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final dateKey = (data['date'] ?? '').toString();
-        if (dateKey.isEmpty) continue;
-        final progress = (data['progress'] as num?)?.toDouble();
-        if (progress == null) continue;
-        byDate
-            .putIfAbsent(dateKey, () => <double>[])
-            .add(progress.clamp(0.0, 100.0));
-      }
+    for (final uid in userIds) {
+      try {
+        final items = await BackendAuthService.instance.getGoalDailyProgress(
+          userId: uid,
+          limit: 500,
+        );
+        for (final data in items) {
+          final dateKey = (data['date'] ?? '').toString();
+          if (dateKey.isEmpty) continue;
+          if (dateKey.compareTo(sinceKey) < 0 ||
+              dateKey.compareTo(untilKey) >= 0) {
+            continue;
+          }
+          final progress = (data['progress'] as num?)?.toDouble();
+          if (progress == null) continue;
+          byDate
+              .putIfAbsent(dateKey, () => <double>[])
+              .add(progress.clamp(0.0, 100.0));
+        }
+      } catch (_) {}
     }
 
     if (byDate.isEmpty) {
@@ -4561,116 +4400,83 @@ class _ManagerProgressVisualsContentState
 
   Future<void> _showDebugInfo() async {
     try {
-      final FirebaseFirestore firestore = FirebaseFirestore.instance;
-      final FirebaseAuth auth = FirebaseAuth.instance;
+      final auth = FirebaseAuth.instance;
+      final managerId = auth.currentUser!.uid;
+      final managerData = await BackendAuthService.instance.getUser(managerId);
 
-      // Get manager info
-      final managerDoc = await firestore
-          .collection('users')
-          .doc(auth.currentUser!.uid)
-          .get();
-      final managerData = managerDoc.data();
-
-      // Get all employees the manager is allowed to view
-      // Prefer same department if set; otherwise fallback to all employees
-      Query<Map<String, dynamic>> employeesQueryRef = firestore
-          .collection('users')
-          .where('role', isEqualTo: 'employee');
-      if ((managerData?['department'] as String?)?.isNotEmpty == true) {
-        employeesQueryRef = employeesQueryRef.where(
-          'department',
-          isEqualTo: managerData!['department'],
-        );
+      final dept = (managerData['department'] ?? '').toString();
+      final allUsers = await BackendAuthService.instance.listUsers(limit: 2000);
+      var employees = allUsers
+          .where((u) => (u['role'] ?? '').toString().toLowerCase() == 'employee')
+          .toList();
+      if (dept.isNotEmpty) {
+        employees = employees
+            .where((u) => (u['department'] ?? '').toString() == dept)
+            .toList();
       }
-      final employeesQuery = await employeesQueryRef.get();
 
-      // Get Angel specifically if she exists
-      final angelQuery = await firestore
-          .collection('users')
-          .where('displayName', isEqualTo: 'Angel')
-          .get();
+      final angelUsers = allUsers
+          .where((u) => (u['displayName'] ?? '').toString() == 'Angel')
+          .toList();
 
-      // Get activities only for these employees (avoid cross-user reads)
-      final employeeIds = employeesQuery.docs.map((d) => d.id).toList();
-      // Avoid composite index by not combining whereIn with orderBy. Sort in-memory.
-      final activitiesBaseRef = firestore.collection('activities');
-      final activitiesSnapshot = employeeIds.isEmpty
-          ? await activitiesBaseRef
-                .orderBy('timestamp', descending: true)
-                .limit(10)
-                .get()
-          : await activitiesBaseRef
-                .where('userId', whereIn: employeeIds.take(10).toList())
-                .limit(25)
-                .get();
-      // Sort and trim after fetch
-      final activitiesDocs = activitiesSnapshot.docs
+      final employeeIds = employees
+          .map((e) => (e['id'] ?? e['uid'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      final activitiesDocs = <Map<String, dynamic>>[];
+      for (final empId in employeeIds.take(10)) {
+        try {
+          final acts =
+              await BackendAuthService.instance.getActivities(empId, limit: 25);
+          activitiesDocs.addAll(acts);
+        } catch (_) {}
+      }
+      activitiesDocs.sort((a, b) {
+        final at = parseNullableDate(a['timestamp']) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bt = parseNullableDate(b['timestamp']) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bt.compareTo(at);
+      });
+
+      final allGoals = await BackendAuthService.instance.getGoals(limit: 500);
+      final goalsDocs = allGoals
+          .where((g) => employeeIds.contains((g['userId'] ?? '').toString()))
+          .toList()
         ..sort((a, b) {
-          final at =
-              (a.data()['timestamp'] as Timestamp?)?.toDate() ??
+          final at = parseNullableDate(a['createdAt']) ??
               DateTime.fromMillisecondsSinceEpoch(0);
-          final bt =
-              (b.data()['timestamp'] as Timestamp?)?.toDate() ??
+          final bt = parseNullableDate(b['createdAt']) ??
               DateTime.fromMillisecondsSinceEpoch(0);
           return bt.compareTo(at);
         });
 
-      // Get goals only for these employees
-      final goalsBaseRef = firestore.collection('goals');
-      final goalsSnapshot = employeeIds.isEmpty
-          ? await goalsBaseRef
-                .orderBy('createdAt', descending: true)
-                .limit(10)
-                .get()
-          : await goalsBaseRef
-                .where('userId', whereIn: employeeIds.take(10).toList())
-                .limit(25)
-                .get();
-      final goalsDocs = goalsSnapshot.docs
-        ..sort((a, b) {
-          final at =
-              (a.data()['createdAt'] as Timestamp?)?.toDate() ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          final bt =
-              (b.data()['createdAt'] as Timestamp?)?.toDate() ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          return bt.compareTo(at);
-        });
-
-      // Get employee activity summary
       final employeeActivitySummary = <String, Map<String, dynamic>>{};
-      for (final empDoc in employeesQuery.docs) {
-        final empData = empDoc.data();
-        final empId = empDoc.id;
-        final empName = empData['displayName'] ?? 'Unknown';
-
-        // Count activities for this employee
+      for (final emp in employees) {
+        final empId = (emp['id'] ?? emp['uid'] ?? '').toString();
+        final empName = emp['displayName'] ?? 'Unknown';
         final empActivities = activitiesDocs
-            .where((act) => act.data()['userId'] == empId)
+            .where((act) => (act['userId'] ?? '').toString() == empId)
             .length;
-
-        // Count goals for this employee
         final empGoals = goalsDocs
-            .where((goal) => goal.data()['userId'] == empId)
+            .where((goal) => (goal['userId'] ?? '').toString() == empId)
             .length;
-
-        // Get last activity time
         final lastActivity = activitiesDocs
-            .where((act) => act.data()['userId'] == empId)
-            .map((act) => (act.data()['timestamp'] as Timestamp?)?.toDate())
-            .where((date) => date != null)
-            .cast<DateTime>()
+            .where((act) => (act['userId'] ?? '').toString() == empId)
+            .map((act) => parseNullableDate(act['timestamp']))
+            .whereType<DateTime>()
             .fold<DateTime?>(
               null,
               (latest, current) =>
                   latest == null || current.isAfter(latest) ? current : latest,
             );
 
-        employeeActivitySummary[empName] = {
+        employeeActivitySummary[empName.toString()] = {
           'activities': empActivities,
           'goals': empGoals,
           'lastActivity': lastActivity?.toString() ?? 'Never',
-          'department': empData['department'] ?? 'No Department',
+          'department': emp['department'] ?? 'No Department',
         };
       }
 
@@ -4679,14 +4485,13 @@ class _ManagerProgressVisualsContentState
 DEBUG INFORMATION:
 
 MANAGER:
-- UID: ${auth.currentUser!.uid}
-- Department: ${managerData?['department'] ?? 'NULL'}
-- Display Name: ${managerData?['displayName'] ?? 'NULL'}
+- UID: $managerId
+- Department: ${managerData['department'] ?? 'NULL'}
+- Display Name: ${managerData['displayName'] ?? 'NULL'}
 
-ALL EMPLOYEES (${employeesQuery.docs.length}):
-${employeesQuery.docs.map((doc) {
-            final data = doc.data();
-            return '- ${data['displayName'] ?? 'Unknown'}: Department=${data['department'] ?? 'NULL'}, Role=${data['role'] ?? 'NULL'}';
+ALL EMPLOYEES (${employees.length}):
+${employees.map((emp) {
+            return '- ${emp['displayName'] ?? 'Unknown'}: Department=${emp['department'] ?? 'NULL'}, Role=${emp['role'] ?? 'NULL'}';
           }).join('\n')}
 
 EMPLOYEE ACTIVITY SUMMARY:
@@ -4697,17 +4502,15 @@ ${employeeActivitySummary.entries.map((entry) {
           }).join('\n')}
 
 ANGEL SPECIFICALLY:
-${angelQuery.docs.isNotEmpty ? 'FOUND Angel: ${angelQuery.docs.first.data()}' : 'Angel NOT FOUND in employees collection!'}
+${angelUsers.isNotEmpty ? 'FOUND Angel: ${angelUsers.first}' : 'Angel NOT FOUND in employees collection!'}
 
 RECENT ACTIVITIES (${activitiesDocs.length}):
-${activitiesDocs.map((doc) {
-            final data = doc.data();
+${activitiesDocs.take(10).map((data) {
             return '- User: ${data['userId']}, Type: ${data['activityType']}, Description: ${data['description']}';
           }).join('\n')}
 
 RECENT GOALS (${goalsDocs.length}):
-${goalsDocs.map((doc) {
-            final data = doc.data();
+${goalsDocs.take(10).map((data) {
             return '- User: ${data['userId']}, Title: ${data['title']}, Progress: ${data['progress']}%';
           }).join('\n')}
       ''';
@@ -4849,20 +4652,7 @@ class _EmployeeProgressVisualsContentState
   Stream<List<Goal>> _getUserGoalsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
-
-    // Use Goal.fromFirestore to properly parse all fields including approvalStatus
-    return FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: user.uid)
-        .snapshots()
-        .map((snapshot) {
-          final goals = snapshot.docs
-              .map((doc) => Goal.fromFirestore(doc))
-              .toList();
-          // Sort goals by createdAt descending (newest first)
-          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return goals;
-        });
+    return DatabaseService.getUserGoalsStream(user.uid);
   }
 
   Widget _buildAIProgressSummary(List<Goal> goals) {
@@ -6632,15 +6422,13 @@ class GoalTrendDialog extends StatelessWidget {
       ),
       content: SizedBox(
         width: dialogWidth,
-        child: StreamBuilder<QuerySnapshot>(
-          stream: FirestoreSafe.stream(
-            FirebaseFirestore.instance
-                .collection('goal_daily_progress')
-                .where('goalId', isEqualTo: goalId)
-                .where('date', isGreaterThanOrEqualTo: sinceKey)
-                .orderBy('date')
-                .limit(90)
-                .snapshots(),
+        child: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: backendPollingStream<List<Map<String, dynamic>>>(
+            initialValue: const [],
+            fetch: () => BackendAuthService.instance.getGoalDailyProgress(
+              goalId: goalId,
+              limit: 90,
+            ),
           ),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -6663,7 +6451,7 @@ class GoalTrendDialog extends StatelessWidget {
                 ),
               );
             }
-            final docs = snapshot.data?.docs ?? [];
+            final docs = snapshot.data ?? const <Map<String, dynamic>>[];
             if (docs.isEmpty) {
               return SizedBox(
                 height: 260,
@@ -6679,8 +6467,11 @@ class GoalTrendDialog extends StatelessWidget {
             }
             final progress = <double>[];
             final remaining = <double>[];
-            for (final d in docs) {
-              final data = d.data() as Map<String, dynamic>;
+            for (final data in docs) {
+              final dateKey = (data['date'] ?? '').toString();
+              if (dateKey.isNotEmpty && dateKey.compareTo(sinceKey) < 0) {
+                continue;
+              }
               progress.add(
                 ((data['progress'] ?? 0) as num).toDouble().clamp(0.0, 100.0),
               );

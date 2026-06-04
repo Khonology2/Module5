@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/user_profile.dart';
@@ -10,15 +11,128 @@ import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/services/points_service.dart';
 import 'package:pdh/services/timeline_service.dart';
 import 'package:pdh/services/unified_milestone_audit.dart';
-import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 class DatabaseService {
+
+  static final BackendAuthService _backend = BackendAuthService.instance;
+
+  static String _iso(DateTime dt) => dt.toIso8601String();
+
+  static DateTime? _parseBackendDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value.toString());
+  }
+
+  static Goal _goalFromMap(Map<String, dynamic> item) {
+    final id = item['id']?.toString() ?? '';
+    return Goal.fromMap(item, id: id);
+  }
+
+  static GoalMilestone _milestoneFromMap(
+    Map<String, dynamic> item, {
+    String? goalId,
+  }) {
+    return GoalMilestone.fromMap(
+      item,
+      id: item['id']?.toString(),
+      goalId: goalId ?? item['goalId']?.toString(),
+    );
+  }
+
+  static Future<Map<String, dynamic>> _fetchGoalData(String goalId) async {
+    final items = await _backend.getGoals(goalId: goalId, limit: 1);
+    if (items.isEmpty) {
+      throw StateError('Goal not found');
+    }
+    return items.first;
+  }
+
+  static Future<List<Map<String, dynamic>>> _fetchGoalMilestones(
+    String goalId,
+  ) async {
+    return _backend.getMilestones(goalId: goalId);
+  }
+
+  static Future<Map<String, dynamic>> _fetchUserData(String uid) async {
+    try {
+      return await _backend.getUser(uid);
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  static Map<String, dynamic> _goalCreatePayload(
+    Goal goal, {
+    Map<String, dynamic>? extra,
+  }) {
+    return {
+      'userId': goal.userId,
+      'title': goal.title,
+      'description': goal.description,
+      'category': goal.category.name,
+      'priority': goal.priority.name,
+      'status': goal.status.name,
+      'progress': goal.progress,
+      'createdAt': _iso(goal.createdAt),
+      'targetDate': _iso(goal.targetDate),
+      'points': goal.points,
+      'kpa': goal.kpa,
+      'approvalStatus': GoalApprovalStatus.pending.name,
+      'approvedByUserId': null,
+      'approvedByName': null,
+      'approvedAt': null,
+      'rejectionReason': null,
+      ...?extra,
+    };
+  }
+
+  static List<dynamic> _normalizedEvidenceList(dynamic existing) {
+    if (existing is List) {
+      return List<dynamic>.from(existing);
+    }
+    if (existing is String && existing.trim().isNotEmpty) {
+      return <dynamic>[existing.trim()];
+    }
+    return <dynamic>[];
+  }
+
+  static List<dynamic> _mergeEvidenceValues(
+    dynamic existing,
+    List<dynamic> additions,
+  ) {
+    final merged = _normalizedEvidenceList(existing);
+    for (final item in additions) {
+      if (item is Map) {
+        final map = Map<String, dynamic>.from(item);
+        if (!merged.any((e) => e is Map && e['id'] == map['id'])) {
+          merged.add(map);
+        }
+      } else if (item is String && item.trim().isNotEmpty) {
+        final trimmed = item.trim();
+        if (!merged.contains(trimmed)) {
+          merged.add(trimmed);
+        }
+      }
+    }
+    return merged;
+  }
+
+  static Future<void> _createAuditEvent(Map<String, dynamic> event) async {
+    final now = _iso(DateTime.now());
+    final payload = Map<String, dynamic>.from(event);
+    for (final key in ['submittedDate', 'timestamp', 'approvedDate', 'completedDate']) {
+      payload.putIfAbsent(key, () => now);
+    }
+    await _backend.createAuditEntry(payload);
+  }
+
   // Caps configuration
   static const int _dailyPointsCap = 400;
   static const int _weeklyPointsCap = 1500;
@@ -34,11 +148,8 @@ class DatabaseService {
   // Privacy enforcement helpers
   static Future<String> _getUserRole(String uid) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      return (doc.data()?['role'] ?? 'employee') as String;
+      final data = await _fetchUserData(uid);
+      return (data['role'] ?? 'employee') as String;
     } catch (_) {
       return 'employee';
     }
@@ -68,21 +179,27 @@ class DatabaseService {
     String uid,
   ) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final data = doc.data() ?? <String, dynamic>{};
+      final data = await _fetchUserData(uid);
+      final nested = data['data'];
+      final extra = nested is Map<String, dynamic> ? nested : <String, dynamic>{};
       return {
-        'privateGoals': data['privateGoals'] == true,
-        'privateMilestones': data['privateMilestones'] == true,
-        'privateProgress': data['privateProgress'] == true,
+        'privateGoals': data['privateGoals'] == true || extra['privateGoals'] == true,
+        'privateMilestones':
+            data['privateMilestones'] == true || extra['privateMilestones'] == true,
+        'privateProgress':
+            data['privateProgress'] == true || extra['privateProgress'] == true,
+        'managerOnly': data['managerOnly'] == true,
+        'teamShare': data['teamShare'] != false,
+        'profileVisible': data['profileVisible'] == true,
       };
     } catch (_) {
       return {
         'privateGoals': false,
         'privateMilestones': false,
         'privateProgress': false,
+        'managerOnly': false,
+        'teamShare': true,
+        'profileVisible': false,
       };
     }
   }
@@ -117,11 +234,8 @@ class DatabaseService {
     }
 
     // Fetch goals with optimized query
-    final snapshot = await FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: targetUserId)
-        .get();
-    var goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+    final items = await _backend.getGoals(userId: targetUserId);
+    var goals = items.map(_goalFromMap).toList();
     goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     goals = goals.where((g) => g.isDisplayableGoal).toList();
 
@@ -132,73 +246,39 @@ class DatabaseService {
     return goals;
   }
 
-  // Detect Firestore transient internal assertion errors that we can safely retry.
-  static bool _isFirestoreInternalAssertion(dynamic e) {
-    final msg = e.toString();
-    return msg.contains('INTERNAL ASSERTION FAILED') ||
-        msg.contains('Unexpected state (ID:');
-  }
 
   static Stream<List<Goal>> getUserGoalsStreamForViewer({
     required String viewerId,
     required String targetUserId,
-  }) async* {
-    final isOwner = viewerId == targetUserId;
-    String viewerRole;
-    Map<String, dynamic> settings;
-    try {
-      viewerRole = await _getUserRole(viewerId);
-      settings = await _getUserPrivacySettings(targetUserId);
-    } catch (_) {
-      viewerRole = 'employee';
-      settings = {
-        'privateGoals': false,
-        'privateMilestones': false,
-        'privateProgress': false,
-      };
-    }
+  }) {
+    return backendPollingStream<List<Goal>>(
+      initialValue: const [],
+      fetch: () async {
+        final isOwner = viewerId == targetUserId;
+        final viewerRole = await _getUserRole(viewerId);
+        final settings = await _getUserPrivacySettings(targetUserId);
 
-    if (!isOwner && viewerRole != 'manager') {
-      if (settings['managerOnly'] == true || settings['privateGoals'] == true) {
-        yield <Goal>[];
-        return;
-      }
-    }
-
-    // Emit initial empty list so StreamBuilder leaves ConnectionState.waiting
-    // immediately; avoids infinite loading if Firestore is slow or errors.
-    yield <Goal>[];
-
-    yield* FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: targetUserId)
-        .snapshots()
-        .handleError((error) {
-          developer.log('Error in getUserGoalsStream: $error');
-          if (error is Object) {
-            FirestoreWebCircuitBreaker.maybeReload(error);
+        if (!isOwner && viewerRole != 'manager') {
+          if (settings['managerOnly'] == true ||
+              settings['privateGoals'] == true) {
+            return <Goal>[];
           }
-        })
-        .map((snapshot) {
-          var goals = snapshot.docs
-              .map((doc) => Goal.fromFirestore(doc))
+        }
+
+        var goals = (await _backend.getGoals(userId: targetUserId))
+            .map(_goalFromMap)
+            .toList();
+        goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        if (!isOwner &&
+            viewerRole != 'manager' &&
+            settings['teamShare'] == false) {
+          goals = goals
+              .where((g) => g.status != GoalStatus.completed)
               .toList();
-          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          if (!isOwner &&
-              viewerRole != 'manager' &&
-              settings['teamShare'] == false) {
-            goals = goals
-                .where((g) => g.status != GoalStatus.completed)
-                .toList();
-          }
-          if (!isOwner && viewerRole != 'manager') {
-            if (settings['managerOnly'] == true ||
-                settings['privateGoals'] == true) {
-              return <Goal>[];
-            }
-          }
-          return goals.where((g) => g.isDisplayableGoal).toList();
-        });
+        }
+        return goals.where((g) => g.isDisplayableGoal).toList();
+      },
+    );
   }
 
   static String _weekKey(DateTime dt) {
@@ -226,57 +306,62 @@ class DatabaseService {
     final now = DateTime.now();
     final dKey = _dateKey(now);
     final wKey = _weekKey(now);
-    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-    int awarded = 0;
-    await FirebaseFirestore.instance.runTransaction((tx) async {
-      final snap = await tx.get(userRef);
-      if (!snap.exists) return;
-      final data = snap.data() as Map<String, dynamic>;
-      final metrics = (data['metrics'] as Map<String, dynamic>?) ?? {};
-      final points = (metrics['points'] as Map<String, dynamic>?) ?? {};
-      final daily = (points['daily'] as Map<String, dynamic>?) ?? {};
-      final weekly = (points['weekly'] as Map<String, dynamic>?) ?? {};
-      int daySoFar = 0;
-      final rawDay = daily[dKey];
-      if (rawDay is int) {
-        daySoFar = rawDay;
-      } else if (rawDay is num) {
-        daySoFar = rawDay.round();
-      } else {
-        daySoFar = 0;
-      }
-      int weekSoFar = 0;
-      final rawWeek = weekly[wKey];
-      if (rawWeek is int) {
-        weekSoFar = rawWeek;
-      } else if (rawWeek is num) {
-        weekSoFar = rawWeek.round();
-      } else {
-        weekSoFar = 0;
-      }
+    final data = await _fetchUserData(userId);
+    if (data.isEmpty) return 0;
 
-      final remainingDay = (_dailyPointsCap - daySoFar).clamp(
-        0,
-        _dailyPointsCap,
-      );
-      final remainingWeek = (_weeklyPointsCap - weekSoFar).clamp(
-        0,
-        _weeklyPointsCap,
-      );
-      final allow = amount.clamp(0, remainingDay).clamp(0, remainingWeek);
-      if (allow <= 0) {
-        awarded = 0;
-        return;
-      }
-      awarded = allow;
-      tx.update(userRef, {
-        'totalPoints': FieldValue.increment(allow),
-        'metrics.points.daily.$dKey': (daySoFar + allow),
-        'metrics.points.weekly.$wKey': (weekSoFar + allow),
-        'metrics.points.lastUpdated': FieldValue.serverTimestamp(),
-      });
+    final metrics = (data['metrics'] as Map<String, dynamic>?) ?? {};
+    final points = (metrics['points'] as Map<String, dynamic>?) ?? {};
+    final daily = Map<String, dynamic>.from(
+      (points['daily'] as Map<String, dynamic>?) ?? {},
+    );
+    final weekly = Map<String, dynamic>.from(
+      (points['weekly'] as Map<String, dynamic>?) ?? {},
+    );
+    final daySoFar = _coerceInt(daily[dKey]);
+    final weekSoFar = _coerceInt(weekly[wKey]);
+    final remainingDay = (_dailyPointsCap - daySoFar).clamp(0, _dailyPointsCap);
+    final remainingWeek = (_weeklyPointsCap - weekSoFar).clamp(0, _weeklyPointsCap);
+    final allow = amount.clamp(0, remainingDay).clamp(0, remainingWeek);
+    if (allow <= 0) return 0;
+
+    daily[dKey] = daySoFar + allow;
+    weekly[wKey] = weekSoFar + allow;
+    final totalPoints = _coerceInt(data['totalPoints']) + allow;
+    final level = _calculateLevel(totalPoints);
+
+    await _backend.updateUserProfile(userId, {
+      'totalPoints': totalPoints,
+      'level': level,
+      'metrics': {
+        ...metrics,
+        'points': {
+          ...points,
+          'daily': daily,
+          'weekly': weekly,
+          'lastUpdated': _iso(now),
+        },
+      },
     });
-    return awarded;
+    try {
+      await _backend.createPointEvent({
+        'userId': userId,
+        'amount': allow,
+        'timestamp': _iso(now),
+      });
+    } catch (_) {}
+    return allow;
+  }
+
+  static Stream<UserProfile?> getUserProfileStream(String uid) {
+    return backendPollingStream<UserProfile?>(
+      fetch: () async {
+        try {
+          return await getUserProfile(uid);
+        } catch (_) {
+          return null;
+        }
+      },
+    );
   }
 
   static Future<UserProfile> getUserProfile(
@@ -298,32 +383,16 @@ class DatabaseService {
         await Future.delayed(Duration(milliseconds: 500 * retryCount));
       }
 
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      data = doc.data() ?? {};
+      data = await _fetchUserData(uid);
 
       // If displayName is missing/empty, try to sync from onboarding
       final displayName =
           data['displayName']?.toString() ?? data['fullName']?.toString() ?? '';
       if (displayName.isEmpty) {
         await syncOnboardingData(uid);
-        // Re-fetch user data after sync
-        final updatedDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .get();
-        data = updatedDoc.data() ?? data;
+        data = await _fetchUserData(uid);
       }
     } catch (e) {
-      // Retry up to 2 times for Firestore internal errors
-      final errorString = e.toString();
-      if (errorString.contains('INTERNAL ASSERTION FAILED') && retryCount < 2) {
-        developer.log('Firestore error, retrying getUserProfile: $e');
-        return getUserProfile(uid, retryCount: retryCount + 1);
-      }
-      // If we have cached data, return it even if fresh fetch failed
       if (cached != null && cached.uid == uid) {
         developer.log('Using cached profile due to error: $e');
         return cached;
@@ -331,39 +400,52 @@ class DatabaseService {
       rethrow;
     }
 
-    final profile = UserProfile(
-      uid: uid,
-      email: data['email'] ?? '',
-      displayName: data['displayName'] ?? data['fullName'] ?? '',
-      totalPoints: (data['totalPoints'] ?? 0) as int,
-      level: (data['level'] ?? 1) as int,
-      badges: List<String>.from(data['badges'] ?? const []),
-      role: data['role'] ?? 'employee', // Deserialize role
-      jobTitle: data['jobTitle'] ?? '',
-      department: data['department'] ?? '',
-      phoneNumber: data['phoneNumber'] ?? '',
-      profilePhotoUrl: data['profilePhotoUrl'],
-      skills: List<String>.from(data['skills'] ?? const []),
-      developmentAreas: List<String>.from(data['developmentAreas'] ?? const []),
-      careerAspirations: data['careerAspirations'] ?? '',
-      currentProjects: data['currentProjects'] ?? '',
-      learningStyle: data['learningStyle'] ?? '',
-      preferredDevActivities: List<String>.from(
-        data['preferredDevActivities'] ?? const [],
-      ),
-      shortGoals: data['shortGoals'] ?? '',
-      longGoals: data['longGoals'] ?? '',
-      notificationFrequency: data['notificationFrequency'] ?? 'daily',
-      goalVisibility: data['goalVisibility'] ?? 'private',
-      leaderboardOptin:
-          data['leaderboardOptin'] ?? data['leaderboardParticipation'] ?? false,
-      badgeName: data['badgeName'] ?? '',
-      celebrationConsent: data['celebrationConsent'] ?? 'private',
-    );
+    final profile = UserProfile.fromMap(data, id: uid);
 
     // Cache the profile
     cache.cacheUserProfile(profile);
     return profile;
+  }
+
+  static Future<Map<String, dynamic>> _validateGoalApprovalAction({
+    required String goalId,
+    required String actorId,
+    required bool approving,
+  }) async {
+    final data = await _fetchGoalData(goalId);
+    final currentStatus =
+        (data['approvalStatus'] ?? GoalApprovalStatus.pending.name).toString();
+    if (currentStatus == GoalApprovalStatus.approved.name ||
+        currentStatus == GoalApprovalStatus.rejected.name) {
+      throw StateError('Goal has already been finalized');
+    }
+    final goalOwnerId = (data['userId'] ?? '').toString();
+    if (goalOwnerId.isEmpty) {
+      throw StateError('Goal has no owner');
+    }
+    final approverRoleRaw = (await _getUserRole(actorId)).trim().toLowerCase();
+    final goalOwnerRoleRaw =
+        (await _getUserRole(goalOwnerId)).trim().toLowerCase();
+    final goalOwnerIsManagerLike = _isManagerLikeRole(goalOwnerRoleRaw);
+    final approverIsAdminLike = _isAdminLikeRole(approverRoleRaw);
+    final approverIsManagerLike = _isManagerLikeRole(approverRoleRaw);
+    if (goalOwnerIsManagerLike && !approverIsAdminLike) {
+      throw StateError(
+        approving
+            ? 'Manager-created goals must be approved by an admin'
+            : 'Manager-created goals must be rejected by an admin',
+      );
+    }
+    if (!goalOwnerIsManagerLike &&
+        !approverIsManagerLike &&
+        !approverIsAdminLike) {
+      throw StateError(
+        approving
+            ? 'You do not have permission to approve this goal'
+            : 'You do not have permission to reject this goal',
+      );
+    }
+    return data;
   }
 
   static Future<void> approveGoal({
@@ -371,66 +453,24 @@ class DatabaseService {
     required String managerId,
     required String managerName,
   }) async {
-    final firestore = FirebaseFirestore.instance;
-    final goalRef = firestore.collection('goals').doc(goalId);
-    final approverRoleRaw =
-        (await _getUserRole(managerId)).trim().toLowerCase();
     Map<String, dynamic>? goalData;
     bool isSeasonFinalReview = false;
-    await firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(goalRef);
-      if (!snapshot.exists) {
-        throw StateError('Goal not found');
-      }
-      final data = snapshot.data();
-      final currentStatus =
-          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name)
-              .toString();
-      if (currentStatus == GoalApprovalStatus.approved.name ||
-          currentStatus == GoalApprovalStatus.rejected.name) {
-        throw StateError('Goal has already been finalized');
-      }
-      final goalOwnerId = (data?['userId'] ?? '').toString();
-      if (goalOwnerId.isEmpty) {
-        throw StateError('Goal has no owner');
-      }
-      final goalOwnerDoc = await transaction.get(
-        firestore.collection('users').doc(goalOwnerId),
-      );
-      final goalOwnerRoleRaw = (goalOwnerDoc.data()?['role'] ?? 'employee')
-          .toString()
-          .trim()
-          .toLowerCase();
-      final goalOwnerIsManagerLike =
-          _isManagerLikeRole(goalOwnerRoleRaw);
-      final approverIsAdminLike = _isAdminLikeRole(approverRoleRaw);
-      final approverIsManagerLike =
-          _isManagerLikeRole(approverRoleRaw);
-
-      // Manager-created goals must be approved by admins only (any admin-like role).
-      if (goalOwnerIsManagerLike && !approverIsAdminLike) {
-        throw StateError('Manager-created goals must be approved by an admin');
-      }
-      // Employee goals can be approved by manager or admin.
-      if (!goalOwnerIsManagerLike &&
-          !approverIsManagerLike &&
-          !approverIsAdminLike) {
-        throw StateError('You do not have permission to approve this goal');
-      }
-
-      goalData = data;
-      isSeasonFinalReview =
-          data?['isSeasonGoal'] == true && data?['approvalRequestedAt'] != null;
-      transaction.update(goalRef, {
-        'approvalStatus': GoalApprovalStatus.approved.name,
-        'approvedByUserId': managerId,
-        'approvedByName': managerName,
-        'approvedAt': FieldValue.serverTimestamp(),
-        'rejectionReason': null,
-        if (isSeasonFinalReview) 'status': GoalStatus.acknowledged.name,
-      });
+    goalData = await _validateGoalApprovalAction(
+      goalId: goalId,
+      actorId: managerId,
+      approving: true,
+    );
+    isSeasonFinalReview =
+        goalData['isSeasonGoal'] == true && goalData['approvalRequestedAt'] != null;
+    await _backend.patchGoal(goalId, {
+      'approvalStatus': GoalApprovalStatus.approved.name,
+      'approvedByUserId': managerId,
+      'approvedByName': managerName,
+      'approvedAt': _iso(DateTime.now()),
+      'rejectionReason': null,
+      if (isSeasonFinalReview) 'status': GoalStatus.acknowledged.name,
     });
-    if (goalData == null) return;
+    if (goalData.isEmpty) return;
 
     if (isSeasonFinalReview) {
       try {
@@ -460,11 +500,9 @@ class DatabaseService {
     String employeeName = '';
     String department = '';
     try {
-      final employeeDoc = await firestore
-          .collection('users')
-          .doc(goalData!['userId'])
-          .get();
-      final employeeData = employeeDoc.data() ?? {};
+      final employeeData = await _fetchUserData(
+        (goalData['userId'] ?? '').toString(),
+      );
       employeeName =
           employeeData['displayName'] ??
           employeeData['fullName'] ??
@@ -478,8 +516,8 @@ class DatabaseService {
     try {
       await ApprovedGoalAuditService.logApprovedGoal(
         goalId: goalId,
-        goalTitle: (goalData!['title'] ?? '') as String,
-        employeeId: (goalData!['userId'] ?? '') as String? ?? '',
+        goalTitle: (goalData['title'] ?? '') as String,
+        employeeId: (goalData['userId'] ?? '') as String? ?? '',
         employeeName: employeeName,
         department: department,
         approvedBy: managerId,
@@ -491,8 +529,8 @@ class DatabaseService {
     try {
       await _logGoalApprovedToAuditEntries(
         goalId: goalId,
-        goalTitle: (goalData!['title'] ?? '') as String,
-        employeeUserId: (goalData!['userId'] ?? '') as String,
+        goalTitle: (goalData['title'] ?? '') as String,
+        employeeUserId: (goalData['userId'] ?? '') as String,
         employeeName: employeeName,
         department: department,
         approvedByUid: managerId,
@@ -503,9 +541,9 @@ class DatabaseService {
     // Create approval alert for EMPLOYEE (existing functionality)
     try {
       await AlertService.createGoalApprovalDecisionAlert(
-        employeeId: (goalData!['userId'] ?? '') as String,
+        employeeId: (goalData['userId'] ?? '') as String,
         goalId: goalId,
-        goalTitle: (goalData!['title'] ?? '') as String,
+        goalTitle: (goalData['title'] ?? '') as String,
         approved: true,
       );
     } catch (e) {
@@ -519,7 +557,7 @@ class DatabaseService {
         await AlertService.createGoalApprovalDecisionAlert(
           employeeId: manager.uid,
           goalId: goalId,
-          goalTitle: (goalData!['title'] ?? '') as String,
+          goalTitle: (goalData['title'] ?? '') as String,
           approved: true,
         );
       }
@@ -534,66 +572,24 @@ class DatabaseService {
     required String managerName,
     String? reason,
   }) async {
-    final firestore = FirebaseFirestore.instance;
-    final goalRef = firestore.collection('goals').doc(goalId);
-    final approverRoleRaw =
-        (await _getUserRole(managerId)).trim().toLowerCase();
     Map<String, dynamic>? goalData;
     bool isSeasonFinalReview = false;
-    await firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(goalRef);
-      if (!snapshot.exists) {
-        throw StateError('Goal not found');
-      }
-      final data = snapshot.data();
-      final currentStatus =
-          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name)
-              .toString();
-      if (currentStatus == GoalApprovalStatus.approved.name ||
-          currentStatus == GoalApprovalStatus.rejected.name) {
-        throw StateError('Goal has already been finalized');
-      }
-      final goalOwnerId = (data?['userId'] ?? '').toString();
-      if (goalOwnerId.isEmpty) {
-        throw StateError('Goal has no owner');
-      }
-      final goalOwnerDoc = await transaction.get(
-        firestore.collection('users').doc(goalOwnerId),
-      );
-      final goalOwnerRoleRaw = (goalOwnerDoc.data()?['role'] ?? 'employee')
-          .toString()
-          .trim()
-          .toLowerCase();
-      final goalOwnerIsManagerLike =
-          _isManagerLikeRole(goalOwnerRoleRaw);
-      final approverIsAdminLike = _isAdminLikeRole(approverRoleRaw);
-      final approverIsManagerLike =
-          _isManagerLikeRole(approverRoleRaw);
-
-      // Manager-created goals must be reviewed by admins only (any admin-like role).
-      if (goalOwnerIsManagerLike && !approverIsAdminLike) {
-        throw StateError('Manager-created goals must be rejected by an admin');
-      }
-      // Employee goals can be rejected by manager or admin.
-      if (!goalOwnerIsManagerLike &&
-          !approverIsManagerLike &&
-          !approverIsAdminLike) {
-        throw StateError('You do not have permission to reject this goal');
-      }
-
-      goalData = data;
-      isSeasonFinalReview =
-          data?['isSeasonGoal'] == true && data?['approvalRequestedAt'] != null;
-      transaction.update(goalRef, {
-        'approvalStatus': GoalApprovalStatus.rejected.name,
-        'approvedByUserId': managerId,
-        'approvedByName': managerName,
-        'approvedAt': FieldValue.serverTimestamp(),
-        'rejectionReason': reason,
-        if (isSeasonFinalReview) 'status': GoalStatus.inProgress.name,
-      });
+    goalData = await _validateGoalApprovalAction(
+      goalId: goalId,
+      actorId: managerId,
+      approving: false,
+    );
+    isSeasonFinalReview =
+        goalData['isSeasonGoal'] == true && goalData['approvalRequestedAt'] != null;
+    await _backend.patchGoal(goalId, {
+      'approvalStatus': GoalApprovalStatus.rejected.name,
+      'approvedByUserId': managerId,
+      'approvedByName': managerName,
+      'approvedAt': _iso(DateTime.now()),
+      'rejectionReason': reason,
+      if (isSeasonFinalReview) 'status': GoalStatus.inProgress.name,
     });
-    if (goalData == null) return;
+    if (goalData.isEmpty) return;
 
     if (isSeasonFinalReview) {
       try {
@@ -616,9 +612,9 @@ class DatabaseService {
 
     try {
       await AlertService.createGoalApprovalDecisionAlert(
-        employeeId: (goalData!['userId'] ?? '') as String,
+        employeeId: (goalData['userId'] ?? '') as String,
         goalId: goalId,
-        goalTitle: (goalData!['title'] ?? '') as String,
+        goalTitle: (goalData['title'] ?? '') as String,
         approved: false,
         reason: reason,
       );
@@ -628,11 +624,9 @@ class DatabaseService {
     String ownerName = '';
     String ownerDept = '';
     try {
-      final ownerId = (goalData!['userId'] ?? '').toString();
+      final ownerId = (goalData['userId'] ?? '').toString();
       if (ownerId.isNotEmpty) {
-        final od =
-            await firestore.collection('users').doc(ownerId).get();
-        final odMap = od.data() ?? {};
+        final odMap = await _fetchUserData(ownerId);
         ownerName =
             odMap['displayName'] ??
             odMap['fullName'] ??
@@ -646,8 +640,8 @@ class DatabaseService {
     try {
       await _logGoalRejected(
         goalId: goalId,
-        goalTitle: (goalData!['title'] ?? '') as String? ?? '',
-        userId: (goalData!['userId'] ?? '') as String? ?? '',
+        goalTitle: (goalData['title'] ?? '') as String? ?? '',
+        userId: (goalData['userId'] ?? '') as String? ?? '',
         rejectionReason: reason ?? '',
         ownerDisplayName: ownerName,
         ownerDepartment: ownerDept,
@@ -663,7 +657,7 @@ class DatabaseService {
         await AlertService.createGoalApprovalDecisionAlert(
           employeeId: manager.uid,
           goalId: goalId,
-          goalTitle: (goalData!['title'] ?? '') as String,
+          goalTitle: (goalData['title'] ?? '') as String,
           approved: false,
           reason: reason,
         );
@@ -675,49 +669,27 @@ class DatabaseService {
 
   static Future<Goal?> getGoalById(String goalId) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      if (!doc.exists) return null;
-      final data = doc.data();
-      if (data == null) return null;
-      return Goal(
-        id: doc.id,
-        userId: data['userId'] ?? '',
-        title: data['title'] ?? '',
-        description: data['description'] ?? '',
-        category: GoalCategory.values.firstWhere(
-          (e) => e.name == (data['category'] ?? 'personal'),
-          orElse: () => GoalCategory.personal,
-        ),
-        priority: GoalPriority.values.firstWhere(
-          (e) => e.name == (data['priority'] ?? 'medium'),
-          orElse: () => GoalPriority.medium,
-        ),
-        status: GoalStatus.values.firstWhere(
-          (e) => e.name == (data['status'] ?? 'notStarted'),
-          orElse: () => GoalStatus.notStarted,
-        ),
-        progress: (() {
-          final raw = data['progress'];
-          if (raw is int) return raw;
-          if (raw is num) return raw.round();
-          return 0;
-        })(),
-        createdAt:
-            (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        targetDate:
-            (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        points: (data['points'] ?? 0) as int,
-        kpa: (() {
-          final raw = data['kpa'];
-          return raw is String ? raw.toLowerCase() : null;
-        })(),
-      );
+      final items = await _backend.getGoals(goalId: goalId, limit: 1);
+      if (items.isEmpty) return null;
+      return _goalFromMap(items.first);
     } catch (_) {
       return null;
     }
+  }
+
+  static Stream<Goal?> getGoalStream(String goalId) {
+    return backendPollingStream<Goal?>(
+      fetch: () => getGoalById(goalId),
+    );
+  }
+
+  static Stream<Map<String, dynamic>?> getGoalDataStream(String goalId) {
+    return backendPollingStream<Map<String, dynamic>?>(
+      fetch: () async {
+        final items = await _backend.getGoals(goalId: goalId, limit: 1);
+        return items.isEmpty ? null : items.first;
+      },
+    );
   }
 
   static Future<List<Goal>> getUserGoals(String uid) async {
@@ -741,48 +713,33 @@ class DatabaseService {
   }) async {
     const int maxAttempts = 3;
     const List<int> retryDelaysMs = [250, 500];
-
-    final Map<String, dynamic> goalData = {
-      'userId': goal.userId,
-      'title': goal.title,
-      'description': goal.description,
-      'category': goal.category.name,
-      'priority': goal.priority.name,
-      'status': goal.status.name,
-      'progress': goal.progress,
-      'createdAt': Timestamp.fromDate(goal.createdAt),
-      'targetDate': Timestamp.fromDate(goal.targetDate),
-      'points': goal.points,
-      'kpa': goal.kpa,
-      'approvalStatus': GoalApprovalStatus.pending.name,
-      'approvedByUserId': null,
-      'approvedByName': null,
-      'approvedAt': null,
-      'rejectionReason': null,
-      if (sourceWorkspace != null && sourceWorkspace.trim().isNotEmpty)
-        'sourceWorkspace': sourceWorkspace.trim(),
-      if (sourceRoute != null && sourceRoute.trim().isNotEmpty)
-        'sourceRoute': sourceRoute.trim(),
-    };
-
-    final col = FirebaseFirestore.instance.collection('goals');
     Object? lastError;
     String? createdGoalId;
 
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        final docRef = await col
-            .add(goalData)
-            .timeout(const Duration(seconds: 8));
-        developer.log('Goal created successfully: ${docRef.id}');
+        final created = await _backend.createGoal(
+          _goalCreatePayload(
+            goal,
+            extra: {
+              if (sourceWorkspace != null && sourceWorkspace.trim().isNotEmpty)
+                'sourceWorkspace': sourceWorkspace.trim(),
+              if (sourceRoute != null && sourceRoute.trim().isNotEmpty)
+                'sourceRoute': sourceRoute.trim(),
+            },
+          ),
+        );
+        createdGoalId =
+            created['id']?.toString() ?? created['goalId']?.toString();
+        if (createdGoalId == null || createdGoalId.isEmpty) {
+          throw StateError('Backend did not return a goal id');
+        }
+        developer.log('Goal created successfully: $createdGoalId');
         lastError = null;
-        createdGoalId = docRef.id;
-        // Log goal creation to audit trail
-        // ignore: unawaited_futures
         Future(() async {
           try {
             await _logGoalCreated(
-              goalId: docRef.id,
+              goalId: createdGoalId!,
               goalTitle: goal.title,
               userId: goal.userId,
             );
@@ -796,15 +753,7 @@ class DatabaseService {
         developer.log(
           'Goal create attempt ${attempt + 1}/$maxAttempts failed: $e',
         );
-        final isRetryable =
-            _isFirestoreInternalAssertion(e) ||
-            (e is FirebaseException &&
-                [
-                  'unavailable',
-                  'deadline-exceeded',
-                  'resource-exhausted',
-                ].contains(e.code.toLowerCase()));
-        if (attempt < maxAttempts - 1 && isRetryable) {
+        if (attempt < maxAttempts - 1) {
           final delayMs =
               retryDelaysMs[attempt.clamp(0, retryDelaysMs.length - 1)];
           await Future.delayed(Duration(milliseconds: delayMs));
@@ -821,9 +770,6 @@ class DatabaseService {
       throw StateError('Goal create failed after $maxAttempts attempts');
     }
 
-    // Reliability layer:
-    // Ensure approval request dispatch is completed before returning so
-    // "goal created" and "approval requested" do not silently drift apart.
     const int approvalDispatchAttempts = 3;
     var approvalErrorText = '';
     var approvalSent = false;
@@ -844,17 +790,20 @@ class DatabaseService {
         );
         if (i < approvalDispatchAttempts - 1) {
           await Future.delayed(
-            Duration(milliseconds: retryDelaysMs[i.clamp(0, retryDelaysMs.length - 1)]),
+            Duration(
+              milliseconds:
+                  retryDelaysMs[i.clamp(0, retryDelaysMs.length - 1)],
+            ),
           );
         }
       }
     }
 
-    await FirebaseFirestore.instance.collection('goals').doc(createdGoalId).set({
+    await _backend.patchGoal(createdGoalId, {
       'approvalDispatchStatus': approvalSent ? 'sent' : 'failed',
-      'approvalDispatchUpdatedAt': FieldValue.serverTimestamp(),
+      'approvalDispatchUpdatedAt': _iso(DateTime.now()),
       if (!approvalSent) 'approvalDispatchError': approvalErrorText,
-    }, SetOptions(merge: true));
+    });
 
     return createdGoalId;
   }
@@ -871,17 +820,16 @@ class DatabaseService {
         : 'manager';
 
     Future<void> attempt(int attemptCount) async {
-      final ref = FirebaseFirestore.instance.collection('goals').doc(goalId);
       try {
         Map<String, dynamic>? dispatchResult;
-        await ref.set({
+        await _backend.patchGoal(goalId, {
           'approvalStatus': GoalApprovalStatus.pending.name,
-          'approvalRequestedAt': FieldValue.serverTimestamp(),
+          'approvalRequestedAt': _iso(DateTime.now()),
           'requiredApproverRole': requiredApproverRole,
           'approvalRoleResolvedFrom': ownerRole,
           if (sourceWorkspace != null && sourceWorkspace.trim().isNotEmpty)
             'approvalSourceWorkspace': sourceWorkspace.trim(),
-        }, SetOptions(merge: true));
+        });
 
         dispatchResult = await AlertService.createGoalApprovalRequestedAlert(
           employeeId: userId,
@@ -889,7 +837,7 @@ class DatabaseService {
           goalTitle: goalTitle,
           approverRole: requiredApproverRole,
         );
-        await ref.set({
+        await _backend.patchGoal(goalId, {
           'approvalDispatchRecipients':
               List<String>.from(dispatchResult['recipientIds'] ?? const []),
           'approvalDispatchRecipientEmails':
@@ -897,26 +845,19 @@ class DatabaseService {
           'approvalDispatchWriteCount': dispatchResult['successfulWrites'] ?? 0,
           'approvalDispatchApproverRole':
               dispatchResult['approverRole'] ?? requiredApproverRole,
-          'approvalDispatchUpdatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+          'approvalDispatchUpdatedAt': _iso(DateTime.now()),
+        });
 
-        // Persist the "submitted for approval" transition as a first-class audit row.
         try {
-          String ownerName = '';
-          String ownerDept = '';
-          final ownerDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .get();
-          final ownerMap = ownerDoc.data() ?? const <String, dynamic>{};
-          ownerName =
+          final ownerMap = await _fetchUserData(userId);
+          final ownerName =
               (ownerMap['displayName'] ??
                       ownerMap['fullName'] ??
                       ownerMap['name'] ??
                       ownerMap['email'] ??
                       '')
                   .toString();
-          ownerDept = (ownerMap['department'] ?? '').toString();
+          final ownerDept = (ownerMap['department'] ?? '').toString();
           await _logGoalSubmittedToAuditEntries(
             goalId: goalId,
             goalTitle: goalTitle,
@@ -929,7 +870,7 @@ class DatabaseService {
           developer.log('Error logging goal submission: $e');
         }
       } catch (e) {
-        if (_isFirestoreInternalAssertion(e) && attemptCount < 1) {
+        if (attemptCount < 1) {
           await Future.delayed(const Duration(milliseconds: 200));
           return attempt(attemptCount + 1);
         }
@@ -951,13 +892,7 @@ class DatabaseService {
       throw Exception('Please provide final evidence before submitting.');
     }
 
-    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
-    final goalSnap = await goalRef.get();
-    if (!goalSnap.exists) {
-      throw Exception('Goal not found');
-    }
-
-    final data = goalSnap.data() ?? const <String, dynamic>{};
+    final data = await _fetchGoalData(goalId);
     if (data['userId'] != userId || data['isSeasonGoal'] != true) {
       throw Exception('You are not allowed to submit this season goal.');
     }
@@ -967,20 +902,20 @@ class DatabaseService {
       throw Exception('Set progress to 100% before submitting final review.');
     }
 
-    await goalRef.set({
+    await _backend.patchGoal(goalId, {
       'status': GoalStatus.completed.name,
       'progress': 100,
-      'completedAt': FieldValue.serverTimestamp(),
-      'evidence': FieldValue.arrayUnion([trimmedEvidence]),
-      'seasonFinalReviewSubmittedAt': FieldValue.serverTimestamp(),
+      'completedAt': _iso(DateTime.now()),
+      'evidence': _mergeEvidenceValues(data['evidence'], [trimmedEvidence]),
+      'seasonFinalReviewSubmittedAt': _iso(DateTime.now()),
       'seasonFinalReviewEvidence': trimmedEvidence,
       'approvalStatus': GoalApprovalStatus.pending.name,
       'approvedByUserId': null,
       'approvedByName': null,
       'approvedAt': null,
       'rejectionReason': null,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      'updatedAt': _iso(DateTime.now()),
+    });
 
     await requestGoalApproval(
       goalId: goalId,
@@ -992,15 +927,29 @@ class DatabaseService {
     await _syncSeasonGoalFromGoalState(goalId);
   }
 
+  static Future<void> patchGoalFields(
+    String goalId,
+    Map<String, dynamic> fields,
+  ) {
+    final payload = Map<String, dynamic>.from(fields);
+    for (final key in ['targetDate', 'lastUpdated', 'approvedAt', 'createdAt']) {
+      final value = payload[key];
+      if (value is DateTime) {
+        payload[key] = _iso(value);
+      }
+    }
+    return _backend.patchGoal(goalId, payload);
+  }
+
   static Future<void> updateGoal(Goal goal) async {
-    await FirebaseFirestore.instance.collection('goals').doc(goal.id).update({
+    await _backend.patchGoal(goal.id, {
       'title': goal.title,
       'description': goal.description,
       'category': goal.category.name,
       'priority': goal.priority.name,
       'status': goal.status.name,
       'progress': goal.progress,
-      'targetDate': Timestamp.fromDate(goal.targetDate),
+      'targetDate': _iso(goal.targetDate),
       'points': goal.points,
       'kpa': goal.kpa,
     });
@@ -1013,143 +962,141 @@ class DatabaseService {
     required MilestoneEvidence evidence,
   }) async {
     final now = DateTime.now();
-    final goalMeta = await FirebaseFirestore.instance
-        .collection('goals')
-        .doc(goalId)
-        .get();
-    final isSeasonGoal = goalMeta.data()?['isSeasonGoal'] == true;
+    final goalMeta = await _fetchGoalData(goalId);
+    final isSeasonGoal = goalMeta['isSeasonGoal'] == true;
 
-    // Atomic operation: add evidence and update milestone status
-    final batch = FirebaseFirestore.instance.batch();
-
-    // Add evidence to milestone
-    final milestoneRef = _goalMilestonesRef(goalId).doc(milestoneId);
-    final milestoneSnapshot = await milestoneRef.get();
-    final currentStatus = _goalMilestoneStatusFromString(
-      milestoneSnapshot.data()?['status']?.toString(),
+    final milestones = await _fetchGoalMilestones(goalId);
+    final milestoneSnapshot = milestones.firstWhere(
+      (item) => item['id']?.toString() == milestoneId,
+      orElse: () => throw Exception('Milestone not found'),
     );
-    batch.update(milestoneRef, {
-      'evidence': FieldValue.arrayUnion([evidence.toMap()]),
+    final currentStatus = _goalMilestoneStatusFromString(
+      milestoneSnapshot['status']?.toString(),
+    );
+
+    await _backend.patchMilestone(milestoneId, {
+      'goalId': goalId,
+      'evidence': _mergeEvidenceValues(
+        milestoneSnapshot['evidence'],
+        [evidence.toMap()],
+      ),
       'status': _statusAfterEvidenceSubmission(
         isSeasonGoal: isSeasonGoal,
         currentStatus: currentStatus,
       ).name,
-      'updatedAt': Timestamp.fromDate(now),
+      'updatedAt': _iso(now),
     });
 
-    // Store evidence in separate collection for audit trail
-    final evidenceRef = FirebaseFirestore.instance
-        .collection('milestone_evidence')
-        .doc(evidence.id);
-    batch.set(evidenceRef, evidence.toMap());
+    try {
+      await _backend.createMilestoneEvidence({
+        ...evidence.toMap(),
+        'goalId': goalId,
+        'milestoneId': milestoneId,
+      });
+    } catch (e) {
+      developer.log('Error storing milestone evidence record: $e');
+    }
 
-    await batch.commit();
-
-    // Notify the creator/reviewer side. For season goals this acts as a
-    // progress check-in signal, while final approval still happens once at
-    // whole-goal submission time.
-    final milestoneDoc = await milestoneRef.get();
-    final milestone = GoalMilestone.fromFirestore(milestoneDoc);
+    final milestone = _milestoneFromMap(
+      {
+        ...milestoneSnapshot,
+        'evidence': _mergeEvidenceValues(
+          milestoneSnapshot['evidence'],
+          [evidence.toMap()],
+        ),
+      },
+      goalId: goalId,
+    );
     await _handleMilestoneEvidenceSubmission(
       goalId: goalId,
       milestone: milestone,
-      evidenceList: [evidence], // Create list with single evidence
+      evidenceList: [evidence],
     );
     await _syncSeasonGoalFromGoalState(goalId);
   }
 
-  // NEW: Submit multiple milestone evidence files - simplified to avoid Firestore race conditions
+  // Submit multiple milestone evidence files — sequential updates to avoid backend race conditions
   static Future<void> submitMultipleMilestoneEvidence({
     required String goalId,
     required String milestoneId,
     required List<MilestoneEvidence> evidenceList,
   }) async {
-    final goalMeta = await FirebaseFirestore.instance
-        .collection('goals')
-        .doc(goalId)
-        .get();
-    final isSeasonGoal = goalMeta.data()?['isSeasonGoal'] == true;
+    final goalMeta = await _fetchGoalData(goalId);
+    final isSeasonGoal = goalMeta['isSeasonGoal'] == true;
 
     Future<void> attempt(int attemptCount) async {
-      final milestoneRef = _goalMilestonesRef(goalId).doc(milestoneId);
-
-      // Convert evidence to simple maps like goal evidence
       final evidenceMaps = evidenceList.map((e) => e.toMap()).toList();
 
       try {
-        final milestoneSnapshot = await milestoneRef.get();
-        final currentStatus = _goalMilestoneStatusFromString(
-          milestoneSnapshot.data()?['status']?.toString(),
+        final milestones = await _fetchGoalMilestones(goalId);
+        final milestoneSnapshot = milestones.firstWhere(
+          (item) => item['id']?.toString() == milestoneId,
+          orElse: () => throw Exception('Milestone not found'),
         );
-        // Single operation only - no secondary operations that cause race conditions
-        await milestoneRef.set({
-          'evidence': FieldValue.arrayUnion(evidenceMaps),
+        final currentStatus = _goalMilestoneStatusFromString(
+          milestoneSnapshot['status']?.toString(),
+        );
+
+        await _backend.patchMilestone(milestoneId, {
+          'goalId': goalId,
+          'evidence': _mergeEvidenceValues(
+            milestoneSnapshot['evidence'],
+            evidenceMaps,
+          ),
           'status': _statusAfterEvidenceSubmission(
             isSeasonGoal: isSeasonGoal,
             currentStatus: currentStatus,
           ).name,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+          'updatedAt': _iso(DateTime.now()),
+        });
 
         developer.log(
           'Successfully submitted evidence for milestone: $milestoneId',
         );
 
-        // Send notification to manager (non-critical)
         try {
-          final milestoneDoc = await milestoneRef.get();
-          if (milestoneDoc.exists) {
-            final milestone = GoalMilestone.fromFirestore(milestoneDoc);
-            await _handleMilestoneEvidenceSubmission(
-              goalId: goalId,
-              milestone: milestone,
-              evidenceList: evidenceList,
-            );
-          }
+          final milestone = _milestoneFromMap(
+            {
+              ...milestoneSnapshot,
+              'evidence': _mergeEvidenceValues(
+                milestoneSnapshot['evidence'],
+                evidenceMaps,
+              ),
+            },
+            goalId: goalId,
+          );
+          await _handleMilestoneEvidenceSubmission(
+            goalId: goalId,
+            milestone: milestone,
+            evidenceList: evidenceList,
+          );
         } catch (notificationError) {
           developer.log(
             'Error sending evidence submission notification: $notificationError',
           );
-          // Don't fail the whole operation if notification fails
         }
       } catch (e) {
         developer.log('Error submitting milestone evidence: $e');
 
-        // Handle different types of Firestore errors
         if (_isPermissionDeniedError(e)) {
-          developer.log(
-            'Permission denied for milestone evidence submission - user may not have rights',
-          );
           throw Exception(
             'You do not have permission to submit evidence for this milestone. Please contact your manager.',
           );
-        } else if (_isFirestoreInternalAssertion(e) && attemptCount < 2) {
-          final delayMs = 200 * (attemptCount + 1);
-          developer.log(
-            'Retrying milestone evidence submission after transient Firestore error (attempt ${attemptCount + 1})',
-          );
-          await Future.delayed(Duration(milliseconds: delayMs));
+        } else if (attemptCount < 2) {
+          await Future.delayed(Duration(milliseconds: 200 * (attemptCount + 1)));
           return attempt(attemptCount + 1);
         } else if (_isDocumentNotFoundError(e)) {
-          developer.log('Milestone document not found: $milestoneId');
           throw Exception(
             'The milestone could not be found. It may have been deleted.',
           );
         } else {
-          developer.log(
-            'Unexpected error in milestone evidence submission: $e',
-          );
           throw Exception('Failed to submit evidence. Please try again later.');
         }
       }
     }
 
     await attempt(0);
-
     await _syncSeasonGoalFromGoalState(goalId);
-
-    // Note: Audit trail and notifications removed to prevent Firestore race conditions
-    // The core functionality (evidence submission) works consistently this way
   }
 
   // Helper methods for error detection
@@ -1211,11 +1158,7 @@ class DatabaseService {
   }) async {
     try {
       // Get goal details for notification
-      final goalDoc = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      final goal = Goal.fromFirestore(goalDoc);
+      final goal = _goalFromMap(await _fetchGoalData(goalId));
 
       // Send notification to manager with correct evidence count
       await AlertService.createMilestoneEvidenceSubmittedAlert(
@@ -1241,22 +1184,22 @@ class DatabaseService {
     final now = DateTime.now();
 
     try {
-      // Get milestone details
-      final milestoneDoc = await _goalMilestonesRef(
-        goalId,
-      ).doc(milestoneId).get();
-
-      if (!milestoneDoc.exists) {
+      final milestones = await _fetchGoalMilestones(goalId);
+      final milestoneSnapshot = milestones.firstWhere(
+        (item) => item['id']?.toString() == milestoneId,
+        orElse: () => <String, dynamic>{},
+      );
+      if (milestoneSnapshot.isEmpty) {
         throw Exception('Milestone not found. It may have been deleted.');
       }
 
-      final milestone = GoalMilestone.fromFirestore(milestoneDoc);
+      final milestone = _milestoneFromMap(milestoneSnapshot, goalId: goalId);
 
-      // Update milestone status to completedAcknowledged
-      await _goalMilestonesRef(goalId).doc(milestoneId).update({
+      await _backend.patchMilestone(milestoneId, {
+        'goalId': goalId,
         'status': GoalMilestoneStatus.completedAcknowledged.name,
-        'updatedAt': Timestamp.fromDate(now),
-        'acknowledgedAt': Timestamp.fromDate(now),
+        'updatedAt': _iso(now),
+        'acknowledgedAt': _iso(now),
         'acknowledgedBy': managerId,
         'acknowledgedByName': managerName,
         'checkInNotes': checkInNotes ?? '',
@@ -1311,10 +1254,6 @@ class DatabaseService {
         throw Exception(
           'The milestone could not be found. It may have been deleted. Please refresh the page.',
         );
-      } else if (e.toString().contains('INTERNAL ASSERTION FAILED')) {
-        throw Exception(
-          'A temporary error occurred. Please try again in a moment.',
-        );
       } else {
         throw Exception('Failed to acknowledge milestone: ${e.toString()}');
       }
@@ -1331,11 +1270,7 @@ class DatabaseService {
   }) async {
     try {
       // Get goal details
-      final goalDoc = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      final goal = Goal.fromFirestore(goalDoc);
+      final goal = _goalFromMap(await _fetchGoalData(goalId));
 
       // Create notification for employee
       await AlertService.createMilestoneAcknowledgedAlert(
@@ -1353,46 +1288,20 @@ class DatabaseService {
 
   static Future<String> getUserName(String userId) async {
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      return userDoc.data()?['displayName'] ??
-          userDoc.data()?['name'] ??
+      final data = await _fetchUserData(userId);
+      return data['displayName']?.toString() ??
+          data['name']?.toString() ??
           'Unknown';
     } catch (_) {
       return 'Unknown';
     }
   }
 
-  static CollectionReference<Map<String, dynamic>> _goalMilestonesRef(
-    String goalId,
-  ) {
-    return FirebaseFirestore.instance
-        .collection('goals')
-        .doc(goalId)
-        .collection('milestones');
-  }
-
   static Stream<List<GoalMilestone>> getGoalMilestonesStream(String goalId) {
-    return _goalMilestonesRef(goalId)
-        .orderBy('dueDate')
-        .snapshots()
-        .handleError((error) {
-          developer.log('Error in milestones stream: $error');
-          // Return empty list on error to prevent UI crashes
-          return <GoalMilestone>[];
-        })
-        .map((snapshot) {
-          try {
-            return snapshot.docs
-                .map((doc) => GoalMilestone.fromFirestore(doc))
-                .toList();
-          } catch (e) {
-            developer.log('Error parsing milestone documents: $e');
-            return <GoalMilestone>[];
-          }
-        });
+    return backendPollingListStream<GoalMilestone>(
+      fetch: () => _backend.getMilestones(goalId: goalId),
+      mapper: (item) => _milestoneFromMap(item, goalId: goalId),
+    );
   }
 
   static Future<String> addGoalMilestone({
@@ -1406,31 +1315,26 @@ class DatabaseService {
     // REMOVED: requiresEvidence parameter - no longer needed
   }) async {
     final now = DateTime.now();
-    final docRef = await _goalMilestonesRef(goalId).add({
+    final created = await _backend.createMilestone({
+      'goalId': goalId,
       'title': title,
       'description': description,
       'status': status.name,
-      'dueDate': Timestamp.fromDate(dueDate),
+      'dueDate': _iso(dueDate),
       'createdBy': createdBy,
       'createdByName': createdByName,
-      'createdAt': Timestamp.fromDate(now),
-      'updatedAt': Timestamp.fromDate(now),
-      'completedAt': status == GoalMilestoneStatus.completed
-          ? Timestamp.fromDate(now)
-          : null,
-      // REMOVED: requiresEvidence field - no longer needed
-      'evidence': [], // Initialize empty evidence array for new workflow
+      'createdAt': _iso(now),
+      'updatedAt': _iso(now),
+      'completedAt': status == GoalMilestoneStatus.completed ? _iso(now) : null,
+      'evidence': <dynamic>[],
     });
-    final snapshot = await docRef.get();
-    final milestone = GoalMilestone.fromFirestore(snapshot);
+    final milestoneId =
+        created['id']?.toString() ?? created['milestoneId']?.toString() ?? '';
+    final milestone = _milestoneFromMap(created, goalId: goalId);
 
-    // Log milestone creation to audit trail
     try {
-      final goalSnap = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      final goalTitle = goalSnap.data()?['title'] ?? 'Unknown Goal';
+      final goalData = await _fetchGoalData(goalId);
+      final goalTitle = goalData['title'] ?? 'Unknown Goal';
 
       await UnifiedMilestoneAudit.logMilestoneCreated(
         goalId: goalId,
@@ -1447,7 +1351,7 @@ class DatabaseService {
       milestone: milestone,
       previousStatus: null,
     );
-    return docRef.id;
+    return milestoneId;
   }
 
   static Future<void> updateGoalMilestone({
@@ -1461,27 +1365,24 @@ class DatabaseService {
     Map<String, dynamic>? goalData;
     bool goalCompleted = false;
     try {
-      final goalSnap = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      if (!goalSnap.exists) {
-        throw Exception('Goal not found');
-      }
-      goalData = goalSnap.data();
+      goalData = await _fetchGoalData(goalId);
       final String rawStatus =
-          (goalData?['status'] ?? GoalStatus.notStarted.name).toString();
+          (goalData['status'] ?? GoalStatus.notStarted.name).toString();
       goalCompleted = rawStatus == GoalStatus.completed.name;
     } catch (e) {
       throw Exception('Failed to load goal for milestone update: $e');
     }
 
-    final docRef = _goalMilestonesRef(goalId).doc(milestoneId);
     GoalMilestoneStatus? previousStatus;
+    Map<String, dynamic> beforeSnapshot = {};
     try {
-      final beforeSnap = await docRef.get();
-      if (beforeSnap.exists) {
-        previousStatus = GoalMilestone.fromFirestore(beforeSnap).status;
+      final milestones = await _fetchGoalMilestones(goalId);
+      beforeSnapshot = milestones.firstWhere(
+        (item) => item['id']?.toString() == milestoneId,
+        orElse: () => <String, dynamic>{},
+      );
+      if (beforeSnapshot.isNotEmpty) {
+        previousStatus = _milestoneFromMap(beforeSnapshot, goalId: goalId).status;
       }
     } catch (_) {}
 
@@ -1493,13 +1394,13 @@ class DatabaseService {
     }
 
     final Map<String, dynamic> updates = {
-      'updatedAt': FieldValue.serverTimestamp(),
+      'goalId': goalId,
+      'updatedAt': _iso(DateTime.now()),
     };
     if (title != null) updates['title'] = title;
     if (description != null) updates['description'] = description;
-    if (dueDate != null) updates['dueDate'] = Timestamp.fromDate(dueDate);
+    if (dueDate != null) updates['dueDate'] = _iso(dueDate);
     if (status != null) {
-      // NEW: Evidence validation before milestone completion (additive extension)
       if (status == GoalMilestoneStatus.completed) {
         final canComplete = await MilestoneEvidenceService.canCompleteMilestone(
           goalId: goalId,
@@ -1514,22 +1415,17 @@ class DatabaseService {
 
       updates['status'] = status.name;
       if (status == GoalMilestoneStatus.completed) {
-        updates['completedAt'] = FieldValue.serverTimestamp();
+        updates['completedAt'] = _iso(DateTime.now());
       } else {
         updates['completedAt'] = null;
       }
     }
-    await docRef.update(updates);
-    final afterSnap = await docRef.get();
-    final milestone = GoalMilestone.fromFirestore(afterSnap);
+    await _backend.patchMilestone(milestoneId, updates);
+    final afterSnapshot = {...beforeSnapshot, ...updates};
+    final milestone = _milestoneFromMap(afterSnapshot, goalId: goalId);
 
-    // Log milestone updates to audit trail
     try {
-      final goalSnap = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      final goalTitle = goalSnap.data()?['title'] ?? 'Unknown Goal';
+      final goalTitle = goalData['title'] ?? 'Unknown Goal';
 
       // Log milestone update if any field changed
       if (title != null || description != null || dueDate != null) {
@@ -1590,12 +1486,7 @@ class DatabaseService {
     GoalMilestone milestone,
   ) async {
     try {
-      final goalSnap = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      if (!goalSnap.exists) return;
-      final goal = Goal.fromFirestore(goalSnap);
+      final goal = _goalFromMap(await _fetchGoalData(goalId));
       if (goal.userId.isEmpty) return;
 
       try {
@@ -1643,10 +1534,10 @@ class DatabaseService {
 
   static Future<void> _syncGoalProgressWithMilestones(String goalId) async {
     try {
-      final snapshot = await _goalMilestonesRef(goalId).get();
-      final total = snapshot.docs.length;
-      final completed = snapshot.docs.where((doc) {
-        final status = (doc.data()['status'] ?? '').toString();
+      final milestoneItems = await _fetchGoalMilestones(goalId);
+      final total = milestoneItems.length;
+      final completed = milestoneItems.where((data) {
+        final status = (data['status'] ?? '').toString();
         return status == GoalMilestoneStatus.completed.name ||
             status == GoalMilestoneStatus.completedAcknowledged.name;
       }).length;
@@ -1662,12 +1553,7 @@ class DatabaseService {
         'percentage': percent,
       };
 
-      final goalRef = FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId);
-      final goalSnap = await goalRef.get();
-      if (!goalSnap.exists) return;
-      final data = goalSnap.data() as Map<String, dynamic>;
+      final data = await _fetchGoalData(goalId);
       final current = data['milestoneSummary'];
       bool alreadySynced = false;
       if (current is Map<String, dynamic>) {
@@ -1679,10 +1565,10 @@ class DatabaseService {
       }
       if (alreadySynced) return;
 
-      await goalRef.set({
+      await _backend.patchGoal(goalId, {
         'milestoneSummary': summary,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+        'updatedAt': _iso(DateTime.now()),
+      });
     } catch (e) {
       developer.log('syncGoalProgressWithMilestones error: $e');
     }
@@ -1690,12 +1576,8 @@ class DatabaseService {
 
   static Future<void> _syncSeasonGoalFromGoalState(String goalId) async {
     try {
-      final goalSnap = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      if (!goalSnap.exists) return;
-      final goalData = goalSnap.data() ?? const <String, dynamic>{};
+      final goalData = await _fetchGoalData(goalId);
+      if (goalData.isEmpty) return;
       if (goalData['isSeasonGoal'] != true) return;
 
       final seasonId = (goalData['seasonId'] ?? '').toString().trim();
@@ -1726,10 +1608,7 @@ class DatabaseService {
           (rawGoalEvidence is List && rawGoalEvidence.isNotEmpty) ||
           (rawGoalEvidence is String && rawGoalEvidence.trim().isNotEmpty);
 
-      final goalMilestoneSnap = await _goalMilestonesRef(goalId).get();
-      final goalMilestoneData = goalMilestoneSnap.docs
-          .map((doc) => doc.data())
-          .toList(growable: false);
+      final goalMilestoneData = await _fetchGoalMilestones(goalId);
 
       final hasPendingReview = goalMilestoneData.any(
         (data) => (data['status'] ?? '').toString() ==
@@ -1849,114 +1728,79 @@ class DatabaseService {
     required String goalId,
     required List<String> evidence,
   }) async {
-    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
-    await goalRef.set({
-      'evidence': FieldValue.arrayUnion(evidence),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    final data = await _fetchGoalData(goalId);
+    await _backend.patchGoal(goalId, {
+      'evidence': _mergeEvidenceValues(data['evidence'], evidence),
+      'updatedAt': _iso(DateTime.now()),
+    });
   }
 
   static Future<void> clearGoalEvidence({required String goalId}) async {
-    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
-    await goalRef.update({
-      'evidence': [],
-      'updatedAt': FieldValue.serverTimestamp(),
+    await _backend.patchGoal(goalId, {
+      'evidence': <dynamic>[],
+      'updatedAt': _iso(DateTime.now()),
     });
   }
 
   static Future<void> updateGoalProgress(String goalId, int progress) async {
-    // Gate: only allow progress on approved goals
     bool isSeason = false;
+    String? userId;
     try {
-      final meta = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      final data = meta.data();
-      isSeason = (data?['isSeasonGoal'] == true);
-      final ap = (data?['approvalStatus'] ?? 'pending').toString();
+      final data = await _fetchGoalData(goalId);
+      isSeason = data['isSeasonGoal'] == true;
+      final ap = (data['approvalStatus'] ?? 'pending').toString();
       if (!isSeason && ap != GoalApprovalStatus.approved.name) {
         throw Exception('Goal is not approved yet');
       }
+
+      int snapped = ((progress / 10).round() * 10).clamp(0, 100);
+      final currentStatus = (data['status'] ?? 'notStarted').toString();
+      userId = data['userId'] as String?;
+      if (currentStatus == GoalStatus.paused.name ||
+          currentStatus == GoalStatus.completed.name ||
+          currentStatus == GoalStatus.burnout.name) {
+        throw Exception('progress_update.blocked: status=$currentStatus');
+      }
+
+      final previousProgress = _coerceInt(data['progress']);
+      final milestones = data['milestones'] is Map<String, dynamic>
+          ? Map<String, dynamic>.from(data['milestones'] as Map)
+          : <String, dynamic>{};
+      final evList = _normalizedEvidenceList(data['evidence']);
+      final evidenceExists = evList.isNotEmpty;
+      var toApply = snapped;
+      if (!isSeason && !evidenceExists && snapped > 90) {
+        toApply = 90;
+      }
+
+      final patch = <String, dynamic>{'progress': toApply};
+      if (toApply > 0 &&
+          currentStatus != GoalStatus.inProgress.name &&
+          currentStatus != GoalStatus.completed.name) {
+        patch['status'] = GoalStatus.inProgress.name;
+        if (!isSeason && userId != null && userId.isNotEmpty) {
+          await _incrementUserPointsCapped(userId: userId, amount: 20);
+        }
+      }
+
+      final crossed50 = previousProgress < 50 && toApply >= 50;
+      if (crossed50 &&
+          userId != null &&
+          userId.isNotEmpty &&
+          milestones['p50'] != true) {
+        if (!isSeason) {
+          await _incrementUserPointsCapped(userId: userId, amount: 20);
+        }
+        milestones['p50'] = true;
+        patch['milestones'] = milestones;
+      }
+
+      await _backend.patchGoal(goalId, patch);
     } catch (e) {
-      throw Exception('progress_update.gate: $e');
-    }
-    // Snap progress to 10% steps and clamp 0..100
-    int snapped = ((progress / 10).round() * 10).clamp(0, 100);
-
-    final goals = FirebaseFirestore.instance.collection('goals');
-    final goalRef = goals.doc(goalId);
-    String? userId;
-    bool evidenceExists = false;
-
-    try {
-      await FirebaseFirestore.instance.runTransaction((tx) async {
-        final snap = await tx.get(goalRef);
-        if (!snap.exists) return;
-        final data = snap.data() as Map<String, dynamic>;
-        final currentStatus = (data['status'] ?? 'notStarted').toString();
-        userId = data['userId'] as String?;
-        if (currentStatus == GoalStatus.paused.name ||
-            currentStatus == GoalStatus.completed.name ||
-            currentStatus == GoalStatus.burnout.name) {
-          throw Exception('progress_update.blocked: status=$currentStatus');
-        }
-        final dynamic progressRaw = data['progress'];
-        final int previousProgress = progressRaw is int
-            ? progressRaw
-            : (progressRaw is num ? progressRaw.round() : 0);
-        final rawMilestones = data['milestones'];
-        final Map<String, dynamic> milestones =
-            rawMilestones is Map<String, dynamic>
-            ? Map<String, dynamic>.from(rawMilestones)
-            : {};
-        // Enforce: without evidence, cap progress at 90% for non-season goals
-        final List<dynamic> evList = (data['evidence'] is List)
-            ? List<dynamic>.from(data['evidence'] as List)
-            : <dynamic>[];
-        evidenceExists = evList.isNotEmpty;
-        int toApply = snapped;
-        if (!isSeason && !evidenceExists && snapped > 90) {
-          toApply = 90;
-        }
-        tx.update(goalRef, {'progress': toApply});
-
-        // Auto-transition: if progress > 0 and goal was not started, mark inProgress
-        // For season goals, do NOT award regular user points on start
-        if (toApply > 0 &&
-            currentStatus != GoalStatus.inProgress.name &&
-            currentStatus != GoalStatus.completed.name) {
-          tx.update(goalRef, {'status': GoalStatus.inProgress.name});
-          if (!isSeason && userId != null && userId!.isNotEmpty) {
-            final userRef = FirebaseFirestore.instance
-                .collection('users')
-                .doc(userId);
-            tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
-          }
-        }
-
-        // Milestone: First time crossing/reaching 50% → award +20 points and mark milestone
-        final crossed50 = previousProgress < 50 && toApply >= 50;
-        if (crossed50 &&
-            userId != null &&
-            userId!.isNotEmpty &&
-            milestones['p50'] != true) {
-          if (!isSeason) {
-            final userRef = FirebaseFirestore.instance
-                .collection('users')
-                .doc(userId);
-            tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
-          }
-          milestones['p50'] = true;
-          tx.update(goalRef, {'milestones': milestones});
-        }
-      });
-    } catch (e) {
-      developer.log('updateGoalProgress transaction failed: $e');
+      developer.log('updateGoalProgress failed: $e');
       rethrow;
     }
 
-    // Record daily activity for streak tracking when making progress
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -1965,15 +1809,13 @@ class DatabaseService {
       }
     } catch (e) {
       developer.log('updateGoalProgress post-activity failed: $e');
-      // Do not fail the whole call for auxiliary updates
     }
 
-    // Also update the user's lastActivity timestamp directly
     try {
-      if (userId != null && userId!.isNotEmpty) {
-        await FirebaseFirestore.instance.collection('users').doc(userId).update(
-          {'lastActivityAt': FieldValue.serverTimestamp()},
-        );
+      if (userId != null && userId.isNotEmpty) {
+        await _backend.updateUserProfile(userId, {
+          'lastActivityAt': _iso(DateTime.now()),
+        });
       }
     } catch (e) {
       developer.log('updateGoalProgress lastActivity update failed: $e');
@@ -1981,41 +1823,29 @@ class DatabaseService {
 
     await _syncSeasonGoalFromGoalState(goalId);
 
-    // Create alerts after transaction if 50% milestone reached
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      final data = snap.data();
-      if (data != null) {
-        final userId = data['userId'] as String?;
-        final dynamic progressNowRaw = data['progress'];
-        final int progressNow = progressNowRaw is int
-            ? progressNowRaw
-            : (progressNowRaw is num ? progressNowRaw.round() : 0);
-        final rawMilestones = data['milestones'];
-        final Map<String, dynamic> milestones =
-            rawMilestones is Map<String, dynamic>
-            ? Map<String, dynamic>.from(rawMilestones)
-            : {};
-        if (!isSeason &&
-            userId != null &&
-            userId.isNotEmpty &&
-            progressNow >= 50 &&
-            milestones['p50'] == true) {
-          await AlertService.createPointsAlert(
-            userId: userId,
-            pointsEarned: 20,
-            reason: 'reaching 50% progress milestone',
-          );
-          await AlertService.createMotivationalAlert(
-            userId: userId,
-            message:
-                'Great momentum! You\'re halfway there. Keep pushing to the finish!',
-            goalId: goalId,
-          );
-        }
+      final data = await _fetchGoalData(goalId);
+      final progressUserId = data['userId'] as String?;
+      final progressNow = _coerceInt(data['progress']);
+      final milestones = data['milestones'] is Map<String, dynamic>
+          ? Map<String, dynamic>.from(data['milestones'] as Map)
+          : <String, dynamic>{};
+      if (!isSeason &&
+          progressUserId != null &&
+          progressUserId.isNotEmpty &&
+          progressNow >= 50 &&
+          milestones['p50'] == true) {
+        await AlertService.createPointsAlert(
+          userId: progressUserId,
+          pointsEarned: 20,
+          reason: 'reaching 50% progress milestone',
+        );
+        await AlertService.createMotivationalAlert(
+          userId: progressUserId,
+          message:
+              'Great momentum! You\'re halfway there. Keep pushing to the finish!',
+          goalId: goalId,
+        );
       }
     } catch (e) {
       developer.log('updateGoalProgress post-alerts failed: $e');
@@ -2023,27 +1853,17 @@ class DatabaseService {
   }
 
   static Future<void> startGoal(String goalId, String userId) async {
-    // Gate: only allow start on approved goals
-    final snap = await FirebaseFirestore.instance
-        .collection('goals')
-        .doc(goalId)
-        .get();
-    final dataStart = snap.data();
-    final bool isSeasonStart = (dataStart?['isSeasonGoal'] == true);
-    final ap = (dataStart?['approvalStatus'] ?? 'pending').toString();
+    final dataStart = await _fetchGoalData(goalId);
+    final bool isSeasonStart = dataStart['isSeasonGoal'] == true;
+    final ap = (dataStart['approvalStatus'] ?? 'pending').toString();
     if (!isSeasonStart && ap != GoalApprovalStatus.approved.name) {
       throw Exception('Goal is not approved yet');
     }
-    final batch = FirebaseFirestore.instance.batch();
 
-    // Update goal status and award kickoff based on allocated points (idempotent via milestones)
-    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
-    final goalSnap = await goalRef.get();
-    final data = goalSnap.data();
-    final rawCategory = (data?['category'] ?? 'personal')
+    final rawCategory = (dataStart['category'] ?? 'personal')
         .toString()
         .toLowerCase();
-    final rawPriority = (data?['priority'] ?? 'medium')
+    final rawPriority = (dataStart['priority'] ?? 'medium')
         .toString()
         .toLowerCase();
     final category = GoalCategory.values.firstWhere(
@@ -2057,20 +1877,18 @@ class DatabaseService {
     final allocated = PointsService.allocatedPointsForGoal(category, priority);
     final int bonus = PointsService.kickoffBonus(allocated);
 
-    batch.update(goalRef, {'status': GoalStatus.inProgress.name});
-    // mark kickoff in milestones
-    final Map<String, dynamic> milestones =
-        (data?['milestones'] is Map<String, dynamic>)
-        ? Map<String, dynamic>.from(data!['milestones'] as Map)
-        : {};
+    final milestones = dataStart['milestones'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(dataStart['milestones'] as Map)
+        : <String, dynamic>{};
     if ((milestones['kickoff'] ?? false) != true) {
       milestones['kickoff'] = true;
-      batch.update(goalRef, {'milestones': milestones});
     }
 
-    await batch.commit();
+    await _backend.patchGoal(goalId, {
+      'status': GoalStatus.inProgress.name,
+      'milestones': milestones,
+    });
 
-    // Apply capped kickoff award (not for season goals)
     try {
       if (!isSeasonStart) {
         await _incrementUserPointsCapped(userId: userId, amount: bonus);
@@ -2079,106 +1897,85 @@ class DatabaseService {
       developer.log('startGoal capped increment failed: $e');
     }
 
-    // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_started');
     await BadgeService.checkAndAwardBadgesV2(userId);
   }
 
   static Future<void> completeGoal(String goalId, String userId) async {
-    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
     int completionAward = 0;
     bool isSeasonGoalFlag = false;
     String goalTitleForAudit = '';
     String ownerNameForAudit = '';
     String ownerDeptForAudit = '';
-    await FirebaseFirestore.instance.runTransaction((tx) async {
-      final snap = await tx.get(goalRef);
-      if (!snap.exists) {
-        throw Exception('Goal not found');
+
+    final data = await _fetchGoalData(goalId);
+    goalTitleForAudit = (data['title'] ?? '').toString();
+    ownerNameForAudit =
+        (data['userDisplayName'] ??
+                data['userName'] ??
+                data['ownerName'] ??
+                '')
+            .toString();
+    ownerDeptForAudit = (data['userDepartment'] ?? '').toString();
+    final bool isSeasonComplete = data['isSeasonGoal'] == true;
+    isSeasonGoalFlag = isSeasonComplete;
+    final approval = (data['approvalStatus'] ?? 'pending').toString();
+    if (!isSeasonComplete && approval != GoalApprovalStatus.approved.name) {
+      throw Exception('Goal is not approved yet');
+    }
+    if (!isSeasonComplete) {
+      final ev = data['evidence'];
+      final bool hasEvidence =
+          _normalizedEvidenceList(ev).isNotEmpty;
+      if (!hasEvidence) {
+        throw Exception(
+          'Please submit evidence before completing this goal.',
+        );
       }
-      final data = snap.data() as Map<String, dynamic>;
-      goalTitleForAudit = (data['title'] ?? '').toString();
-      ownerNameForAudit =
-          (data['userDisplayName'] ??
-                  data['userName'] ??
-                  data['ownerName'] ??
-                  '')
-              .toString();
-      ownerDeptForAudit = (data['userDepartment'] ?? '').toString();
-      final bool isSeasonComplete = (data['isSeasonGoal'] == true);
-      isSeasonGoalFlag = isSeasonComplete;
-      final approval = (data['approvalStatus'] ?? 'pending').toString();
-      if (!isSeasonComplete && approval != GoalApprovalStatus.approved.name) {
-        throw Exception('Goal is not approved yet');
-      }
-      // Enforce: non-season goals must have evidence before completion
-      if (!isSeasonComplete) {
-        final ev = data['evidence'];
-        final bool hasEvidence = (ev is List && ev.isNotEmpty);
-        if (!hasEvidence) {
-          throw Exception(
-            'Please submit evidence before completing this goal.',
-          );
+    }
+    final status = (data['status'] ?? 'notStarted').toString();
+    final progress = _coerceInt(data['progress']);
+    if (status != GoalStatus.inProgress.name) {
+      throw Exception('Start the goal before completing it.');
+    }
+    if (progress < 100) {
+      throw Exception('Set progress to 100% before completing.');
+    }
+
+    final rawCategory = (data['category'] ?? 'personal').toString().toLowerCase();
+    final rawPriority = (data['priority'] ?? 'medium').toString().toLowerCase();
+    final category = GoalCategory.values.firstWhere(
+      (e) => e.name.toLowerCase() == rawCategory,
+      orElse: () => GoalCategory.personal,
+    );
+    final priority = GoalPriority.values.firstWhere(
+      (e) => e.name.toLowerCase() == rawPriority,
+      orElse: () => GoalPriority.medium,
+    );
+    final allocated = PointsService.allocatedPointsForGoal(category, priority);
+    final milestones = data['milestones'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(data['milestones'] as Map)
+        : <String, dynamic>{};
+    if ((milestones['completion'] ?? false) != true) {
+      int totalAward = PointsService.completionBonus(allocated);
+      final target = _parseBackendDate(data['targetDate']);
+      if (target != null) {
+        final now = DateTime.now();
+        if (!now.isAfter(target)) {
+          totalAward += PointsService.onTimeModifier(allocated).toInt();
+        } else {
+          totalAward += PointsService.lateModifier(allocated).toInt();
         }
       }
-      final status = (data['status'] ?? 'notStarted').toString();
-      final progress = (data['progress'] ?? 0) as int;
+      completionAward = totalAward;
+      milestones['completion'] = true;
+    }
 
-      // Enforce: must be inProgress and progress 100 to complete
-      if (status != GoalStatus.inProgress.name) {
-        throw Exception('Start the goal before completing it.');
-      }
-      if (progress < 100) {
-        throw Exception('Set progress to 100% before completing.');
-      }
-
-      // Update goal status to completed
-      tx.update(goalRef, {'status': GoalStatus.completed.name});
-
-      // Award weighted completion bonus and timing modifier (idempotent via milestones)
-      final rawCategory = (data['category'] ?? 'personal')
-          .toString()
-          .toLowerCase();
-      final rawPriority = (data['priority'] ?? 'medium')
-          .toString()
-          .toLowerCase();
-      final category = GoalCategory.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawCategory,
-        orElse: () => GoalCategory.personal,
-      );
-      final priority = GoalPriority.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawPriority,
-        orElse: () => GoalPriority.medium,
-      );
-      final allocated = PointsService.allocatedPointsForGoal(
-        category,
-        priority,
-      );
-
-      final Map<String, dynamic> milestones =
-          (data['milestones'] is Map<String, dynamic>)
-          ? Map<String, dynamic>.from(data['milestones'] as Map)
-          : {};
-      if ((milestones['completion'] ?? false) != true) {
-        int totalAward = PointsService.completionBonus(allocated);
-        // On-time or late modifier
-        final targetTs = data['targetDate'];
-        if (targetTs is Timestamp) {
-          final target = targetTs.toDate();
-          final now = DateTime.now();
-          if (!now.isAfter(target)) {
-            totalAward += PointsService.onTimeModifier(allocated).toInt();
-          } else {
-            totalAward += PointsService.lateModifier(allocated).toInt();
-          }
-        }
-        completionAward = totalAward;
-        milestones['completion'] = true;
-        tx.update(goalRef, {'milestones': milestones});
-      }
+    await _backend.patchGoal(goalId, {
+      'status': GoalStatus.completed.name,
+      if (milestones.isNotEmpty) 'milestones': milestones,
     });
 
-    // Apply capped completion award (not for season goals)
     try {
       if (completionAward > 0 && !isSeasonGoalFlag) {
         await _incrementUserPointsCapped(
@@ -2190,30 +1987,24 @@ class DatabaseService {
       developer.log('completeGoal capped increment failed: $e');
     }
 
-    // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_completed');
     await BadgeService.checkAndAwardBadgesV2(userId);
 
-    // Persist completion lifecycle event for repository/audit history.
     try {
       if (goalTitleForAudit.isEmpty) {
-        final goalDoc = await goalRef.get();
-        final d = goalDoc.data() ?? const <String, dynamic>{};
-        goalTitleForAudit = (d['title'] ?? '').toString();
+        final refreshed = await _fetchGoalData(goalId);
+        goalTitleForAudit = (refreshed['title'] ?? '').toString();
         ownerNameForAudit =
-            (d['userDisplayName'] ??
-                    d['userName'] ??
-                    d['ownerName'] ??
+            (refreshed['userDisplayName'] ??
+                    refreshed['userName'] ??
+                    refreshed['ownerName'] ??
                     ownerNameForAudit)
                 .toString();
-        ownerDeptForAudit = (d['userDepartment'] ?? ownerDeptForAudit).toString();
+        ownerDeptForAudit =
+            (refreshed['userDepartment'] ?? ownerDeptForAudit).toString();
       }
       if (ownerNameForAudit.trim().isEmpty || ownerDeptForAudit.trim().isEmpty) {
-        final ownerDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .get();
-        final owner = ownerDoc.data() ?? const <String, dynamic>{};
+        final owner = await _fetchUserData(userId);
         if (ownerNameForAudit.trim().isEmpty) {
           ownerNameForAudit =
               (owner['displayName'] ??
@@ -2244,21 +2035,15 @@ class DatabaseService {
     int points,
     String reason,
   ) async {
-    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-
-    // Get current user data to check for level up
-    final userDoc = await userRef.get();
-    final currentPoints = (userDoc.data()?['totalPoints'] ?? 0) as int;
-
+    final userData = await _fetchUserData(userId);
+    final currentPoints = _coerceInt(userData['totalPoints']);
     final newPoints = currentPoints + points;
     final newLevel = _calculateLevel(newPoints);
 
-    final batch = FirebaseFirestore.instance.batch();
-
-    // Update points
-    batch.update(userRef, {'totalPoints': newPoints, 'level': newLevel});
-
-    await batch.commit();
+    await _backend.updateUserProfile(userId, {
+      'totalPoints': newPoints,
+      'level': newLevel,
+    });
   }
 
   static int _calculateLevel(int points) {
@@ -2266,27 +2051,60 @@ class DatabaseService {
     return (points ~/ 500) + 1;
   }
 
-  static Future<void> initializeSubcollections(
-    DocumentReference userDocRef,
-  ) async {
-    final subcollections = [
-      'goals',
-      'streaks',
-      'badges',
-      'alerts',
-      'development_activities',
-    ];
+  static int _rolePriority(String? role) {
+    final normalized = role?.trim().toLowerCase();
+    switch (normalized) {
+      case 'admin':
+        return 3;
+      case 'manager':
+        return 2;
+      case 'employee':
+        return 1;
+      default:
+        return 0;
+    }
+  }
 
-    for (String sub in subcollections) {
-      final subRef = userDocRef.collection(sub).doc('init');
-      final subSnap = await subRef.get();
-      if (!subSnap.exists) {
-        await subRef.set({
-          'placeholder': true,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+  static String _pdhModuleAccessRole(String role) {
+    switch (role.trim().toLowerCase()) {
+      case 'manager':
+        return 'PDH - Manager';
+      case 'admin':
+        return 'PDH - Admin';
+      case 'employee':
+      default:
+        return 'PDH - Employee';
+    }
+  }
+
+  static String _mergePdhModuleAccessRole({
+    required String? currentModuleAccessRole,
+    required String pdhRoleLabel,
+  }) {
+    final entries = <String>[];
+    if (pdhRoleLabel.trim().isNotEmpty) {
+      entries.add(pdhRoleLabel.trim());
+    }
+
+    final current = currentModuleAccessRole?.trim();
+    if (current != null && current.isNotEmpty) {
+      for (final entry in current.split(',')) {
+        final trimmed = entry.trim();
+        if (trimmed.isEmpty) continue;
+        if (trimmed.toUpperCase().contains('PDH')) continue;
+        if (!entries.contains(trimmed)) {
+          entries.add(trimmed);
+        }
       }
     }
+
+    return entries.join(', ');
+  }
+
+  static Future<void> initializeSubcollections(
+    Object userDocRef,
+  ) async {
+    // PostgreSQL backend uses dedicated tables instead of Firestore subcollections.
   }
 
   static Future<void> initializeUserData(
@@ -2295,54 +2113,48 @@ class DatabaseService {
     String? email, {
     String role = 'employee',
   }) async {
-    final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
-
-    // Check onboarding collection for user data if displayName is missing
     String? resolvedDisplayName = displayName;
     String? resolvedEmail = email;
+    Map<String, dynamic>? onboardingData;
 
     if ((resolvedDisplayName == null || resolvedDisplayName.isEmpty) ||
         (resolvedEmail == null || resolvedEmail.isEmpty)) {
       try {
-        final onboardingDoc = await FirebaseFirestore.instance
-            .collection('onboarding')
-            .doc(uid)
-            .get();
-
-        if (onboardingDoc.exists) {
-          final onboardingData = onboardingDoc.data();
-          // Try multiple possible field names for name in onboarding
+        onboardingData = await _backend.getOnboarding(uid);
+        if (onboardingData.isNotEmpty) {
           resolvedDisplayName = resolvedDisplayName?.isNotEmpty == true
               ? resolvedDisplayName
-              : onboardingData?['displayName'] ??
-                    onboardingData?['fullName'] ??
-                    onboardingData?['name'] ??
-                    onboardingData?['firstName'] ??
-                    (onboardingData?['firstName'] != null &&
-                            onboardingData?['lastName'] != null
-                        ? '${onboardingData?['firstName']} ${onboardingData?['lastName']}'
+              : onboardingData['displayName'] ??
+                    onboardingData['fullName'] ??
+                    onboardingData['name'] ??
+                    onboardingData['firstName'] ??
+                    (onboardingData['firstName'] != null &&
+                            onboardingData['lastName'] != null
+                        ? '${onboardingData['firstName']} ${onboardingData['lastName']}'
                               .trim()
                         : null);
-
           resolvedEmail = resolvedEmail?.isNotEmpty == true
               ? resolvedEmail
-              : onboardingData?['email'] ?? email;
+              : onboardingData['email']?.toString() ?? email;
         }
       } catch (e) {
         developer.log('Error checking onboarding collection: $e');
-        // Continue with original values if onboarding check fails
       }
     }
 
-    final docSnapshot = await userDocRef.get();
-    if (!docSnapshot.exists) {
+    Map<String, dynamic> existing = {};
+    try {
+      existing = await _fetchUserData(uid);
+    } catch (_) {}
+
+    if (existing.isEmpty) {
       final userData = {
         'displayName': resolvedDisplayName?.isNotEmpty == true
             ? resolvedDisplayName
-            : '', // Use displayName from onboarding or provided, or an empty string
+            : '',
         'email': resolvedEmail ?? '',
-        'createdAt': FieldValue.serverTimestamp(),
-        'role': role, // default role, only set on creation
+        'createdAt': _iso(DateTime.now()),
+        'role': role,
         'totalPoints': 0,
         'level': 1,
         'badges': [],
@@ -2366,94 +2178,86 @@ class DatabaseService {
         'celebrationConsent': 'private',
       };
 
-      // For new users, enable tutorial but don't set completion status
-      // This allows tutorial to show on first login
-      if (role == 'employee') {
+      if (role == 'employee' || role == 'manager') {
         userData['tutorialEnabled'] = true;
-        // Don't set employeeSidebarTutorialCompleted - leave it as null
-        // so tutorial will show on first login
-      } else if (role == 'manager') {
-        userData['tutorialEnabled'] = true;
-        // Don't set managerSidebarTutorialCompleted - leave it as null
-        // so tutorial will show on first login
       } else if (role == 'admin') {
         userData['tutorialEnabled'] = false;
-        // Admin portal has no sidebar tutorial
       }
 
-      await userDocRef.set(userData);
+      await _backend.updateUserProfile(uid, userData);
     } else {
-      // Only update fields that might change
-      // Also check if displayName is currently empty and update from onboarding if needed
-      final currentDisplayName = docSnapshot.data()?['displayName'] ?? '';
+      final currentDisplayName = existing['displayName']?.toString() ?? '';
       final finalDisplayName = resolvedDisplayName?.isNotEmpty == true
           ? resolvedDisplayName
           : (currentDisplayName.isNotEmpty ? currentDisplayName : '');
+      final currentRole = existing['role'] as String?;
 
-      // Get current role, if any
-      final currentRole = docSnapshot.data()?['role'] as String?;
-
-      // Prepare update map
       final updateData = <String, dynamic>{
-        'displayName': finalDisplayName.isNotEmpty
+        'displayName': (finalDisplayName?.isNotEmpty == true
             ? finalDisplayName
-            : (docSnapshot.data()?['displayName'] ?? ''),
-        'email': resolvedEmail ?? docSnapshot.data()?['email'] ?? '',
+            : (existing['displayName'] ?? '')) as String,
+        'email': resolvedEmail ?? existing['email'] ?? '',
       };
 
-      // Update role ONLY if:
-      // 1. Role is not currently set (null or empty), OR
-      // 2. Current role is 'employee' AND new role is 'manager' (upgrade)
-      // NEVER overwrite a 'manager' role with 'employee'
-      if (currentRole == null || currentRole.isEmpty) {
-        // Role is not set - set it to the provided role (or default to employee)
+      if (_rolePriority(role) > _rolePriority(currentRole)) {
         updateData['role'] = role;
-      } else if (currentRole == 'employee' && role == 'manager') {
-        // Allow upgrade from employee to manager
-        updateData['role'] = role;
-      } else if (currentRole == 'manager') {
-        // NEVER overwrite manager role - preserve it
-        // Don't add role to updateData
-      } else if (currentRole == 'employee' && role == 'employee') {
-        // Already employee, no need to update
-        // Don't add role to updateData
       }
-      // If role is already set to 'manager', it's preserved above
 
-      await userDocRef.update(updateData);
+      await _backend.updateUserProfile(uid, updateData);
     }
 
-    await initializeSubcollections(userDocRef);
+    try {
+      onboardingData ??= {};
+      if (onboardingData.isEmpty) {
+        try {
+          onboardingData = await _backend.getOnboarding(uid);
+        } catch (_) {
+          onboardingData = <String, dynamic>{};
+        }
+      }
+      final onboarding = onboardingData;
+      final pdhRoleLabel = _pdhModuleAccessRole(role);
+      final mergedRole = _mergePdhModuleAccessRole(
+        currentModuleAccessRole:
+            onboarding['moduleAccessRole']?.toString() ??
+            onboarding['module_access_role']?.toString() ??
+            onboarding['moduleRole']?.toString() ??
+            onboarding['module_role']?.toString() ??
+            onboarding['role']?.toString(),
+        pdhRoleLabel: pdhRoleLabel,
+      );
+      await _backend.updateOnboarding(uid, {
+        'displayName': resolvedDisplayName ?? '',
+        'fullName': resolvedDisplayName ?? '',
+        'email': resolvedEmail ?? '',
+        'moduleAccessRole': mergedRole,
+        'moduleRole': mergedRole,
+        'role': mergedRole,
+        'status': 'Active',
+      });
+    } catch (e) {
+      developer.log('Error syncing onboarding role for $uid: $e');
+    }
+
+    await initializeSubcollections(uid);
   }
 
   /// Syncs user data from onboarding collection if displayName or email is missing
   /// This helps resolve "Anonymous" user issues
   static Future<void> syncOnboardingData(String uid) async {
     try {
-      final userDocRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid);
-      final userDoc = await userDocRef.get();
-
-      if (!userDoc.exists) {
-        return; // User document doesn't exist yet
+      final userData = await _fetchUserData(uid);
+      if (userData.isEmpty) {
+        return;
       }
 
-      final userData = userDoc.data() ?? {};
       final currentDisplayName = userData['displayName']?.toString() ?? '';
       final currentEmail = userData['email']?.toString() ?? '';
 
-      // If displayName is empty or missing, check onboarding
       if (currentDisplayName.isEmpty) {
         try {
-          final onboardingDoc = await FirebaseFirestore.instance
-              .collection('onboarding')
-              .doc(uid)
-              .get();
-
-          if (onboardingDoc.exists) {
-            final onboardingData = onboardingDoc.data() ?? {};
-            // Try multiple possible field names for name in onboarding
+          final onboardingData = await _backend.getOnboarding(uid);
+          if (onboardingData.isNotEmpty) {
             final onboardingName =
                 onboardingData['displayName'] ??
                 onboardingData['fullName'] ??
@@ -2464,10 +2268,7 @@ class DatabaseService {
                     ? '${onboardingData['firstName']} ${onboardingData['lastName']}'
                           .trim()
                     : null);
-
             final onboardingEmail = onboardingData['email']?.toString();
-
-            // Update user document if we found name or email from onboarding
             final updates = <String, dynamic>{};
             if (onboardingName != null &&
                 onboardingName.toString().isNotEmpty) {
@@ -2478,9 +2279,8 @@ class DatabaseService {
                 currentEmail.isEmpty) {
               updates['email'] = onboardingEmail;
             }
-
             if (updates.isNotEmpty) {
-              await userDocRef.update(updates);
+              await _backend.updateUserProfile(uid, updates);
               developer.log(
                 'Synced onboarding data for user $uid: ${updates.keys.join(", ")}',
               );
@@ -2495,148 +2295,87 @@ class DatabaseService {
     }
   }
 
-  /// Gets user name from onboarding collection
-  /// Tries multiple field names: displayName, fullName, name, firstName, or firstName + lastName
+  /// Gets user name from PostgreSQL onboarding records.
   static Future<String?> getUserNameFromOnboarding({
     required String userId,
     String? email,
   }) async {
-    if (FirestoreWebCircuitBreaker.isBroken) {
-      return null;
-    }
     try {
-      // First try by userId
-      var onboardingDoc = await FirebaseFirestore.instance
-          .collection('onboarding')
-          .doc(userId)
-          .get();
-
-      // If not found by userId and email is provided, try to find by email
-      if (!onboardingDoc.exists && email != null && email.isNotEmpty) {
-        final onboardingQuery = await FirebaseFirestore.instance
-            .collection('onboarding')
-            .where('email', isEqualTo: email)
-            .limit(1)
-            .get();
-
-        if (onboardingQuery.docs.isNotEmpty) {
-          onboardingDoc = onboardingQuery.docs.first;
-        }
+      final onboardingData = await _backend.tryGetOnboarding(userId);
+      if (onboardingData.isNotEmpty) {
+        final name = OnboardingService.displayNameFromOnboarding(onboardingData);
+        if (name != null && name.isNotEmpty) return name;
       }
 
-      if (onboardingDoc.exists) {
-        final onboardingData = onboardingDoc.data() ?? {};
-        // Try multiple possible field names for name in onboarding
-        final name =
-            onboardingData['displayName'] ??
-            onboardingData['fullName'] ??
-            onboardingData['name'] ??
-            onboardingData['firstName'] ??
-            (onboardingData['firstName'] != null &&
-                    onboardingData['lastName'] != null
-                ? '${onboardingData['firstName']} ${onboardingData['lastName']}'
-                      .trim()
-                : null);
-
-        if (name != null && name.toString().isNotEmpty) {
-          return name.toString();
+      if (email != null && email.isNotEmpty) {
+        final items = await _backend.listOnboarding(email: email, limit: 1);
+        if (items.isNotEmpty) {
+          final name = OnboardingService.displayNameFromOnboarding(items.first);
+          if (name != null && name.isNotEmpty) return name;
         }
       }
     } catch (e) {
       developer.log('Error getting user name from onboarding: $e');
-      FirestoreWebCircuitBreaker.maybeReload(e);
     }
     return null;
   }
 
-  /// Helper function to prepare user document data for writing
-  /// Removes 'role' field if document exists (to satisfy security rules)
-  /// This ensures all write operations (set, update) comply with Firestore rules
   static Future<Map<String, dynamic>> _prepareUserDataForWrite(
     String uid,
     Map<String, dynamic> data,
   ) async {
-    final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
-    final existing = await userDocRef.get();
-
-    // Create a copy to avoid modifying the original
     final preparedData = Map<String, dynamic>.from(data);
-
-    // Remove 'role' field if document exists (users can't change their own role)
-    // Only admins can modify roles, and they should use a separate admin function
-    if (existing.exists) {
-      preparedData.remove('role');
-    }
-
+    try {
+      final existing = await _fetchUserData(uid);
+      if (existing.isNotEmpty) {
+        preparedData.remove('role');
+      }
+    } catch (_) {}
     return preparedData;
   }
 
   static Future<void> updateUserProfile(UserProfile userProfile) async {
-    final userDocRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(userProfile.uid);
-
-    // Verify user is authenticated and matches the profile UID
     final authUid = FirebaseAuth.instance.currentUser?.uid;
     if (authUid == null) {
       throw Exception('User not authenticated');
     }
     if (authUid != userProfile.uid) {
       throw Exception(
-        'Cannot update profile: authenticated user ($authUid) does not match profile UID ($userProfile.uid)',
+        'Cannot update profile: authenticated user ($authUid) does not match profile UID (${userProfile.uid})',
       );
     }
 
-    // Prepare data for write (removes role if document exists)
     final data = await _prepareUserDataForWrite(
       userProfile.uid,
-      userProfile.toFirestore(),
+      userProfile.toMap(includeId: false),
     );
 
-    // Debug log to help diagnose permission issues
-    try {
-      final projectId = Firebase.app().options.projectId;
-      developer.log(
-        'updateUserProfile: authUid=$authUid, targetUid=${userProfile.uid}, keys=${data.keys.join(',')}, project=$projectId',
-      );
-    } catch (_) {}
+    developer.log(
+      'updateUserProfile: authUid=$authUid, targetUid=${userProfile.uid}, keys=${data.keys.join(',')}',
+    );
 
-    // Use set with merge: true to ensure all fields are saved
-    // This is more robust and handles cases where some fields might not exist yet
-    try {
-      await userDocRef.set(data, SetOptions(merge: true));
-    } on FirebaseException catch (e) {
-      developer.log(
-        'updateUserProfile: FirebaseException code=${e.code}, message=${e.message ?? ''}, path=${userDocRef.path}',
-        error: e,
-      );
-      rethrow;
-    } catch (e) {
-      developer.log('updateUserProfile: Unexpected error $e');
-      rethrow;
-    }
+    await _backend.updateUserProfile(userProfile.uid, data);
 
-    // Update cache immediately after successful save to reflect changes
-    // This ensures the UI shows the latest data immediately
     final cache = PerformanceCacheService();
     cache.cacheUserProfile(userProfile);
   }
 
   static Future<Map<String, dynamic>> getDashboardData(String uid) async {
-    final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
-
-    final doc = await userDocRef.get();
-    final goals = await userDocRef.collection('goals').get();
-    final streaks = await userDocRef.collection('streaks').get();
-    final badges = await userDocRef.collection('badges').get();
-    final alerts = await userDocRef.collection('alerts').get();
+    final profile = await _fetchUserData(uid);
+    final goals = await _backend.getGoals(userId: uid);
+    final badges = await _backend.getBadges(uid);
+    final alerts = await _backend.getAlerts(uid);
+    final streakItems = await _backend.getCollectionItems(
+      'streaks',
+      userId: uid,
+    );
 
     return {
-      'profile': doc.data(),
-      'goals': goals.docs.map((d) => d.data()).toList(),
-      'streaks': streaks.docs.map((d) => d.data()).toList(),
-      'badges': badges.docs.map((d) => d.data()).toList(),
-      'alerts': alerts.docs.map((d) => d.data()).toList(),
+      'profile': profile,
+      'goals': goals,
+      'streaks': streakItems,
+      'badges': badges,
+      'alerts': alerts,
     };
   }
 
@@ -2651,7 +2390,7 @@ class DatabaseService {
     required String approvedByName,
   }) async {
     try {
-      final ts = FieldValue.serverTimestamp();
+      final ts = _iso(DateTime.now());
       final event = <String, dynamic>{
         'action': 'goal_approved',
         'goalId': goalId,
@@ -2673,7 +2412,7 @@ class DatabaseService {
         'acknowledgedBy': approvedByName,
       };
 
-      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      await _createAuditEvent(event);
       developer.log('Goal approval logged to audit_entries: $goalTitle');
     } catch (e, stackTrace) {
       developer.log(
@@ -2694,7 +2433,7 @@ class DatabaseService {
     String ownerDepartment = '',
   }) async {
     try {
-      final ts = FieldValue.serverTimestamp();
+      final ts = _iso(DateTime.now());
       final event = {
         'action': 'goal_rejected',
         'goalId': goalId,
@@ -2717,7 +2456,7 @@ class DatabaseService {
         'status': 'rejected',
       };
 
-      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      await _createAuditEvent(event);
       developer.log('Goal rejection logged: $goalTitle for user $userId');
     } catch (e, stackTrace) {
       developer.log(
@@ -2735,7 +2474,7 @@ class DatabaseService {
     required String userId,
   }) async {
     try {
-      final ts = FieldValue.serverTimestamp();
+      final ts = _iso(DateTime.now());
       final event = {
         'action': 'goal_created',
         'goalId': goalId,
@@ -2748,7 +2487,7 @@ class DatabaseService {
         'status': 'pending', // Goals start as pending approval
       };
 
-      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      await _createAuditEvent(event);
       developer.log('Goal creation logged: $goalTitle for user $userId');
     } catch (e, stackTrace) {
       developer.log(
@@ -2769,7 +2508,7 @@ class DatabaseService {
     required String requiredApproverRole,
   }) async {
     try {
-      final ts = FieldValue.serverTimestamp();
+      final ts = _iso(DateTime.now());
       final approverRole = requiredApproverRole.trim().toLowerCase();
       final chain = approverRole.contains('admin')
           ? 'manager_to_admin'
@@ -2792,7 +2531,7 @@ class DatabaseService {
         'description': 'Goal submitted for approval: $goalTitle',
         'status': 'pending',
       };
-      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      await _createAuditEvent(event);
       developer.log(
         'Goal submission logged to audit_entries: $goalTitle ($chain)',
       );
@@ -2813,7 +2552,7 @@ class DatabaseService {
     required String userDepartment,
   }) async {
     try {
-      final ts = FieldValue.serverTimestamp();
+      final ts = _iso(DateTime.now());
       final event = <String, dynamic>{
         'action': 'goal_completed',
         'goalId': goalId,
@@ -2831,7 +2570,7 @@ class DatabaseService {
         'description': 'Goal completed: $goalTitle',
         'status': 'completed',
       };
-      await FirebaseFirestore.instance.collection('audit_entries').add(event);
+      await _createAuditEvent(event);
     } catch (e, stackTrace) {
       developer.log(
         'Error logging goal completion to audit_entries: $e',

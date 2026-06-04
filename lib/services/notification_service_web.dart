@@ -1,24 +1,39 @@
 // Only compiled on web via conditional import in notification_service.dart
-import 'dart:js_interop';
-import 'package:web/web.dart' as web;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 
 Future<bool> requestPushPermission() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return false;
+
   try {
-    final permissionPromise = web.Notification.requestPermission();
-    final result = await permissionPromise.toDart;
-    return result.toDart == 'granted';
+    await BackendAuthService.instance.updateUserSettings(
+      user.uid,
+      {'pushNotifications': true},
+    );
+    return true;
   } catch (_) {
     return false;
   }
 }
 
 Future<bool> showTestNotification(String title, String body) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return false;
+
   try {
-    final permission = web.Notification.permission;
-    if (permission.toString() == 'granted') {
-      web.Notification(title, web.NotificationOptions(body: body));
-      return true;
-    }
-  } catch (_) {}
-  return false;
+    await BackendAuthService.instance.updateUserProfile(
+      user.uid,
+      {
+        'data': {
+          'lastNotificationTestTitle': title,
+          'lastNotificationTestBody': body,
+          'lastNotificationTestAt': DateTime.now().toIso8601String(),
+        },
+      },
+    );
+    return true;
+  } catch (_) {
+    return false;
+  }
 }

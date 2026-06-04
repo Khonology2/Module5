@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/onboarding_service.dart';
-import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/utils/backend_polling_stream.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
 
 class TeamManagementScreen extends StatefulWidget {
@@ -58,67 +58,62 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
   }
 
   void _fetchCurrentParticipants() async {
-    final teamGoalDoc = await FirebaseFirestore.instance
-        .collection('team_goals')
-        .doc(widget.teamGoalId)
-        .get();
-
-    if (!mounted) return;
-
-    if (teamGoalDoc.exists) {
-      final data = teamGoalDoc.data();
-      final List<dynamic> participants = data?['participants'] ?? [];
+    try {
+      final data = await BackendAuthService.instance.getCollectionItem(
+        'team_goals',
+        widget.teamGoalId,
+      );
+      if (!mounted) return;
+      final List<dynamic> participants = data['participants'] ?? [];
       setState(() {
         _selectedEmployeeIds.addAll(participants.map((e) => e.toString()));
       });
-    }
+    } catch (_) {}
 
     // Set up stream for participants (for real-time updates if needed)
   }
 
   /// Fetch all employees including onboarding users (excludes deleted accounts)
   Future<List<Map<String, dynamic>>> _fetchAllEmployees(
-    List<QueryDocumentSnapshot> regularEmployees,
+    List<Map<String, dynamic>> regularEmployees,
   ) async {
     final deletedUids = await ManagerRealtimeService.getDeletedAccountUids();
 
-    // Convert regular employees to map format, excluding deleted accounts
     final employees = regularEmployees
-        .where((doc) => !deletedUids.contains(doc.id))
-        .map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      return {
-        'id': doc.id,
-        'displayName': data['displayName'] ?? 'Unknown Employee',
-        ...data,
-      };
-    }).toList();
+        .where((data) {
+          final id = (data['id'] ?? data['userId'] ?? '').toString();
+          return id.isNotEmpty && !deletedUids.contains(id);
+        })
+        .map((data) {
+          final id = (data['id'] ?? data['userId'] ?? '').toString();
+          return {
+            'id': id,
+            'displayName': data['displayName'] ?? 'Unknown Employee',
+            ...data,
+          };
+        })
+        .toList();
 
-    // Fetch onboarding users with employee persona (exclude deleted)
     try {
-      final onboardingSnapshot = await FirebaseFirestore.instance
-          .collection('onboarding')
-          .get();
+      final onboardingItems =
+          await OnboardingService.listOnboardingRecords(limit: 500);
 
-      final onboardingEmployees = onboardingSnapshot.docs
-          .where((doc) {
-            if (deletedUids.contains(doc.id)) return false;
-            final data = doc.data();
+      final onboardingEmployees = onboardingItems
+          .where((data) {
+            final id = (data['id'] ?? '').toString();
+            if (id.isEmpty || deletedUids.contains(id)) return false;
             final moduleAccessRole = data['moduleAccessRole'] as String?;
             return OnboardingService.shouldIncludeUser(
               moduleAccessRole,
               'employee',
             );
           })
-          .map((doc) {
-            final data = doc.data();
+          .map((data) {
+            final id = (data['userId'] ?? data['id'] ?? '').toString();
             final convertedData =
-                OnboardingService.convertOnboardingUserToUserFormat(
-                  data,
-                  doc.id,
-                );
+                OnboardingService.convertOnboardingUserToUserFormat(data, id);
             return {
-              'id': doc.id,
+              'id': id,
               'displayName': convertedData['displayName'] ?? 'Unknown Employee',
               ...convertedData,
             };
@@ -143,13 +138,14 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
 
   Future<void> _updateTeamParticipants() async {
     try {
-      await FirebaseFirestore.instance
-          .collection('team_goals')
-          .doc(widget.teamGoalId)
-          .update({
-            'participants': _selectedEmployeeIds,
-            'participantCount': _selectedEmployeeIds.length,
-          });
+      await BackendAuthService.instance.patchCollectionItem(
+        'team_goals',
+        widget.teamGoalId,
+        {
+          'participants': _selectedEmployeeIds,
+          'participantCount': _selectedEmployeeIds.length,
+        },
+      );
       if (!mounted) return;
       if (!mounted) return;
       await _showCenterNotice(
@@ -180,12 +176,13 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
       content: Column(
         children: [
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirestoreSafe.stream(
-                FirebaseFirestore.instance
-                    .collection('users')
-                    .where('role', isEqualTo: 'employee')
-                    .snapshots(),
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: backendPollingStream<List<Map<String, dynamic>>>(
+                initialValue: const [],
+                fetch: () => BackendAuthService.instance.listUsers(
+                  role: 'employee',
+                  limit: 500,
+                ),
               ),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -198,7 +195,7 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
                 }
 
                 return FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _fetchAllEmployees(snapshot.data?.docs ?? []),
+                  future: _fetchAllEmployees(snapshot.data ?? const []),
                   builder: (context, employeesSnapshot) {
                     if (employeesSnapshot.connectionState ==
                         ConnectionState.waiting) {

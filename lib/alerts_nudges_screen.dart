@@ -3,8 +3,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/services/app_ai_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -25,7 +25,6 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/services/one_on_one_meeting_service.dart';
 import 'package:pdh/badges_v2/badge_category_detail_screen.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
-import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
 
@@ -796,12 +795,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     final cached = _userNameCache[uid];
     if (cached != null) return cached;
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final data = snap.data();
-      final name = (data?['displayName'] ?? data?['name'] ?? '')
+      final data = await BackendAuthService.instance.getUser(uid);
+      final name = (data['displayName'] ?? data['name'] ?? '')
           .toString()
           .trim();
       final resolved = name.isNotEmpty ? name : 'Manager';
@@ -869,12 +864,13 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
   Future<void> _startOneOnOneWithAdmin(String employeeId) async {
     try {
-      final adminsSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'admin')
-          .get();
-      final admins = adminsSnap.docs
-          .where((d) => d.id != employeeId)
+      final users = await BackendAuthService.instance.listUsers(limit: 2000);
+      final admins = users
+          .where((u) => (u['role'] ?? '').toString().toLowerCase() == 'admin')
+          .where((u) {
+            final id = (u['id'] ?? u['uid'] ?? '').toString();
+            return id.isNotEmpty && id != employeeId;
+          })
           .toList(growable: false);
       if (admins.isEmpty) {
         if (!mounted) return;
@@ -904,13 +900,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     style: AppTypography.heading4.copyWith(color: _AlertsChrome.fg),
                   ),
                   const SizedBox(height: 8),
-                  ...admins.map((doc) {
-                    final data = doc.data();
-                    final name = (data['displayName'] ??
-                            data['name'] ??
-                            data['email'] ??
+                  ...admins.map((admin) {
+                    final name = (admin['displayName'] ??
+                            admin['name'] ??
+                            admin['email'] ??
                             'Admin')
                         .toString();
+                    final adminId =
+                        (admin['id'] ?? admin['uid'] ?? '').toString();
                     return ListTile(
                       title: Text(
                         name,
@@ -918,7 +915,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           color: _AlertsChrome.fg,
                         ),
                       ),
-                      onTap: () => Navigator.of(sheetContext).pop(doc.id),
+                      onTap: () => Navigator.of(sheetContext).pop(adminId),
                     );
                   }),
                 ],
@@ -1570,47 +1567,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     // Helper to navigate to goal detail when doc exists
     Future<bool> openGoalDetail(String gid) async {
       try {
-        DocumentSnapshot<Map<String, dynamic>>? doc;
-        try {
-          doc = await FirebaseFirestore.instance
-              .collection('goals')
-              .doc(gid)
-              .get();
-        } on FirebaseException catch (fe) {
-          // Some deployments mistakenly allow queries (list) but deny direct get.
-          // If that happens, try an owner-scoped query as a fallback.
-          if (fe.code == 'permission-denied') {
-            final uid = FirebaseAuth.instance.currentUser?.uid;
-            if (uid != null && uid.isNotEmpty) {
-              final q = await FirebaseFirestore.instance
-                  .collection('goals')
-                  .where('userId', isEqualTo: uid)
-                  .where(FieldPath.documentId, isEqualTo: gid)
-                  .limit(1)
-                  .get();
-              if (q.docs.isNotEmpty) {
-                doc = q.docs.first;
-              } else {
-                rethrow;
-              }
-            } else {
-              rethrow;
-            }
-          } else {
-            rethrow;
-          }
-        }
-        if (!mounted) return true; // stop further work
-        if (!doc.exists) {
+        final goal = await DatabaseService.getGoalById(gid);
+        if (!mounted) return true;
+        if (goal == null) {
           return false;
         }
 
-        final data = doc.data();
-        final approvalStatus = (data?['approvalStatus'] ?? '')
-            .toString()
-            .toLowerCase();
-        if (approvalStatus == GoalApprovalStatus.rejected.name.toLowerCase()) {
-          final reason = (data?['rejectionReason'] ?? '').toString().trim();
+        if (goal.approvalStatus == GoalApprovalStatus.rejected) {
+          final reason = (goal.rejectionReason ?? '').trim();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -1623,28 +1587,17 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               ),
             );
           }
-          return true; // handled
+          return true;
         }
 
-        late final Goal goal;
-        try {
-          goal = Goal.fromFirestore(doc);
-        } catch (_) {
-          // Fallback to tolerate older/odd schemas
-          final raw = doc.data();
-          if (raw is Map<String, dynamic>) {
-            goal = Goal.fromMap(raw, id: doc.id);
-          } else {
-            return false;
-          }
-        }
         navigator.push(
           MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
         );
         return true;
       } catch (e) {
-        if (e is FirebaseException && e.code == 'permission-denied') {
-          if (mounted) {
+        if (mounted) {
+          final msg = e.toString().toLowerCase();
+          if (msg.contains('permission') || msg.contains('403')) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(
@@ -1797,29 +1750,20 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       String? categoryName = data['badgeCategory']?.toString().trim();
       if (categoryName == null || categoryName.isEmpty) {
         try {
-          final doc = await FirestoreSafe.getDoc(
-            FirebaseFirestore.instance
-                .collection('users')
-                .doc(uid)
-                .collection('badges')
-                .doc(badgeId),
-          );
-          categoryName = doc.data()?['category']?.toString().trim();
-        } catch (_) {}
-      }
-      if (categoryName == null || categoryName.isEmpty) {
-        // Fallback for alerts that store a base badge id (e.g. season badges)
-        // where the actual doc id differs.
-        try {
-          final q = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .collection('badges')
-              .where('criteria.badgeId', isEqualTo: badgeId)
-              .limit(1)
-              .get();
-          if (q.docs.isNotEmpty) {
-            categoryName = q.docs.first.data()['category']?.toString().trim();
+          final badges =
+              await BackendAuthService.instance.getBadges(uid, limit: 500);
+          for (final b in badges) {
+            final id = (b['id'] ?? b['badgeId'] ?? '').toString();
+            if (id == badgeId) {
+              categoryName = (b['category'] ?? '').toString().trim();
+              break;
+            }
+            final criteria = b['criteria'];
+            if (criteria is Map &&
+                (criteria['badgeId'] ?? '').toString() == badgeId) {
+              categoryName = (b['category'] ?? '').toString().trim();
+              break;
+            }
           }
         } catch (_) {}
       }
@@ -3240,24 +3184,10 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
                       // If we have a goal id, attempt to open its detail view.
                       if (targetGoalId != null && targetGoalId.isNotEmpty) {
                         try {
-                          final doc = await FirebaseFirestore.instance
-                              .collection('goals')
-                              .doc(targetGoalId)
-                              .get();
+                          final goal =
+                              await DatabaseService.getGoalById(targetGoalId);
                           if (!mounted) return;
-                          if (doc.exists) {
-                            late final Goal goal;
-                            try {
-                              goal = Goal.fromFirestore(doc);
-                            } catch (_) {
-                              final raw = doc.data();
-                              if (raw is Map<String, dynamic>) {
-                                goal = Goal.fromMap(raw, id: doc.id);
-                              } else {
-                                throw Exception('Invalid goal data');
-                              }
-                            }
-
+                          if (goal != null) {
                             if (goal.approvalStatus ==
                                 GoalApprovalStatus.rejected) {
                               final reason = (goal.rejectionReason ?? '')

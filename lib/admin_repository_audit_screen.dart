@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/repository_audit_screen.dart';
 
-/// Admin-only Repository & Audit screen. Uses the same UI as the shared screen.
-/// Not shared with manager/employee as a route target.
+/// Admin-only Repository & Audit. Delegates to [RepositoryAuditScreen];
+/// audit data is loaded from PostgreSQL via [BackendAuthService].
 class AdminRepositoryAuditScreen extends StatelessWidget {
   const AdminRepositoryAuditScreen({super.key});
 

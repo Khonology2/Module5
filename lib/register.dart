@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore for blocklist
 import 'package:pdh/services/badge_service.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore - Removed as DatabaseService handles it
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/services/role_service.dart'; // Import RoleService
 import 'dart:async'; // Import for Timer
 import 'package:pdh/widgets/custom_logo_loader.dart';
@@ -115,6 +115,111 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _passwordHint = 'Very Strong: Great job!';
       }
     });
+  }
+
+  String _pdhRoleLabelForSelection(String role) {
+    switch (role.trim().toLowerCase()) {
+      case 'manager':
+        return 'PDH - Manager';
+      case 'admin':
+        return 'PDH - Admin';
+      case 'employee':
+      default:
+        return 'PDH - Employee';
+    }
+  }
+
+  bool _isRoleStoredInUserRecord(Map<String, dynamic> userData, String role) {
+    final raw = userData['role']?.toString().trim().toLowerCase();
+    return raw == role.trim().toLowerCase();
+  }
+
+  bool _isRoleStoredInOnboarding(Map<String, dynamic> onboardingData, String role) {
+    final normalized = role.trim().toLowerCase();
+    final candidates = <String?>[
+      onboardingData['moduleAccessRole']?.toString(),
+      onboardingData['module_access_role']?.toString(),
+      onboardingData['moduleRole']?.toString(),
+      onboardingData['module_role']?.toString(),
+      onboardingData['role']?.toString(),
+    ];
+
+    for (final candidate in candidates) {
+      final persona = OnboardingService.extractPersonaForApp(candidate);
+      if (persona == normalized) {
+        return true;
+      }
+      final raw = candidate?.trim().toLowerCase();
+      if (raw == null || raw.isEmpty) continue;
+      if (normalized == 'manager' && raw.contains('manager')) return true;
+      if (normalized == 'admin' && raw.contains('admin')) return true;
+      if (normalized == 'employee' && raw.contains('employee')) return true;
+    }
+    return false;
+  }
+
+  Future<void> _ensureBackendRolePersisted({
+    required String uid,
+    required String email,
+    required String displayName,
+    required String role,
+  }) async {
+    final pdhRoleLabel = _pdhRoleLabelForSelection(role);
+
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final userData = await BackendAuthService.instance.tryGetOnboarding(uid);
+      Map<String, dynamic> onboardingData = userData;
+      if (onboardingData.isEmpty && email.trim().isNotEmpty) {
+        final matches = await OnboardingService.listOnboardingRecords(
+          email: email.trim(),
+          limit: 1,
+        );
+        if (matches.isNotEmpty) {
+          onboardingData = matches.first;
+        }
+      }
+
+      Map<String, dynamic> backendUser = {};
+      try {
+        backendUser = await BackendAuthService.instance.getUser(uid);
+      } catch (_) {}
+
+      final userRoleOk = backendUser.isNotEmpty &&
+          _isRoleStoredInUserRecord(backendUser, role);
+      final onboardingRoleOk = onboardingData.isNotEmpty &&
+          _isRoleStoredInOnboarding(onboardingData, role);
+
+      if (userRoleOk && onboardingRoleOk) {
+        return;
+      }
+
+      await BackendAuthService.instance.updateUserProfile(uid, {
+        'email': email,
+        'displayName': displayName,
+        'role': role,
+      });
+      await BackendAuthService.instance.updateOnboarding(uid, {
+        'email': email,
+        'displayName': displayName,
+        'fullName': displayName,
+        'role': pdhRoleLabel,
+        'moduleAccessRole': pdhRoleLabel,
+        'moduleRole': pdhRoleLabel,
+        'status': 'Active',
+      });
+
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
+
+    final finalUser = await BackendAuthService.instance.tryGetOnboarding(uid);
+    final finalBackendUser = await BackendAuthService.instance.getUser(uid);
+    final finalOnboardingOk =
+        finalUser.isNotEmpty && _isRoleStoredInOnboarding(finalUser, role);
+    final finalUserOk =
+        finalBackendUser.isNotEmpty && _isRoleStoredInUserRecord(finalBackendUser, role);
+    if (!finalUserOk || !finalOnboardingOk) {
+      throw StateError('Backend role record was not persisted for the new account.');
+    }
   }
 
   @override
@@ -426,18 +531,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                                 .text
                                                 .trim()
                                                 .toLowerCase();
-                                            final blocked =
-                                                await FirebaseFirestore.instance
-                                                    .collection(
+                                            final deletedAccounts =
+                                                await BackendAuthService
+                                                    .instance
+                                                    .getCollectionItems(
                                                       'deleted_accounts',
-                                                    )
-                                                    .where(
-                                                      'emailLower',
-                                                      isEqualTo: emailLower,
-                                                    )
-                                      .limit(1)
-                                      .get();
-                                  if (blocked.docs.isNotEmpty) {
+                                                      limit: 500,
+                                                    );
+                                            final blocked = deletedAccounts
+                                                .any(
+                                              (row) =>
+                                                  (row['emailLower'] ??
+                                                          row['email'])
+                                                      ?.toString()
+                                                      .trim()
+                                                      .toLowerCase() ==
+                                                  emailLower,
+                                            );
+                                  if (blocked) {
                                               try {
                                                 await userCredential.user
                                                     ?.delete();
@@ -458,27 +569,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 // Clear RoleService cache before setting up new user
                                 RoleService.instance.clearCache();
                                 
-                                // Small delay to let Firestore settle after user creation
+                                // Small delay to let PostgreSQL backend settle after user creation
                                 await Future.delayed(const Duration(milliseconds: 300));
-                                
-                                // Store additional user data in Firestore
-                                // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
+
+                                final role = _selectedRole!.toLowerCase();
+                                final displayName = _fullNameController.text.trim();
+                                final email = _emailController.text.trim();
+
+                                // Persist profile via DatabaseService (PostgreSQL API)
                                 try {
                                   await DatabaseService.initializeUserData(
                                     userCredential.user!.uid,
-                                    _fullNameController.text,
-                                    _emailController.text,
-                                    role: _selectedRole!, // Use the selected role
+                                    displayName,
+                                    email,
+                                    role: role,
+                                  );
+                                  await _ensureBackendRolePersisted(
+                                    uid: userCredential.user!.uid,
+                                    email: email,
+                                    displayName: displayName,
+                                    role: role,
                                   );
                                 } catch (e) {
                                   debugPrint('Error initializing user data: $e');
-                                  // Continue even if this fails - user is created
+                                  try {
+                                    await userCredential.user?.delete();
+                                  } catch (_) {}
+                                  try {
+                                    await FirebaseAuth.instance.signOut();
+                                  } catch (_) {}
+                                  if (!context.mounted) return;
+                                  Navigator.of(
+                                    context,
+                                    rootNavigator: true,
+                                  ).maybePop();
+                                  setState(() {
+                                    _isRegistering = false;
+                                  });
+                                  await _showCenterNotice(
+                                    'We could not save your role to the backend database. Please try registering again.',
+                                  );
+                                  return;
                                 }
 
                                 // Initialize badges (employees: v2-only; managers may still use legacy)
                                 try {
                                   final uid = userCredential.user!.uid;
-                                  final role = (_selectedRole ?? 'employee').toLowerCase();
                                   if (role == 'manager') {
                                     await BadgeService.initializeUserBadges(uid);
                                     // Small delay between badge operations
@@ -551,11 +687,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           });
                                 await _showCenterNotice(message);
                               } catch (e, st) {
-                                // Catch all other errors including Firestore errors
                                 debugPrint('Registration error: $e');
                                 debugPrint('Stack trace: $st');
                                 if (!context.mounted) {
-                                  return; // Guard against context use after async gap
+                                  return;
                                 }
                                 Navigator.of(
                                   context,
@@ -564,12 +699,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 setState(() {
                                   _isRegistering = false;
                                 });
-                                
-                                // Check if it's a Firestore internal error
-                                final errorString = e.toString();
-                                if (errorString.contains('FIRESTORE') && 
-                                    errorString.contains('INTERNAL ASSERTION FAILED')) {
-                                  // User is likely created, try to continue
+
+                                final errorString = e.toString().toLowerCase();
+                                final isTransientBackendIssue =
+                                    errorString.contains('backend_unavailable') ||
+                                    errorString.contains('timeout') ||
+                                    errorString.contains('network_error') ||
+                                    (errorString.contains('firestore') &&
+                                        errorString.contains('internal assertion failed'));
+                                if (isTransientBackendIssue) {
                                   await _showCenterNotice(
                                     'Registration completed, but there was a temporary issue. Please try signing in.',
                                   );

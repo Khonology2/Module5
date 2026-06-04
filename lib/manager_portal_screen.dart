@@ -21,6 +21,7 @@ import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for l
 import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout navigation
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
+import 'package:pdh/manager_learning_assignments_screen.dart';
 import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -61,6 +62,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     '/progress_visuals',
     '/manager_alerts_nudges',
     '/manager_inbox',
+    '/manager_learning_assignments',
     '/alerts_nudges',
     '/manager_badges_points',
     '/badges_points',
@@ -149,6 +151,8 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         );
       case '/manager_inbox':
         return const ManagerInboxScreen(embedded: true);
+      case '/manager_learning_assignments':
+        return const ManagerLearningAssignmentsScreen(embedded: true);
       case '/alerts_nudges':
         return const AlertsNudgesScreen(embedded: true);
       case '/manager_badges_points':
@@ -327,6 +331,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   @override
   void initState() {
     super.initState();
+    _workspaceService.addListener(_onWorkspaceContextChanged);
     if (kIsWeb) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         TokenAuthService.stripTokenFromCurrentWebUrl();
@@ -360,8 +365,13 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     }
   }
 
+  void _onWorkspaceContextChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _workspaceService.removeListener(_onWorkspaceContextChanged);
     // Cancel any pending operations
     _shouldShowTutorial = false;
     _currentTutorialStep = 0;
@@ -400,45 +410,55 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: false,
-      body: DashboardThemedBackground(
-        child: Row(
-          children: [
-            ResponsiveSidebar(
-              items: SidebarConfig.managerItems,
-              onNavigate: _onNavigate,
-              currentRouteName: _currentRoute,
-              onLogout: _onLogout,
-              tutorialStepIndex: _shouldShowTutorial
-                  ? _currentTutorialStep
-                  : null,
-              sidebarTutorialKeys:
-                  _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-                  ? _sidebarTutorialKeys
-                  : null,
-              onTutorialNext: _shouldShowTutorial
-                  ? _moveToNextTutorialStep
-                  : null,
-              onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
-            ),
-            Expanded(
-              child: Column(
-                children: [
-                  AppContentHeader(
-                    title: _resolveHeaderTitle(),
-                    actions: _buildHeaderActions(),
-                    showGreeting: _isDashboardRoute(_currentRoute),
-                    textColor: DashboardChrome.fg,
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: _portalMainContentPadding(_currentRoute),
-                      child: _getBodyWidget(),
-                    ),
-                  ),
-                ],
+      body: SafeArea(
+        child: DashboardThemedBackground(
+          child: Row(
+            children: [
+              ResponsiveSidebar(
+                items: _workspaceService.isManagerWorkspace
+                    ? [
+                        ...SidebarConfig.managerWorkspaceItems,
+                        ...SidebarConfig.globalItems,
+                      ]
+                    : [
+                        ...SidebarConfig.managerMyWorkspaceItems,
+                        ...SidebarConfig.globalItems,
+                      ],
+                onNavigate: _onNavigate,
+                currentRouteName: _currentRoute,
+                onLogout: _onLogout,
+                tutorialStepIndex: _shouldShowTutorial
+                    ? _currentTutorialStep
+                    : null,
+                sidebarTutorialKeys:
+                    _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
+                    ? _sidebarTutorialKeys
+                    : null,
+                onTutorialNext: _shouldShowTutorial
+                    ? _moveToNextTutorialStep
+                    : null,
+                onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
               ),
-            ),
-          ],
+              Expanded(
+                child: Column(
+                  children: [
+                    AppContentHeader(
+                      title: _resolveHeaderTitle(),
+                      actions: _buildHeaderActions(),
+                      showGreeting: _isDashboardRoute(_currentRoute),
+                      textColor: DashboardChrome.fg,
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: _portalMainContentPadding(_currentRoute),
+                        child: _getBodyWidget(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -506,7 +526,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         name: 'ManagerPortalScreen',
       );
 
-      // Add delay for first attempt to ensure Firestore writes are complete
+      // Add delay for first attempt to ensure backend writes are complete
       if (retryCount == 0) {
         await Future.delayed(const Duration(milliseconds: 800));
       } else {

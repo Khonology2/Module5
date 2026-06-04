@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 
 class ApprovedGoalAudit {
   final String id;
@@ -25,33 +25,33 @@ class ApprovedGoalAudit {
     required this.timestamp,
   });
 
-  factory ApprovedGoalAudit.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+  factory ApprovedGoalAudit.fromMap(Map<String, dynamic> data, {String? fallbackId}) {
     return ApprovedGoalAudit(
-      id: doc.id,
-      goalId: data['goalId'] ?? '',
-      goalTitle: data['goalTitle'] ?? '',
-      employeeId: data['employeeId'] ?? '',
-      employeeName: data['employeeName'] ?? '',
-      department: data['department'] ?? '',
-      approvedAt: (data['approvedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      approvedBy: data['approvedBy'] ?? '',
-      approvedByName: data['approvedByName'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      id: (data['id'] ?? fallbackId ?? '').toString(),
+      goalId: (data['goalId'] ?? '').toString(),
+      goalTitle: (data['goalTitle'] ?? '').toString(),
+      employeeId: (data['employeeId'] ?? data['userId'] ?? '').toString(),
+      employeeName: (data['employeeName'] ?? '').toString(),
+      department: (data['department'] ?? '').toString(),
+      approvedAt: parseDate(data['approvedAt']),
+      approvedBy: (data['approvedBy'] ?? '').toString(),
+      approvedByName: (data['approvedByName'] ?? '').toString(),
+      timestamp: parseDate(data['timestamp'] ?? data['createdAt']),
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toMap({bool includeId = true}) {
     return {
+      if (includeId) 'id': id,
       'goalId': goalId,
       'goalTitle': goalTitle,
       'employeeId': employeeId,
       'employeeName': employeeName,
       'department': department,
-      'approvedAt': Timestamp.fromDate(approvedAt),
+      'approvedAt': approvedAt.toIso8601String(),
       'approvedBy': approvedBy,
       'approvedByName': approvedByName,
-      'timestamp': Timestamp.fromDate(timestamp),
+      'timestamp': timestamp.toIso8601String(),
     };
   }
 }

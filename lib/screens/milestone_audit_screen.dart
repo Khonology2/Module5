@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/date_parse.dart';
 import 'package:intl/intl.dart';
 import '../design_system/app_colors.dart';
 import '../design_system/app_typography.dart';
@@ -518,7 +518,7 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
   @override
   Widget build(BuildContext context) {
     final action = widget.entry['action'] as String? ?? 'unknown';
-    final timestamp = widget.entry['timestamp'] as Timestamp?;
+    final timestamp = parseNullableDate(widget.entry['timestamp']);
     final milestoneTitle =
         widget.entry['milestoneTitle'] as String? ?? 'Unknown Milestone';
     final isHistorical = widget.entry['metadata']?['isHistorical'] == true;
@@ -921,11 +921,11 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
     }
   }
 
-  String _formatDate(Timestamp? timestamp) {
+  String _formatDate(DateTime? timestamp) {
     if (timestamp == null) return 'Unknown time';
 
     final now = DateTime.now();
-    final eventTime = timestamp.toDate();
+    final eventTime = timestamp;
     final difference = now.difference(eventTime);
 
     // Relative time for recent events

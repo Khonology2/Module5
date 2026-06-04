@@ -3,10 +3,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/app_ai_service.dart';
 import 'package:pdh/services/database_service.dart';
-// import 'package:pdh/models/user_profile.dart'; // Removed as it is not directly used in this file's UI logic.
 import 'package:image_picker/image_picker.dart';
 // import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
 // import 'dart:io'; // Removed: use XFile.readAsBytes() for web compatibility
@@ -16,6 +15,7 @@ import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
+/// Admin profile editor. Loads and saves via [DatabaseService] (PostgreSQL API).
 class AdminProfileScreen extends StatefulWidget {
   const AdminProfileScreen({super.key, this.embedded = false});
 
@@ -111,11 +111,14 @@ Guidelines:
     _loadAdminProfile();
   }
 
-  Future<void> _loadAdminProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
+  Future<void> _loadAdminProfile({int retryCount = 0}) async {
+    final user = AuthService().currentUser;
     if (user == null) return;
 
     try {
+      if (retryCount > 0) {
+        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+      }
       final userProfile = await DatabaseService.getUserProfile(user.uid);
       setState(() {
         _fullNameController.text = userProfile.displayName;
@@ -153,6 +156,13 @@ Guidelines:
       });
     } catch (e) {
       if (!mounted) return;
+      final errorString = e.toString().toLowerCase();
+      final isTransient = errorString.contains('backend_unavailable') ||
+          errorString.contains('timeout') ||
+          errorString.contains('network_error');
+      if (isTransient && retryCount < 2) {
+        return _loadAdminProfile(retryCount: retryCount + 1);
+      }
       _showAlertDialog('Error', 'Failed to load profile: ${e.toString()}');
     }
   }
@@ -763,7 +773,7 @@ Guidelines:
   }
 
   Future<void> _removeProfilePhoto() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = AuthService().currentUser;
     if (user == null) {
       if (!mounted) return;
       _showAlertDialog('Error', 'You must be logged in to remove your photo.');
@@ -791,7 +801,7 @@ Guidelines:
     String? successTitle,
     String? successMessage,
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = AuthService().currentUser;
     if (user == null) {
       _showAlertDialog('Error', 'You must be logged in to save your profile.');
       return;
@@ -1562,7 +1572,7 @@ Guidelines:
       return; // User cancelled picking
     }
 
-    final user = FirebaseAuth.instance.currentUser;
+    final user = AuthService().currentUser;
     if (user == null) {
       if (!mounted) return;
       _showAlertDialog('Error', 'You must be logged in to upload a photo.');
