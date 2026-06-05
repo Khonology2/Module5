@@ -81,13 +81,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 onSignOut: () async {
                   await FirebaseAuth.instance.signOut();
                   RoleService.instance.clearCache();
-                  if (mounted) {
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      '/sign_in',
-                      (route) => false,
-                    );
-                  }
+                  if (!context.mounted) return;
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/sign_in',
+                    (route) => false,
+                  );
                 },
               );
             }

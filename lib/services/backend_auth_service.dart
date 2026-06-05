@@ -934,19 +934,31 @@ class BackendAuthService {
   }
 
   static const Duration _learningDashboardTimeout = Duration(seconds: 90);
-  static const Duration _learningFeedTimeout = Duration(seconds: 90);
+  static const Duration _learningFeedTimeout = Duration(seconds: 60);
 
   Future<Map<String, dynamic>> getLearningEmployeeFeed(
     String employeeUserId, {
     int limit = 500,
-  }) {
+    int maxAttempts = 2,
+  }) async {
     final query = Uri(queryParameters: {
       'employee_user_id': employeeUserId,
       'limit': limit.toString(),
     }).query;
-    return getJson(
-      '/learning-employee-feed?$query',
-      timeout: _learningFeedTimeout,
+    final path = '/learning-employee-feed?$query';
+    Object? lastError;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await getJson(path, timeout: _learningFeedTimeout);
+      } catch (e) {
+        lastError = e;
+        if (attempt >= maxAttempts) rethrow;
+      }
+    }
+    throw lastError ?? BackendAuthException(
+      message: 'Failed to load learning feed.',
+      code: 'network_error',
+      retryable: true,
     );
   }
 

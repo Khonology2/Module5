@@ -237,6 +237,19 @@ def init_postgres_schema() -> None:
     try:
         engine = get_engine()
         metadata.create_all(engine)
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_learning_tutorials_status_created "
+                    "ON learning_tutorials (status, created_at DESC)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_learning_assignments_employee_assigned "
+                    "ON learning_assignments (employee_user_id, assigned_at DESC)"
+                )
+            )
         logger.info("PostgreSQL schema ensured successfully")
     except SQLAlchemyError as exc:
         logger.error("Failed to initialize PostgreSQL schema: %s", exc)
@@ -407,14 +420,17 @@ def fetch_users(
     return [_coalesce_data(_row_to_dict(row)) for row in rows]
 
 
-def _learning_tutorial_to_api(row: Dict[str, Any]) -> Dict[str, Any]:
+def _learning_tutorial_to_api(
+    row: Dict[str, Any],
+    *,
+    include_extra_payload: bool = True,
+) -> Dict[str, Any]:
     if not row:
         return {}
     payload = row.get("payload") or {}
     if not isinstance(payload, dict):
         payload = {}
-    return {
-        **payload,
+    base = {
         "id": row.get("id"),
         "managerId": row.get("manager_id"),
         "title": row.get("title"),
@@ -427,6 +443,9 @@ def _learning_tutorial_to_api(row: Dict[str, Any]) -> Dict[str, Any]:
         "createdAt": _iso_value(row.get("created_at")),
         "updatedAt": _iso_value(row.get("updated_at")),
     }
+    if include_extra_payload:
+        return {**payload, **base}
+    return base
 
 
 def _learning_assignment_to_api(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -507,6 +526,52 @@ def fetch_learning_tutorials(
         )
         rows = session.execute(stmt).fetchall()
     return [_row_to_dict(row) for row in rows]
+
+
+def fetch_learning_tutorials_by_ids(
+    tutorial_ids: Iterable[str],
+) -> list[Dict[str, Any]]:
+    ids = [str(tid).strip() for tid in tutorial_ids if tid]
+    if not ids:
+        return []
+    with get_session_factory()() as session:
+        stmt = select(learning_tutorials_table).where(
+            learning_tutorials_table.c.id.in_(ids)
+        )
+        rows = session.execute(stmt).fetchall()
+    return [_row_to_dict(row) for row in rows]
+
+
+def fetch_learning_employee_feed(
+    employee_user_id: str,
+    *,
+    limit: int = 500,
+) -> tuple[list[Dict[str, Any]], list[Dict[str, Any]]]:
+    """Active tutorials + employee assignments in one DB session (two queries)."""
+    cap = max(1, min(limit, 2000))
+    with get_session_factory()() as session:
+        tutorial_stmt = (
+            select(learning_tutorials_table)
+            .where(learning_tutorials_table.c.status == "active")
+            .order_by(learning_tutorials_table.c.created_at.desc())
+            .limit(cap)
+        )
+        tutorials = [
+            _row_to_dict(row) for row in session.execute(tutorial_stmt).fetchall()
+        ]
+
+        assignment_stmt = (
+            select(learning_assignments_table)
+            .where(
+                learning_assignments_table.c.employee_user_id == employee_user_id
+            )
+            .order_by(learning_assignments_table.c.assigned_at.desc())
+            .limit(cap)
+        )
+        assignments = [
+            _row_to_dict(row) for row in session.execute(assignment_stmt).fetchall()
+        ]
+    return tutorials, assignments
 
 
 def upsert_learning_tutorial(tutorial_id: str, values: Dict[str, Any]) -> Dict[str, Any]:

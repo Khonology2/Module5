@@ -9,6 +9,7 @@ import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/header_action_icons.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
+import 'package:pdh/widgets/learning_feed_warmup.dart';
 
 /// MainLayout provides a persistent, collapsible sidebar layout for all
 /// application pages. It reuses the dashboard's sidebar and visuals.
@@ -113,7 +114,7 @@ class MainLayout extends StatelessWidget {
                 AppSpacing.xxl,
                 AppSpacing.xxl,
               ),
-              child: body,
+              child: LearningFeedWarmup(child: body),
             ),
           );
         },

@@ -15,8 +15,10 @@ from app.postgres_store import (
     _learning_tutorial_to_api,
     fetch_learning_assignment_by_id,
     fetch_learning_assignments,
+    fetch_learning_employee_feed,
     fetch_learning_tutorial_by_id,
     fetch_learning_tutorials,
+    fetch_learning_tutorials_by_ids,
     fetch_learning_tutorials_by_manager,
     update_learning_assignment,
     update_learning_tutorial,
@@ -84,15 +86,19 @@ def get_learning_employee_feed(
     limit: int = 500,
 ):
     """All active manager tutorials plus this employee's assignments (one round-trip)."""
-    tutorials = fetch_learning_tutorials(status="active", limit=limit)
-    assignments = fetch_learning_assignments(
-        employee_user_id=employee_user_id,
+    tutorials, assignments = fetch_learning_employee_feed(
+        employee_user_id,
         limit=limit,
     )
+    tutorial_items = [
+        _learning_tutorial_to_api(row, include_extra_payload=False)
+        for row in tutorials
+    ]
+    tutorial_map = {item["id"]: item for item in tutorial_items if item.get("id")}
     assignment_items = [_learning_assignment_to_api(row) for row in assignments]
-    enriched = [_enrich_assignment_with_tutorial(item) for item in assignment_items]
+    enriched = _enrich_assignments_with_tutorials(assignment_items, tutorial_map)
     return {
-        "tutorials": [_learning_tutorial_to_api(row) for row in tutorials],
+        "tutorials": tutorial_items,
         "assignments": enriched,
     }
 
@@ -184,21 +190,56 @@ def patch_learning_tutorial(tutorial_id: str, payload: Dict[str, Any]):
     return _learning_tutorial_to_api(row)
 
 
-def _enrich_assignment_with_tutorial(item: Dict[str, Any]) -> Dict[str, Any]:
-    tutorial_id = item.get("tutorialId")
-    if not tutorial_id:
-        return item
-    tutorial = fetch_learning_tutorial_by_id(str(tutorial_id))
-    if not tutorial:
-        return item
-    api_tutorial = _learning_tutorial_to_api(tutorial)
-    return {
-        **item,
-        "videoUrl": api_tutorial.get("videoUrl"),
-        "tutorialTitle": api_tutorial.get("title"),
-        "tutorialDescription": api_tutorial.get("description"),
-        "durationMinutes": api_tutorial.get("durationMinutes"),
-    }
+def _enrich_assignment_with_tutorial(
+    item: Dict[str, Any],
+    tutorial_map: Dict[str, Dict[str, Any]] | None = None,
+) -> Dict[str, Any]:
+    enriched = _enrich_assignments_with_tutorials([item], tutorial_map)
+    return enriched[0] if enriched else item
+
+
+def _enrich_assignments_with_tutorials(
+    items: list[Dict[str, Any]],
+    tutorial_map: Dict[str, Dict[str, Any]] | None = None,
+) -> list[Dict[str, Any]]:
+    if not items:
+        return items
+
+    resolved_map = tutorial_map
+    if resolved_map is None:
+        tutorial_ids = {
+            str(item.get("tutorialId"))
+            for item in items
+            if item.get("tutorialId")
+        }
+        rows = fetch_learning_tutorials_by_ids(tutorial_ids)
+        resolved_map = {
+            api_item["id"]: api_item
+            for row in rows
+            for api_item in [
+                _learning_tutorial_to_api(row, include_extra_payload=False)
+            ]
+            if api_item.get("id")
+        }
+
+    enriched: list[Dict[str, Any]] = []
+    for item in items:
+        tutorial_id = item.get("tutorialId")
+        if not tutorial_id:
+            enriched.append(item)
+            continue
+        api_tutorial = resolved_map.get(str(tutorial_id))
+        if not api_tutorial:
+            enriched.append(item)
+            continue
+        enriched.append({
+            **item,
+            "videoUrl": api_tutorial.get("videoUrl"),
+            "tutorialTitle": api_tutorial.get("title"),
+            "tutorialDescription": api_tutorial.get("description"),
+            "durationMinutes": api_tutorial.get("durationMinutes"),
+        })
+    return enriched
 
 
 @router.get("/learning-assignments")
@@ -222,7 +263,7 @@ def list_learning_assignments(
     )
     items = [_learning_assignment_to_api(row) for row in rows]
     if enrich_tutorial:
-        items = [_enrich_assignment_with_tutorial(item) for item in items]
+        items = _enrich_assignments_with_tutorials(items)
     return {"items": items}
 
 

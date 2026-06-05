@@ -1,19 +1,96 @@
+import 'package:flutter/foundation.dart';
 import 'package:pdh/models/learning_assignment.dart';
 import 'package:pdh/models/learning_tutorial.dart';
 import 'package:pdh/services/backend_auth_service.dart';
-import 'package:pdh/services/onboarding_service.dart';
-import 'package:pdh/services/role_service.dart';
 
 typedef LearningFeedItem = ({
   LearningTutorial tutorial,
   LearningAssignment? assignment,
 });
 
+class LearningFeedException implements Exception {
+  LearningFeedException({this.feedError, this.fallbackError});
+
+  final Object? feedError;
+  final Object? fallbackError;
+
+  bool get isTimeout {
+    final feedMsg = feedError?.toString() ?? '';
+    final fallbackMsg = fallbackError?.toString() ?? '';
+    return feedMsg.contains('timeout') || fallbackMsg.contains('timeout');
+  }
+
+  @override
+  String toString() {
+    if (isTimeout) {
+      return 'The server is taking longer than usual to load tutorials. '
+          'Please wait a moment and tap Retry.';
+    }
+    return 'Could not load tutorials right now. Please tap Retry.';
+  }
+}
+
 class LearningAssignmentService {
   LearningAssignmentService._();
   static final LearningAssignmentService instance = LearningAssignmentService._();
 
   final BackendAuthService _backend = BackendAuthService.instance;
+
+  static const Duration _feedCacheTtl = Duration(minutes: 15);
+  static const int _employeeFeedLimit = 50;
+
+  String? _cachedFeedEmployeeId;
+  List<LearningFeedItem>? _cachedFeed;
+  DateTime? _cachedFeedAt;
+  final Map<String, Future<List<LearningFeedItem>>> _inFlightFeeds = {};
+
+  /// Bumps when employee feed cache is updated (for background prefetch listeners).
+  final ValueNotifier<int> feedRevision = ValueNotifier<int>(0);
+
+  List<LearningFeedItem>? cachedFeedForEmployee(String employeeUserId) {
+    if (_cachedFeedEmployeeId != employeeUserId ||
+        _cachedFeed == null ||
+        _cachedFeedAt == null) {
+      return null;
+    }
+    if (DateTime.now().difference(_cachedFeedAt!) > _feedCacheTtl) {
+      return null;
+    }
+    return List<LearningFeedItem>.from(_cachedFeed!);
+  }
+
+  void _storeFeedCache(String employeeUserId, List<LearningFeedItem> feed) {
+    _cachedFeedEmployeeId = employeeUserId;
+    _cachedFeed = List<LearningFeedItem>.from(feed);
+    _cachedFeedAt = DateTime.now();
+    feedRevision.value++;
+  }
+
+  void invalidateEmployeeFeedCache([String? employeeUserId]) {
+    if (employeeUserId != null &&
+        _cachedFeedEmployeeId != null &&
+        _cachedFeedEmployeeId != employeeUserId) {
+      return;
+    }
+    _cachedFeedEmployeeId = null;
+    _cachedFeed = null;
+    _cachedFeedAt = null;
+    if (employeeUserId != null) {
+      _inFlightFeeds.remove(employeeUserId);
+    } else {
+      _inFlightFeeds.clear();
+    }
+  }
+
+  /// Prefetch tutorials in the background so My Learning opens instantly.
+  Future<void> warmupEmployeeFeed(String employeeUserId) async {
+    if (cachedFeedForEmployee(employeeUserId) != null) return;
+    try {
+      await _fetchAndCacheFeed(employeeUserId);
+    } catch (e) {
+      debugPrint('Learning feed warmup failed: $e');
+    }
+  }
 
   Future<({
     List<LearningTutorial> tutorials,
@@ -106,23 +183,93 @@ class LearningAssignmentService {
   Future<List<LearningFeedItem>> listFeedForEmployee(
     String employeeUserId, {
     String? status,
+    bool forceRefresh = false,
   }) async {
-    try {
-      final decoded = await _backend.getLearningEmployeeFeed(employeeUserId);
-      return _parseEmployeeFeed(decoded);
-    } catch (_) {
-      // Fallback if the combined feed endpoint is unavailable.
+    if (!forceRefresh) {
+      final cached = cachedFeedForEmployee(employeeUserId);
+      if (cached != null) {
+        return cached;
+      }
+      final inFlight = _inFlightFeeds[employeeUserId];
+      if (inFlight != null) {
+        return inFlight;
+      }
+    } else {
+      invalidateEmployeeFeedCache(employeeUserId);
     }
 
-    final tutorials = await _fetchVisibleTutorialsForEmployee(employeeUserId);
-    List<LearningAssignment> assignments = [];
-    try {
-      assignments = await listAssignmentsForEmployee(
-        employeeUserId,
-        status: status,
-      );
-    } catch (_) {}
+    return _fetchAndCacheFeed(employeeUserId, status: status);
+  }
 
+  Future<List<LearningFeedItem>> _fetchAndCacheFeed(
+    String employeeUserId, {
+    String? status,
+  }) async {
+    final existing = _inFlightFeeds[employeeUserId];
+    if (existing != null) {
+      return existing;
+    }
+
+    final future = _loadFeedFromNetwork(employeeUserId, status: status);
+    _inFlightFeeds[employeeUserId] = future;
+    try {
+      final feed = await future;
+      _storeFeedCache(employeeUserId, feed);
+      return feed;
+    } finally {
+      _inFlightFeeds.remove(employeeUserId);
+    }
+  }
+
+  Future<List<LearningFeedItem>> _loadFeedFromNetwork(
+    String employeeUserId, {
+    String? status,
+  }) async {
+    Object? feedError;
+    try {
+      final decoded = await _backend.getLearningEmployeeFeed(
+        employeeUserId,
+        limit: _employeeFeedLimit,
+      );
+      return _parseEmployeeFeed(decoded);
+    } catch (e) {
+      feedError = e;
+      debugPrint('Learning employee feed failed, using fallback: $e');
+    }
+
+    try {
+      return await _fetchFeedFallback(employeeUserId, status: status);
+    } catch (fallbackError) {
+      debugPrint('Learning feed fallback failed: $fallbackError');
+      throw LearningFeedException(
+        feedError: feedError,
+        fallbackError: fallbackError,
+      );
+    }
+  }
+
+  Future<List<LearningFeedItem>> refreshFeedForEmployee(
+    String employeeUserId, {
+    String? status,
+  }) {
+    invalidateEmployeeFeedCache(employeeUserId);
+    return listFeedForEmployee(
+      employeeUserId,
+      status: status,
+      forceRefresh: true,
+    );
+  }
+
+  Future<List<LearningFeedItem>> _fetchFeedFallback(
+    String employeeUserId, {
+    String? status,
+  }) async {
+    // Sequential requests avoid overloading the single-worker dev backend.
+    final tutorials = await listTutorials(null, status: 'active');
+    final assignments = await listAssignmentsForEmployee(
+      employeeUserId,
+      status: status,
+    );
     return _mergeTutorialsAndAssignments(tutorials, assignments);
   }
 
@@ -175,64 +322,6 @@ class LearningAssignmentService {
         assignment: assignmentsByTutorialId[tutorial.id],
       );
     }).toList();
-  }
-
-  Future<List<LearningTutorial>> _fetchVisibleTutorialsForEmployee(
-    String employeeUserId,
-  ) async {
-    final tutorials = <String, LearningTutorial>{};
-
-    void addTutorials(Iterable<LearningTutorial> items) {
-      for (final tutorial in items) {
-        if (tutorial.id.isNotEmpty && tutorial.isActive) {
-          tutorials[tutorial.id] = tutorial;
-        }
-      }
-    }
-
-    try {
-      addTutorials(await listTutorials(null, status: 'active'));
-    } catch (_) {}
-
-    if (tutorials.isEmpty) {
-      try {
-        addTutorials(await _fetchTutorialsFromManagerAccounts());
-      } catch (_) {}
-    }
-
-    return _sortTutorialsNewestFirst(tutorials.values.toList());
-  }
-
-  Future<List<LearningTutorial>> _fetchTutorialsFromManagerAccounts() async {
-    final tutorials = <String, LearningTutorial>{};
-    try {
-      final users = await _backend.listUsers(limit: 500);
-      for (final user in users) {
-        if (!_isManagerLikeUser(user)) continue;
-        final managerId =
-            (user['userId'] ?? user['id'] ?? '').toString().trim();
-        if (managerId.isEmpty) continue;
-        try {
-          final items = await listTutorials(managerId);
-          for (final tutorial in items) {
-            if (tutorial.isActive) {
-              tutorials[tutorial.id] = tutorial;
-            }
-          }
-        } catch (_) {}
-      }
-    } catch (_) {}
-    return tutorials.values.toList();
-  }
-
-  bool _isManagerLikeUser(Map<String, dynamic> user) {
-    final moduleAccess = user['moduleAccessRole']?.toString() ??
-        user['module_access_role']?.toString();
-    final persona = OnboardingService.extractPersonaForApp(moduleAccess);
-    final role = RoleService.instance.normalizeRoleLabel(
-      persona ?? user['role']?.toString(),
-    );
-    return role == 'manager' || role == 'admin';
   }
 
   List<LearningTutorial> _sortTutorialsNewestFirst(
