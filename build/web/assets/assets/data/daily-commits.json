@@ -1,123 +1,18 @@
 {
-  "version": "2026.05.CB23.SIT",
-  "generated_at": "2026-05-15T08:48:43Z",
+  "version": "2026.06.AB2.SIT",
+  "generated_at": "2026-06-05T06:44:17Z",
   "commits": [
     {
-      "author": "Nathi2266",
-      "message": "feat: enhance user display name resolution and backend URL injection",
-      "timestamp": "2026-05-15T10:47:02+02:00"
+      "author": "Nathi66",
+      "message": "feat: enhance learning tutorial and assignment features",
+      "timestamp": "2026-06-05T08:42:47+02:00"
     },
     {
-      "author": "github-actions[bot]",
-      "message": "chore: update Flutter web build [skip ci]",
-      "timestamp": "2026-05-15T08:29:45Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "landing screen field token hidden",
-      "timestamp": "2026-05-15T10:26:23+02:00"
-    },
-    {
-      "author": "github-actions[bot]",
-      "message": "chore: update Flutter web build [skip ci]",
-      "timestamp": "2026-05-15T08:04:46Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "chore: update generate-commits workflow to prevent duplicate runs on nathi-v3 branch",
-      "timestamp": "2026-05-15T10:01:54+02:00"
-    },
-    {
-      "author": "GitHub Action",
-      "message": "chore: update daily commits data [2026-05-15] [skip ci]",
-      "timestamp": "2026-05-15T07:57:13Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: enhance Firestore rules for goal creation and access control",
-      "timestamp": "2026-05-15T09:56:37+02:00"
-    },
-    {
-      "author": "GitHub Action",
-      "message": "chore: update daily commits data [2026-05-15] [skip ci]",
-      "timestamp": "2026-05-15T07:52:35Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "chore: update workflows and enhance logging in backend",
-      "timestamp": "2026-05-15T09:52:13+02:00"
-    },
-    {
-      "author": "github-actions[bot]",
-      "message": "chore: update Flutter web build [skip ci]",
-      "timestamp": "2026-05-15T07:40:52Z"
-    },
-    {
-      "author": "GitHub Action",
-      "message": "chore: update daily commits data [2026-05-15] [skip ci]",
-      "timestamp": "2026-05-15T07:37:50Z"
-    },
-    {
-      "author": "github-actions[bot]",
-      "message": "docs: update daily commits data [skip ci]",
-      "timestamp": "2026-05-15T05:08:55Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "chore: Update Flutter web build workflow to ensure GITHUB_TOKEN availability",
-      "timestamp": "2026-05-15T07:08:32+02:00"
-    },
-    {
-      "author": "github-actions[bot]",
-      "message": "docs: update daily commits data [skip ci]",
-      "timestamp": "2026-05-15T04:40:31Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "chore: Update Flutter web build workflow for PR creation and permissions",
-      "timestamp": "2026-05-15T06:40:09+02:00"
-    },
-    {
-      "author": "github-actions[bot]",
-      "message": "docs: update daily commits data [skip ci]",
-      "timestamp": "2026-05-15T04:33:15Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "chore: Enhance Flutter web build workflow with automated PR creation and auto-merge",
-      "timestamp": "2026-05-15T06:32:53+02:00"
-    },
-    {
-      "author": "github-actions[bot]",
-      "message": "docs: update daily commits data [skip ci]",
-      "timestamp": "2026-05-15T04:20:29Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "chore: Add placeholder .env file for CI in Flutter web build workflow",
-      "timestamp": "2026-05-15T06:20:08+02:00"
-    },
-    {
-      "author": "github-actions[bot]",
-      "message": "docs: update daily commits data [skip ci]",
-      "timestamp": "2026-05-15T04:12:40Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "chore: Enhance Flutter web build workflow with OpenRouter API key checks",
-      "timestamp": "2026-05-15T06:11:37+02:00"
-    },
-    {
-      "author": "github-actions[bot]",
-      "message": "docs: update daily commits data [skip ci]",
-      "timestamp": "2026-05-15T04:10:49Z"
-    },
-    {
-      "author": "Nathi2266",
-      "message": "feat: Add OpenRouter integration and update AI service usage",
-      "timestamp": "2026-05-15T05:58:49+02:00"
+      "author": "Nathi66",
+      "message": "feat: add learning tutorials fetching and employee feed endpoint",
+      "timestamp": "2026-06-05T08:11:46+02:00"
     }
   ],
-  "total_commits": 23,
-  "date_range": "2026-05-15"
+  "total_commits": 2,
+  "date_range": "2026-06-05"
 }
