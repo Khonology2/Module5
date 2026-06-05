@@ -126,37 +126,23 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      final sessionRole = RoleService.instance.cachedRole;
-      String? currentRole = sessionRole;
-
-      if (user != null && currentRole == null) {
-        // Try a fast lookup first so navigation is not blocked on every backend read.
-        currentRole = await RoleService.instance.getRole(refresh: false);
-      }
-
-      if (user != null && currentRole == null) {
-        // Fallback to a full refresh, but do not keep the user waiting on repeated retries.
-        currentRole = await RoleService.instance.getRole(refresh: true);
-      }
-
-      if (user != null && currentRole == null) {
-        currentRole = 'employee';
-      }
+      RoleService.instance.clearCache();
+      await RoleService.instance.getRole(refresh: true);
+      final currentRole = RoleService.instance.effectiveRole;
 
       if (!context.mounted) return;
 
-      // User already has a role, redirect to appropriate portal
-      if (currentRole == 'manager') {
-        Navigator.pushReplacementNamed(context, '/manager_portal');
-      } else if (currentRole == 'employee') {
-        // Route employees directly to the dashboard
-        // Tutorial will start automatically when dashboard loads
-        Navigator.pushReplacementNamed(context, '/employee_dashboard');
-      } else if (currentRole == 'admin') {
-        Navigator.pushReplacementNamed(context, '/admin_portal');
-      } else {
-        Navigator.pushReplacementNamed(context, '/employee_dashboard');
+      if (currentRole == null) {
+        await _showCenterNotice(
+          'We could not determine your account role. Please sign out and try again, or contact your administrator.',
+        );
+        return;
       }
+
+      Navigator.pushReplacementNamed(
+        context,
+        RoleService.instance.routeForRole(currentRole),
+      );
 
       unawaited(() async {
         if (user == null) return;

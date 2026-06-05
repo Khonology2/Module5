@@ -934,6 +934,21 @@ class BackendAuthService {
   }
 
   static const Duration _learningDashboardTimeout = Duration(seconds: 90);
+  static const Duration _learningFeedTimeout = Duration(seconds: 90);
+
+  Future<Map<String, dynamic>> getLearningEmployeeFeed(
+    String employeeUserId, {
+    int limit = 500,
+  }) {
+    final query = Uri(queryParameters: {
+      'employee_user_id': employeeUserId,
+      'limit': limit.toString(),
+    }).query;
+    return getJson(
+      '/learning-employee-feed?$query',
+      timeout: _learningFeedTimeout,
+    );
+  }
 
   Future<Map<String, dynamic>> getLearningManagerDashboard(
     String managerId, {
@@ -950,17 +965,18 @@ class BackendAuthService {
   }
 
   Future<List<Map<String, dynamic>>> getLearningTutorials(
-    String managerId, {
+    String? managerId, {
     String? status,
     int limit = 500,
   }) async {
     final query = <String, String>{
-      'manager_id': managerId,
       'limit': limit.toString(),
       if (status != null && status.isNotEmpty) 'status': status,
+      if (managerId != null && managerId.isNotEmpty) 'manager_id': managerId,
     };
     final decoded = await getJson(
       '/learning-tutorials?${Uri(queryParameters: query).query}',
+      timeout: _learningFeedTimeout,
     );
     return _itemsFromResponse(decoded);
   }
@@ -1004,6 +1020,7 @@ class BackendAuthService {
     };
     final decoded = await getJson(
       '/learning-assignments?${Uri(queryParameters: query).query}',
+      timeout: _learningFeedTimeout,
     );
     return _itemsFromResponse(decoded);
   }

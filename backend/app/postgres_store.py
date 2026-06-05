@@ -493,6 +493,22 @@ def fetch_learning_tutorials_by_manager(
     return [_row_to_dict(row) for row in rows]
 
 
+def fetch_learning_tutorials(
+    *,
+    status: str | None = None,
+    limit: int = 500,
+) -> list[Dict[str, Any]]:
+    with get_session_factory()() as session:
+        stmt = select(learning_tutorials_table)
+        if status:
+            stmt = stmt.where(learning_tutorials_table.c.status == status)
+        stmt = stmt.order_by(learning_tutorials_table.c.created_at.desc()).limit(
+            max(1, min(limit, 2000))
+        )
+        rows = session.execute(stmt).fetchall()
+    return [_row_to_dict(row) for row in rows]
+
+
 def upsert_learning_tutorial(tutorial_id: str, values: Dict[str, Any]) -> Dict[str, Any]:
     payload = {"id": tutorial_id, **values}
     with get_session_factory()() as session:

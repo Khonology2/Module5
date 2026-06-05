@@ -48,14 +48,6 @@ class _EmployeeLearningWatchScreenState extends State<EmployeeLearningWatchScree
   Future<void> _initWatch(String? tutorialId) async {
     final assignmentId = _assignmentId;
     final employeeId = _employeeUserId;
-    if (assignmentId == null || employeeId == null) {
-      setState(() {
-        _loading = false;
-        _loadFailed = true;
-        _errorMessage = 'Missing assignment information.';
-      });
-      return;
-    }
 
     try {
       if ((_videoUrl == null || _videoUrl!.isEmpty) &&
@@ -75,7 +67,10 @@ class _EmployeeLearningWatchScreenState extends State<EmployeeLearningWatchScree
         return;
       }
 
-      if (!_started) {
+      if (assignmentId != null &&
+          employeeId != null &&
+          employeeId.isNotEmpty &&
+          !_started) {
         _started = true;
         await _learningService.startAssignment(
           assignmentId: assignmentId,

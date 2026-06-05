@@ -214,6 +214,7 @@ class _ManagerLearningAssignmentsScreenState
           _tutorials = [created, ..._tutorials];
         });
       }
+      await _loadDashboard();
       await _showNotice('Tutorial saved to your library.');
     } on BackendAuthException catch (e) {
       final msg = e.code == 'timeout'

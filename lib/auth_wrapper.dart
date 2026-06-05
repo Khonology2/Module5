@@ -56,15 +56,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // User is signed in: determine their role and route them
         return FutureBuilder<String?>(
           future: () async {
-            await RoleService.instance.ensureRoleLoaded();
-            // ensureRoleLoaded caches the role; return cached value
-            return RoleService.instance.cachedRole;
+            await RoleService.instance.getRole(refresh: true);
+            return RoleService.instance.effectiveRole;
           }(),
           builder: (context, roleSnapshot) {
             final role =
-                roleSnapshot.data ??
-                RoleService.instance.cachedRole ??
-                RoleService.instance.effectiveRole;
+                roleSnapshot.data ?? RoleService.instance.effectiveRole;
 
             // While role is unknown, keep a loading screen to avoid misrouting
             if (roleSnapshot.connectionState == ConnectionState.waiting &&
@@ -74,9 +71,28 @@ class _AuthWrapperState extends State<AuthWrapper> {
               );
             }
 
-            final normalized = RoleService.instance.normalizeRoleLabel(
-              role ?? 'employee',
-            );
+            if (role == null) {
+              return _RoleNotSetScreen(
+                onTryAgain: () async {
+                  RoleService.instance.clearCache();
+                  await RoleService.instance.ensureRoleLoaded();
+                  if (mounted) setState(() {});
+                },
+                onSignOut: () async {
+                  await FirebaseAuth.instance.signOut();
+                  RoleService.instance.clearCache();
+                  if (mounted) {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/sign_in',
+                      (route) => false,
+                    );
+                  }
+                },
+              );
+            }
+
+            final normalized = RoleService.instance.normalizeRoleLabel(role);
             final targetRoute = RoleService.instance.routeForRole(normalized);
             // #region agent log
             agentDebugLog(

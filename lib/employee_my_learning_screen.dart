@@ -1,14 +1,14 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:pdh/auth_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/models/learning_assignment.dart';
+import 'package:pdh/models/learning_tutorial.dart';
 import 'package:pdh/services/learning_assignment_service.dart';
-import 'package:pdh/utils/backend_polling_stream.dart';
 import 'package:pdh/widgets/custom_logo_loader.dart';
 import 'package:pdh/widgets/employee_dashboard_theme.dart';
 
@@ -22,13 +22,24 @@ class EmployeeMyLearningScreen extends StatefulWidget {
 
 class _EmployeeMyLearningScreenState extends State<EmployeeMyLearningScreen> {
   final _learningService = LearningAssignmentService.instance;
-  String? _employeeId;
-  int _reloadToken = 0;
+  Future<List<LearningFeedItem>>? _feedFuture;
+  String? _loadError;
+
+  String? get _employeeId => FirebaseAuth.instance.currentUser?.uid;
 
   @override
   void initState() {
     super.initState();
-    _employeeId = AuthService().currentUser?.uid;
+    _reloadFeed();
+  }
+
+  void _reloadFeed() {
+    final employeeId = _employeeId;
+    if (employeeId == null) return;
+    setState(() {
+      _loadError = null;
+      _feedFuture = _learningService.listFeedForEmployee(employeeId);
+    });
   }
 
   int _topStatsColumnsForWidth(double width) {
@@ -195,19 +206,22 @@ class _EmployeeMyLearningScreenState extends State<EmployeeMyLearningScreen> {
     );
   }
 
-  void _openWatch(LearningAssignment assignment) {
+  void _openWatch({
+    required LearningTutorial tutorial,
+    LearningAssignment? assignment,
+  }) {
     Navigator.pushNamed(
       context,
       '/my_learning_watch',
       arguments: {
-        'assignmentId': assignment.id,
-        'tutorialId': assignment.tutorialId,
+        if (assignment != null) 'assignmentId': assignment.id,
+        'tutorialId': tutorial.id,
         'employeeUserId': _employeeId,
-        'title': assignment.tutorialTitle ?? assignment.title,
-        'videoUrl': assignment.videoUrl,
+        'title': assignment?.tutorialTitle ?? assignment?.title ?? tutorial.title,
+        'videoUrl': assignment?.videoUrl ?? tutorial.videoUrl,
       },
     ).then((_) {
-      if (mounted) setState(() => _reloadToken++);
+      if (mounted) _reloadFeed();
     });
   }
 
@@ -226,15 +240,55 @@ class _EmployeeMyLearningScreenState extends State<EmployeeMyLearningScreen> {
         final width = layoutW.clamp(0.0, double.infinity);
         final statsColumns = _topStatsColumnsForWidth(width);
 
-        return StreamBuilder<List<LearningAssignment>>(
-          key: ValueKey('employee_learning_$_reloadToken'),
-          stream: backendPollingStream<List<LearningAssignment>>(
-            fetch: () =>
-                _learningService.listAssignmentsForEmployee(employeeId),
-            initialValue: const [],
-          ),
+        return FutureBuilder<List<LearningFeedItem>>(
+          future: _feedFuture,
           builder: (context, snap) {
-            final assignments = snap.data ?? const [];
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const SizedBox(
+                height: 360,
+                child: CustomLogoLoader(centerInViewport: true),
+              );
+            }
+
+            if (snap.hasError) {
+              return _card(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Could not load tutorials. Pull to refresh or try again.',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: DashboardChrome.fg,
+                      ),
+                    ),
+                    if (_loadError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _loadError!,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: DashboardChrome.fg.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _reloadFeed,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final feedItems = snap.data ?? const [];
+            final assignments = feedItems
+                .where((item) => item.assignment != null)
+                .map((item) => item.assignment!)
+                .toList();
             final open = assignments
                 .where(
                   (a) =>
@@ -259,14 +313,6 @@ class _EmployeeMyLearningScreenState extends State<EmployeeMyLearningScreen> {
                   a.effectiveStatus != 'completed';
             }).length;
 
-            if (snap.connectionState == ConnectionState.waiting &&
-                assignments.isEmpty) {
-              return const SizedBox(
-                height: 360,
-                child: CustomLogoLoader(centerInViewport: true),
-              );
-            }
-
             return SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,20 +332,26 @@ class _EmployeeMyLearningScreenState extends State<EmployeeMyLearningScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  if (assignments.isEmpty)
+                  if (feedItems.isEmpty)
                     _card(
                       child: Text(
-                        'No learning assignments yet. Your manager will assign Udemy tutorials here.',
+                        'No tutorials available yet. Your manager will add Udemy tutorials here.',
                         style: AppTypography.bodyMedium.copyWith(
                           color: DashboardChrome.fg,
                         ),
                       ),
                     )
                   else
-                    ...assignments.map((a) {
-                      final due = a.dueDate;
-                      final displayTitle =
-                          a.tutorialTitle ?? a.title;
+                    ...feedItems.map((item) {
+                      final assignment = item.assignment;
+                      final tutorial = item.tutorial;
+                      final due = assignment?.dueDate;
+                      final displayTitle = assignment?.tutorialTitle ??
+                          assignment?.title ??
+                          tutorial.title;
+                      final canWatch = tutorial.videoUrl.trim().isNotEmpty &&
+                          (assignment == null ||
+                              assignment.effectiveStatus != 'completed');
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _card(
@@ -310,7 +362,7 @@ class _EmployeeMyLearningScreenState extends State<EmployeeMyLearningScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   _assetIcon(
-                                    a.effectiveStatus == 'completed'
+                                    assignment?.effectiveStatus == 'completed'
                                         ? 'assets/Approved_Tick/Approved_White_Badge_Red.png'
                                         : 'assets/Innovation_Brainstorm.png',
                                     size: 40,
@@ -338,10 +390,11 @@ class _EmployeeMyLearningScreenState extends State<EmployeeMyLearningScreen> {
                                                   .withValues(alpha: 0.75),
                                             ),
                                           ),
-                                        if (a.notes != null &&
-                                            a.notes!.isNotEmpty)
+                                        if (assignment != null &&
+                                            assignment.notes != null &&
+                                            assignment.notes!.isNotEmpty)
                                           Text(
-                                            a.notes!,
+                                            assignment.notes!,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                             style: AppTypography.bodySmall
@@ -353,20 +406,23 @@ class _EmployeeMyLearningScreenState extends State<EmployeeMyLearningScreen> {
                                       ],
                                     ),
                                   ),
-                                  _statusChip(a.effectiveStatus),
+                                  _statusChip(
+                                    assignment?.effectiveStatus ?? 'available',
+                                  ),
                                 ],
                               ),
-                              if (a.watchProgress > 0 &&
-                                  a.effectiveStatus != 'completed') ...[
+                              if (assignment != null &&
+                                  assignment.watchProgress > 0 &&
+                                  assignment.effectiveStatus != 'completed') ...[
                                 const SizedBox(height: 8),
                                 LinearProgressIndicator(
-                                  value: a.watchProgress / 100,
+                                  value: assignment.watchProgress / 100,
                                   backgroundColor: _dashboardCardBorder(),
                                   color: AppColors.activeColor,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${a.watchProgress}% watched',
+                                  '${assignment.watchProgress}% watched',
                                   style: AppTypography.bodySmall.copyWith(
                                     color: DashboardChrome.fg.withValues(
                                       alpha: 0.7,
@@ -378,16 +434,21 @@ class _EmployeeMyLearningScreenState extends State<EmployeeMyLearningScreen> {
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: ElevatedButton.icon(
-                                  onPressed: a.effectiveStatus == 'completed'
-                                      ? null
-                                      : () => _openWatch(a),
+                                  onPressed: canWatch
+                                      ? () => _openWatch(
+                                            tutorial: tutorial,
+                                            assignment: assignment,
+                                          )
+                                      : null,
                                   icon: Icon(
-                                    a.effectiveStatus == 'in_progress'
+                                    assignment?.effectiveStatus ==
+                                            'in_progress'
                                         ? Icons.play_circle_outline
                                         : Icons.school_outlined,
                                   ),
                                   label: Text(
-                                    a.effectiveStatus == 'in_progress'
+                                    assignment?.effectiveStatus ==
+                                            'in_progress'
                                         ? 'Continue tutorial'
                                         : 'Start tutorial',
                                   ),

@@ -71,7 +71,7 @@ class RoleService {
       _cachedRole = persisted;
       return persisted;
     }
-    return 'employee';
+    return null;
   }
 
   String? normalizeRoleLabel(String? rawRole) {
@@ -85,30 +85,42 @@ class RoleService {
 
   String? _resolveRoleFromRecord(Map<String, dynamic> record) {
     final candidates = <dynamic>[
-      record['role'],
       record['moduleAccessRole'],
       record['module_access_role'],
       record['moduleRole'],
       record['module_role'],
+      record['role'],
     ];
+
+    String? bestRole;
+    var bestPriority = 0;
+
+    void consider(String? role) {
+      final normalized = normalizeRoleLabel(role);
+      if (normalized == null) return;
+      final priority = _rolePriority(normalized);
+      if (priority > bestPriority) {
+        bestPriority = priority;
+        bestRole = normalized;
+      }
+    }
 
     for (final candidate in candidates) {
       final raw = candidate?.toString().trim();
       if (raw == null || raw.isEmpty) continue;
 
-      final persona = OnboardingService.extractPersonaForApp(raw);
-      final normalizedPersona = normalizeRoleLabel(persona);
-      if (normalizedPersona != null) {
-        return normalizedPersona;
+      consider(OnboardingService.extractPersonaForApp(raw));
+
+      if (raw.contains(',')) {
+        for (final segment in raw.split(',')) {
+          consider(OnboardingService.extractPersonaForApp(segment.trim()));
+        }
       }
 
-      final normalized = normalizeRoleLabel(raw);
-      if (normalized != null) {
-        return normalized;
-      }
+      consider(normalizeRoleLabel(raw));
     }
 
-    return null;
+    return bestRole;
   }
 
   int _rolePriority(String? role) {
@@ -166,8 +178,7 @@ class RoleService {
       _applyResolvedRole(normalized);
       return;
     }
-    _sessionRoleOverride = 'employee';
-    _applyResolvedRole('employee');
+    _sessionRoleOverride = null;
   }
 
   /// Admin portal alignment: exact `admin` plus common aliases.
@@ -378,7 +389,9 @@ class RoleService {
     }
     if (_cachedRole == null && user != null) {
       final fallback = await _fallbackRoleForSignedInUser(user.uid);
-      _cachedRole = fallback;
+      if (fallback != null) {
+        _cachedRole = fallback;
+      }
     }
   }
 }

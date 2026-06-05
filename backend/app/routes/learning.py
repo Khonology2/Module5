@@ -16,6 +16,7 @@ from app.postgres_store import (
     fetch_learning_assignment_by_id,
     fetch_learning_assignments,
     fetch_learning_tutorial_by_id,
+    fetch_learning_tutorials,
     fetch_learning_tutorials_by_manager,
     update_learning_assignment,
     update_learning_tutorial,
@@ -77,13 +78,37 @@ def get_learning_manager_dashboard(
     }
 
 
+@router.get("/learning-employee-feed")
+def get_learning_employee_feed(
+    employee_user_id: str = Query(..., min_length=1),
+    limit: int = 500,
+):
+    """All active manager tutorials plus this employee's assignments (one round-trip)."""
+    tutorials = fetch_learning_tutorials(status="active", limit=limit)
+    assignments = fetch_learning_assignments(
+        employee_user_id=employee_user_id,
+        limit=limit,
+    )
+    assignment_items = [_learning_assignment_to_api(row) for row in assignments]
+    enriched = [_enrich_assignment_with_tutorial(item) for item in assignment_items]
+    return {
+        "tutorials": [_learning_tutorial_to_api(row) for row in tutorials],
+        "assignments": enriched,
+    }
+
+
 @router.get("/learning-tutorials")
 def list_learning_tutorials(
-    manager_id: str = Query(..., min_length=1),
+    manager_id: str | None = Query(default=None),
     status: str | None = None,
     limit: int = 500,
 ):
-    rows = fetch_learning_tutorials_by_manager(manager_id, status=status, limit=limit)
+    if manager_id:
+        rows = fetch_learning_tutorials_by_manager(
+            manager_id, status=status, limit=limit
+        )
+    else:
+        rows = fetch_learning_tutorials(status=status, limit=limit)
     items = [_learning_tutorial_to_api(row) for row in rows]
     return {"items": items}
 
